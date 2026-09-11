@@ -22,7 +22,7 @@ export function ReputationDetail({ rewardPoints, completed }: ReputationDetailPr
 
   return (
     <span className="text-xs text-muted-foreground">
-      +{rewardPoints} {t("rehab.rewardPointsLabel")}
+      {t("rehab.rewardPoints", { pts: rewardPoints })}
     </span>
   );
 }

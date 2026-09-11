@@ -57,7 +57,7 @@ test("the approved radius, Chinese sans fallbacks, and elevation scale stay expl
     tables.get("圆角")?.map(({ Token, 值 }) => [Token, 值]),
     [
       ["--radius-sm", "3px"],
-      ["--radius-md", "4px"],
+      ["--radius-md", "8px"],
       ["--radius-lg", "8px"],
       ["--radius-xl", "12px"],
       ["--radius-full", "9999px"],

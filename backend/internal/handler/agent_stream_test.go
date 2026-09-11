@@ -82,7 +82,10 @@ func newAgentStreamTestHandler(t *testing.T, provider llm.LLMProvider, cfg *conf
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{},
+		&model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{},
+	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Create(&model.User{ID: 1, Username: "author", Email: "a@example.com"}).Error; err != nil {
@@ -94,7 +97,7 @@ func newAgentStreamTestHandler(t *testing.T, provider llm.LLMProvider, cfg *conf
 	}
 
 	if cfg == nil {
-		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, ConversationListLimit: 50, ConversationPageSize: 20, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxOutputTokens: 1200}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
+		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, ConversationListLimit: 50, ConversationPageSize: 20, ChatContextTokenBudget: 100000, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxOutputTokens: 1200}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
 	}
 	if cfg.RateLimit.AgentWindowSec == 0 {
 		cfg.RateLimit.AgentWindowSec = 86400
@@ -135,7 +138,7 @@ func TestAgentChatStreamEmitsTypedSSEEvents(t *testing.T) {
 		},
 	}, nil)
 
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"hi"}]}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "hi"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
@@ -151,7 +154,7 @@ func TestAgentChatStreamEmitsTypedSSEEvents(t *testing.T) {
 	if names[len(names)-1] != "done" {
 		t.Fatalf("last event = %s, want done; events = %v", names[len(names)-1], names)
 	}
-	for _, want := range []string{"delta", "usage", "done"} {
+	for _, want := range []string{"usage", "done"} {
 		found := false
 		for _, n := range names {
 			if n == want {
@@ -178,6 +181,22 @@ func TestAgentChatStreamEmitsTypedSSEEvents(t *testing.T) {
 	if degraded, _ := doneData["degraded"].(bool); degraded {
 		t.Fatal("done degraded = true, want false")
 	}
+	if answer, _ := doneData["answer"].(string); answer != "" {
+		t.Fatalf("no-evidence done answer = %q, want empty", answer)
+	}
+	// A-02 truly streaming: model deltas stream live even on a turn whose
+	// final verdict is no_evidence; the done event stays the final word
+	// (empty answer), so the client replaces the streamed text.
+	var deltaText string
+	for _, e := range events {
+		if e.Name == "delta" {
+			delta, _ := e.Data["delta"].(string)
+			deltaText += delta
+		}
+	}
+	if deltaText != "hello world" {
+		t.Fatalf("live delta text = %q, want both provider chunks forwarded in order", deltaText)
+	}
 
 	// Reservation was consumed exactly once for this request.
 	if _, err := mr.Get(handler.quota.DayKey(7)); err != nil {
@@ -185,9 +204,100 @@ func TestAgentChatStreamEmitsTypedSSEEvents(t *testing.T) {
 	}
 }
 
+type handlerContractRetriever struct {
+	result service.AgentRetrievalResult
+}
+
+func (r *handlerContractRetriever) Retrieve(_ context.Context, _ string, _ int64) (service.AgentRetrievalResult, error) {
+	return r.result, nil
+}
+
+func TestAgentChatStreamFlagOnEmitsExpandedCitationAndDegradedStatus(t *testing.T) {
+	const chunkKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	cases := []struct {
+		name         string
+		degraded     string
+		source       string
+		wantDegraded bool
+	}{
+		{name: "grounded", source: "hybrid_rrf"},
+		{name: "keyword fallback", degraded: "keyword_fallback", source: "bm25", wantDegraded: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := &oneShotStreamProvider{rounds: [][]llm.ChatDelta{
+				{{ToolCalls: []llm.ToolCall{{
+					ID: "call_1", Type: "function",
+					Function: struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					}{Name: service.ToolSearchContent, Arguments: `{"query":"find this"}`},
+				}}}},
+				{{Content: "grounded answer", Done: true}},
+			}}
+			cfg := &config.Config{
+				Features: config.FeaturesConfig{RAGHybridEnabled: true},
+				Agent: config.AgentConfig{
+					WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50,
+					MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, ChatContextTokenBudget: 100000, MaxToolCallsPerTurn: 8,
+					CitationMaxCount: 5, MaxOutputTokens: 1200,
+				},
+			}
+			handler, _, db := newAgentStreamTestHandler(t, provider, cfg)
+			now := time.Now()
+			if err := db.Create(&model.ContentVersion{ID: 880, ContentItemID: 88, AuthorID: 1, VersionNumber: 1, StorageType: "full", StorageKey: "handler-rag", Status: "active", IsLatest: true}).Error; err != nil {
+				t.Fatalf("seed content version: %v", err)
+			}
+			if err := db.Create(&model.RagChunk{ContentID: 88, ContentVersion: 1, ChunkIndex: 0, ChunkKey: chunkKey, ChunkingVersion: 1, Text: "Published Test Content", SourceStart: 0, SourceEnd: 22, Zone: "fanwork", ContentType: "mod", IndexVersion: 1, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+				t.Fatalf("seed rag chunk: %v", err)
+			}
+			if err := db.Create(&model.IndexProjectionStatus{ContentID: 88, IndexVersion: 1, ChunkingVersion: 1, EmbeddingModel: "test", State: "ready", IsCurrent: true, ErrorSummary: "", CreatedAt: now}).Error; err != nil {
+				t.Fatalf("seed projection status: %v", err)
+			}
+			handler.agentSvc.SetContentRetriever(&handlerContractRetriever{result: service.AgentRetrievalResult{
+				Candidates: []service.AgentRetrievalCandidate{{
+					ChunkKey: chunkKey, ContentID: 88, ContentVersion: 1, ChunkIndex: 0,
+					Title: "Published Test Content", Text: "Published Test Content", Zone: "fanwork",
+					ContentType: "mod", Source: tc.source,
+				}},
+				Degraded: tc.degraded,
+			}})
+
+			rec := postAgentChat(t, handler, 7, `{"message": "find this"}`)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			}
+			events := parseAgentSSE(t, rec.Body.String())
+			var citationData, doneData map[string]any
+			for _, event := range events {
+				switch event.Name {
+				case "citation":
+					citationData, _ = event.Data["citation"].(map[string]any)
+				case "done":
+					doneData = event.Data
+				}
+			}
+			if citationData == nil {
+				t.Fatalf("expanded citation event missing: %s", rec.Body.String())
+			}
+			if citationData["content_version"] != float64(1) || citationData["chunk_key"] != chunkKey || citationData["route"] != "/content/88" || citationData["source"] != tc.source {
+				t.Fatalf("citation = %#v, want version/chunk/route/source contract", citationData)
+			}
+			if doneData == nil {
+				t.Fatal("done event missing")
+			}
+			if got, _ := doneData["degraded"].(bool); got != tc.wantDegraded {
+				t.Fatalf("done degraded = %v, want %v", got, tc.wantDegraded)
+			}
+		})
+	}
+}
+
 func TestAgentChatStreamFeatureDisabledReturns503(t *testing.T) {
 	handler, _, _ := newAgentStreamTestHandler(t, &fakeAgentHTTPProvider{}, &config.Config{Agent: config.AgentConfig{WebAgentEnabled: false}})
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"hi"}]}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "hi"}`)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
 	}
@@ -196,21 +306,81 @@ func TestAgentChatStreamFeatureDisabledReturns503(t *testing.T) {
 	}
 }
 
+// TestAgentChatStreamChitchatConsumesQuotaWithoutProvider locks the SP-15 A1
+// anti-abuse contract: the shortcut skips the LLM call but the reserved quota
+// is still consumed (unified 防刷 accounting), and the SSE stream still emits
+// the full start → delta → done(conversational) sequence.
+func TestAgentChatStreamChitchatConsumesQuotaWithoutProvider(t *testing.T) {
+	provider := &recordingAgentHTTPProvider{deltas: []llm.ChatDelta{{Content: "must never stream"}}}
+	cfg := &config.Config{Agent: config.AgentConfig{
+		WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50,
+		MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, ChatContextTokenBudget: 100000,
+		MaxToolCallsPerTurn: 8, MaxOutputTokens: 1200, CitationMaxCount: 5,
+		ChitchatShortcutEnabled: true,
+		ChitchatPatterns:        []string{"你好", "hello", "hi"},
+		ConversationalMaxRunes:  160,
+	}}
+	handler, mr, _ := newAgentStreamTestHandler(t, provider, cfg)
+
+	rec := postAgentChat(t, handler, 7, `{"message": "hi"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+
+	events := parseAgentSSE(t, rec.Body.String())
+	names := streamEventNames(events)
+	if names[0] != "start" || names[len(names)-1] != "done" {
+		t.Fatalf("events = %v, want start..done", names)
+	}
+	var doneData map[string]any
+	var deltaText string
+	for _, e := range events {
+		if e.Name == "done" {
+			doneData = e.Data
+		}
+		if e.Name == "delta" {
+			delta, _ := e.Data["delta"].(string)
+			deltaText += delta
+		}
+	}
+
+	if kind, _ := doneData["answer_kind"].(string); kind != "conversational" {
+		t.Fatalf("done answer_kind = %q, want conversational", kind)
+	}
+	if answer, _ := doneData["answer"].(string); answer == "" {
+		t.Fatal("done answer must carry the template")
+	}
+	if deltaText == "" {
+		t.Fatal("shortcut turn must stream exactly one template delta")
+	}
+	if strings.Contains(deltaText, "must never stream") {
+		t.Fatalf("provider text leaked into the shortcut stream: %q", deltaText)
+	}
+
+	if _, err := mr.Get(handler.quota.DayKey(7)); err != nil {
+		t.Fatalf("day quota key missing after chitchat turn: %v", err)
+	}
+	if _, err := mr.Get(handler.quota.MinuteKey(7)); err != nil {
+		t.Fatalf("minute quota key missing after chitchat turn: %v", err)
+	}
+}
+
 func TestAgentChatStreamOversizedMessageRejectedWithoutQuota(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{}
 	cfg := &config.Config{Agent: config.AgentConfig{
-		WebAgentEnabled:     true,
-		RateLimitPerMinute:  5,
-		RateLimitPerDay:     50,
-		MaxUserMessageChars: 8,
-		ChatMaxContextMsgs:  10,
-		MaxToolCallsPerTurn: 8,
-		MaxOutputTokens:     1200,
-		CitationMaxCount:    5,
+		WebAgentEnabled:        true,
+		RateLimitPerMinute:     5,
+		RateLimitPerDay:        50,
+		MaxUserMessageChars:    8,
+		ChatMaxContextMsgs:     10,
+		ChatContextTokenBudget: 100000,
+		MaxToolCallsPerTurn:    8,
+		MaxOutputTokens:        1200,
+		CitationMaxCount:       5,
 	}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
 	handler, mr, _ := newAgentStreamTestHandler(t, provider, cfg)
 
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"0123456789ABCDEF"}]}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "0123456789ABCDEF"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 VALIDATION_ERROR; body = %s", rec.Code, rec.Body.String())
 	}
@@ -228,17 +398,18 @@ func TestAgentChatStreamOversizedMessageRejectedWithoutQuota(t *testing.T) {
 func TestAgentChatStreamMissingToolLimitsRejectedBeforeQuota(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{}
 	cfg := &config.Config{Agent: config.AgentConfig{
-		WebAgentEnabled:       true,
-		RateLimitPerMinute:    5,
-		RateLimitPerDay:       50,
-		MaxUserMessageChars:   4000,
-		ChatMaxContextMsgs:    10,
-		ConversationListLimit: 50,
-		ConversationPageSize:  20,
+		WebAgentEnabled:        true,
+		RateLimitPerMinute:     5,
+		RateLimitPerDay:        50,
+		MaxUserMessageChars:    4000,
+		ChatMaxContextMsgs:     10,
+		ChatContextTokenBudget: 100000,
+		ConversationListLimit:  50,
+		ConversationPageSize:   20,
 	}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
 	handler, mr, _ := newAgentStreamTestHandler(t, provider, cfg)
 
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"hi"}]}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "hi"}`)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
 	}
@@ -257,7 +428,7 @@ func TestAgentChatStreamHiddenContextRejectedBeforeReservation(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{}
 	handler, mr, _ := newAgentStreamTestHandler(t, provider, nil)
 
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"hi"}],"context":{"surface":"content","content_id":999}}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "hi", "context":{"surface":"content","content_id":999}}`)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body = %s", rec.Code, rec.Body.String())
 	}
@@ -275,22 +446,23 @@ func TestAgentChatStreamHiddenContextRejectedBeforeReservation(t *testing.T) {
 func TestAgentChatStreamQuotaExceededReturns429(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{}
 	cfg := &config.Config{Agent: config.AgentConfig{
-		WebAgentEnabled:     true,
-		RateLimitPerMinute:  5,
-		RateLimitPerDay:     1,
-		MaxUserMessageChars: 4000,
-		ChatMaxContextMsgs:  10,
-		MaxToolCallsPerTurn: 8,
-		MaxOutputTokens:     1200,
-		CitationMaxCount:    5,
+		WebAgentEnabled:        true,
+		RateLimitPerMinute:     5,
+		RateLimitPerDay:        1,
+		MaxUserMessageChars:    4000,
+		ChatMaxContextMsgs:     10,
+		ChatContextTokenBudget: 100000,
+		MaxToolCallsPerTurn:    8,
+		MaxOutputTokens:        1200,
+		CitationMaxCount:       5,
 	}}
 	handler, _, _ := newAgentStreamTestHandler(t, provider, cfg)
 
-	rec1 := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"first"}]}`)
+	rec1 := postAgentChat(t, handler, 7, `{"message": "first"}`)
 	if rec1.Code != http.StatusOK {
 		t.Fatalf("first status = %d, want 200; body = %s", rec1.Code, rec1.Body.String())
 	}
-	rec2 := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"second"}]}`)
+	rec2 := postAgentChat(t, handler, 7, `{"message": "second"}`)
 	if rec2.Code != http.StatusTooManyRequests {
 		t.Fatalf("second status = %d, want 429; body = %s", rec2.Code, rec2.Body.String())
 	}
@@ -314,14 +486,15 @@ func TestAgentChatStreamRedisUnavailableFailsClosed(t *testing.T) {
 	defer deadRDB.Close()
 
 	cfg := &config.Config{Agent: config.AgentConfig{
-		WebAgentEnabled:     true,
-		RateLimitPerMinute:  5,
-		RateLimitPerDay:     50,
-		MaxUserMessageChars: 4000,
-		ChatMaxContextMsgs:  10,
-		MaxToolCallsPerTurn: 8,
-		MaxOutputTokens:     1200,
-		CitationMaxCount:    5,
+		WebAgentEnabled:        true,
+		RateLimitPerMinute:     5,
+		RateLimitPerDay:        50,
+		MaxUserMessageChars:    4000,
+		ChatMaxContextMsgs:     10,
+		ChatContextTokenBudget: 100000,
+		MaxToolCallsPerTurn:    8,
+		MaxOutputTokens:        1200,
+		CitationMaxCount:       5,
 	}}
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
@@ -334,7 +507,7 @@ func TestAgentChatStreamRedisUnavailableFailsClosed(t *testing.T) {
 		quota:    middleware.NewAgentQuotaReserver(deadRDB, cfg),
 	}
 
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"hi"}]}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "hi"}`)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503 fail-closed; body = %s", rec.Code, rec.Body.String())
 	}
@@ -350,7 +523,7 @@ func TestAgentChatStreamProviderErrorEmitsSafeSSEError(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{fakeAgentHTTPProvider: fakeAgentHTTPProvider{streamErr: errors.New("RAW SECRET provider failure")}}
 	handler, mr, _ := newAgentStreamTestHandler(t, provider, nil)
 
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"hi"}]}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "hi"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 with SSE error event; body = %s", rec.Code, rec.Body.String())
 	}
@@ -369,6 +542,12 @@ func TestAgentChatStreamProviderErrorEmitsSafeSSEError(t *testing.T) {
 	}
 	if code, _ := errorEvent.Data["error_code"].(string); code != "AGENT_PROVIDER_ERROR" {
 		t.Fatalf("error event code = %q, want AGENT_PROVIDER_ERROR", code)
+	}
+	if degraded, _ := errorEvent.Data["degraded"].(bool); !degraded {
+		t.Fatalf("error event degraded = %v, want true", degraded)
+	}
+	if reason, _ := errorEvent.Data["degraded_reason"].(string); reason != "provider_error" {
+		t.Fatalf("error event degraded_reason = %q, want provider_error", reason)
 	}
 	if _, err := mr.Get(handler.quota.DayKey(7)); err != nil {
 		t.Fatalf("provider-error stream must still consume its reservation (day key missing): %v", err)
@@ -394,18 +573,19 @@ func TestAgentChatStreamForbiddenToolIDConsumesReservation(t *testing.T) {
 		},
 	}
 	cfg := &config.Config{Agent: config.AgentConfig{
-		WebAgentEnabled:     true,
-		RateLimitPerMinute:  5,
-		RateLimitPerDay:     1,
-		MaxUserMessageChars: 4000,
-		ChatMaxContextMsgs:  10,
-		MaxToolCallsPerTurn: 8,
-		MaxOutputTokens:     1200,
-		CitationMaxCount:    5,
+		WebAgentEnabled:        true,
+		RateLimitPerMinute:     5,
+		RateLimitPerDay:        1,
+		MaxUserMessageChars:    4000,
+		ChatMaxContextMsgs:     10,
+		ChatContextTokenBudget: 100000,
+		MaxToolCallsPerTurn:    8,
+		MaxOutputTokens:        1200,
+		CitationMaxCount:       5,
 	}}
 	handler, _, _ := newAgentStreamTestHandler(t, provider, cfg)
 
-	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"find it"}]}`)
+	rec := postAgentChat(t, handler, 7, `{"message": "find it"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("stream status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
@@ -431,7 +611,7 @@ func TestAgentChatStreamForbiddenToolIDConsumesReservation(t *testing.T) {
 
 	// The forbidden-tool stream consumed its reservation: the next request hits
 	// the day limit even though no content was ever visible to the model.
-	rec2 := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"second"}]}`)
+	rec2 := postAgentChat(t, handler, 7, `{"message": "second"}`)
 	if rec2.Code != http.StatusTooManyRequests {
 		t.Fatalf("second request status = %d, want 429 (first stream consumed its reservation); body = %s", rec2.Code, rec2.Body.String())
 	}

@@ -16,6 +16,8 @@ export interface RelatedContentsFanworksSlot {
   titleKey: string;
   createHref?: string;
   viewAllHref?: string;
+  /** 扇出收敛（2026-09-09）：宿主直供关联行数据（提供时 RelatedFanworks 不自拉）。 */
+  initialData?: { items: ContentCardData[]; total: number };
 }
 
 export interface RelatedContentsProps {
@@ -167,7 +169,7 @@ export function RelatedContents({
     >
       <div
         data-slot="related-contents-box"
-        className="rounded-lg border border-border-default bg-canvas-default p-4"
+        className="rounded-lg border border-border-default bg-card p-4"
       >
         {relatedRow}
 

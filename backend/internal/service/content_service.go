@@ -14,6 +14,8 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/archivezip"
+	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/imageinfo"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
@@ -28,6 +30,7 @@ import (
 var (
 	ErrContentNotFound             = errors.New("content not found")
 	ErrContentForbidden            = errors.New("forbidden: not content author")
+	ErrContentBanned               = errors.New("content is banned and cannot be edited")
 	ErrPublishFrozen               = errors.New("publish permission is temporarily frozen")
 	ErrSourceNotAllowedForOriginal = errors.New("source fields are not allowed on original content")
 	ErrFanworkSourceRequired       = errors.New("fanwork content must specify an IP or a source")
@@ -36,10 +39,13 @@ var (
 	ErrSourceFanworkUnavailable    = errors.New("source fanwork must be a published fanwork content item")
 	ErrSourceImmutable             = errors.New("source attribution is immutable after creation")
 	ErrMediaSetInvalid             = errors.New("media set violates the gallery contract")
+	ErrArchiveAttachmentRequired   = errors.New("mod content requires an archive attachment")
+	ErrArchiveScanUnavailable      = errors.New("archive scan repository is unavailable")
 )
 
 type ContentService struct {
 	contentRepo            *repository.ContentRepository
+	versionSvc             *VersionService
 	reviewSvc              *ReviewService
 	rdb                    *redis.Client
 	cacheCfg               *config.CacheConfig
@@ -50,10 +56,20 @@ type ContentService struct {
 	imageDimensions        ImageDimensionsResolver
 	recSvc                 *RecommendationService
 	queueProducer          queue.Producer
+	outbox                 repository.OutboxWriter
+	archiveScanRepo        *repository.ArchiveScanRepository
+	archiveScanEnabled     bool
+	archiveValidator       ArchiveValidator
+	archiveScanCfg         *config.ArchiveScanConfig
+	downloadSigner         DownloadURLSigner
 }
 
 type UploadedObjectVerifier interface {
 	VerifyUploadedObject(ctx context.Context, grant UploadGrant) error
+}
+
+type ArchiveValidator interface {
+	ValidateArchiveStructure(ctx context.Context, ossKey string, size int64, quota archivezip.Quota) error
 }
 
 // ImageDimensionsResolver derives pixel dimensions from the uploaded object
@@ -75,7 +91,14 @@ func NewContentServiceWithCache(contentRepo *repository.ContentRepository, revie
 }
 
 func NewContentServiceWithOSS(contentRepo *repository.ContentRepository, reviewSvc *ReviewService, rdb *redis.Client, cacheCfg *config.CacheConfig, ossSvc *OSSService) *ContentService {
-	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg, ossSvc: ossSvc}
+	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg, ossSvc: ossSvc, archiveValidator: ossSvc}
+}
+
+// SetVersionService wires the version lineage (FIX-42): once set, every
+// successful publish writes its initial v1 snapshot inside the publish
+// transaction. Leaving it unset keeps legacy local constructions unchanged.
+func (s *ContentService) SetVersionService(versionSvc *VersionService) {
+	s.versionSvc = versionSvc
 }
 
 func (s *ContentService) SetRecommendationService(recSvc *RecommendationService) {
@@ -84,6 +107,42 @@ func (s *ContentService) SetRecommendationService(recSvc *RecommendationService)
 
 func (s *ContentService) SetQueueProducer(p queue.Producer) {
 	s.queueProducer = p
+}
+
+// SetOutboxRepository attaches the transactional outbox. Edits and soft
+// deletes of already-published content write one outbox event per operation
+// inside the same database transaction as the content write.
+func (s *ContentService) SetOutboxRepository(outbox repository.OutboxWriter) {
+	s.outbox = outbox
+}
+
+// SetArchiveScanRepository wires the scan-then-publish path. The repository
+// is used inside the content transaction so a new mod attachment, its pending
+// scan job and archive.scan.requested event are committed together.
+func (s *ContentService) SetArchiveScanRepository(repo *repository.ArchiveScanRepository, enabled bool) {
+	s.archiveScanRepo = repo
+	s.archiveScanEnabled = enabled
+	if s.reviewSvc != nil {
+		s.reviewSvc.SetArchiveScanGate(NewArchiveScanGate(s.contentRepo.DB(), enabled))
+	}
+}
+
+func (s *ContentService) SetArchiveValidator(validator ArchiveValidator) {
+	s.archiveValidator = validator
+}
+
+func (s *ContentService) WithArchiveScanConfig(cfg *config.ArchiveScanConfig) *ContentService {
+	s.archiveScanCfg = cfg
+	return s
+}
+
+// WithArchiveScanGateEnabled toggles the presign-time archive gate behind the
+// download orchestration. The routes wiring still prefers
+// SetArchiveScanRepository (it also wires the scan repo); this setter covers
+// handler-local construction where only the feature flag is known.
+func (s *ContentService) WithArchiveScanGateEnabled(enabled bool) *ContentService {
+	s.archiveScanEnabled = enabled
+	return s
 }
 
 func (s *ContentService) WithUploadGrantService(grants *UploadGrantService) *ContentService {
@@ -198,6 +257,19 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 	if err := s.validatePosterContract(&input); err != nil {
 		return nil, err
 	}
+	if s.archiveScanEnabled && input.ContentType == "mod" {
+		if len(input.Attachments) == 0 {
+			return nil, ErrArchiveAttachmentRequired
+		}
+		if s.archiveScanRepo == nil {
+			return nil, ErrArchiveScanUnavailable
+		}
+		for _, attachment := range input.Attachments {
+			if attachment.FileType != "mod" {
+				return nil, ErrArchiveAttachmentRequired
+			}
+		}
+	}
 
 	content := &model.ContentItem{
 		Title:            input.Title,
@@ -294,6 +366,17 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					}
 					return err
 				}
+				if s.archiveScanEnabled && input.ContentType == "mod" && a.FileType == "mod" {
+					if s.archiveValidator == nil || s.archiveScanCfg == nil {
+						return ErrOSSNotConfigured
+					}
+					if maxMB := s.archiveScanCfg.MaxUploadSizeMB; maxMB > 0 && grant.FileSize > int64(maxMB)<<20 {
+						return archivezip.ErrLimitExceeded
+					}
+					if err := s.archiveValidator.ValidateArchiveStructure(ctx, grant.OSSKey, grant.FileSize, archivezip.QuotaFromConfig(*s.archiveScanCfg)); err != nil {
+						return err
+					}
+				}
 				a.OSSKey = grant.OSSKey
 				a.FileSize = &grant.FileSize
 				a.MimeType = grant.MimeType
@@ -339,6 +422,17 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 			return err
 		}
 
+		// FIX-42: the initial v1 snapshot rides the publish transaction, so a
+		// published content always has at least one version and can never end
+		// up published with an empty lineage. Unwired constructions skip this
+		// (legacy local call sites keep their old behaviour).
+		if s.versionSvc != nil {
+			txVersions := s.versionSvc.WithDB(txRepo.DB())
+			if _, err := txVersions.CreateInitialVersion(content.ID, authorID, input.Description); err != nil {
+				return err
+			}
+		}
+
 		if len(attachments) > 0 {
 			// The attachment rows are assembled before CreateContent runs (the
 			// cover derivation needs them in memory), so their FK must be
@@ -368,6 +462,16 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				return err
 			}
 		}
+		if s.archiveScanEnabled && s.archiveScanRepo != nil && input.ContentType == "mod" {
+			for _, attachment := range attachments {
+				if attachment.FileType != "mod" {
+					continue
+				}
+				if _, err := s.archiveScanRepo.CreateJobTx(ctx, txRepo.DB(), attachment.ID, 1); err != nil {
+					return err
+				}
+			}
+		}
 
 		return nil
 	})
@@ -388,32 +492,35 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 
 	if s.reviewSvc != nil {
 		reviewInput := SubmitReviewInput{
-			TargetType:  "content",
-			TargetID:    content.ID,
-			ContentType: input.ContentType,
-			Title:       input.Title,
-			Description: input.Description,
-			AuthorID:    authorID,
-			Attachments: input.Attachments,
+			TargetType:    "content",
+			TargetID:      content.ID,
+			ContentType:   input.ContentType,
+			Title:         input.Title,
+			Description:   input.Description,
+			AuthorID:      authorID,
+			CoverImageURL: content.CoverImageURL,
+			Attachments:   input.Attachments,
 		}
 		if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
+			detachedCtx := context.WithoutCancel(ctx)
 			recovery.GoSafe(func() {
 				payload, _ := json.Marshal(map[string]interface{}{
-					"action":       "submit_ai_review",
-					"target_type":  reviewInput.TargetType,
-					"target_id":    reviewInput.TargetID,
-					"content_type": reviewInput.ContentType,
-					"title":        reviewInput.Title,
-					"description":  reviewInput.Description,
-					"author_id":    reviewInput.AuthorID,
-					"attachments":  reviewInput.Attachments,
+					"action":          "submit_ai_review",
+					"target_type":     reviewInput.TargetType,
+					"target_id":       reviewInput.TargetID,
+					"content_type":    reviewInput.ContentType,
+					"title":           reviewInput.Title,
+					"description":     reviewInput.Description,
+					"author_id":       reviewInput.AuthorID,
+					"cover_image_url": reviewInput.CoverImageURL,
+					"attachments":     reviewInput.Attachments,
 				})
-				if err := s.queueProducer.Publish(context.Background(), "content.review", payload); err != nil {
+				if err := s.queueProducer.Publish(detachedCtx, "content.review", payload); err != nil {
 					slog.Error("failed to publish content.review message", "content_id", content.ID, "error", err)
 				}
 			})
 		} else {
-			if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+			if err := s.reviewSvc.SubmitForAIReview(ctx, reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
 				return nil, err
 			}
 		}
@@ -589,7 +696,8 @@ func (s *ContentService) GetContent(id int64) (*model.ContentItem, error) {
 		return nil, ErrContentNotFound
 	}
 
-	if s.rdb != nil && s.cacheCfg != nil {
+	// 详情缓存仅缓存 published 公开视图（FIX-12+43）：受限内容不进缓存。
+	if s.rdb != nil && s.cacheCfg != nil && content.Status == "published" && content.IsPublic {
 		ttl := time.Duration(s.cacheCfg.ContentDetailTTL) * time.Second
 		redisclient.SetJSON(context.Background(), fmt.Sprintf("cache:content:%d", id), content, ttl)
 	}
@@ -617,6 +725,8 @@ func (s *ContentService) GetVisibleContent(id int64, viewerID int64) (*model.Con
 }
 
 func (s *ContentService) ListContents(filter repository.ListContentsFilter, viewerID int64) ([]model.ContentItem, int64, error) {
+	// 主列表统一 viewer-aware 可见性（FIX-12+43）。
+	filter.ViewerID = viewerID
 	// 推荐排序既服务 /original（zone=original）也服务 /recommend 推荐页
 	// （zone 为空，跨区请求由推荐管线/兜底决定可展示集合）。
 	if filter.Sort == "recommended" && (filter.Zone == "original" || filter.Zone == "") {
@@ -805,6 +915,9 @@ func (s *ContentService) getHotContents(ctx context.Context, filter repository.L
 		if content.Status != "published" || content.DeletedAt != nil || !content.IsPublic {
 			continue
 		}
+		if content.Author.IsBanned || content.Author.DeletedAt != nil {
+			continue
+		}
 		if filter.Zone != "" && content.Zone != filter.Zone {
 			continue
 		}
@@ -815,6 +928,10 @@ func (s *ContentService) getHotContents(ctx context.Context, filter repository.L
 }
 
 func (s *ContentService) UpdateContent(id int64, authorID int64, updates map[string]interface{}) error {
+	return s.UpdateContentWithContext(context.Background(), id, authorID, updates)
+}
+
+func (s *ContentService) UpdateContentWithContext(ctx context.Context, id int64, authorID int64, updates map[string]interface{}) error {
 	content, err := s.contentRepo.FindByID(id)
 	if err != nil || content == nil {
 		return ErrContentNotFound
@@ -822,17 +939,132 @@ func (s *ContentService) UpdateContent(id int64, authorID int64, updates map[str
 	if content.AuthorID != authorID {
 		return ErrContentForbidden
 	}
-	if err := s.contentRepo.UpdateContent(id, updates); err != nil {
+	// banned 是 admin/AI/判官通道的终态：编辑被拒（删除仍允许），作者必须
+	// 走申诉或 admin restore（FIX-13）。
+	if content.Status == "banned" {
+		return ErrContentBanned
+	}
+	// 封面必须是平台 OSS 对象（非空时）：PATCH 契约的 cover_image_url 直接入
+	// 库并在响应边界签名，外链封面既无法签名也绕过图片审核（FIX-13）。
+	if cover, ok := updates["cover_image_url"].(string); ok && cover != "" && s.reviewSvc != nil {
+		if _, err := s.reviewSvc.resolveCoverScanURL(cover); err != nil {
+			return err
+		}
+	}
+	// 已发布内容的 title/cover 变更走增量复审：审核体系不被编辑绕过
+	// （FIX-13）。block → banned + 扣分链路（与 AI 通道一致）；pass → 保持
+	// published 但落 ai_review_records 编辑审计。reviewSvc 未装配（最小构造
+	// 的测试路径）时无复审能力，退回直更路径。
+	if content.Status == "published" && s.reviewSvc != nil && contentEditTouchesModeratedFields(content, updates) {
+		return s.updatePublishedWithReReview(ctx, content, updates)
+	}
+	// A published edit is a RAG-index refresh event: the content write and the
+	// outbox insert share one transaction so a failed event never leaves the
+	// visible content ahead of the event (and vice versa).
+	if content.Status == "published" && s.outbox != nil {
+		if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+			if err := txRepo.UpdateContent(id, updates); err != nil {
+				return err
+			}
+			return s.emitContentEvent(ctx, txRepo.DB(), events.TopicContentUpdated, content)
+		}); err != nil {
+			return err
+		}
+	} else if err := s.contentRepo.UpdateContent(id, updates); err != nil {
 		return err
 	}
 
 	s.invalidateContentCache(id)
-	s.invalidateContentListCache()
 
 	return nil
 }
 
+// contentEditTouchesModeratedFields reports whether the update actually
+// changes the title or cover of the content — the two PATCH-contract fields
+// that feed Green moderation (the body only changes through PR merge).
+func contentEditTouchesModeratedFields(content *model.ContentItem, updates map[string]interface{}) bool {
+	if title, ok := updates["title"].(string); ok && title != content.Title {
+		return true
+	}
+	if cover, ok := updates["cover_image_url"].(string); ok && cover != content.CoverImageURL {
+		return true
+	}
+	return false
+}
+
+// updatePublishedWithReReview applies a title/cover edit of published content
+// through an incremental Green re-review. The scan result, the status
+// transition and (unless blocked) the field update commit in one transaction;
+// a blocked edit leaves the old values in place and lands on the same
+// banned + penalty chain as the initial AI review. Without a configured
+// Green scanner the edit proceeds (local fail-open, A4 semantics) but the
+// audit record is still written.
+func (s *ContentService) updatePublishedWithReReview(ctx context.Context, content *model.ContentItem, updates map[string]interface{}) error {
+	result := "pass"
+	raw := map[string]interface{}{"source": "edit_re_review"}
+	// green == nil 即未配置（A4 fail-open 语义与提交路径一致）。
+	greenMissing := s.reviewSvc == nil || s.reviewSvc.green == nil
+	if !greenMissing {
+		if title, ok := updates["title"].(string); ok && title != "" {
+			textResult, err := s.reviewSvc.ReviewText(ctx, title)
+			if err != nil {
+				if !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+					return err
+				}
+				greenMissing = true
+			} else {
+				result = MergeReviewResult(result, textResult)
+			}
+		}
+		if cover, ok := updates["cover_image_url"].(string); ok && cover != "" && !greenMissing {
+			imageResult, err := s.reviewSvc.ReviewImageURL(ctx, cover)
+			if err != nil {
+				if !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+					return err
+				}
+				greenMissing = true
+			} else {
+				result = MergeReviewResult(result, imageResult)
+			}
+		}
+	}
+	if greenMissing {
+		// A4 fail-open：本地无 Green 配置时跳过扫描，但保留编辑审计记录。
+		raw["green_skipped"] = true
+	}
+
+	if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+		tx := txRepo.DB()
+		if _, err := s.reviewSvc.recordAIReview(ctx, tx, "content", content.ID, result, raw, ""); err != nil {
+			return err
+		}
+		if err := s.reviewSvc.applyContentReviewResult(ctx, tx, content.ID, result); err != nil {
+			return err
+		}
+		if result == "block" {
+			// 被拒的新值不生效：仅保留状态与审计转换。
+			return nil
+		}
+		if err := txRepo.UpdateContent(content.ID, updates); err != nil {
+			return err
+		}
+		if s.outbox != nil {
+			return s.emitContentEvent(ctx, tx, events.TopicContentUpdated, content)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	s.invalidateContentCache(content.ID)
+	return nil
+}
+
 func (s *ContentService) DeleteContent(id int64, authorID int64) error {
+	return s.DeleteContentWithContext(context.Background(), id, authorID)
+}
+
+func (s *ContentService) DeleteContentWithContext(ctx context.Context, id int64, authorID int64) error {
 	content, err := s.contentRepo.FindByID(id)
 	if err != nil || content == nil {
 		return ErrContentNotFound
@@ -840,14 +1072,46 @@ func (s *ContentService) DeleteContent(id int64, authorID int64) error {
 	if content.AuthorID != authorID {
 		return ErrContentForbidden
 	}
-	if err := s.contentRepo.DeleteContent(id); err != nil {
+	// A published delete removes the content from the RAG index: the soft
+	// delete and the outbox insert share one transaction.
+	if content.Status == "published" && s.outbox != nil {
+		if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+			if err := txRepo.DeleteContent(id); err != nil {
+				return err
+			}
+			return s.emitContentEvent(ctx, txRepo.DB(), events.TopicContentDeleted, content)
+		}); err != nil {
+			return err
+		}
+	} else if err := s.contentRepo.DeleteContent(id); err != nil {
 		return err
 	}
 
 	s.invalidateContentCache(id)
-	s.invalidateContentListCache()
 
 	return nil
+}
+
+// emitContentEvent writes one outbox row inside the caller's transaction, so
+// the content write and its event commit atomically. nil outbox (unwired
+// service) is a no-op for backwards-compatible callers; the container always
+// wires one.
+func (s *ContentService) emitContentEvent(ctx context.Context, tx *gorm.DB, topic string, content *model.ContentItem) error {
+	if s.outbox == nil {
+		return nil
+	}
+	traceparent, tracestate := events.FromContext(ctx)
+	env, err := events.NewContentEnvelope(topic, content.ID, traceparent, tracestate,
+		events.ContentEventPayload{
+			ContentID:   content.ID,
+			AuthorID:    content.AuthorID,
+			ContentType: content.ContentType,
+		})
+	if err != nil {
+		return err
+	}
+	row := events.ToOutboxEvent(env)
+	return s.outbox.CreateTx(ctx, tx, &row)
 }
 
 func (s *ContentService) IncrViewCount(id int64) {
@@ -990,11 +1254,10 @@ func (s *ContentService) FlushViewCounts(ctx context.Context) error {
 }
 
 func (s *ContentService) invalidateContentCache(id int64) {
-	if s.rdb == nil {
-		return
-	}
-	ctx := context.Background()
-	s.rdb.Del(ctx, fmt.Sprintf("cache:content:%d", id))
+	// Author-path invalidation delegates to the shared helper so moderation
+	// write points (admin ban/restore, appeals, report auto-hide) and the
+	// author edit/delete path drop exactly the same keys (FIX-38).
+	InvalidateContentCaches(s.rdb, id)
 }
 
 func (s *ContentService) invalidateContentListCache() {

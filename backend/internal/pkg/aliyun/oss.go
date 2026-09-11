@@ -1,9 +1,11 @@
 package aliyun
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -70,6 +72,28 @@ func (c *OSSClient) DeleteObject(ossKey string) (err error) {
 	return c.bucket.DeleteObject(ossKey)
 }
 
+// Delete implements the archive scan object-store seam.
+func (c *OSSClient) Delete(ossKey string) error {
+	return c.DeleteObject(ossKey)
+}
+
+// Open returns a streaming object reader for server-side consumers such as
+// archive malware scanning. Callers must close the returned reader.
+func (c *OSSClient) Open(ossKey string) (reader io.ReadCloser, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
+	return c.bucket.GetObject(ossKey)
+}
+
+// Copy copies an object inside the configured private bucket. It is used to
+// move blocked archives into the quarantine prefix before deleting the source.
+func (c *OSSClient) Copy(sourceKey, targetKey string) (err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
+	_, err = c.bucket.CopyObject(sourceKey, targetKey)
+	return err
+}
+
 func (c *OSSClient) GetSignedURL(ossKey, method string, expires time.Duration, options ...oss.Option) (url string, err error) {
 	started := time.Now()
 	defer func() { observability.ObserveExternalCall("oss", started, err) }()
@@ -100,6 +124,29 @@ func (c *OSSClient) GetObjectMeta(ossKey string) (meta *ObjectMeta, err error) {
 		ContentLength: length,
 		ContentType:   props.Get("Content-Type"),
 	}, nil
+}
+
+// Exists checks whether an object is still present without exposing provider
+// error details to callers. A 404 is the expected result after the worker has
+// completed quarantine cleanup; other provider failures remain errors so an
+// admin cannot advance a review on uncertain storage state.
+func (c *OSSClient) Exists(ossKey string) (bool, error) {
+	started := time.Now()
+	var err error
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
+	_, err = c.bucket.GetObjectDetailedMeta(ossKey)
+	if err == nil {
+		return true, nil
+	}
+	var serviceErr oss.ServiceError
+	if errors.As(err, &serviceErr) && serviceErr.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	var serviceErrPtr *oss.ServiceError
+	if errors.As(err, &serviceErrPtr) && serviceErrPtr.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	return false, err
 }
 
 // GetImageDimensions derives pixel dimensions from the object's container
@@ -170,4 +217,51 @@ func (c *OSSClient) GetSTS(regionID, roleArn, sessionName string, durationSecond
 		SecurityToken:   resp.Credentials.SecurityToken,
 		Expiration:      resp.Credentials.Expiration,
 	}, nil
+}
+
+// IsPlatformObjectURL reports whether rawURL is a platform-verified OSS object:
+// only URLs carrying the configured delivery-domain prefix (trimmed domain +
+// "/") qualify. No URL is ever verified without a configured domain. This is
+// the single gate shared by cover-image review, feedback attachment mapping,
+// avatar upload and the avatar-audit tool.
+func IsPlatformObjectURL(domain, rawURL string) bool {
+	url := strings.TrimSpace(rawURL)
+	domain = strings.TrimRight(strings.TrimSpace(domain), "/")
+	if domain == "" {
+		return false
+	}
+	return strings.HasPrefix(url, domain+"/")
+}
+
+// ObjectURL derives the platform delivery URL for a platform OSS object key
+// under the configured delivery domain. Without a configured domain the key is
+// returned unchanged, preserving the caller's preexisting fallback behavior.
+func ObjectURL(domain, ossKey string) string {
+	if strings.TrimSpace(domain) == "" {
+		return ossKey
+	}
+	return strings.TrimRight(strings.TrimSpace(domain), "/") + "/" + strings.TrimLeft(ossKey, "/")
+}
+
+// ObjectKeyFromURL maps a platform delivery URL back to its OSS object key so
+// callers can derive signed read URLs for private-bucket objects. It accepts
+// only URLs under the configured delivery domain (query strings are stripped,
+// percent-encoding is decoded) and returns ok=false for anything else.
+func ObjectKeyFromURL(domain, rawURL string) (string, bool) {
+	rawURL = strings.TrimSpace(rawURL)
+	domain = strings.TrimRight(strings.TrimSpace(domain), "/")
+	if domain == "" || !IsPlatformObjectURL(domain, rawURL) {
+		return "", false
+	}
+	key := strings.TrimPrefix(rawURL, domain+"/")
+	if i := strings.Index(key, "?"); i >= 0 {
+		key = key[:i]
+	}
+	if decoded, err := url.PathUnescape(key); err == nil {
+		key = decoded
+	}
+	if strings.TrimLeft(key, "/") == "" {
+		return "", false
+	}
+	return key, true
 }

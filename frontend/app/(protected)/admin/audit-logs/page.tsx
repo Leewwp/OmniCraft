@@ -30,9 +30,27 @@ export default function AdminAuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  // T28（FIX-35）：动作词表改后端 distinct 端点——硬编码 15 项永远落后于
+  // 新增 action（llm_config_*/dlq_replay/rag_rebuild 等）。
+  const [actions, setActions] = useState<string[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const pageSize = 20;
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ actions: string[] }>("/api/v1/admin/audit-logs/actions")
+      .then((data) => {
+        if (!cancelled) setActions(data.actions || []);
+      })
+      .catch((e) => {
+        silentError(e, { component: "AdminAuditLogsPage", action: "loadActions" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -90,21 +108,11 @@ export default function AdminAuditLogsPage() {
             onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
           >
             <option value="">{t("admin.auditLogs.allActions")}</option>
-            <option value="content_ban">content_ban</option>
-            <option value="content_restore">content_restore</option>
-            <option value="user_ban">user_ban</option>
-            <option value="user_unban">user_unban</option>
-            <option value="ip_approve">ip_approve</option>
-            <option value="ip_reject">ip_reject</option>
-            <option value="appeal_resolve">appeal_resolve</option>
-            <option value="report_resolve">report_resolve</option>
-            <option value="config_patch">config_patch</option>
-            <option value="category_create">category_create</option>
-            <option value="category_update">category_update</option>
-            <option value="category_delete">category_delete</option>
-            <option value="feedback_reply">feedback_reply</option>
-            <option value="feedback_close">feedback_close</option>
-            <option value="feedback_reopen">feedback_reopen</option>
+            {actions.map((action) => (
+              <option key={action} value={action}>
+                {action}
+              </option>
+            ))}
           </Select>
         </div>
       </div>
@@ -139,7 +147,7 @@ export default function AdminAuditLogsPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className={cn(
-                      "inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      "inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                       log.result === "success" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                     )}>
                       {log.result}

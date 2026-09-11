@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -14,8 +12,8 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/queue"
-	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -38,6 +36,9 @@ type ContentHandler struct {
 	rdb               *redis.Client
 	cfg               *config.Config
 	queueProducer     queue.Producer
+	archiveGate       *service.ArchiveScanGate
+	displaySigner     *service.DisplayURLSigner
+	judgeRepo         *repository.JudgeRepository
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -54,6 +55,8 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc).
 		WithUploadGrantService(uploadGrants).
 		WithUploadedObjectVerifier(ossSvc).
+		WithArchiveScanConfig(&cfg.ArchiveScan).
+		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
 		WithImageDimensionsResolver(ossSvc).
 		WithUploadConfig(&cfg.Upload)
 
@@ -61,9 +64,15 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
 	contentSvc.SetRecommendationService(recSvc)
 
+	// FIX-42: this handler-local service instance is the one wired to
+	// POST /contents (routes.go builds its own handlers), so publish-time
+	// initial version creation must bind here too, not only on the container.
+	contentSvc.SetVersionService(service.NewVersionService(repository.NewVersionRepository(db), repo))
+
 	return &ContentHandler{
 		contentSvc:        contentSvc,
 		contentRepo:       repo,
+		judgeRepo:         repository.NewJudgeRepository(db),
 		seriesSvc:         service.NewSeriesService(repository.NewSeriesRepository(db)),
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		collectionRepo:    repository.NewCollectionRepository(db),
@@ -73,11 +82,29 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 		rdb:               rdb,
 		cfg:               cfg,
 		queueProducer:     queue.NewNoopProducer(),
+		archiveGate:       service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled),
+		displaySigner:     service.NewDisplayURLSigner(cfg),
 	}
 }
 
 func (h *ContentHandler) SetQueueProducer(p queue.Producer) {
 	h.queueProducer = p
+	// #321: the producer must reach the content service too — without the
+	// propagation every publish took the synchronous review fallback and
+	// submit_ai_review messages never reached the worker queue.
+	h.contentSvc.SetQueueProducer(p)
+}
+
+// SetOutboxRepository wires the transactional outbox into the content
+// service used by this handler. The route builder owns the shared repository
+// instance so HTTP edits and the standalone relay observe the same rows.
+func (h *ContentHandler) SetOutboxRepository(outbox repository.OutboxWriter) {
+	h.contentSvc.SetOutboxRepository(outbox)
+}
+
+func (h *ContentHandler) SetArchiveScanRepository(repo *repository.ArchiveScanRepository) {
+	h.contentSvc.SetArchiveScanRepository(repo, h.cfg.Features.ArchiveMalwareScanEnabled)
+	h.archiveGate = service.NewArchiveScanGate(h.contentRepo.DB(), h.cfg.Features.ArchiveMalwareScanEnabled)
 }
 
 func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
@@ -97,6 +124,11 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 	if err != nil {
 		var validationErr *service.UploadValidationError
 		if errors.As(err, &validationErr) {
+			// T25（FIX-41）：超限走专用码（前端出专属文案），其余参数错误保持通用码。
+			if validationErr.Code != "" {
+				response.Error(c, http.StatusBadRequest, validationErr.Code, validationErr.Message)
+				return
+			}
 			response.ValidationError(c, "invalid request parameters")
 			return
 		}
@@ -181,6 +213,7 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateContents(contents)
 	c.JSON(http.StatusOK, gin.H{
 		"contents":  contents,
 		"total":     total,
@@ -236,6 +269,42 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 			response.SafeErrorResponse(c, http.StatusBadRequest, "MEDIA_SET_INVALID", err)
 			return
 		}
+		if errors.Is(err, service.ErrArchiveAttachmentRequired) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_ATTACHMENT_REQUIRED", "mod content requires a zip archive attachment")
+			return
+		}
+		if errors.Is(err, archivezip.ErrEncrypted) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_ENCRYPTED", "archive is encrypted")
+			return
+		}
+		if errors.Is(err, archivezip.ErrPathInvalid) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_PATH_INVALID", "archive path is invalid")
+			return
+		}
+		if errors.Is(err, archivezip.ErrLinkForbidden) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_LINK_FORBIDDEN", "archive link is forbidden")
+			return
+		}
+		if errors.Is(err, archivezip.ErrLimitExceeded) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_LIMIT_EXCEEDED", "archive limits exceeded")
+			return
+		}
+		if errors.Is(err, archivezip.ErrInvalid) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_INVALID", "archive is invalid")
+			return
+		}
+		if errors.Is(err, service.ErrArchiveScanUnavailable) {
+			response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_SCAN_UNAVAILABLE", "archive scanning is unavailable")
+			return
+		}
+		if errors.Is(err, service.ErrArchiveScanFailed) {
+			response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_FAILED", "archive scan failed")
+			return
+		}
+		if errors.Is(err, service.ErrArchiveScanPending) {
+			response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_PENDING", "archive scan is pending")
+			return
+		}
 		if errors.Is(err, service.ErrUploadGrantUnavailable) {
 			response.SafeErrorResponse(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", err)
 			return
@@ -244,6 +313,7 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateContent(content)
 	c.JSON(http.StatusCreated, gin.H{"content": content})
 }
 
@@ -264,12 +334,22 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		return
 	}
 
-	if err := h.contentRepo.IncrViewCount(id); err != nil {
-		slog.Error("failed to incr view count", "content_id", id, "error", err)
-	}
-	h.contentSvc.IncrViewCount(id)
-
 	userID := middleware.GetUserID(c)
+
+	// 内容可见性统一口径（FIX-12+43）：非 published / 私密 / 封禁作者的内容
+	// 仅作者与 admin 可读；判官读豁免钩子留待 T40（FIX-36d）。
+	if !h.contentVisibleToViewer(content, c) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		return
+	}
+
+	// view_count 仅对 published 且非作者本人计数。
+	if content.Status == "published" && userID != content.AuthorID {
+		if err := h.contentRepo.IncrViewCount(id); err != nil {
+			slog.Error("failed to incr view count", "content_id", id, "error", err)
+		}
+		h.contentSvc.IncrViewCount(id)
+	}
 	if userID > 0 {
 		if err := h.browseHistoryRepo.Upsert(userID, id); err != nil {
 			slog.Error("failed to record browse history", "user_id", userID, "content_id", id, "error", err)
@@ -281,6 +361,8 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		slog.Error("failed to get attachments", "content_id", id, "error", err)
 		attachments = nil
 	}
+	h.displaySigner.DecorateContent(content)
+	h.displaySigner.DecorateAttachments(attachments)
 	tags, err2 := h.contentRepo.GetTags(id)
 	if err2 != nil {
 		slog.Error("failed to get tags", "content_id", id, "error", err2)
@@ -292,8 +374,19 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		return
 	}
 
+	contentPayload := any(content)
+	// ban_reason 仅作者/admin 可见（FIX-16）：model 层不序列化，此处按 viewer 附加。
+	if userID == content.AuthorID || isAdminRole(c) {
+		m, err := contentWithBanReason(content)
+		if err != nil {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+			return
+		}
+		contentPayload = m
+	}
+
 	resp := gin.H{
-		"content":            content,
+		"content":            contentPayload,
 		"attachments":        attachments,
 		"tags":               tags,
 		"series_memberships": seriesMemberships,
@@ -312,18 +405,37 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	}
 
 	if content.SourceOriginalID != nil && *content.SourceOriginalID > 0 {
-		source, srcErr := h.contentSvc.GetContent(*content.SourceOriginalID)
-		if srcErr == nil && source != nil {
-			resp["source_original"] = gin.H{"id": source.ID, "title": source.Title, "zone": "original"}
+		if id, title, ok := h.visibleSourceLite(c, *content.SourceOriginalID); ok {
+			resp["source_original"] = gin.H{"id": id, "title": title, "zone": "original"}
 		}
 	}
 	if content.SourceFanworkID != nil && *content.SourceFanworkID > 0 {
-		source, srcErr := h.contentSvc.GetContent(*content.SourceFanworkID)
-		if srcErr == nil && source != nil {
-			resp["source_fanwork"] = gin.H{"id": source.ID, "title": source.Title, "zone": "fanwork"}
+		if id, title, ok := h.visibleSourceLite(c, *content.SourceFanworkID); ok {
+			resp["source_fanwork"] = gin.H{"id": id, "title": title, "zone": "fanwork"}
 		}
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// visibleSourceLite returns the id+title of a source reference only when the
+// source itself is visible to the caller (#446 / SP-16 P0): a published
+// fanwork must not leak the title of a later-banned or privated source.
+func (h *ContentHandler) visibleSourceLite(c *gin.Context, sourceID int64) (int64, string, bool) {
+	type sourceRow struct {
+		ID    int64
+		Title string
+	}
+	var row sourceRow
+	visSQL, visArgs := repository.ContentVisibilitySQL(middleware.GetUserID(c))
+	err := h.contentRepo.DB().Model(&model.ContentItem{}).
+		Select("id", "title").
+		Where("id = ?", sourceID).
+		Where(visSQL, visArgs...).
+		Take(&row).Error
+	if err != nil {
+		return 0, "", false
+	}
+	return row.ID, row.Title, true
 }
 
 func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
@@ -398,6 +510,7 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateContents(contents)
 	c.JSON(http.StatusOK, gin.H{
 		"source_content_id": sourceID,
 		"source_zone":       source.Zone,
@@ -506,13 +619,22 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		return
 	}
 
-	if err := h.contentSvc.UpdateContent(id, callerID, updates); err != nil {
+	if err := h.contentSvc.UpdateContentWithContext(c.Request.Context(), id, callerID, updates); err != nil {
 		if err == service.ErrContentNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
 			return
 		}
 		if err == service.ErrContentForbidden {
 			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not content author"})
+			return
+		}
+		// banned 终态禁改（FIX-13）：删除仍允许，编辑引导走申诉。
+		if err == service.ErrContentBanned {
+			c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_BANNED", "message": "content is banned and cannot be edited"})
+			return
+		}
+		if err == service.ErrCoverNotPlatformOSSObject {
+			response.ValidationError(c, "cover image must be a platform OSS object")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -535,7 +657,7 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 		return
 	}
 
-	if err := h.contentSvc.DeleteContent(id, callerID); err != nil {
+	if err := h.contentSvc.DeleteContentWithContext(c.Request.Context(), id, callerID); err != nil {
 		if err == service.ErrContentNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
 			return
@@ -564,109 +686,107 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
-	content, err := h.contentRepo.FindByID(id)
-	if err != nil || content == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
-		return
-	}
-
-	if content.Status != "published" {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "content not available for download"})
-		return
-	}
-
-	var visibleCount int64
-	if err := repository.ApplyContentVisibilityScope(h.contentRepo.DB().Model(&model.ContentItem{}), callerID).
-		Where("content_items.id = ?", id).
-		Count(&visibleCount).Error; err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		return
-	}
-	if visibleCount == 0 {
-		c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_UNAVAILABLE", "message": "content is unavailable"})
-		return
-	}
-
-	if !content.AllowCopy {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "download not allowed"})
-		return
-	}
-
-	if h.ossSvc == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "oss service not configured"})
-		return
-	}
-
-	attachments, _ := h.contentRepo.GetAttachments(id)
-	if len(attachments) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NO_ATTACHMENTS", "message": "no downloadable files"})
-		return
-	}
-
-	var target *model.ContentAttachment
-	attachmentIDStr := c.Query("attachment_id")
-	if attachmentIDStr != "" {
-		attachmentID, err := strconv.ParseInt(attachmentIDStr, 10, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_ID", "message": "invalid attachment_id"})
-			return
-		}
-		for i := range attachments {
-			if attachments[i].ID == attachmentID {
-				target = &attachments[i]
-				break
-			}
-		}
-		if target == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_MISMATCH", "message": "attachment does not belong to this content"})
-			return
-		}
-	} else {
-		var primaries []int
-		for i := range attachments {
-			if attachments[i].IsPrimary != nil && *attachments[i].IsPrimary {
-				primaries = append(primaries, i)
-			}
-		}
-		if len(primaries) == 1 {
-			target = &attachments[primaries[0]]
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "AMBIGUOUS_ATTACHMENT", "message": "specify attachment_id; cannot determine a unique primary attachment"})
-			return
-		}
-	}
-
-	ttlSec := h.cfg.OSS.DownloadURLTTL
-	if ttlSec <= 0 {
-		ttlSec = 300
-	}
-	ttl := time.Duration(ttlSec) * time.Second
-
-	url, err := h.ossSvc.GeneratePresignDownloadURL(context.Background(), target.OSSKey, ttl)
+	// SP-16 #451: the orchestration lives in ContentService.RequestDownload
+	// so the MCP tool omnicraft_request_download shares byte-identical
+	// semantics; this handler only maps sentinel errors onto the historical
+	// HTTP contract.
+	res, err := h.contentSvc.RequestDownload(c.Request.Context(), callerID, id, c.Query("attachment_id"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "OSS_ERROR", "message": "failed to generate download url"})
+		switch {
+		case errors.Is(err, service.ErrDownloadUnauthorized):
+			c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		case errors.Is(err, service.ErrContentNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		case errors.Is(err, service.ErrDownloadNotPublished):
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "content not available for download"})
+		case errors.Is(err, service.ErrDownloadUnavailable):
+			c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_UNAVAILABLE", "message": "content is unavailable"})
+		case errors.Is(err, service.ErrDownloadNotAllowed):
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "download not allowed"})
+		case errors.Is(err, service.ErrOSSNotConfigured):
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "oss service not configured"})
+		case errors.Is(err, service.ErrNoAttachments):
+			c.JSON(http.StatusNotFound, gin.H{"code": "NO_ATTACHMENTS", "message": "no downloadable files"})
+		case errors.Is(err, service.ErrInvalidAttachmentID):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_ID", "message": "invalid attachment_id"})
+		case errors.Is(err, service.ErrAttachmentMismatch):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_MISMATCH", "message": "attachment does not belong to this content"})
+		case errors.Is(err, service.ErrAmbiguousAttachment):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "AMBIGUOUS_ATTACHMENT", "message": "specify attachment_id; cannot determine a unique primary attachment"})
+		case errors.Is(err, service.ErrArchiveNotClean):
+			response.Error(c, http.StatusForbidden, "ARCHIVE_NOT_CLEAN", "archive is not clean")
+		case errors.Is(err, service.ErrDownloadPresignFailed):
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "OSS_ERROR", "message": "failed to generate download url"})
+		default:
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		}
 		return
-	}
-
-	if _, ok := h.queueProducer.(*queue.NoopProducer); !ok && h.queueProducer != nil {
-		recovery.GoSafe(func() {
-			payload, _ := json.Marshal(map[string]interface{}{
-				"content_id": id,
-				"action":     "download",
-			})
-			if err := h.queueProducer.Publish(context.Background(), "count.download", payload); err != nil {
-				slog.Error("failed to publish download count message", "content_id", id, "error", err)
-			}
-		})
-	} else if h.rdb != nil {
-		recovery.GoSafe(func() {
-			ctx := context.Background()
-			h.rdb.ZIncrBy(ctx, "rank:download:counts", 1, fmt.Sprintf("%d", id))
-		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"download_url": url,
-		"expires_in":   ttlSec,
+		"download_url": res.URL,
+		"expires_in":   res.ExpiresIn,
 	})
+}
+// isAdminRole reports whether the caller holds the admin role.
+func isAdminRole(c *gin.Context) bool {
+	role, exists := c.Get(middleware.UserRoleKey)
+	return exists && role == "admin"
+}
+
+// contentWithBanReason marshals a content item (ban_reason hidden at model
+// level) and re-attaches the field explicitly for the author/admin view.
+func contentWithBanReason(content *model.ContentItem) (map[string]any, error) {
+	payload, err := json.Marshal(content)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]any{}
+	if err := json.Unmarshal(payload, &m); err != nil {
+		return nil, err
+	}
+	if content.BanReason != "" {
+		m["ban_reason"] = content.BanReason
+	}
+	return m, nil
+}
+
+// contentVisibleToViewer enforces the unified content visibility rule at the
+// detail boundary: author and admin see everything; everyone else only
+// published, public content from a non-banned, non-deleted author.
+func (h *ContentHandler) contentVisibleToViewer(content *model.ContentItem, c *gin.Context) bool {
+	viewer := middleware.GetUserID(c)
+	if viewer != 0 && viewer == content.AuthorID {
+		return true
+	}
+	if role, exists := c.Get(middleware.UserRoleKey); exists && role == "admin" {
+		return true
+	}
+	// T40（FIX-36d）：持对应类型有效资格的判官可读 under_review 内容（审案
+	// 预览）。banned/私密不在此豁免范围内，照旧 404。
+	if viewer != 0 && content.Status == "under_review" {
+		if qualified, err := h.judgeRepo.CheckQualification(viewer, content.ContentType); err == nil && qualified {
+			return true
+		}
+	}
+	// #446/SP-16 P0：与列表口径对齐——封禁 IP 下的内容详情不再对非参与方
+	// 可读（此前仅列表过滤，直连详情仍可读）。
+	if content.IPID != nil && *content.IPID > 0 && h.contentIPBanned(*content.IPID) {
+		return false
+	}
+	return content.Status == "published" &&
+		content.IsPublic &&
+		!content.Author.IsBanned &&
+		content.Author.DeletedAt == nil
+}
+
+// contentIPBanned reports whether the IP a content row hangs under is banned.
+func (h *ContentHandler) contentIPBanned(ipID int64) bool {
+	var status string
+	if err := h.contentRepo.DB().Model(&model.IP{}).
+		Where("id = ?", ipID).
+		Pluck("status", &status).Error; err != nil {
+		return false
+	}
+	return status == "banned"
 }

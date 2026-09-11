@@ -12,12 +12,25 @@
 
 | 配置路径 | 类型 | 说明 |
 |----------|------|------|
+| `agent.chat_context_token_budget` | `int` | ChatContextTokenBudget caps the server-side assembled conversation
+history (estimated tokens; CJK-heavy so rune count... |
 | `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |
+| `agent.chitchat_patterns` | `[]string` | ChitchatPatterns is the exact-match keyword table for the shortcut.
+Matching is trim + full/half-width fold + case fo... |
+| `agent.chitchat_shortcut_enabled` | `bool` | ChitchatShortcutEnabled gates the rule-layer chitchat shortcut (SP-15
+A1): an exact-match greeting consumes no LLM ca... |
 | `agent.citation_max_count` | `int` | CitationMaxCount |
 | `agent.conversation_list_limit` | `int` | ConversationListLimit |
 | `agent.conversation_page_size` | `int` | ConversationPageSize |
+| `agent.conversational_max_runes` | `int` | ConversationalMaxRunes is the deterministic guardrail for the
+model-routed conversational lane (SP-15 A2): a zero-too... |
+| `agent.embedding_api_base` | `string` | EmbeddingAPIBase |
+| `agent.embedding_api_key` | `string` | EmbeddingAPIKey |
 | `agent.embedding_dimensions` | `int` | EmbeddingDimensions |
+| `agent.embedding_group_id` | `string` | EmbeddingGroupID |
 | `agent.embedding_model` | `string` | EmbeddingModel |
+| `agent.embedding_provider` | `string` | EmbeddingProvider routes embeddings to a different adapter than chat
+(canonical profile: minimax chat + openai_compat... |
 | `agent.hmac_secret` | `string` | HMACSecret |
 | `agent.llm_api_base` | `string` | LLMAPIBase |
 | `agent.llm_api_key` | `string` | LLMAPIKey |
@@ -32,6 +45,16 @@
 | `agent.rate_limit_per_minute` | `int` | RateLimitPerMinute |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
+| `agent_access.max_tokens_per_user` | `int` | MaxTokensPerUser |
+| `archive_scan.clamd_address` | `string` | ClamdAddress |
+| `archive_scan.max_entry_uncompressed_mb` | `int` | MaxEntryUncompressedMB |
+| `archive_scan.max_recursion_depth` | `int` | MaxRecursionDepth |
+| `archive_scan.max_total_uncompressed_mb` | `int` | MaxTotalUncompressedMB |
+| `archive_scan.max_upload_size_mb` | `int` | MaxUploadSizeMB |
+| `archive_scan.max_zip_entries` | `int` | MaxZipEntries |
+| `archive_scan.retry_backoff_sec` | `[]int` | RetryBackoffSec |
+| `archive_scan.scan_timeout_sec` | `int` | ScanTimeoutSec |
+| `archive_scan.url_ttl_sec` | `int` | URLTTLSec |
 | `browse_history.cleanup_time` | `string` | CleanupTime |
 | `browse_history.retention_days` | `int` | RetentionDays |
 | `cache.content_detail_ttl` | `int` | ContentDetailTTL |
@@ -61,15 +84,25 @@
 | `collaboration.max_invitees_per_publish` | `int` | MaxInviteesPerPublish |
 | `database.dsn` | `string` | DSN |
 | `database.read_dsn` | `string` | ReadDSN |
+| `discussion.hot_decay_hours` | `float64` | HotDecayHours |
+| `features.archive_malware_scan_enabled` | `bool` | ArchiveMalwareScanEnabled |
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
 | `features.payment_enabled` | `bool` | PaymentEnabled |
+| `features.rag_hybrid_enabled` | `bool` | RAGHybridEnabled |
+| `features.rag_query_expansion_enabled` | `bool` | RAGQueryExpansionEnabled and RAGRerankEnabled gate the A-03 retrieval
+upgrades; defaults stay off until A-04 ablation... |
+| `features.rag_rerank_enabled` | `bool` | RAGRerankEnabled |
 | `feedback.upload_grant_ttl_sec` | `int` | UploadGrantTTLSec |
 | `green.access_key_id` | `string` | AccessKeyID |
 | `green.access_key_secret` | `string` | AccessKeySecret |
-| `green.callback_allowed_ips` | `[]string` | CallbackAllowedIPs |
 | `green.callback_url` | `string` | CallbackURL |
 | `green.region` | `string` | Region |
+| `green.seed` | `string` | Seed is the callback signature seed (green.seed): release-required, [A-Za-z0-9_], max 64 chars. |
+| `green.uid` | `string` | UID is the Aliyun main account UID (green.uid): release-required, digits only (console account info, not RAM UID). |
+| `ip_proposal.deadline_days` | `int` | DeadlineDays |
+| `ip_proposal.min_votes` | `int` | MinVotes |
+| `ip_proposal.pass_threshold` | `float64` | PassThreshold |
 | `judge.error_rate_revoke` | `float64` | ErrorRateRevoke |
 | `judge.error_rate_window` | `int` | ErrorRateWindow |
 | `judge.exam_pass_rate` | `float64` | ExamPassRate |
@@ -97,9 +130,16 @@
 | `observability.read_header_timeout_sec` | `int` | ReadHeaderTimeoutSec |
 | `observability.readiness.db_timeout_sec` | `int` | DBTimeoutSec |
 | `observability.readiness.redis_timeout_sec` | `int` | RedisTimeoutSec |
+| `observability.tracing.backend` | `string` | Backend |
+| `observability.tracing.enabled` | `bool` | Enabled |
+| `observability.tracing.endpoint` | `string` | Endpoint |
+| `observability.tracing.sample_ratio` | `float64` | SampleRatio |
+| `observability.tracing.service_name` | `string` | ServiceName |
 | `oss.access_key_id` | `string` | AccessKeyID |
 | `oss.access_key_secret` | `string` | AccessKeySecret |
 | `oss.bucket_name` | `string` | BucketName |
+| `oss.display_url_ttl_sec` | `int` | DisplayURLTTL bounds the signed GET URLs issued for display media
+(covers, avatars, gallery attachments) at the API s... |
 | `oss.domain` | `string` | Domain |
 | `oss.download_url_ttl_sec` | `int` | DownloadURLTTL |
 | `oss.endpoint` | `string` | Endpoint |
@@ -109,6 +149,35 @@
 | `publish.type_order_fanwork` | `[]string` | TypeOrderFanwork |
 | `publish.type_order_original` | `[]string` | TypeOrderOriginal |
 | `queue` | `queue.QueueConfig` | Queue |
+| `rag.chunking.max_tokens` | `int` | MaxTokens |
+| `rag.chunking.overlap_tokens` | `int` | OverlapTokens |
+| `rag.chunking.tokenizer_encoding` | `string` | TokenizerEncoding |
+| `rag.chunking.version` | `int` | ChunkingVersion |
+| `rag.hybrid.bm25_topk` | `int` | BM25TopK |
+| `rag.hybrid.final_topk` | `int` | FinalTopK |
+| `rag.hybrid.keyword_source` | `string` | KeywordSource selects the lexical primary: "postgres" (canonical
+pg_jieba path, default) or "opensearch" (optional ac... |
+| `rag.hybrid.rrf_k` | `int` | RRFK |
+| `rag.hybrid.vector_topk` | `int` | VectorTopK |
+| `rag.index.audit_timeout_sec` | `int` | AuditTimeoutSec |
+| `rag.index.embedding_model` | `string` | EmbeddingModel |
+| `rag.index.error_body_max_bytes` | `int` | ErrorBodyMaxBytes |
+| `rag.index.generation_start` | `int` | GenerationStart |
+| `rag.index.health_poll_interval_sec` | `int` | HealthPollIntervalSec |
+| `rag.index.lock_cleanup_timeout_sec` | `int` | LockCleanupTimeoutSec |
+| `rag.index.response_body_max_bytes` | `int` | ResponseBodyMaxBytes |
+| `rag.index.timeout_sec` | `int` | TimeoutSec |
+| `rag.index.url` | `string` | URL |
+| `rag.rerank.api_base` | `string` | APIBase |
+| `rag.rerank.api_key` | `string` | APIKey |
+| `rag.rerank.fallback_api_base` | `string` | FallbackAPIBase |
+| `rag.rerank.fallback_api_key` | `string` | FallbackAPIKey |
+| `rag.rerank.fallback_model` | `string` | FallbackModel |
+| `rag.rerank.fallback_provider` | `string` | FallbackProvider |
+| `rag.rerank.input_topk` | `int` | InputTopK |
+| `rag.rerank.model` | `string` | Model |
+| `rag.rerank.provider` | `string` | Provider |
+| `rag.rerank.timeout_sec` | `int` | TimeoutSec |
 | `rate_limit.agent_minute_window_sec` | `int` | AgentMinuteWindowSec |
 | `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
 | `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |
@@ -117,8 +186,11 @@
 | `rate_limit.max_query_chars` | `int` | MaxQueryChars |
 | `rate_limit.max_search_limit` | `int` | MaxSearchLimit |
 | `rate_limit.max_search_page` | `int` | MaxSearchPage |
+| `rate_limit.mcp_per_minute` | `int` | MCPPerMinute |
 | `rate_limit.normal_per_minute` | `int` | NormalPerMinute |
 | `rate_limit.normal_window_sec` | `int` | NormalWindowSec |
+| `rate_limit.pat_per_minute` | `int` | PATPerMinute |
+| `rate_limit.pat_window_sec` | `int` | PATWindowSec |
 | `rate_limit.search_per_minute` | `int` | SearchPerMinute |
 | `rate_limit.upload_per_hour` | `int` | UploadPerHour |
 | `rate_limit.upload_window_sec` | `int` | UploadWindowSec |
@@ -134,6 +206,8 @@
 | `redis.addr` | `string` | Addr |
 | `redis.db` | `int` | DB |
 | `redis.password` | `string` | Password |
+| `relay.batch_size` | `int` | BatchSize |
+| `relay.poll_interval_sec` | `int` | PollIntervalSec |
 | `reputation.min_score_for_interaction` | `int` | MinScoreForInteraction |
 | `reputation.quality_comment_threshold` | `int` | QualityCommentThreshold |
 | `reputation.quality_content_threshold` | `int` | QualityContentThreshold |
@@ -183,7 +257,30 @@ content. Zero means "use the specification defa... |
 | `verification.resend_cooldown_sec` | `int` | ResendCooldownSec |
 | `verification.reset_ttl_sec` | `int` | ResetTTLSec |
 | `web.public_base_url` | `string` | PublicBaseURL |
+| `worker.concurrency` | `int` | Concurrency |
+| `worker.enabled` | `bool` | Enabled |
+| `worker.service_name` | `string` | ServiceName |
 
 <!-- END AUTO-GENERATED: §7 -->
+
+### 7.1 队列与 worker 运行参数（queue / relay 节）
+
+> 手写小节：`queue.QueueConfig` 定义在 `backend/internal/pkg/queue/queue.go`（不在
+> `config/config.go` 的自动扫描范围内，故不入上方注册表），运行时真源仍是 `backend/config.yaml`。
+> 全部由独立 worker 进程消费（ADR 0005）；API server 从不启动异步消费者。
+
+| 配置路径 | 类型 | 默认值（config.yaml） | 说明 |
+|----------|------|----------------------|------|
+| `queue.enabled` | `bool` | `true` | 队列总开关；关闭时队列生产者退化为 NoopProducer（通知直写 DB） |
+| `queue.max_attempts` | `int` | `3` | 单条消息最大投递尝试次数，超限进入 DLQ |
+| `queue.retry_backoff_sec` | `[]int` | `[10, 60, 300]` | 逐次重试的退避间隔（秒），按尝试轮次取值 |
+| `queue.dlq_ttl_hours` | `int` | `168` | 死信条目保留时长（小时），过期由清理任务回收 |
+| `queue.maxlen` | `int64` | `100000` | 每个 topic 的 Redis Stream 最大长度，超限从头裁剪 |
+| `queue.worker_review` | `int` | `2` | 审核 topic（content.review / ip.review）消费者并发数 |
+| `queue.worker_notification` | `int` | `1` | 通知 topic（notification.create）消费者并发数 |
+| `queue.worker_embedding` | `int` | `1` | 嵌入 topic（content.embedding）消费者并发数 |
+| `queue.worker_count` | `int` | `1` | 其余 topic（索引等事件）的默认消费者并发数 |
+| `relay.batch_size` | `int` | `100` | outbox relay 单轮认领的事件数上限（issue #200） |
+| `relay.poll_interval_sec` | `int` | `1` | outbox relay 轮询间隔（秒），约束投递延迟下限 |
 
 ---

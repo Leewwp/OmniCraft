@@ -3,8 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 )
@@ -78,11 +77,14 @@ type AgentContentSummary struct {
 // AgentToolOutcome carries one tool execution result. Only the matching field
 // is populated; raw arguments and internal reasoning are never exposed.
 type AgentToolOutcome struct {
-	Execution AgentToolExecution   `json:"execution"`
-	Detail    *AgentContentSummary `json:"detail,omitempty"`
-	Guide     *UsageGuideResult    `json:"guide,omitempty"`
-	Search    []ContentSummary     `json:"search,omitempty"`
-	Suggest   *UploadAssistResult  `json:"suggest,omitempty"`
+	Execution        AgentToolExecution   `json:"execution"`
+	Detail           *AgentContentSummary `json:"detail,omitempty"`
+	Guide            *UsageGuideResult    `json:"guide,omitempty"`
+	Search           []ContentSummary     `json:"search,omitempty"`
+	Suggest          *UploadAssistResult  `json:"suggest,omitempty"`
+	Degraded         bool                 `json:"-"`
+	RetrievalSources map[string]string    `json:"-"`
+	ExpandedQueries  []string             `json:"-"`
 }
 
 // AgentToolPolicy exposes the config-driven budget used to stop the tool loop
@@ -202,28 +204,36 @@ func (s *AgentService) resolveVisibleContent(ctx context.Context, viewerID, cont
 	return &content, nil
 }
 
+type agentToolHandler func(context.Context, json.RawMessage, int64, *AgentPublishSnapshot) (*AgentToolOutcome, error)
+
+// toolRegistry is local and fixed: callers cannot register tools at runtime.
+func (s *AgentService) toolRegistry() map[string]agentToolHandler {
+	return map[string]agentToolHandler{
+		ToolSearchContent: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolSearchContent(ctx, args, viewerID)
+		},
+		ToolGetContentDetail: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolGetContentDetail(ctx, args, viewerID)
+		},
+		ToolGetUsageGuide: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolGetUsageGuide(ctx, args, viewerID)
+		},
+		ToolSuggestPublishMetadata: func(ctx context.Context, args json.RawMessage, _ int64, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolSuggestPublishMetadata(ctx, args, snapshot)
+		},
+	}
+}
+
 // ExecuteTool validates and executes one registered read-only tool. Unknown
-// names and invalid arguments never reach a provider or the database query
-// beyond the shared visibility resolver.
+// names and invalid arguments never reach a provider or visibility query.
 func (s *AgentService) ExecuteTool(ctx context.Context, name string, rawArgs json.RawMessage, viewerID int64, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
 	start := time.Now()
-
-	switch name {
-	case ToolSearchContent:
-		outcome, err := s.toolSearchContent(ctx, rawArgs, viewerID)
-		return outcome, withToolError(outcome, name, err, start)
-	case ToolGetContentDetail:
-		outcome, err := s.toolGetContentDetail(ctx, rawArgs, viewerID)
-		return outcome, withToolError(outcome, name, err, start)
-	case ToolGetUsageGuide:
-		outcome, err := s.toolGetUsageGuide(ctx, rawArgs, viewerID)
-		return outcome, withToolError(outcome, name, err, start)
-	case ToolSuggestPublishMetadata:
-		outcome, err := s.toolSuggestPublishMetadata(ctx, rawArgs, snapshot)
-		return outcome, withToolError(outcome, name, err, start)
-	default:
+	handler, ok := s.toolRegistry()[name]
+	if !ok {
 		return nil, ErrAgentToolUnknown
 	}
+	outcome, err := handler(ctx, rawArgs, viewerID, snapshot)
+	return outcome, withToolError(outcome, name, err, start)
 }
 
 func withToolError(outcome *AgentToolOutcome, name string, err error, start time.Time) error {
@@ -250,6 +260,22 @@ func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMe
 	query := strings.TrimSpace(args.Query)
 	if query == "" || len([]rune(query)) > defaultMaxToolQueryLength {
 		return nil, ErrAgentToolInvalidArgs
+	}
+	if s.ragHybridEnabled() {
+		if s.hybridRetriever == nil {
+			return nil, errors.New("hybrid retrieval unavailable")
+		}
+		result, err := s.hybridRetriever.Retrieve(ctx, query, viewerID)
+		if err != nil {
+			return nil, err
+		}
+		summaries := retrievalSummaries(result.Candidates)
+		return &AgentToolOutcome{
+			Search:           summaries,
+			Degraded:         result.Degraded != "",
+			RetrievalSources: retrievalSourceMap(summaries),
+			ExpandedQueries:  result.ExpandedQueries,
+		}, nil
 	}
 	if s.vectorSearch == nil || s.embeddingRepo == nil {
 		return nil, errors.New("vector search unavailable")
@@ -285,6 +311,93 @@ func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMe
 		summaries = summaries[:defaultMaxToolResultCount]
 	}
 	return &AgentToolOutcome{Search: summaries}, nil
+}
+
+func retrievalSourceMap(summaries []ContentSummary) map[string]string {
+	sources := make(map[string]string, len(summaries))
+	for _, summary := range summaries {
+		if strings.TrimSpace(summary.ChunkKey) != "" && validCitationSource(summary.Source) {
+			sources[summary.ChunkKey] = summary.Source
+		}
+	}
+	return sources
+}
+
+func retrievalSummaries(candidates []AgentRetrievalCandidate) []ContentSummary {
+	summaries := make([]ContentSummary, 0, len(candidates))
+	for _, candidate := range candidates {
+		citation, ok := citationFromRetrievalCandidate(candidate)
+		if !ok {
+			continue
+		}
+		summaries = append(summaries, ContentSummary{
+			ID:             citation.ContentID,
+			Title:          citation.Title,
+			Zone:           citation.Zone,
+			ContentType:    candidate.ContentType,
+			ContentVersion: citation.ContentVersion,
+			ChunkKey:       citation.ChunkKey,
+			ChunkIndex:     citation.ChunkIndex,
+			Excerpt:        citation.Excerpt,
+			Source:         citation.Source,
+		})
+	}
+	return summaries
+}
+
+func citationFromSearchSummary(summary ContentSummary) (AgentCitation, bool) {
+	if summary.ID <= 0 || summary.ContentVersion <= 0 || summary.ChunkIndex < 0 ||
+		strings.TrimSpace(summary.ChunkKey) == "" || strings.TrimSpace(summary.Title) == "" ||
+		strings.TrimSpace(summary.Zone) == "" || strings.TrimSpace(summary.Excerpt) == "" ||
+		!validCitationSource(summary.Source) {
+		return AgentCitation{}, false
+	}
+	return AgentCitation{
+		ContentID:      summary.ID,
+		ContentVersion: summary.ContentVersion,
+		ChunkKey:       summary.ChunkKey,
+		ChunkIndex:     summary.ChunkIndex,
+		Title:          summary.Title,
+		Zone:           summary.Zone,
+		Route:          contentRoute(summary.Zone, summary.ID),
+		Excerpt:        summary.Excerpt,
+		Source:         summary.Source,
+	}, true
+}
+
+func citationFromRetrievalCandidate(candidate AgentRetrievalCandidate) (AgentCitation, bool) {
+	if candidate.ContentID <= 0 || candidate.ContentVersion <= 0 || candidate.ChunkIndex < 0 ||
+		candidate.ChunkKey == "" || strings.TrimSpace(candidate.Title) == "" || strings.TrimSpace(candidate.Text) == "" {
+		return AgentCitation{}, false
+	}
+	if candidate.Zone != "original" && candidate.Zone != "fanwork" {
+		return AgentCitation{}, false
+	}
+	if !validCitationSource(candidate.Source) {
+		return AgentCitation{}, false
+	}
+	return AgentCitation{
+		ContentID:      candidate.ContentID,
+		ContentVersion: candidate.ContentVersion,
+		ChunkKey:       candidate.ChunkKey,
+		ChunkIndex:     candidate.ChunkIndex,
+		Title:          strings.TrimSpace(candidate.Title),
+		Zone:           candidate.Zone,
+		Route:          contentRoute(candidate.Zone, candidate.ContentID),
+		Excerpt:        truncateRunes(strings.TrimSpace(candidate.Text), 240),
+		Source:         candidate.Source,
+	}, true
+}
+
+func contentRoute(zone string, contentID int64) string {
+	if zone == "original" {
+		return fmt.Sprintf("/original/%d", contentID)
+	}
+	return fmt.Sprintf("/content/%d", contentID)
+}
+
+func validCitationSource(source string) bool {
+	return source == "bm25" || source == "vector" || source == "hybrid_rrf"
 }
 
 type contentIDToolArgs struct {
@@ -324,7 +437,9 @@ func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMe
 	if _, err := s.resolveVisibleContent(ctx, viewerID, args.ContentID); err != nil {
 		return nil, err
 	}
-	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID)
+	// Structured-first applies to the in-chat tool too (SP-16 #447):
+	// persisted specifics render without an LLM round-trip.
+	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -348,25 +463,117 @@ func (s *AgentService) toolSuggestPublishMetadata(ctx context.Context, rawArgs j
 	return &AgentToolOutcome{Suggest: result}, nil
 }
 
-// RevalidateCitations reloads every citation through the viewer-aware
-// visibility resolver after model output. Citations without valid
-// id/title/zone or pointing at hidden content are dropped.
+type citationTruth = repository.CitationTruth
+
+// RevalidateCitations reloads every citation through the viewer-aware current
+// chunk truth after model output. Only server-shaped citations that still
+// match the latest published chunk can reach SSE.
 func (s *AgentService) RevalidateCitations(ctx context.Context, viewerID int64, citations []AgentCitation) []AgentCitation {
+	traceID := observability.TraceID(ctx)
+	if traceID == "" {
+		traceID = untracedTraceID
+	}
+	return s.revalidateCitations(ctx, viewerID, citations, traceID)
+}
+
+func (s *AgentService) revalidateCitations(ctx context.Context, viewerID int64, citations []AgentCitation, traceID string) []AgentCitation {
 	policy := s.ToolPolicy()
 	valid := make([]AgentCitation, 0, len(citations))
-	for _, c := range citations {
-		if c.ContentID <= 0 || c.Title == "" || c.Zone == "" {
-			continue
-		}
-		if _, err := s.resolveVisibleContent(ctx, viewerID, c.ContentID); err != nil {
-			continue
-		}
-		valid = append(valid, c)
+	rejectedCount := 0
+	for _, citation := range citations {
 		if len(valid) >= policy.CitationMaxCount {
-			break
+			rejectedCount++
+			traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", "citation_limit", "rejected_count", rejectedCount)
+			continue
 		}
+		reason := s.citationRejectionReason(ctx, viewerID, citation)
+		if reason != "" {
+			rejectedCount++
+			traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", reason, "rejected_count", rejectedCount)
+			continue
+		}
+		valid = append(valid, citation)
+		traceAgentEvent(traceID, "citation_revalidation", "accepted", true, "reason", "accepted")
 	}
 	return valid
+}
+
+func (s *AgentService) citationRejectionReason(ctx context.Context, viewerID int64, citation AgentCitation) string {
+	if !s.ragHybridEnabled() {
+		if citation.ContentID <= 0 || strings.TrimSpace(citation.Title) == "" || strings.TrimSpace(citation.Zone) == "" {
+			return "missing_fields"
+		}
+		if _, err := s.resolveVisibleContent(ctx, viewerID, citation.ContentID); err != nil {
+			if errors.Is(err, ErrContentNotFound) {
+				return "not_visible"
+			}
+			return "visibility_lookup_failed"
+		}
+		return ""
+	}
+	if citation.ContentID <= 0 || citation.ContentVersion <= 0 || citation.ChunkIndex < 0 ||
+		strings.TrimSpace(citation.ChunkKey) == "" || strings.TrimSpace(citation.Title) == "" ||
+		strings.TrimSpace(citation.Zone) == "" || strings.TrimSpace(citation.Route) == "" ||
+		strings.TrimSpace(citation.Excerpt) == "" || strings.TrimSpace(citation.Source) == "" {
+		return "missing_fields"
+	}
+	if citation.Zone != "original" && citation.Zone != "fanwork" {
+		return "invalid_zone"
+	}
+	if !validCitationSource(citation.Source) {
+		return "invalid_source"
+	}
+	if citation.Route != contentRoute(citation.Zone, citation.ContentID) {
+		return "invalid_route"
+	}
+	truth, err := s.loadCitationTruth(ctx, viewerID, citation)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "not_visible_or_current"
+		}
+		return "truth_lookup_failed"
+	}
+	if truth.ContentID != citation.ContentID || truth.ContentVersion != citation.ContentVersion ||
+		truth.ChunkIndex != citation.ChunkIndex || truth.ChunkKey != citation.ChunkKey {
+		return "chunk_mismatch"
+	}
+	if truth.Title != citation.Title || truth.Zone != citation.Zone {
+		return "content_metadata_mismatch"
+	}
+	if truncateRunes(strings.TrimSpace(truth.Text), 240) != strings.TrimSpace(citation.Excerpt) {
+		return "excerpt_mismatch"
+	}
+	return ""
+}
+
+func (s *AgentService) loadCitationTruth(ctx context.Context, viewerID int64, citation AgentCitation) (citationTruth, error) {
+	if s.ragChunkRepo == nil {
+		return citationTruth{}, gorm.ErrRecordNotFound
+	}
+	return s.ragChunkRepo.LoadVisibleCitationTruth(ctx, viewerID, repository.CitationLookup{
+		ContentID: citation.ContentID, ContentVersion: citation.ContentVersion,
+		ChunkIndex: citation.ChunkIndex, ChunkKey: citation.ChunkKey,
+	})
+}
+
+func (s *AgentService) citationForContent(ctx context.Context, viewerID, contentID int64) (AgentCitation, error) {
+	if s.ragChunkRepo == nil || contentID <= 0 {
+		return AgentCitation{}, gorm.ErrRecordNotFound
+	}
+	truth, err := s.ragChunkRepo.FirstVisibleCitationTruth(ctx, viewerID, contentID)
+	if err != nil {
+		return AgentCitation{}, err
+	}
+	return AgentCitation{
+		ContentID:      truth.ContentID,
+		ContentVersion: truth.ContentVersion,
+		ChunkKey:       truth.ChunkKey,
+		ChunkIndex:     truth.ChunkIndex,
+		Title:          truth.Title,
+		Zone:           truth.Zone,
+		Route:          contentRoute(truth.Zone, truth.ContentID),
+		Excerpt:        truncateRunes(strings.TrimSpace(truth.Text), 240),
+	}, nil
 }
 
 // ClassifyGroundedAnswer deterministically decides whether a natural-language
@@ -379,14 +586,27 @@ func ClassifyGroundedAnswer(citations []AgentCitation) AgentAnswerKind {
 	return AgentAnswerGroundedContent
 }
 
-// newTraceID returns a 32-hex trace id for one agent request.
-func newTraceID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%032x", time.Now().UnixNano())
+// ClassifyStreamAnswer extends the grounded classification with the
+// conversational lane (SP-15 A2): a streamed reply that used no tools, kept no
+// citations, is non-empty, did not degrade, and fits within the configured
+// rune guardrail is conversational and survives the no_evidence clearing.
+// Every condition is server-side and deterministic — the model cannot opt
+// itself into the lane. Any miss (including conversationalMaxRunes <= 0,
+// which disables the lane) falls back to the strict grounded classification,
+// so a lazy zero-retrieval long answer on a content question is still cleared.
+func ClassifyStreamAnswer(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes int) AgentAnswerKind {
+	trimmed := strings.TrimSpace(answer)
+	if len(citations) == 0 && len(executedTools) == 0 && trimmed != "" && !degraded &&
+		conversationalMaxRunes > 0 && len([]rune(trimmed)) <= conversationalMaxRunes {
+		return AgentAnswerConversational
 	}
-	return hex.EncodeToString(b)
+	return ClassifyGroundedAnswer(citations)
 }
+
+// untracedTraceID is an explicit marker for direct service callers that do
+// not pass through HTTP tracing. Production requests replace it with the
+// OTel trace ID created by the HTTP root span.
+const untracedTraceID = "00000000000000000000000000000000"
 
 // traceAgentEvent emits a safe structured trace line. Raw prompts, full
 // private content, and raw Provider errors are never logged.

@@ -2,7 +2,9 @@
 
 import { useTranslations, useLocale } from "next-intl";
 import { useState, useEffect } from "react";
-import Image from "next/image";
+import { coverRenderSrc } from "@/lib/overlay-motion";
+import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
+import { DeferredMount } from "@/components/content/DeferredMount";
 import {
   FileText,
   Image as ImageIcon,
@@ -21,6 +23,7 @@ import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { SheetMusicViewer } from "@/components/content/SheetMusicViewer";
 import { DownloadButton } from "@/components/content/DownloadButton";
 import { CollectionPicker } from "@/components/content/CollectionPicker";
+import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
 import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
@@ -45,6 +48,9 @@ interface RelatedFanworksSlot {
   titleKey: string;
   createHref?: string;
   viewAllHref?: string;
+  /** 扇出收敛（2026-09-09）：浮层层内已拉取的关联行数据——提供时 RelatedFanworks
+      不再自拉同一接口；undefined 回退自拉。 */
+  initialData?: { items: ContentCardData[]; total: number };
 }
 
 interface ContentDetailProps {
@@ -53,9 +59,11 @@ interface ContentDetailProps {
   /** 浮层封面同步（#64 决策 11）：开启后正文在封面加载落定前保持布局不可见。 */
   coverSync?: boolean;
   /** #88 桌面双栏：媒体区由浮层层（Overlay Layer）在左栏另行渲染（≥1100px），
-       行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。 */
-  mediaSlot?: "inline" | "split";
-  /** #88 双栏模式下行外媒体区（左栏 MediaGallery）的首项加载落定信号。 */
+       行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。
+       #397 "variant" = 竖屏集新版布局（左媒体列由 OverlayVariantLayout 承担），
+       行内媒体区隐藏语义同 "split"。 */
+  mediaSlot?: "inline" | "split" | "variant";
+  /** #88/#397 行外媒体区（左栏媒体列）的首项加载落定信号。 */
   coverReady?: boolean;
   /** #89 连续浏览：移动端行内媒体集最后一项继续上滑时触发（上层切篇）。 */
   onGalleryReachEnd?: () => void;
@@ -72,6 +80,18 @@ interface ContentDetailProps {
   relatedFanworksSummary?: Array<{ id: number; title: string; zone: "original" | "fanwork" }>;
   /** #69 浮层内系列导航：章节切换/目录选择压入浮层导航栈（不整页跳转）；独立详情页不传。 */
   onNavigateInOverlay?: (contentId: number, trigger?: HTMLElement | null) => void;
+  /** #397 竖屏集新版布局：作者元信息行右缘的扩展动作（如关注按钮）。 */
+  authorAction?: React.ReactNode;
+  /** #397 竖屏集新版布局：替换默认尾部（系列导航/相关行/评论/相关内容）。
+      胜者记录 §7 布局钉死 = 内容详情 → 关联内容块 → 评论区（右栏末块）。 */
+  variantTail?: React.ReactNode;
+  /** #409 F1 首帧保持：入场转场未落定期，封面/媒体集首项以卡片封面 src
+      渲染（媒体链与卡片封面不同文件时防动效期间换图）；落定后由上层清除。 */
+  coverHoldSrc?: string | null;
+  /** #430 挂载分帧：浮层宿主传入 true 时默认尾部重子树（系列导航/关联行/
+      评论区/相关内容块）延后一拍挂载，降低入场动画期主线程拥塞；独立详情页
+      不传（无动画窗口，直接挂载）。 */
+  deferTail?: boolean;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -111,9 +131,11 @@ interface CoverImageProps {
   coverSync?: boolean;
   coverState: "loading" | "ready" | "error";
   onCoverSettled: (state: "ready" | "error") => void;
+  /** #409 F1 首帧保持：入场未落定期渲染卡片封面 src（防动效期间换图）。 */
+  holdSrc?: string | null;
 }
 
-function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState, onCoverSettled }: CoverImageProps) {
+function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState, onCoverSettled, holdSrc }: CoverImageProps) {
   const Icon = getTypeIcon(contentType || "other");
   const showImage = Boolean(url && coverState !== "error");
   const showSkeleton = Boolean(coverSync && url && coverState === "loading");
@@ -126,14 +148,14 @@ function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState,
       {/* 封面与正文共享同一水平框架：外层 w-full 恒定，高度上限只裁内框不缩宽度（#64 决策 12）。 */}
       <div className="relative aspect-[16/9] max-h-96 w-full">
         {showImage && url ? (
-          <Image
-            src={url}
+          /* #409 F1 同源图 + #430 两变体渐进：规范层 w=1080，保持层 = 卡片快变体
+             （holdSrc），入场落定且规范层就绪后 180ms 交叉淡入。 */
+          <HoldCrossfadeImage
+            canonicalSrc={coverRenderSrc(url) || url}
+            holdSrc={holdSrc}
             alt={title}
-            fill
-            className={cn("object-cover", showSkeleton && "opacity-0")}
-            onLoad={() => onCoverSettled("ready")}
-            onError={() => onCoverSettled("error")}
-            sizes="(max-width: 768px) 100vw, 800px"
+            imgClassName={cn("object-cover", showSkeleton && "opacity-0")}
+            onSettle={onCoverSettled}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -167,6 +189,10 @@ export function ContentDetail({
   onOpenRelatedDetail,
   relatedFanworksSummary,
   onNavigateInOverlay,
+  authorAction,
+  variantTail,
+  coverHoldSrc,
+  deferTail,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -210,7 +236,7 @@ export function ContentDetail({
      落定事件；正文 reveal 改由左栏行外媒体区的 coverReady 信号驱动（任一路径落定即显示，
      错误态同 reveal，与 ui-spec:2411 稳定占位符语义一致）。 */
   const settled =
-    coverState !== "loading" || (mediaSlot === "split" && coverReady !== undefined);
+    coverState !== "loading" || (mediaSlot !== "inline" && coverReady !== undefined);
   const bodyVisible = !coverSync || settled;
 
   async function handleTagSuggestion(tag: string, action: "add" | "remove") {
@@ -264,6 +290,7 @@ export function ContentDetail({
               })}
             </span>
           )}
+          {authorAction && <span className="ml-auto">{authorAction}</span>}
         </div>
 
         {/* 来源归因（ui-spec:2635）：标题/作者元信息之后、正文之前；仅 fanwork 且存在内容级来源时渲染。 */}
@@ -283,12 +310,13 @@ export function ContentDetail({
           carries data-slot="detail-cover" so the overlay FLIP/cover-sync
           contract keeps working on the shared surface. #88 双栏模式下该行内
           媒体区在 ≥1100px 隐藏（由 Overlay 层的左栏媒体列承担）。 */}
-      <div className={cn(mediaSlot === "split" && "min-[1100px]:hidden")}>
+      <div className={cn(mediaSlot !== "inline" && "min-[1100px]:hidden")}>
         {usesGallery ? (
           <MediaGallery
             items={mediaItems}
             onFirstMediaSettled={setCoverState}
             onReachEnd={onGalleryReachEnd}
+            firstItemHoldSrc={coverHoldSrc}
           />
         ) : (
           <CoverImage
@@ -299,6 +327,7 @@ export function ContentDetail({
             coverSync={coverSync}
             coverState={coverState}
             onCoverSettled={setCoverState}
+            holdSrc={coverHoldSrc}
           />
         )}
         {/* #89 连续浏览：上下文列表到底提示（随媒体区一起在双栏桌面端隐藏，
@@ -432,7 +461,7 @@ export function ContentDetail({
             </div>
             <a
               href={`omnicraft://deploy?content_id=${data.id}`}
-              className="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-accent px-3 py-2 text-xs font-medium text-accent-foreground transition-all duration-150 hover:bg-accent/80 active:scale-95"
+              className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border bg-accent px-3 text-xs font-medium text-accent-foreground transition-all duration-150 hover:bg-accent/80"
             >
               <Rocket className="mr-1 h-3.5 w-3.5" />
               {t('content.oneClickDeploy')}
@@ -469,6 +498,13 @@ export function ContentDetail({
           onOpenChange={setCollectionPickerOpen}
           onMembershipChange={setIsFavorited}
         />
+        {/* T48 (FIX-22b): 贡献者 PR 提交入口（fanwork + allow_copy + 非作者才渲染） */}
+        <SubmitPREntry
+          contentId={data.id}
+          authorId={data.author_id ?? data.author?.id}
+          allowCopy={data.allow_copy}
+          zone={data.zone}
+        />
       </div>
 
       {/* Reaction Bar */}
@@ -478,6 +514,11 @@ export function ContentDetail({
         initialDislikes={data.dislike_count ?? 0}
       />
 
+      {/* #397 竖屏集新版布局：variantTail 替换默认尾部（关联内容块 + 评论区末块，
+          胜者记录 §7 布局钉死）。#430：浮层宿主 deferTail 时默认尾部延后一拍。 */}
+      {variantTail ?? (
+      <DeferredMount defer={deferTail}>
+      <>
       {data.series_memberships && data.series_memberships.length > 0 && (
         <SeriesNav memberships={data.series_memberships} onNavigateInOverlay={onNavigateInOverlay} />
       )}
@@ -508,6 +549,9 @@ export function ContentDetail({
         }
         onOpenDetail={onOpenRelatedDetail}
       />
+      </>
+      </DeferredMount>
+      )}
       </div>
     </div>
   );

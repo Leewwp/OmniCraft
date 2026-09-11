@@ -18,22 +18,32 @@ import (
 )
 
 type SocialHandler struct {
-	socialSvc *service.SocialService
-	db        *gorm.DB
+	socialSvc     *service.SocialService
+	db            *gorm.DB
+	displaySigner *service.DisplayURLSigner
 }
 
 func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *SocialHandler {
-	return NewSocialHandlerWithService(service.NewSocialServiceWithRedis(
+	h := NewSocialHandlerWithService(service.NewSocialServiceWithRedis(
 		repository.NewSocialRepository(db),
 		repository.NewContentRepository(db),
 		repository.NewUserRepository(db),
 		cfg,
 		rdb,
+		service.NewReviewService(db, rdb, cfg, nil),
 	), db)
+	h.SetDisplayURLSigner(service.NewDisplayURLSigner(cfg))
+	return h
 }
 
 func NewSocialHandlerWithService(socialSvc *service.SocialService, db *gorm.DB) *SocialHandler {
 	return &SocialHandler{socialSvc: socialSvc, db: db}
+}
+
+// SetDisplayURLSigner wires display URL signing for comment/discussion
+// author avatars and linked IP covers (B-002).
+func (h *SocialHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
+	h.displaySigner = signer
 }
 
 func (h *SocialHandler) PostComment(c *gin.Context) {
@@ -47,15 +57,24 @@ func (h *SocialHandler) PostComment(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
-	comment, err := h.socialSvc.PostComment(input, callerID)
+	comment, err := h.socialSvc.PostComment(c.Request.Context(), input, callerID)
 	if err != nil {
 		if err == service.ErrLowReputation {
 			response.Forbidden(c, "reputation score too low to perform this action")
 			return
 		}
+		if err == service.ErrTextBlocked {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+			return
+		}
+		if err == service.ErrModerationUnavailable {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateComment(comment)
 	c.JSON(http.StatusCreated, gin.H{"comment": comment})
 }
 
@@ -66,8 +85,18 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid comment id"})
 		return
 	}
+	// 错误风格与 EditComment 对齐（FIX-31b/F-093）：404/403 专用码，不再落
+	// 400 "ERROR" 通配透传底层错误。
 	if err := h.socialSvc.DeleteComment(id, callerID); err != nil {
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		if err == service.ErrCommentNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "comment not found"})
+			return
+		}
+		if err == service.ErrCommentForbidden {
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not comment author"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -87,7 +116,7 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
-	comment, err := h.socialSvc.EditComment(id, callerID, body.Body)
+	comment, err := h.socialSvc.EditComment(c.Request.Context(), id, callerID, body.Body)
 	if err != nil {
 		if err == service.ErrCommentNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "comment not found"})
@@ -97,9 +126,18 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not comment author"})
 			return
 		}
+		if err == service.ErrTextBlocked {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+			return
+		}
+		if err == service.ErrModerationUnavailable {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
 		return
 	}
+	h.displaySigner.DecorateComment(comment)
 	c.JSON(http.StatusOK, gin.H{"comment": comment})
 }
 
@@ -121,11 +159,12 @@ func (h *SocialHandler) ListComments(c *gin.Context) {
 	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	comments, total, err := h.socialSvc.ListComments(contentID, parentID, page, pageSize)
+	comments, total, err := h.socialSvc.ListComments(contentID, parentID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateComments(comments)
 	c.JSON(http.StatusOK, gin.H{"comments": comments, "total": total, "page": page, "page_size": pageSize})
 }
 
@@ -139,11 +178,12 @@ func (h *SocialHandler) ListDiscussions(c *gin.Context) {
 	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	discussions, total, err := h.socialSvc.ListDiscussions(ipID, contentID, page, pageSize)
+	discussions, total, err := h.socialSvc.ListDiscussions(ipID, contentID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateDiscussions(discussions)
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total, "page": page, "page_size": pageSize})
 }
 
@@ -158,15 +198,24 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
-	d, err := h.socialSvc.PostDiscussion(input, callerID)
+	d, err := h.socialSvc.PostDiscussion(c.Request.Context(), input, callerID)
 	if err != nil {
 		if err == service.ErrLowReputation {
 			response.Forbidden(c, "reputation score too low to perform this action")
 			return
 		}
+		if err == service.ErrTextBlocked {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+			return
+		}
+		if err == service.ErrModerationUnavailable {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateDiscussion(d)
 	c.JSON(http.StatusCreated, gin.H{"discussion": d})
 }
 
@@ -181,6 +230,13 @@ func (h *SocialHandler) GetDiscussion(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
 		return
 	}
+	// #446/SP-16 P0：与 /discussions/:id 同口径（T12/F-106）——未发布
+	// （under_review/hidden）讨论不透出详情，此前 social 路径漏了这层门。
+	if d.Status != "published" {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		return
+	}
+	h.displaySigner.DecorateDiscussion(d)
 	c.JSON(http.StatusOK, gin.H{"discussion": d})
 }
 
@@ -318,4 +374,33 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "reported"})
+}
+
+// ListMyReports returns the caller's own reports with handling status and
+// action-taken notes (FIX-28a). The reporter_id filter is derived from the
+// auth context so other users' reports can never leak.
+func (h *SocialHandler) ListMyReports(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		return
+	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	searchRepo := repository.NewSearchRepository(h.db)
+	reports, total, err := searchRepo.ListReportsByReporter(callerID, page, pageSize)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if reports == nil {
+		reports = []model.Report{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"reports":   reports,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }

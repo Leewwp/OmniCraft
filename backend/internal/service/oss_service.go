@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,13 +17,19 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/imageinfo"
 )
 
 var ErrOSSNotConfigured = errors.New("oss config is incomplete")
 
+// UploadValidationError marks presign requests that fail input validation.
+// Code carries a machine-readable business code the handler forwards to the
+// client when set (T25: oversize → FILE_TOO_LARGE); empty means a generic
+// VALIDATION_ERROR.
 type UploadValidationError struct {
 	Message string
+	Code    string
 }
 
 func (e *UploadValidationError) Error() string {
@@ -83,9 +91,11 @@ func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUp
 	}
 	// Content uploads (media gallery items and video posters) must be MIME
 	// types the imageinfo parser can decode, so an upload that passes here can
-	// always be parsed for dimensions at publish time. Feedback attachments
+	// always be parsed for dimensions at publish time. Avatars share the same
+	// delivery chain (#111): the object is scanned by Green and rendered by
+	// the client, so it must be a decodable image too. Feedback attachments
 	// keep their own MIME contract and do not go through this endpoint.
-	if normalizedFileType == "image" && !imageinfo.IsSupportedMIME(normalizedMime) {
+	if (normalizedFileType == "image" || normalizedFileType == "avatar") && !imageinfo.IsSupportedMIME(normalizedMime) {
 		return nil, &UploadValidationError{Message: "mime_type must be image/png, image/jpeg or image/webp"}
 	}
 
@@ -167,6 +177,72 @@ func (s *OSSService) VerifyUploadedObject(ctx context.Context, grant UploadGrant
 	return nil
 }
 
+// ValidateArchiveStructure streams an uploaded object into a restricted
+// temporary file and lets the archivezip package inspect it with its configured
+// entry, decompression and nesting quotas. The temporary file is removed on
+// every return path; the archive is never retained as application state.
+func (s *OSSService) ValidateArchiveStructure(ctx context.Context, ossKey string, size int64, quota archivezip.Quota) error {
+	if s == nil || s.client == nil {
+		return ErrOSSNotConfigured
+	}
+	if size <= 0 {
+		return &UploadValidationError{Message: "archive size must be positive"}
+	}
+	object, err := s.client.Open(strings.TrimSpace(ossKey))
+	if err != nil {
+		return err
+	}
+	defer object.Close()
+	tmp, err := os.CreateTemp("", "omnicraft-archive-validate-*")
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	defer func() { _ = tmp.Close() }()
+	defer os.Remove(name)
+	written, err := copyWithContext(ctx, tmp, io.LimitReader(object, size+1))
+	if err != nil {
+		return err
+	}
+	if written != size {
+		return &UploadValidationError{Message: "uploaded archive size does not match grant"}
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	if _, err := archivezip.Validate(ctx, tmp, written, quota); err != nil {
+		return err
+	}
+	return tmp.Close()
+}
+
+func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
+	buf := make([]byte, 32*1024)
+	var total int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			written, writeErr := dst.Write(buf[:n])
+			total += int64(written)
+			if writeErr != nil {
+				return total, writeErr
+			}
+			if written != n {
+				return total, io.ErrShortWrite
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return total, nil
+			}
+			return total, readErr
+		}
+	}
+}
+
 // ResolveImageDimensions derives pixel dimensions from the object header, so
 // cover/poster sizes are trusted server-side facts rather than client input.
 func (s *OSSService) ResolveImageDimensions(ctx context.Context, ossKey string) (int, int, error) {
@@ -193,6 +269,14 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 		if !strings.HasPrefix(mimeType, "image/") {
 			return &UploadValidationError{Message: "mime_type must be image/*"}
 		}
+	case "avatar":
+		// Profile avatars are issued through the same presign chain as content
+		// images, under their own /avatar/ key prefix so the audit tooling can
+		// distinguish them. The size budget reuses the image limit.
+		limitMB = s.cfg.Limits.ImageMaxMB
+		if !strings.HasPrefix(mimeType, "image/") {
+			return &UploadValidationError{Message: "mime_type must be image/*"}
+		}
 	case "text":
 		limitMB = s.cfg.Limits.TextMaxMB
 		if !(strings.HasPrefix(mimeType, "text/") || mimeType == "application/pdf") {
@@ -214,7 +298,7 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 
 	limitBytes := int64(limitMB) * 1024 * 1024
 	if fileSize > limitBytes {
-		return &UploadValidationError{Message: fmt.Sprintf("file size exceeds %dMB", limitMB)}
+		return &UploadValidationError{Code: "FILE_TOO_LARGE", Message: fmt.Sprintf("file size exceeds %dMB", limitMB)}
 	}
 
 	return nil

@@ -118,6 +118,17 @@
 - Mod 包：≤ 500MB
 - 乐谱：≤ 50MB，允许扩展名：mid, midi, xml, mxl, mscz, mscx, pdf
 
+### 内容可见性统一口径（FIX-12+43，T09）
+
+- **详情**：非 `published`、`is_public=false` 私密、作者已封禁/已注销的内容，仅作者本人与 admin 可读（HTTP 200）；其余视角一律 404（判官豁免钩子预留给盲投修复 T40）。服务端缓存仅缓存 published 公开视图；`view_count` 仅对 published 且非作者本人的访问计数。
+- **主列表 / 他人用户列表 / IP 内容列表**：统一 `ApplyContentVisibilityScope`（published + 未删除 + 作者未封禁未注销 + 所属 IP 未封禁 + is_public 或作者本人）；作者自助列表（/users/me/contents）走 `IncludeAllStatuses` 全状态例外；admin 终审队列显式 Status 过滤保留原语义。
+
+### 版本历史（FIX-42，T51）
+
+- **版本来源**：①发布——内容发布成功后随发布事务创建初始版本 v1（`storage_type=full`，全文=发布时的 `description`，`is_latest=true`）；②PR 合并——合并事务内新建 full 版本并翻转 `is_latest`（proposed 快照仅是提交时的建议稿）。编辑不产生新版本（最小实现边界，见 FIX-42）。
+- **存量内容不回填**：FIX-42 接线（2026-09-05）前发布的内容没有 v1，版本列表为空；不做懒补，前端空态文案（`content.noVersionHistory`）已向用户说明原因。
+- **读取口径**：`GET /contents/:id/versions` 对读者只暴露 active lineage（proposed 版本仅作者/提交者/admin 可见，FIX-21①）。
+
 ### 内容下载（Task 121）
 
 - 下载 API：`GET /api/v1/contents/:id/download`，需认证且校验内容 `status=published`
@@ -138,7 +149,7 @@
 
 - 通知自动创建：后端在评论、点赞、关注、系统公告等事件发生时自动创建 `notifications` 记录
 - 通知类型枚举：`comment`、`like`、`follow`、`system`、`mention`、`appeal_result`、`content_status`
-- 前端 Entry Header 通知铃铛显示未读数（`GET /api/v1/notifications/unread-count` 轮询，5 分钟间隔）
+- 前端 Entry Header 通知铃铛显示未读数（`GET /api/v1/notifications/unread-count` 轮询，30 秒间隔，与 AuthContext.pollUnread 实现一致）
 - 消息中心页面 `/messages` 包含通知列表和私信对话列表两个 Tab
 - 私信 UI（Task 116）：左侧对话列表 + 右侧对话窗口；Websocket 或 SSE 实现实时消息（MVP 使用 SSE）
 
@@ -155,9 +166,11 @@
 ### 赛博判官
 - 题库不存在时：该类型内容不开放众裁
 - 考核通过线：≥ 80% 正确率
-- 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分
+- 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分；撤权重算的多数派口径读 `judge.pass_threshold` 与闭案阈值同源（T39/FIX-03），结案终态一律按 `closed_approve`/`closed_reject` 前缀匹配
+- 准确率奖励（T39/FIX-03）：闭案后与多数派一致的在册判官 +1 信誉分（reputation_log reason=`judge_accuracy`，按案幂等）；少数派不奖励
 - 判决结束条件：总投票人数 ≥ 阈值（MVP 默认 20，可配置，目标 100）
 - 判决结果：「不违规」比例 ≥ 60% → 恢复展示；< 60% → 有争议，不予展示（管理员可手动恢复）
+- 闭案回写（FIX-10）：closed_approve → 内容从 under_review 条件恢复 published（守卫保证 admin/AI 终态 banned 不被众裁覆盖）并重发索引事件；closed_reject → banned + ban_reason（judge_verdict 前缀），**不扣信誉分**（扣分语义属 AI/admin 通道）；两态均通知作者（content_status 契约）并立即失效内容缓存。banned 结果可 admin restore、可申诉
 - 判决详情页：投票后展示当前投票分布 + 其他判官提交的理由列表（可点赞/点踩，按赞数排序）
 
 ### 自动风控阈值（PRD §6.2，从 config.yaml > social 读取）
@@ -219,6 +232,7 @@
 - 顶部全站搜索只负责关键词建议、历史、热搜和普通搜索，不提供 Agent 模式切换；自然语言问答和受控协助统一进入 Agent 工作台。
 - Agent 回答中的有效引用渲染为 Agent 引用卡片。点击后与推荐流共用内容详情浮层；关闭浮层必须恢复原会话滚动位置和引用触发点焦点。直接访问内容 URL 仍使用完整详情页。
 - Web Agent 默认只检索 viewer 可见的 published 内容；私有草稿、上传文件和个人数据仅在用户显式选择且业务 API 再次授权后进入上下文。
+- 检索管线升级（2026-09-03 A-03）：`search_content` 与自然语言搜索在 `features.rag_hybrid_enabled` 开启后走 hybrid（词法路消费 041/042 pg_jieba `search_vector` 现役索引 + 向量路 RRF k=60 融合）；`features.rag_query_expansion_enabled` 开启后原始查询先经 M3 短调用扩展为 ≤5 个检索词、兄弟查询单次批量嵌入、双路逐词检索（扩展词在工具步骤摘要展示）；`features.rag_rerank_enabled` 开启后 RRF top-20 经 DashScope qwen3-rerank（SiliconFlow 备路）重排取 top-10。三开关默认 off，默认值由 A-04 消融数据裁决。降级链：rerank 失败→保 RRF 序 + `rerank_unavailable`；向量不可用→关键词路 + degraded；词法 OpenSearch 失败→Postgres 兜底。
 - 模型输出是不可信建议，不能直接成为权限决定或写操作；工具名、参数、调用轮数、内容可见性和预算均由服务端确定性校验。
 - `agent.web_agent_enabled` 仓库默认保持 `false`；真实 Provider、原子限流/预算、引用评测、错误降级和浏览器证据通过后，生产配置才可开启。
 - 当前 Tauri HMAC + WebView 直接文件命令属于禁用原型，不是可发布能力。D-02～D-05 与 R-02 未完成前必须保持 `features.desktop_deploy_enabled=false`，不得宣传客户端 Agent 可执行本地下载/配置。

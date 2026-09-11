@@ -6,25 +6,27 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   PanelLeftClose, PanelLeft, FilePlus, LayoutDashboard,
-  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign, BookOpen, X,
+  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign, BookOpen, Boxes, Heart, X, Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   STUDIO_SIDEBAR_STORAGE_KEY,
   useSidebarCollapse,
 } from "@/lib/use-sidebar-collapse";
-
-const itemBase =
-  "flex min-h-10 w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium outline-none transition-[color,background-color] duration-150 select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+import {
+  SIDEBAR_ITEM_BASE,
+  SIDEBAR_ITEM_TEXT_CLASS,
+  SIDEBAR_LIST_NOSCROLL_CLASS,
+  SIDEBAR_LIST_SCROLL_CLASS,
+  SidebarSectionHeader,
+  SidebarTooltip,
+} from "@/components/layout/sidebar-shell";
 
 const itemActive =
   "bg-accent-subtle text-accent-emphasis font-semibold";
 
 const itemIdle =
   "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle";
-
-const collapsedItem =
-  "justify-center px-[8px] py-[8px] w-auto";
 
 export function StudioSidebar() {
   const t = useTranslations();
@@ -39,6 +41,7 @@ export function StudioSidebar() {
       label: t('studio.sidebar.publish'),
       items: [
         { icon: FilePlus, label: t('studio.sidebar.publishContent'), href: "/studio/publish/original" },
+        { icon: Boxes, label: t('studio.sidebar.createIP'), href: "/studio/publish/ip" },
       ],
     },
     {
@@ -47,7 +50,9 @@ export function StudioSidebar() {
         { icon: LayoutDashboard, label: t('studio.sidebar.overview'), href: "/studio/overview" },
         { icon: BarChart3, label: t('studio.sidebar.followers'), href: "/studio/followers" },
         { icon: FileText, label: t('studio.sidebar.myContent'), href: "/studio/contents" },
+        { icon: Package, label: t('studio.sidebar.myIPs'), href: "/studio/ips" },
         { icon: BookOpen, label: t('studio.sidebar.series'), href: "/studio/series" },
+        { icon: Heart, label: t('studio.sidebar.favorites'), href: "/studio/favorites" },
       ],
     },
     {
@@ -93,9 +98,9 @@ export function StudioSidebar() {
           type="button"
           onClick={toggle}
           aria-label={toggleLabel}
-          title={toggleLabel}
           className={cn(
-            itemBase,
+            SIDEBAR_ITEM_BASE,
+            "group relative",
             "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle",
             collapsed
               ? "mx-auto w-9 justify-center px-0"
@@ -103,7 +108,10 @@ export function StudioSidebar() {
           )}
         >
           {collapsed ? (
-            <PanelLeft className="h-4 w-4 flex-shrink-0" />
+            <>
+              <PanelLeft className="h-4 w-4 flex-shrink-0" />
+              <SidebarTooltip label={toggleLabel} />
+            </>
           ) : (
             <>
               <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
@@ -112,17 +120,10 @@ export function StudioSidebar() {
           )}
         </button>
 
+        <div className={collapsed ? SIDEBAR_LIST_NOSCROLL_CLASS : SIDEBAR_LIST_SCROLL_CLASS}>
         {groups.map((group, gi) => (
           <div key={gi} className="mb-1">
-            {gi > 0 && collapsed && <div className="mx-3 my-2 h-px bg-border" />}
-            {group.label && (
-              <div className={cn(
-                "px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle",
-                collapsed && "hidden"
-              )}>
-                {group.label}
-              </div>
-            )}
+            <SidebarSectionHeader label={group.label} collapsed={collapsed} />
             <ul className={cn("space-y-0.5", collapsed ? "px-0" : "px-3")}>
               {group.items.map((item, ii) => {
                 const isActive =
@@ -131,33 +132,31 @@ export function StudioSidebar() {
                     pathname.startsWith(item.href + "/"));
 
                 const classes = cn(
-                  itemBase,
+                  SIDEBAR_ITEM_BASE,
                   isActive ? itemActive : itemIdle,
-                  collapsed && collapsedItem
+                  collapsed && "justify-center px-[8px] py-[8px] w-auto"
                 );
 
                 return (
-                  <li key={ii}>
+                  <li key={ii} className="group relative" data-sidebar-anchor="item">
                     <Link
                       href={item.href}
-                      data-label={collapsed ? item.label : undefined}
-                      title={collapsed ? item.label : undefined}
+                      aria-label={collapsed ? item.label : undefined}
                       className={cn(
                         classes,
-                        "group relative",
                         isActive && "before:absolute before:bottom-2 before:left-0 before:top-2 before:w-[3px] before:rounded-r before:bg-accent-emphasis",
                       )}
                     >
                       <item.icon className="h-4 w-4 flex-shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                      {collapsed && (
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-canvas-default px-3 py-1.5 text-sm text-foreground opacity-0 shadow-md transition-opacity delay-300 group-hover:opacity-100 group-focus-visible:opacity-100"
-                        >
-                          {item.label}
-                        </span>
-                      )}
+                      <span
+                        className={cn(
+                          SIDEBAR_ITEM_TEXT_CLASS,
+                          collapsed ? "-translate-x-1 opacity-0" : "translate-x-0 opacity-100"
+                        )}
+                      >
+                        <span className="flex-1 truncate">{item.label}</span>
+                      </span>
+                      {collapsed && <SidebarTooltip label={item.label} />}
                     </Link>
                   </li>
                 );
@@ -165,6 +164,7 @@ export function StudioSidebar() {
             </ul>
           </div>
         ))}
+        </div>
       </aside>
 
       <button
@@ -220,7 +220,7 @@ export function StudioSidebar() {
                         <Link
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
-                          className={cn(itemBase, isActive ? itemActive : itemIdle)}
+                          className={cn(SIDEBAR_ITEM_BASE, isActive ? itemActive : itemIdle)}
                         >
                           <item.icon className="size-4 shrink-0" />
                           <span className="truncate">{item.label}</span>

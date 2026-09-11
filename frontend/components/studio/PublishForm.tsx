@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { FileUploader, toUploadedAsset, type UploadItem } from "@/components/content/FileUploader";
 import { MarkdownEditor } from "@/components/content/MarkdownEditor";
+import { FilterPills } from "@/components/ui/filter-pills";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
@@ -22,8 +23,9 @@ import { CollabUserPicker, type CollabUser } from "@/components/content/CollabUs
 import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
-import { fetchPublicConfig } from "@/lib/public-config";
+import { fetchPublicConfig, uploadMaxMBForType, type PublicConfig } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 const ORIGINAL_CATEGORIES = [
   "film_tv", "gaming", "literature", "pet", "food",
@@ -119,6 +121,21 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   const isFilePrimary = FILE_PRIMARY_TYPES.includes(contentType);
   const mediaContentType = contentType === "image" || contentType === "video" ? contentType : null;
   const isMediaGallery = mediaContentType !== null;
+
+  useEffect(() => {
+    /* T25：上传上限随公开配置下发（admin 改配置即时生效，无需发版） */
+    let active = true;
+    fetchPublicConfig()
+      .then((config) => {
+        if (active) setPublicConfig(config);
+      })
+      .catch((error) => {
+        silentError(error, { component: "PublishForm", action: "fetchUploadLimits" });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!mediaContentType) {
@@ -221,6 +238,8 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [briefDesc, setBriefDesc] = useState("");
+  /* T25：公开配置（上传上限动态消费） */
+  const [publicConfig, setPublicConfig] = useState<PublicConfig | null>(null);
 
   // Zone-specific
   const [category, setCategory] = useState("");
@@ -418,8 +437,9 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       }
       toast("success", t('studio.publish.success'));
       router.push("/studio/contents");
-    } catch {
-      toast("error", t('studio.publish.failed'));
+    } catch (error) {
+      silentError(error, { component: "PublishForm", action: "handleSubmit" });
+      toast("error", t(getUserFacingErrorKey(error, "studio.publish.failed")));
     } finally {
       setSubmitting(false);
     }
@@ -431,7 +451,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       : "text"
   ) as "image" | "video" | "text" | "mod" | "sheet_music";
 
-  const maxMB = contentType === "mod" ? 500 : contentType === "sheet_music" ? 50 : contentType === "video" ? 300 : 20;
+  const maxMB = uploadMaxMBForType(publicConfig, fileType);
 
   return (
     <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
@@ -455,19 +475,14 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             {t('studio.publish.categoryLabel')} <span className="text-destructive">*</span>
           </label>
-          <div className="flex flex-wrap gap-2">
-            {ORIGINAL_CATEGORIES.map((cat) => (
-              <button key={cat} type="button" onClick={() => setCategory(cat)}
-                className={cn(
-                  "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
-                  category === cat
-                    ? "border-[var(--accent-emphasis)] bg-[var(--accent-subtle)] text-[var(--accent-emphasis)]"
-                    : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
-                )}>
-                {t(CATEGORY_I18N[cat])}
-              </button>
-            ))}
-          </div>
+          {/* #414 O1a：类目选择收敛为共享 FilterPills */}
+          <FilterPills
+            wrap
+            ariaLabel={t('studio.publish.categoryLabel')}
+            options={ORIGINAL_CATEGORIES.map((cat) => ({ value: cat, label: t(CATEGORY_I18N[cat]) }))}
+            value={category}
+            onChange={setCategory}
+          />
         </div>
       )}
 
@@ -485,6 +500,8 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
               placeholder={t('studio.publish.ipSearchPlaceholder')}
               searchLabel={t('studio.publish.ipLabel')}
               loadingLabel={t('studio.publish.ipSearching')}
+              createHref="/studio/publish/ip"
+              createLabel={t('studio.myIPs.create')}
             />
           </div>
           {prefillLoading ? (
@@ -817,7 +834,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
           type="submit"
           size="lg"
           disabled={submitting || complianceViolation || galleryConfigLoading || galleryUnavailable || mediaItems.some((item) => item.status === "pending" || item.status === "uploading") || sourceMissing}
-          className="gap-2 rounded-full px-8"
+          className="gap-2 px-8"
         >
           <Send className="h-4 w-4" />
           {submitting ? t('studio.publish.submitting') : t('studio.publish.submit')}

@@ -10,7 +10,7 @@
 
 ### 11.1 设计原则
 
-- **Provider 抽象**：LLM 供应商通过统一接口隔离，MVP 实现通义千问，可插拔替换 OpenAI / DeepSeek
+- **Provider 抽象**：LLM 供应商通过统一接口隔离；canonical 实现为 MiniMax-M3（minimax 适配器）+ 独立 embedding provider 拆分接线，原生 qwen 适配器已退役（fail-closed 拒绝并指路 compatible-mode）——选型唯一权威见 `docs/reference/agent-runtime-matrix.md`
 - **Tool-Call 模式（MVP）**：LLM 从白名单 tool 列表中选择调用，单轮或短链路执行，不使用自主 ReAct 循环
 - **SSE 流式传输**：所有 Agent 流式响应使用 Server-Sent Events，不引入 WebSocket
 - **Feature Flag 控制**：`agent.web_agent_enabled: false`（默认关闭，独立于 Tauri `features.agent_enabled`；配置位置见 §11.3）
@@ -47,12 +47,16 @@ type LLMProvider interface {
 }
 ```
 
+> 上图为规格期草图；当前真实接口见 `internal/pkg/llm/provider.go`（`ChatDelta` 含 `Thinking`/`ToolCalls`/`Usage` 通道，`ChatRequest` 含 `MaxTokens`/`Temperature`/`Stream`，provider options 携带独立 embedding key/base/维度）。
+
 **实现类**：
 
 | 实现 | 说明 |
 |---|---|
-| `QwenProvider` | 调用阿里云通义千问 API（`dashscope.aliyuncs.com`） |
-| `OpenAICompatProvider` | 通用 OpenAI 协议（DeepSeek / 本地 Ollama 均可复用此实现） |
+| `MiniMaxProvider` | MiniMax M 系列（canonical：MiniMax-M3）；流式 `<think>` 标签由 thinkSplitter 分流为 think_delta，解析 tool_calls；embedding 走 MiniMax 原生端点（legacy embo 路径） |
+| `OpenAICompatProvider` | 通用 OpenAI 协议（DeepSeek / DashScope compatible-mode / 本地 Ollama 均可复用）；解析 `reasoning_content` 思考通道；承担 canonical 的独立 embedding provider（text-embedding-v4 批量） |
+| `CompositeProvider` | 拆分接线（canonical）：chat/流式委托 minimax，单条与批量 embedding 委托 openai_compat，`GetEmbeddings` 批量转发保持 v4 批量契约 |
+| `QwenProvider` | **已退役（2026-09-05）**：原生 DashScope 适配器不发送 tools/max_tokens、不解析 tool_calls/reasoning，工厂 fail-closed 拒绝；DashScope 一律走 openai_compat + compatible-mode |
 
 运行时通过 `config.yaml > agent.llm_provider` 选择，工厂函数 `llm.NewProvider(cfg)` 返回接口实例。
 
@@ -63,17 +67,19 @@ type LLMProvider interface {
 ```yaml
 agent:
   web_agent_enabled: false          # 网页端 Agent 总开关（独立于 Tauri agent_enabled）
-  llm_provider: qwen                # qwen | openai_compat
-  llm_model: qwen-turbo             # 模型名称（随 provider 变）
-  llm_api_base: ""                  # 留空则使用 provider 默认 endpoint
+  llm_provider: minimax             # minimax | openai_compat（原生 qwen 已退役）
+  llm_model: MiniMax-M3             # canonical；模型/端点唯一权威见 agent-runtime-matrix.md
+  llm_api_base: "https://api.minimaxi.com"   # 不带尾部 /v1
   llm_api_key: ""                   # 从 env: AGENT_LLM_API_KEY 注入
-  embedding_model: text-embedding-v3
+  embedding_provider: openai_compat # 拆分接线：embedding 独立 provider（跨厂商必须自带 key，fail-closed）
+  embedding_model: text-embedding-v4
   embedding_dimensions: 1536
   rate_limit_per_day: 50
   rate_limit_per_minute: 5          # Provider/tool 请求分钟突发上限（产品化计划新增）
   upload_assist_max_file_mb: 10
   max_user_message_chars: 4000      # 用户消息最大字符数
   chat_max_context_messages: 10     # 对话上下文最大消息数
+  chat_context_token_budget: 8000   # 服务端上下文组装 token 预算（A-01，估算法：CJK 1 rune≈1 token）
   max_tool_calls_per_turn: 4        # 单轮工具调用上限（产品化计划新增）
   max_output_tokens: 1200           # 单轮最大输出 token（产品化计划新增）
   provider_timeout_sec: 30          # Provider 超时（产品化计划新增）
@@ -88,13 +94,7 @@ agent:
 AGENT_LLM_API_KEY=sk-xxx
 ```
 
-**LLM 配置优先级**（DB 优先于 config.yaml）：
-
-```
-读取顺序：llm_configs 表 (is_active=TRUE) → 若无激活记录 → 降级到 config.yaml agent.* 配置
-管理员通过 /admin/agent-config 可视化界面管理 LLM 配置，支持多配置切换和连接测试。
-internal/pkg/llm/factory.go 的 NewProvider(cfg) 需扩展为先查 DB active config，找不到再 fallback 到 config.yaml。
-```
+**LLM 配置来源（2026-09-05 修订）**：运行时 Provider 只在启动时从 **env（根目录 `.env`，最高优先）→ config.yaml `agent.*`** 构造一次；`llm_configs` 表（`/admin/agent-config`）降级为**配置登记 + 连接测试**，激活不改变运行中的 Agent——每请求生效身份以 OTel span（`gen_ai.request.model`）与 `/api/v1/config/public` 的非敏感身份为准。动态 resolver（DB active 热切换）属 Phase 2 范围；本节早期"DB 优先于 config.yaml"的承诺不再成立。
 
 ### 11.4 数据库 Schema
 
@@ -135,6 +135,8 @@ CREATE TABLE content_embeddings (
 CREATE INDEX ON content_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 ```
 
+> **现状（2026-09-05）**：上表为 022 迁移的 legacy content 级向量（每内容一条，`title+description+tags` 拼接），现服务推荐系统/legacy 读域。Agent RAG 已升级为 **chunk 级投影**（迁移 071：`rag_chunks` / `chunk_embeddings` / `index_projection_status`，双世代），两域的模型身份、重建与回滚边界见 `docs/reference/agent-runtime-matrix.md` §1。
+
 ### 11.5 API 路由
 
 所有 Agent 接口挂载于 `/api/v1/agent/`，需登录（JWT）。下表先记录当前代码真相；`web_agent_enabled=false` 时这些 Provider 入口必须返回 feature-disabled。
@@ -143,12 +145,15 @@ CREATE INDEX ON content_embeddings USING ivfflat (embedding vector_cosine_ops) W
 |---|---|---|
 | `POST` | `/agent/upload-assist` | 当前接受用户显式提交的发布表单 snapshot，返回建议；产品化后归入 typed publish suggestion 契约 |
 | `POST` | `/agent/compliance-check` | 当前对显式表单文本执行合规建议；不是模型可自由选择的 tool |
-| `POST` | `/agent/search` | 自然语言搜索；产品化后结果/回答遵守 grounded citation 契约 |
+| `POST` | `/agent/search` | **已下线（2026-09-04，A-07 后端清理）**：NLSearch 端点随前端唯一消费者退役而删除；检索能力并入 `/agent/chat/stream` 工具链（服务端引用复验/可见性行为由 chat 工具链共享） |
 | `GET` | `/agent/usage-guide/:id?stream=true` | 当前同步/流式共用路径；产品化前必须加入 viewer-aware reload |
 | `POST` | `/agent/moderate/:id` | **待移除的普通用户旧入口**：当前可写 AI review，不得随 Web Agent 开启；审核仅保留在受权 admin/worker 链路 |
-| `POST` | `/agent/chat/stream` | 通用流式对话；产品化后使用 typed SSE events、server-owned surface 和可选 content ID |
-| `GET` | `/agent/conversations`、`/agent/conversations/:id` | 仅当前用户会话历史；只读请求不占 Provider 生成配额 |
+| `POST` | `/agent/chat/stream` | 通用流式对话；typed SSE events、server-owned surface 和可选 content ID。**A-01（2026-09-02）请求体硬切换**：`{conversation_id?, message, context?}`——首次省略 conversation_id 则服务端建会话并在 start/done 事件返回 id；续写由服务端按 token 预算组装上下文，客户端不再上传整段历史（旧 `{messages:[...]}` body 400 拒绝） |
+| `GET` | `/agent/conversations`、`/agent/conversations/:id` | 仅当前用户会话历史；只读请求不占 Provider 生成配额。列表排序（A-01）：置顶组 `pinned_at DESC`，其余 `updated_at DESC` |
+| `PATCH`（A-01 新增） | `/agent/conversations/:id` | owner-scoped 重命名（`{title}` ≤50 runes）与置顶/取消置顶（`{pinned: bool}`）；foreign/missing 均 404；`updated_at` 仅由聊天轮次推进 |
 | `DELETE`（产品化新增） | `/agent/conversations/:id` | owner-scoped 幂等清空当前会话/messages；missing/foreign 均 204，不删除脱敏 trace/聚合指标 |
+
+**会话模型（A-01，2026-09-02）**：`agent_conversations` 增 `title`（可空 VARCHAR(200)，首轮问答完成后异步生成摘要标题，失败回退首条用户消息截断 ≤50 runes；存量不回填，无 title 显示「未命名」）与 `pinned_at`（可空 TIMESTAMPTZ）；停止/失败保留会话与已流出的部分内容，删除仅发生在用户显式 DELETE（迁移 074）。
 
 **当前上传辅助请求与产品化 snapshot 约定**：
 
@@ -168,14 +173,29 @@ CREATE INDEX ON content_embeddings USING ivfflat (embedding vector_cosine_ops) W
   "suggested_description": "..."
 }
 
-// 产品化 POST /agent/chat/stream → typed SSE（示意）
+// 产品化 POST /agent/chat/stream → typed SSE（A-02 契约 v2，2026-09-02 定稿）
+// 事件集：start / think_delta / tool_status / delta / citation / usage / done / error
+// 真流式：正文与思考增量按 provider chunk 逐段转发（首事件延迟 ≈ 首 token 延迟），
+// 终态裁决在 done；done.message_id = 落库的 assistant 消息 id。
+event: start
+data: {"trace_id": "...", "conversation_id": 21, "answer_kind": "grounded_content"}
+event: think_delta
+data: {"delta": "思考增量片段（仅展示层：不进引用复验、不作为工具结果、不并入 answer）"}
+event: tool_status
+data: {"tool": {"name": "search_content", "args_summary": "像素风 游戏", "hits": 3, "status": "success", "duration_ms": 42}}
 event: delta
-data: {"text": "根据已检索内容..."}
+data: {"delta": "根据已检索内容..."}
 event: citation
-data: {"content_id": 123, "title": "...", "zone": "original"}
+data: {"citation": {"content_id": 123, "title": "...", "zone": "original"}}
+event: usage
+data: {"usage": {"prompt_tokens": 812, "completion_tokens": 240}}
 event: done
-data: {"trace_id": "...", "answer_kind": "grounded_content", "degraded": false}
+data: {"trace_id": "...", "conversation_id": 21, "message_id": 66, "answer_kind": "grounded_content", "answer": "最终裁决文本（no_evidence/degraded 时为空，客户端以 done 为准替换已流出正文）", "citations": [...], "tools": [...], "usage": {...}, "degraded": false}
+event: error
+data: {"error_code": "AGENT_PROVIDER_ERROR|AGENT_PROVIDER_TIMEOUT|STREAM_CANCELLED|AGENT_STORAGE_ERROR|AGENT_CONVERSATION_NOT_FOUND", "error_message": "安全文案，不含原始 Provider 错误"}
 ```
+
+**v2 语义要点**：① `<think>` 思考块由 provider 层分流为 think_delta 转发（MiniMax 标签式 + OpenAI 兼容 `reasoning_content` 通道），落库为独立 phase 标记行（`tool_calls={"phase":"think"}`）供历史回放，答案行不含 think；② no_evidence/degraded 轮的正文可能已流出——done 是最终裁决（answer 置空、answer_kind 标注），客户端据此替换显示（与 A-05 输出事后审核不阻塞流式同理）；③ 工具步骤事件携带服务端派生的参数摘要（检索词/content_id）与命中数、耗时，不含原始参数 JSON；④ T19 行缓冲语义（前端逐段累积 + 流尾 flush）继续成立——delta 事件形状不变，仅从「一次性全文」变为「逐段多次」。
 
 产品化目标不会新增让模型直接提交 draft/content/file ID 的写工具。内部 tool dispatcher、引用验证和限流语义见 §11.6、§11.9～§11.10；真实路由变更后由 doc-validator 刷新本节上方的自动路由表。
 
@@ -197,29 +217,7 @@ Agent 在 Tool-Call 模式下只能调用以下内部工具，不可执行任意
 
 ### 11.7 向量化 Pipeline
 
-内容发布/更新时触发异步向量化任务（与现有 AI 审核任务同级）：
-
-```
-内容发布 → content_service.PublishContent()
-  └── 异步 goroutine:
-        1. 拼接向量化文本：title + description + tags（joined）
-        2. 调用 LLM embedding API（embedding_model）
-        3. 写入 content_embeddings（upsert）
-```
-
-自然语言搜索流程：
-
-```
-用户 query
-  → POST /agent/search
-  → agent_service.Search():
-      1. 调用 embedding API 向量化 query
-      2. pgvector cosine 相似度检索（topk=20）
-      3. LLM 对结果排序/过滤/摘要
-      4. 返回结构化结果列表
-```
-
-向量化失败不阻断发布流程，失败时记录日志、稍后重试。
+> **现状（2026-09-05，A-03 已落地）**：本节原始的「title+description+tags 单向量 → content_embeddings」流程已被 chunk 级投影取代——发布/更新触发投影 worker：按 `rag.chunking` 切块 → **批量嵌入**（DashScope text-embedding-v4@1536，10 条/批，走 openai_compat embedding provider）→ 写 `rag_chunks` / `chunk_embeddings` / `index_projection_status`（双世代，迁移 071）。hybrid 开启时检索为 RRF（pg_jieba 词法主路 + pgvector 向量，`rag.hybrid.keyword_source: postgres`）；查询扩展与 qwen3-rerank 各自开关门控，三开关默认 off 由 A-04 消融数据定默认。向量化失败不阻断发布流程，失败时记录日志、稍后重试（语义保留）。旧单向量路径仅存于 legacy `content_embeddings`（推荐系统域）。选型与开关唯一权威：`docs/reference/agent-runtime-matrix.md`。
 
 ### 11.8 限流实现
 
@@ -245,7 +243,7 @@ SSE 流式渲染复用 `lib/useSSE.ts` hook。该 hook 使用 `fetch` + `Readabl
 
 ### 11.10 产品化回答与评测契约
 
-- 流式事件统一为 `start`、`tool_status`、`delta`、`citation`、`usage`、`done`、`error`；最终事件包含 `trace_id` 和 `degraded`。
+- 流式事件统一为 v2 **八事件** registry：`start`、`think_delta`、`tool_status`、`delta`、`citation`、`usage`、`done`、`error`（与 §11.5 契约一致；唯一清单与兼容规则见 `docs/reference/agent-runtime-matrix.md` §5——前端忽略未知事件、无思考通道的 provider 其 think_delta 自然缺席、done 为终态裁决）；最终事件包含 `trace_id` 和 `degraded`。
 - Citation 由后端内容摘要构建并在输出前再次执行共享可见性检查；模型提供的任意 URL 不能直接成为站内引用。
 - Chat context 只接受 server-owned surface 枚举和可选资源 ID；title/type/visibility 均由服务端按 viewer 重载，客户端摘要不能进入 system context。
 - `/agent/usage-guide/:id` 同步/流式路径与 tool registry 共用 viewer-aware resolver；普通用户 Agent 路由不得暴露会写审核记录的 `/agent/moderate/:id`。

@@ -1,5 +1,11 @@
 package service
 
+import (
+	"encoding/json"
+
+	"omnicraft/backend/internal/model"
+)
+
 // AgentAnswerKind is a server-owned enum that determines whether an answer
 // must carry citations. The model never chooses citation requirements; the
 // value is fixed by the request surface and the service execution path.
@@ -13,6 +19,12 @@ const (
 	// AgentAnswerNoEvidence marks answers without valid evidence; the caller
 	// falls back to keyword search instead of a fabricated citation.
 	AgentAnswerNoEvidence AgentAnswerKind = "no_evidence"
+	// AgentAnswerConversational marks turns that never needed evidence in the
+	// first place (SP-15 A2): a deterministic server-side lane admitting only
+	// zero-tool, zero-citation, non-degraded replies within the configured
+	// rune guardrail. The model never opts in itself; every condition is
+	// checked server-side after the stream finishes.
+	AgentAnswerConversational AgentAnswerKind = "conversational"
 	// AgentAnswerPublishSuggestion is the typed contract for publish-metadata
 	// suggestions; it carries no site-content citation requirement.
 	AgentAnswerPublishSuggestion AgentAnswerKind = "publish_suggestion"
@@ -29,16 +41,68 @@ const (
 // It is rebuilt from backend-owned content summaries, never from model-authored
 // URLs, so it always carries a valid content_id/title/zone.
 type AgentCitation struct {
-	ContentID int64  `json:"content_id"`
-	Title     string `json:"title"`
-	Zone      string `json:"zone"`
-	Excerpt   string `json:"excerpt"`
+	ContentID      int64  `json:"content_id"`
+	ContentVersion int    `json:"content_version"`
+	ChunkKey       string `json:"chunk_key"`
+	ChunkIndex     int    `json:"chunk_index"`
+	Title          string `json:"title"`
+	Zone           string `json:"zone"`
+	Route          string `json:"route"`
+	Excerpt        string `json:"excerpt"`
+	Source         string `json:"source"`
+}
+
+// MarshalJSON keeps the pre-RAG citation contract stable while preserving the
+// complete RAG provenance contract, including a valid zero-based chunk index.
+func (c AgentCitation) MarshalJSON() ([]byte, error) {
+	if c.ContentVersion == 0 && c.ChunkKey == "" && c.ChunkIndex == 0 && c.Route == "" && c.Source == "" {
+		return json.Marshal(struct {
+			ContentID int64  `json:"content_id"`
+			Title     string `json:"title"`
+			Zone      string `json:"zone"`
+			Excerpt   string `json:"excerpt"`
+		}{
+			ContentID: c.ContentID,
+			Title:     c.Title,
+			Zone:      c.Zone,
+			Excerpt:   c.Excerpt,
+		})
+	}
+
+	return json.Marshal(struct {
+		ContentID      int64  `json:"content_id"`
+		ContentVersion int    `json:"content_version"`
+		ChunkKey       string `json:"chunk_key"`
+		ChunkIndex     int    `json:"chunk_index"`
+		Title          string `json:"title"`
+		Zone           string `json:"zone"`
+		Route          string `json:"route"`
+		Excerpt        string `json:"excerpt"`
+		Source         string `json:"source"`
+	}{
+		ContentID:      c.ContentID,
+		ContentVersion: c.ContentVersion,
+		ChunkKey:       c.ChunkKey,
+		ChunkIndex:     c.ChunkIndex,
+		Title:          c.Title,
+		Zone:           c.Zone,
+		Route:          c.Route,
+		Excerpt:        c.Excerpt,
+		Source:         c.Source,
+	})
 }
 
 // AgentToolExecution reports one registered tool invocation without exposing
 // raw arguments or internal reasoning.
 type AgentToolExecution struct {
-	Name       string `json:"name"`
+	Name string `json:"name"`
+	// ArgsSummary is a server-derived, display-safe argument summary (for
+	// example the search query or the requested content id); raw tool
+	// argument JSON is never serialized into events.
+	ArgsSummary string `json:"args_summary,omitempty"`
+	// Hits counts how many retrievable items the tool returned (search
+	// result count, 1/0 for a detail lookup).
+	Hits       int    `json:"hits"`
 	Status     string `json:"status"`
 	DurationMs int64  `json:"duration_ms"`
 }
@@ -66,4 +130,29 @@ type AgentAnswer struct {
 type AgentErrorDTO struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+// citationsToModel maps the stream citation contract onto the persistence
+// shape (N4): storage keeps the complete 9-field form including RAG
+// provenance; the stream-side legacy-minimal MarshalJSON stays a wire
+// concern only.
+func citationsToModel(citations []AgentCitation) []model.AgentCitation {
+	if len(citations) == 0 {
+		return nil
+	}
+	out := make([]model.AgentCitation, len(citations))
+	for i := range citations {
+		out[i] = model.AgentCitation{
+			ContentID:      citations[i].ContentID,
+			ContentVersion: citations[i].ContentVersion,
+			ChunkKey:       citations[i].ChunkKey,
+			ChunkIndex:     citations[i].ChunkIndex,
+			Title:          citations[i].Title,
+			Zone:           citations[i].Zone,
+			Route:          citations[i].Route,
+			Excerpt:        citations[i].Excerpt,
+			Source:         citations[i].Source,
+		}
+	}
+	return out
 }

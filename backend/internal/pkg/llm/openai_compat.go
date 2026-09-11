@@ -6,19 +6,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"omnicraft/backend/internal/observability"
 )
 
 type OpenAICompatProvider struct {
-	apiKey     string
-	apiBase    string
-	model      string
-	embedModel string
-	client     *http.Client
-	maxRetries int
+	apiKey           string
+	apiBase          string
+	embedAPIBase     string
+	embedGroupID     string
+	embedAPIKey      string
+	embedDimensions  int
+	model            string
+	embedModel       string
+	client           *http.Client
+	maxRetries       int
+	system           string
 }
 
 func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...ProviderOption) *OpenAICompatProvider {
@@ -31,13 +39,25 @@ func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...
 		opt(&cfg)
 	}
 	return &OpenAICompatProvider{
-		apiKey:     apiKey,
-		apiBase:    apiBase,
-		model:      model,
-		embedModel: embedModel,
-		client:     &http.Client{Timeout: cfg.timeout},
-		maxRetries: cfg.maxRetries,
+		apiKey:          apiKey,
+		apiBase:         apiBase,
+		embedAPIBase:    strings.TrimRight(defaultString(cfg.embeddingAPIBase, apiBase), "/"),
+		embedGroupID:    cfg.embeddingGroupID,
+		embedAPIKey:     defaultString(cfg.embeddingAPIKey, apiKey),
+		embedDimensions: cfg.embeddingDimensions,
+		model:           model,
+		embedModel:      embedModel,
+		client:          &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
+		maxRetries:      cfg.maxRetries,
+		system:          "openai_compatible",
 	}
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 type openAIRequest struct {
@@ -47,21 +67,35 @@ type openAIRequest struct {
 	MaxTokens   int              `json:"max_tokens,omitempty"`
 	Temperature float64          `json:"temperature,omitempty"`
 	Stream      bool             `json:"stream,omitempty"`
+	// StreamOptions is nil for non-streaming and for providers that do not
+	// opt in; the omitempty keeps their request bodies byte-identical.
+	StreamOptions *streamOptions `json:"stream_options,omitempty"`
+}
+
+// streamOptions carries the OpenAI-compatible stream_options request field.
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
+// openAIMessage is the shared message/delta shape of the OpenAI-compatible
+// chat completion response.
+type openAIMessage struct {
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	// ReasoningContent is the OpenAI-compatible reasoning channel used by
+	// DeepSeek-R1/Qwen3-thinking style providers.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+}
+
+type openAIChoice struct {
+	Message      openAIMessage `json:"message"`
+	Delta        openAIMessage `json:"delta"`
+	FinishReason string        `json:"finish_reason"`
 }
 
 type openAIResponse struct {
-	Choices []struct {
-		Message struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-		} `json:"message"`
-		Delta struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-		} `json:"delta"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
+	Choices []openAIChoice `json:"choices"`
+	Usage   struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 	} `json:"usage"`
@@ -72,16 +106,32 @@ type openAIResponse struct {
 func (p *OpenAICompatProvider) Model() string { return p.model }
 
 func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body interface{}) (resp *http.Response, started time.Time, err error) {
+	return p.doPostAt(ctx, p.apiBase, path, body)
+}
+
+func (p *OpenAICompatProvider) doPostAt(ctx context.Context, base, path string, body interface{}) (resp *http.Response, started time.Time, err error) {
+	return p.doPostAtWithKey(ctx, base, path, p.apiKey, body)
+}
+
+func (p *OpenAICompatProvider) doPostAtWithKey(ctx context.Context, base, path, key string, body interface{}) (resp *http.Response, started time.Time, err error) {
 	started = time.Now()
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, started, err
 	}
-	resp, err = retryDo(ctx, p.client, p.apiBase+path, p.apiKey, b, p.maxRetries)
+	resp, err = retryDo(ctx, p.client, strings.TrimRight(base, "/")+path, key, b, p.maxRetries)
 	return resp, started, err
 }
 
 func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (response *ChatResponse, err error) {
+	ctx, span := startLLMSpan(ctx, "chat", p.model, p.system, req.Temperature)
+	defer func() {
+		var usage *TokenUsage
+		if response != nil {
+			usage = response.Usage
+		}
+		finishLLMSpan(span, err, usage)
+	}()
 	payload := openAIRequest{
 		Model:       p.model,
 		Messages:    req.Messages,
@@ -114,6 +164,9 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (respo
 }
 
 func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) (err error) {
+	ctx, span := startLLMSpan(ctx, "chat.stream", p.model, p.system, req.Temperature)
+	var lastUsage *TokenUsage
+	defer func() { finishLLMSpan(span, err, lastUsage) }()
 	payload := openAIRequest{
 		Model:       p.model,
 		Messages:    req.Messages,
@@ -153,9 +206,13 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 		}
 		delta := ChatDelta{
 			Content:   chunk.Choices[0].Delta.Content,
+			Thinking:  chunk.Choices[0].Delta.ReasoningContent,
 			ToolCalls: chunk.Choices[0].Delta.ToolCalls,
 			Usage:     usageFromRaw(chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens),
 			Done:      chunk.Choices[0].FinishReason == "stop",
+		}
+		if delta.Usage != nil {
+			lastUsage = delta.Usage
 		}
 		if err := handler(delta); err != nil {
 			return err
@@ -177,9 +234,13 @@ func usageFromRaw(prompt, completion int) *TokenUsage {
 	return &TokenUsage{PromptTokens: prompt, CompletionTokens: completion}
 }
 
+// openAIEmbeddingRequest carries either a single input string or a batch
+// (Input any) plus the optional dimensions pin for models like
+// text-embedding-v4.
 type openAIEmbeddingRequest struct {
-	Model string `json:"model"`
-	Input string `json:"input"`
+	Model      string `json:"model"`
+	Input      any    `json:"input"`
+	Dimensions int    `json:"dimensions,omitempty"`
 }
 
 type openAIEmbeddingResponse struct {
@@ -189,8 +250,60 @@ type openAIEmbeddingResponse struct {
 }
 
 func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) (embedding []float32, err error) {
-	payload := openAIEmbeddingRequest{Model: p.embedModel, Input: text}
-	resp, started, err := p.doPost(ctx, "/v1/embeddings", payload)
+	// Single-text calls keep the historical string wire format: the legacy
+	// embo-01/MiniMax path is live in production and its contract must not
+	// silently become an array.
+	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, p.system, 0)
+	defer func() { finishLLMSpan(span, err, nil) }()
+	payload := openAIEmbeddingRequest{Model: p.embedModel, Input: text, Dimensions: p.embedDimensions}
+	vectors, err := p.embedRequest(ctx, payload, 1)
+	if err != nil {
+		return nil, err
+	}
+	return vectors[0], nil
+}
+
+// embeddingBatchCap is the per-request input cap of DashScope
+// text-embedding-v4 (10 texts / 33K tokens). The token-side cap is owned by
+// callers chunking their texts; the item-side cap is enforced here so no
+// caller can blow the API limit by accident.
+const embeddingBatchCap = 10
+
+// GetEmbeddings embeds a list of texts over the OpenAI-compatible
+// /v1/embeddings endpoint, splitting into subrequests of at most
+// embeddingBatchCap items. Ordering of the returned vectors matches the input
+// texts exactly.
+func (p *OpenAICompatProvider) GetEmbeddings(ctx context.Context, texts []string) (embeddings [][]float32, err error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, p.system, 0)
+	defer func() { finishLLMSpan(span, err, nil) }()
+
+	embeddings = make([][]float32, 0, len(texts))
+	for start := 0; start < len(texts); start += embeddingBatchCap {
+		end := start + embeddingBatchCap
+		if end > len(texts) {
+			end = len(texts)
+		}
+		payload := openAIEmbeddingRequest{Model: p.embedModel, Input: texts[start:end], Dimensions: p.embedDimensions}
+		batch, batchErr := p.embedRequest(ctx, payload, end-start)
+		if batchErr != nil {
+			return nil, batchErr
+		}
+		embeddings = append(embeddings, batch...)
+	}
+	return embeddings, nil
+}
+
+// embedRequest performs one /v1/embeddings HTTP call and validates that the
+// provider returned exactly expect vectors.
+func (p *OpenAICompatProvider) embedRequest(ctx context.Context, payload openAIEmbeddingRequest, expect int) ([][]float32, error) {
+	path := "/v1/embeddings"
+	if p.embedGroupID != "" {
+		path += "?GroupId=" + url.QueryEscape(p.embedGroupID)
+	}
+	resp, started, err := p.doPostAtWithKey(ctx, p.embedAPIBase, path, p.embedAPIKey, payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err
@@ -203,8 +316,15 @@ func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) (e
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
-	if len(result.Data) == 0 {
-		return nil, fmt.Errorf("no embeddings in response")
+	if len(result.Data) != expect {
+		return nil, fmt.Errorf("embedding count mismatch: sent %d, got %d", expect, len(result.Data))
 	}
-	return result.Data[0].Embedding, nil
+	vectors := make([][]float32, len(result.Data))
+	for i, item := range result.Data {
+		if len(item.Embedding) == 0 {
+			return nil, fmt.Errorf("empty embedding at index %d", i)
+		}
+		vectors[i] = item.Embedding
+	}
+	return vectors, nil
 }

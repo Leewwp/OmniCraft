@@ -69,18 +69,21 @@ test("navigation shells share approved geometry while keeping separate informati
     assert.match(shell, /w-12/);
     assert.match(shell, /useSidebarCollapse/);
     assert.match(shell, /aria-label=/);
+    // #412 F4+F5：三套壳全部接入共享分区头/垂直节奏 primitive。
+    assert.match(shell, /sidebar-shell/);
   }
 
   assert.match(sidebar, /PUBLIC_SIDEBAR_STORAGE_KEY/);
   assert.match(sidebar, /aria-label=\{t\("nav\.siteName"\)\}/);
   assert.doesNotMatch(sidebar, /aria-label=\{t\("studio\.sidebar\.analytics"\)\}/);
   assert.match(studio, /STUDIO_SIDEBAR_STORAGE_KEY/);
-  assert.match(studio, /delay-300/);
-  assert.match(studio, /left-full/);
+  // #412：tooltip 即时性——禁止 delay-*；层策略 left-full 保留。
+  assert.doesNotMatch(studio, /delay-\d/);
+  assert.match(studio, /SidebarTooltip/, "studio consumes the shared instant tooltip");
   assert.match(studio, /overflow-visible/);
   assert.doesNotMatch(studio, /overflow-x-hidden/);
   assert.match(studio, /w-\[3px\]/);
-  assert.match(studio, /gi > 0 && collapsed/);
+  assert.doesNotMatch(studio, /gi > 0 && collapsed/);
   assert.match(studio, /event\.key === "Escape"/);
   assert.match(studio, /min-\[701px\]:flex/);
   assert.match(admin, /ADMIN_SIDEBAR_STORAGE_KEY/);
@@ -89,7 +92,7 @@ test("navigation shells share approved geometry while keeping separate informati
   assert.match(admin, /w-\[85vw\]/);
   assert.match(studio, /w-\[85vw\]/);
   assert.match(admin, /event\.key === "Escape"/);
-  assert.match(admin, /min-\[701px\]:block/);
+  assert.match(admin, /min-\[701px\]:flex/);
 });
 
 test("brand entry and page shells follow the unified page-shell width/gutter contract", async () => {
@@ -124,29 +127,38 @@ test("brand entry and page shells follow the unified page-shell width/gutter con
 });
 
 test("filter selected states share the colored pill contract with semantic state", async () => {
-  const [home, originalTabs, originalPage, ips] = await Promise.all([
+  const [home, filterPills, originalPage, originalFeed, ips, ipShareTab] = await Promise.all([
     readFrontendSource("components/home/HomePageClient.tsx"),
-    readFrontendSource("components/original/CategoryTabs.tsx"),
+    readFrontendSource("components/ui/filter-pills.tsx"),
     readFrontendSource("app/(public)/original/page.tsx"),
+    readFrontendSource("components/original/OriginalFeedClient.tsx"),
     readFrontendSource("components/ip/IPBrowseClient.tsx"),
+    readFrontendSource("components/ip/hub/IPShareTab.tsx"),
   ]);
 
   const pill = /border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold/;
-  for (const source of [home, originalTabs, ips]) {
-    assert.match(source, pill, "selected state must use the shared colored pill");
-    assert.match(source, /rounded-full/, "selected pill must be rounded-full");
-    assert.match(source, /aria-pressed/, "selection must be exposed semantically");
-  }
+  // #414 O1a：选中态契约收敛到共享组件本体（矮药丸新基准）；二创首页本地拷贝已删除，改断言委托。
+  assert.match(filterPills, pill, "selected state must use the shared colored pill");
+  assert.match(filterPills, /rounded-full/, "selected pill must be rounded-full");
+  assert.match(filterPills, /aria-pressed/, "selection must be exposed semantically");
+  assert.match(filterPills, /py-1\.5/, "compact height tier (SP-14 O1a 矮药丸裁决)");
+  assert.doesNotMatch(filterPills, /min-h-11/, "44px 触控档已由 O1a 裁决取代");
+  assert.doesNotMatch(filterPills, /Check/, "勾号图标已移除（可及性改底色/描边/字重/aria-pressed 四线索）");
 
   // Selection must not rely on color alone: semantic attribute or text is required.
-  assert.match(home, /aria-pressed=\{active\}/);
-  assert.match(originalTabs, /aria-pressed=\{active\}/);
-  assert.match(ips, /aria-pressed=\{active\}/);
+  assert.match(filterPills, /aria-pressed=\{active\}/);
+  assert.match(home, /<FilterPills/, "二创首页筛选收敛为共享 FilterPills（本地拷贝已删除）");
+  assert.doesNotMatch(home, /border-accent-emphasis bg-accent-subtle/, "本地药丸样式不得残留");
 
-  // The original zone page delegates tabs to the shared component.
-  assert.match(originalPage, /<CategoryTabs/);
-  assert.match(originalPage, /border-b border-border-default bg-canvas-default/);
+  // The original zone page delegates the pill form + sticky row to the in-place feed client.
+  assert.match(originalPage, /<OriginalFeedClient/);
+  assert.match(originalFeed, /border-b border-border-default bg-canvas-default/);
+  assert.match(originalFeed, /<FilterPills/);
   assert.doesNotMatch(originalPage, /active\s*\?\s*"border-border bg-card/);
+
+  // IP surfaces consume the shared FilterPills for library + hub share-tab filters.
+  assert.match(ips, /<FilterPills/);
+  assert.match(ipShareTab, /<FilterPills/);
 });
 
 function CollapseHarness() {

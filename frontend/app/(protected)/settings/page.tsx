@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
+import ReputationDetail from "@/components/settings/ReputationDetail";
+import AgentTokensCard from "@/components/settings/AgentTokensCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,7 +96,7 @@ export default function SettingsPage() {
       }) as { upload_url: string; oss_key: string };
       await fetch(presignRes.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
       const cfgRes = await fetch("/api/v1/config/public").then(r => r.json()).catch(() => null);
-      const cdnBase = cfgRes?.oss_cdn_base || "";
+      const cdnBase = cfgRes?.oss_domain || "";
       const avatarUrl = cdnBase ? `${cdnBase}/${presignRes.oss_key}` : presignRes.oss_key;
       await api.patch(`/api/v1/users/${user.id}`, { avatar_url: avatarUrl });
       await refreshUser();
@@ -156,7 +158,9 @@ export default function SettingsPage() {
     if (!deleteConfirm) return;
     setDeleteBusy(true);
     try {
-      await api.delete("/api/v1/users/me");
+      // T30（FIX-20）：后端要求密码确认（binding required），补传 body——
+      // 现状 api.delete 无 body 恒 400，注销功能死路。
+      await api.deleteWithBody("/api/v1/users/me", { password: deletePw });
       logout();
       router.push("/");
     } catch (e) {
@@ -261,9 +265,15 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* SP-16 #450：外部 Agent 接入令牌（PAT）管理。 */}
+      <AgentTokensCard />
+
       {!isVerified && (
         <VerificationReminderCard email={user?.email || ""} />
       )}
+
+      {/* T33（FIX-37）：信誉明细自查（/reputation-logs/me 唯一消费面）。 */}
+      <ReputationDetail />
 
       <div className="space-y-2 rounded-md border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">{t("settings.legalTitle")}</h3>

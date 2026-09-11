@@ -104,13 +104,27 @@ export function MasonryGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, items]);
 
+  /* #410 F2 级联防护：只认 false→true 的「进入视口」沿——追加完成后哨兵
+     仍在视口/边距内时（Chrome 滚动锚定会跟随文档底部增长），不得再次触发；
+     用户滚离再滚回才构成新一次进入。isLoadingMore 翻转重建观察器无副作用
+     （初始回调命中 inViewRef=true 直接忽略）。 */
+  const sentinelInViewRef = useRef(false);
   useEffect(() => {
     if (!hasMore || !onLoadMore || isLoadingMore || loadError) return;
     const sentinel = sentinelRef.current;
     if (!sentinel || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            if (!sentinelInViewRef.current) {
+              sentinelInViewRef.current = true;
+              onLoadMore();
+            }
+          } else {
+            sentinelInViewRef.current = false;
+          }
+        }
       },
       { rootMargin: "400px 0px" },
     );
@@ -131,40 +145,49 @@ export function MasonryGrid({
 
   const hasFullLayout = layout !== null && layout.positions.length === items.length;
 
+  /* #410 F2 哨兵几何修复：加载哨兵必须渲染在瀑布流容器**外**（兄弟节点）。
+     布局完成后容器为固定高度 + relative、卡片全部绝对定位——哨兵若留在
+     容器内（常规流子元素），它永远停在容器顶部、长期处于视口与 rootMargin
+     内，且每次 isLoadingMore 翻转重建 IntersectionObserver 都会再次命中，
+     级联追加分页直至耗尽（「一次性加载过多」+「之后无法动态加载」双症状
+     的共同根因）。外置后哨兵位于列表实测高度的视觉底部。 */
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "w-full",
-        hasFullLayout
-          ? "relative"
-          : "grid grid-cols-2 gap-4 min-[701px]:grid-cols-3 min-[1101px]:grid-cols-4",
-        className,
-      )}
-      style={hasFullLayout ? { height: layout.height } : undefined}
-    >
-      {items.map((item, index) => {
-        const position = hasFullLayout ? layout.positions[index] : null;
-        return (
-          <div
-            key={item.id}
-            ref={(node) => {
-              itemRefs.current[index] = node;
-            }}
-            className={cn("min-w-0", position && "absolute left-0 top-0")}
-            style={position ? { top: position.top, left: position.left, width: position.width } : undefined}
-          >
-            <ContentCard data={item} onOpenDetail={onOpenDetail} />
-          </div>
-        );
-      })}
+    <>
+      <div
+        ref={containerRef}
+        className={cn(
+          "w-full [overflow-anchor:none]",
+          hasFullLayout
+            ? "relative"
+            : "grid grid-cols-2 gap-4 min-[701px]:grid-cols-3 min-[1101px]:grid-cols-4",
+          className,
+        )}
+        style={hasFullLayout ? { height: layout.height, overflowAnchor: "none" } : { overflowAnchor: "none" }}
+      >
+        {items.map((item, index) => {
+          const position = hasFullLayout ? layout.positions[index] : null;
+          return (
+            <div
+              key={item.id}
+              ref={(node) => {
+                itemRefs.current[index] = node;
+              }}
+              className={cn("min-w-0", position && "absolute left-0 top-0")}
+              style={position ? { top: position.top, left: position.left, width: position.width } : undefined}
+            >
+              <ContentCard data={item} onOpenDetail={onOpenDetail} />
+            </div>
+          );
+        })}
+      </div>
 
       {onLoadMore && (
         <div
-          className="flex min-h-11 flex-col items-center justify-center gap-2"
+          className="flex min-h-11 flex-col items-center justify-center gap-2 [overflow-anchor:none]"
+          style={{ overflowAnchor: "none" }}
           aria-live="polite"
         >
-          <div ref={sentinelRef} className="h-4" />
+          <div ref={sentinelRef} data-slot="load-more-sentinel" className="h-4" />
           {loadError ? (
             <Button variant="outline" size="sm" onClick={onRetry}>
               {t("common.retry")}
@@ -176,6 +199,6 @@ export function MasonryGrid({
           ) : null}
         </div>
       )}
-    </div>
+    </>
   );
 }

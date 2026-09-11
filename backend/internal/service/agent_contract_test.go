@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,11 @@ func TestAgentContract(t *testing.T) {
 	require.Equal(t, "Blender 插件安装指南", cite["title"])
 	require.Equal(t, "original", cite["zone"])
 	require.Equal(t, "第一步：下载插件包。", cite["excerpt"])
+	require.NotContains(t, cite, "content_version")
+	require.NotContains(t, cite, "chunk_key")
+	require.NotContains(t, cite, "chunk_index")
+	require.NotContains(t, cite, "route")
+	require.NotContains(t, cite, "source")
 
 	tools := raw["tools"].([]any)
 	require.Len(t, tools, 1)
@@ -56,12 +62,53 @@ func TestAgentContract(t *testing.T) {
 	require.Equal(t, float64(300), usage["completion_tokens"])
 }
 
+func TestAgentRAGCitationContractIncludesZeroChunkIndex(t *testing.T) {
+	answer := AgentAnswer{Citations: []AgentCitation{{
+		ContentID: 101, ContentVersion: 3, ChunkKey: "chunk-101", ChunkIndex: 0,
+		Title: "Blender 插件安装指南", Zone: "original", Route: "/original/101",
+		Excerpt: "第一步：下载插件包。", Source: "hybrid_rrf",
+	}}}
+
+	data, err := json.Marshal(answer)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+	cite := raw["citations"].([]any)[0].(map[string]any)
+	require.Equal(t, float64(3), cite["content_version"])
+	require.Equal(t, "chunk-101", cite["chunk_key"])
+	require.Equal(t, float64(0), cite["chunk_index"])
+	require.Equal(t, "/original/101", cite["route"])
+	require.Equal(t, "hybrid_rrf", cite["source"])
+}
+
 // TestAgentAnswerKindEnum ensures the server owns every answer-kind value and
 // that a grounded answer cannot be relabelled by the model.
 func TestAgentAnswerKindEnum(t *testing.T) {
 	require.Equal(t, AgentAnswerKind("grounded_content"), AgentAnswerGroundedContent)
 	require.Equal(t, AgentAnswerKind("no_evidence"), AgentAnswerNoEvidence)
 	require.Equal(t, AgentAnswerKind("publish_suggestion"), AgentAnswerPublishSuggestion)
+	require.Equal(t, AgentAnswerKind("conversational"), AgentAnswerConversational)
+}
+
+// TestClassifyStreamAnswerConversationalLane locks the deterministic
+// conversational admission rules (SP-15 A2): every condition is checked
+// server-side and any miss falls back to the strict grounded classification.
+func TestClassifyStreamAnswerConversationalLane(t *testing.T) {
+	longAnswer := strings.Repeat("好", 161)
+	shortAnswer := strings.Repeat("好", 160)
+	oneCitation := []AgentCitation{{ContentID: 88, Title: "T", Zone: "original"}}
+	oneTool := []AgentToolExecution{{Name: "search_content", Status: AgentToolStatusSuccess}}
+
+	require.Equal(t, AgentAnswerConversational, ClassifyStreamAnswer(nil, nil, shortAnswer, false, 160), "all conditions met")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, "", false, 160), "empty answer never conversational")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, "   ", false, 160), "whitespace-only answer never conversational")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, longAnswer, false, 160), "over-guardrail lazy answer cleared")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, shortAnswer, true, 160), "degraded turn cleared")
+	require.Equal(t, AgentAnswerGroundedContent, ClassifyStreamAnswer(oneCitation, nil, shortAnswer, false, 160), "cited answer stays grounded")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, oneTool, shortAnswer, false, 160), "tools ran but nothing cited -> no_evidence")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, shortAnswer, false, 0), "guardrail 0 disables the lane (fail-closed)")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, shortAnswer, false, -1), "negative guardrail disables the lane")
 }
 
 // TestAgentSafeErrorDTO locks the safe error wire format; raw Provider errors

@@ -407,7 +407,8 @@ func setupJudgeAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	}
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	handler := NewJudgeHandler(db, &config.Config{}, auditSvc)
+	judgeSvc := service.NewJudgeService(repository.NewJudgeRepository(db), service.NewReputationService(db), &config.Config{})
+	handler := NewJudgeHandler(db, judgeSvc, auditSvc)
 	router := gin.New()
 	router.POST("/admin/judge/questions", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(99))

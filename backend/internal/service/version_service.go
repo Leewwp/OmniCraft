@@ -1,15 +1,20 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	"gorm.io/gorm"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/diffengine"
 	"omnicraft/backend/internal/repository"
 )
 
-var ErrVersionNotFound = errors.New("version not found")
+var (
+	ErrVersionNotFound  = errors.New("version not found")
+	ErrVersionForbidden = errors.New("only content participants can read this version")
+)
 
 type VersionService struct {
 	versionRepo *repository.VersionRepository
@@ -18,6 +23,13 @@ type VersionService struct {
 
 func NewVersionService(vRepo *repository.VersionRepository, cRepo *repository.ContentRepository) *VersionService {
 	return &VersionService{versionRepo: vRepo, contentRepo: cRepo}
+}
+
+// WithDB binds version reads to an existing GORM connection. Projection work
+// holds a PostgreSQL advisory-lock session for its whole operation, so version
+// reconstruction must use that same physical connection when one is supplied.
+func (s *VersionService) WithDB(db *gorm.DB) *VersionService {
+	return NewVersionService(repository.NewVersionRepository(db), repository.NewContentRepository(db))
 }
 
 func (s *VersionService) CreateInitialVersion(contentID int64, authorID int64, fullText string) (*model.ContentVersion, error) {
@@ -82,6 +94,13 @@ func (s *VersionService) GetVersionContent(versionID int64) (string, error) {
 		return "", ErrVersionNotFound
 	}
 
+	// proposed snapshots are self-contained full bodies living outside the
+	// published lineage (GetVersionChain skips them), so they resolve
+	// directly instead of walking the chain (FIX-21).
+	if v.Status == "proposed" {
+		return v.StorageKey, nil
+	}
+
 	if v.StorageType == "full" {
 		return v.StorageKey, nil
 	}
@@ -110,10 +129,66 @@ func (s *VersionService) GetVersionContent(versionID int64) (string, error) {
 	return content, nil
 }
 
+// LoadLatestPublishedContent returns the latest active version number and its
+// reconstructed body. Projection consumers must use this seam instead of
+// treating a diff patch as a full document.
+func (s *VersionService) LoadLatestPublishedContent(ctx context.Context, contentID int64) (int, string, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, "", err
+	}
+	version, err := s.versionRepo.GetLatest(contentID)
+	if err != nil {
+		return 0, "", err
+	}
+	if version == nil || version.Status != "active" {
+		return 0, "", ErrVersionNotFound
+	}
+	content, err := s.GetVersionContent(version.ID)
+	if err != nil {
+		return 0, "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, "", err
+	}
+	return version.VersionNumber, content, nil
+}
+
 func (s *VersionService) ListVersions(contentID int64) ([]model.ContentVersion, error) {
 	return s.versionRepo.ListByContent(contentID)
 }
 
-func (s *VersionService) ListVersionsPaged(contentID int64, page, pageSize int) ([]model.ContentVersion, int64, error) {
-	return s.versionRepo.ListByContentPaged(contentID, page, pageSize)
+// ListVersionsPagedForViewer hides proposed versions from everyone but the
+// content author: readers only ever see the active lineage (FIX-21①).
+// The whole lineage is additionally gated on content visibility (#446 /
+// SP-16 P0): storage_type=full rows carry the complete body text, so version
+// listings of non-public content are a full-text leak (F-01 class).
+func (s *VersionService) ListVersionsPagedForViewer(contentID int64, page, pageSize int, viewerID int64, viewerIsAdmin bool) ([]model.ContentVersion, int64, error) {
+	content, err := s.contentRepo.FindByID(contentID)
+	if err != nil || content == nil {
+		return nil, 0, ErrContentNotFound
+	}
+	if viewerID != content.AuthorID && !viewerIsAdmin &&
+		!repository.ContentVisibleToViewer(s.contentRepo.DB(), content, viewerID) {
+		return nil, 0, ErrContentNotFound
+	}
+	return s.versionRepo.ListByContentPagedForViewer(contentID, page, pageSize, viewerID == content.AuthorID)
+}
+
+// GetVersionForViewer enforces participant-only reads on the version detail
+// endpoint: content author, the proposed version's submitter or admin.
+// Without this gate any optAuth reader could pull the full text of versions
+// belonging to banned content (F-056, FIX-21④).
+func (s *VersionService) GetVersionForViewer(versionID int64, viewerID int64, isAdmin bool) (string, error) {
+	v, err := s.versionRepo.FindByID(versionID)
+	if err != nil || v == nil {
+		return "", ErrVersionNotFound
+	}
+	content, err := s.contentRepo.FindByID(v.ContentItemID)
+	if err != nil || content == nil {
+		return "", ErrVersionNotFound
+	}
+	if !isAdmin && viewerID != content.AuthorID && !(v.Status == "proposed" && viewerID == v.AuthorID) {
+		return "", ErrVersionForbidden
+	}
+	return s.GetVersionContent(versionID)
 }

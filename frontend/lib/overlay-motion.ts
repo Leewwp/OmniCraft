@@ -22,6 +22,11 @@ export const OVERLAY_MOTION = {
   reducedDuration: 100,
   easing: "cubic-bezier(0.22, 0.61, 0.36, 1)",
   fallbackScale: 0.96,
+  /** 遮罩按压反馈层（2026-09-09 遮罩同钟契约）：点击后先淡到该不透明度
+      （时长 backdropFeedbackMs），入场动效起跑时再随壳层/封面同钟升至 1——
+      避免数据未就绪期全黑遮罩先到位的突兀感，同时保留即时点击反馈。 */
+  backdropFeedbackOpacity: 0.35,
+  backdropFeedbackMs: 160,
 } as const;
 
 /** 浮层封面容器 data-slot（FLIP/VT 的目标锚点）。 */
@@ -118,6 +123,62 @@ export function viewTransitionAvailable(): boolean {
   return (
     typeof document !== "undefined" && typeof document.startViewTransition === "function"
   );
+}
+
+/* ── C1/C4 图源统一与真就绪（#398 动效契约）──────────────────────────────
+   ── F1 三处同源（#409 动效契约重建）─────────────────────────────────────
+   ── #430 两变体渐进（修订 F1「三处同源」契约）─────────────────────────────
+   信息流卡片封面用轻量快变体（w=420，带宽/解码更轻）；浮窗首帧沿用卡片当前
+   渲染变体（必命中缓存、秒出）；入场落定且规范变体解码就绪后短交叉淡入换入
+   唯一规范变体（w=1080）。「动效期间零换图」契约保持——落定前规范层 opacity 0。
+   三处宽度源契约：卡片封面 420 = 浮窗首帧 hold；点击/悬停预取 1080 = settle
+   换图目标。SVG 与 data: 占位直通原地址（优化器对 SVG 返回 400——两侧同串即同源）。 */
+
+/** 浮窗封面规范变体宽度（CSS 显示宽 ≈540-672px，@2x 设备像素 ≈1080-1344）。 */
+export const OVERLAY_COVER_VARIANT_WIDTH = 1080;
+
+/** 信息流卡片封面快变体宽度（#430）：浮窗首帧保持层与卡片同串，必命中缓存。 */
+export const CARD_COVER_VARIANT_WIDTH = 420;
+
+/** settle 后保持层→规范层的交叉淡入时长（#430，落在 150-200ms 区间中点）。 */
+export const OVERLAY_COVER_CROSSFADE_MS = 180;
+
+/** 构造与 next/image 同优化器的规范变体地址；data: 占位与空值不参与（两侧同串）。 */
+export function coverVariantUrl(url: string, width = OVERLAY_COVER_VARIANT_WIDTH): string | null {
+  if (!url || url.startsWith("data:")) return null;
+  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=75`;
+}
+
+/** 渲染端同源封面地址（#409/#430 契约）：卡片封面传 CARD_COVER_VARIANT_WIDTH、
+    浮窗规范层缺省 1080；SVG / data: = 原地址直通。纯字符串函数（SSR 安全）。 */
+export function coverRenderSrc(url: string | null | undefined, width = OVERLAY_COVER_VARIANT_WIDTH): string | null {
+  if (!url) return null;
+  if (url.startsWith("data:")) return url;
+  if (/\.svg($|\?)/i.test(url)) return url;
+  return coverVariantUrl(url, width);
+}
+
+const prefetchedCoverVariants = new Set<string>();
+
+/** 点击卡片瞬间的同源变体预取 + 解码（去重；失败静默——就绪门仍以浮窗实际
+    渲染的 <img> 解码状态为准，预取只是预热）。直通源（SVG/data:）无需预取：
+    优化器对 SVG 返回 400，data: 已内联。 */
+export function prefetchCoverVariant(url: string, width = OVERLAY_COVER_VARIANT_WIDTH): void {
+  if (typeof window === "undefined" || !url) return;
+  if (coverRenderSrc(url) === url) return;
+  const key = `${width}:${url}`;
+  if (prefetchedCoverVariants.has(key)) return;
+  prefetchedCoverVariants.add(key);
+  const variant = coverVariantUrl(url, width);
+  if (!variant) return;
+  const probe = new window.Image();
+  probe.decoding = "async";
+  probe.src = variant;
+  try {
+    void probe.decode?.().catch(() => {});
+  } catch {
+    /* 旧实现无 decode：仅预取加载即可 */
+  }
 }
 
 /** 双 rAF + 120ms setTimeout 双保险（原型 §4.2：避免 VT 期间 rAF 挂起）。 */

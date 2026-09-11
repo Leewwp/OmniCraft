@@ -9,7 +9,7 @@ import {
   useRef,
   ReactNode,
 } from "react";
-import { api, ApiRequestError, setAccessToken, getAccessToken } from "@/lib/api";
+import { api, ApiRequestError, setAccessToken, getAccessToken, refreshSession } from "@/lib/api";
 import {
   saveTokens,
   clearTokens,
@@ -40,6 +40,9 @@ export interface UnreadCounts {
   system: number;
   pr: number;
   follow: number;
+  // 广播未读（FIX-31b）：后端 unread-count 已按 channel 聚合返回，缺键会让
+  // 下拉的广播角标永不显示。
+  broadcast: number;
 }
 
 export interface InteractionCapabilities {
@@ -101,27 +104,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [capabilities, setCapabilities] = useState<InteractionCapabilities>(FAIL_CLOSED_CAPABILITIES);
-  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0, broadcast: 0 });
   const [ipHistoryVersion, setIPHistoryVersion] = useState(0);
   const previousUserRef = useRef<User | null>(null);
+  // 会话代际：login/logout 都会推进。迟到的 refresh 失败回调只有在代际未变
+  // （期间没有发生登录/登出）时才允许清空用户态，否则会把刚建立的会话抹掉。
+  const authEpochRef = useRef(0);
 
+  // #381：统一走 api.ts 的应用级单飞（refreshSession → doRefreshToken）。
+  // 此前这里自建了一条 authRefreshInFlight 管线，与 api.ts 的 refreshPromise
+  // 互不感知——同一标签页内两管线并发会对同一 refresh cookie 双发轮换请求，
+  // 打进服务端轮换竞态窗口。失败时仅复位本地状态，跳转交给 (protected) 守卫。
   const refresh = useCallback(async (): Promise<boolean> => {
-    try {
-      const data = await api.post<{ tokens: { access_token: string } }>(
-        "/api/v1/auth/refresh",
-        {}
-      );
-      saveTokens(data.tokens.access_token);
-      setAccessToken(data.tokens.access_token);
-      return true;
-    } catch (e) {
-      silentError(e, { component: "AuthContext", action: "refresh" });
+    const epoch = authEpochRef.current;
+    const ok = await refreshSession();
+    if (authEpochRef.current !== epoch) {
+      // 期间发生了 login/logout：无论成败都不得回写，否则迟到的失败会抹掉
+      // 刚登录的会话、迟到的成功会在登出后复活 token。
+      return ok;
+    }
+    if (!ok) {
+      silentError("refresh failed", { component: "AuthContext", action: "refresh" });
       clearTokens();
       setAccessToken(null);
       setUser(null);
       setCapabilities(FAIL_CLOSED_CAPABILITIES);
-      return false;
+    } else {
+      const token = getAccessToken();
+      if (token) {
+        saveTokens(token);
+      }
     }
+    return ok;
   }, []);
 
   const fetchMe = useCallback(async () => {
@@ -164,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) {
-      setUnreadCounts({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+      setUnreadCounts({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0, broadcast: 0 });
       return;
     }
     let cancelled = false;
@@ -172,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const data = await api.get<{ unread_counts: UnreadCounts }>("/api/v1/notifications/unread-count");
         if (cancelled) return;
-        setUnreadCounts(data.unread_counts || { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+        setUnreadCounts(data.unread_counts || { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0, broadcast: 0 });
       } catch (e) {
         silentError(e, { component: "AuthContext", action: "pollUnread" });
       }
@@ -206,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }>("/api/v1/auth/login", { email, password });
     saveTokens(data.tokens.access_token);
     setAccessToken(data.tokens.access_token);
+    authEpochRef.current += 1;
     setUser(data.user);
     setCapabilities(readCapabilities(data));
   }, []);
@@ -218,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // already logged out
       }
     } finally {
+      authEpochRef.current += 1;
       clearTokens();
       setAccessToken(null);
       setUser(null);

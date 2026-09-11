@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
@@ -7,6 +8,11 @@ import { Heart, MessageCircle } from "lucide-react";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
+import {
+  CARD_COVER_VARIANT_WIDTH,
+  coverRenderSrc,
+  prefetchCoverVariant,
+} from "@/lib/overlay-motion";
 
 export interface ContentCardData {
   id: number;
@@ -73,15 +79,45 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
 
   /* 封面自然比例：#83 合同 cover_width/cover_height（image = 媒体集首项尺寸，
      video = poster 尺寸）驱动 aspect-ratio，object-contain 不裁切；无数据时
-     防御性 3:4；极端比例（max(w/h, h/w) > 2）按高度上限 contain。 */
+     防御性 3:4；极端比例（max(w/h, h/w) > 2）按高度上限 contain。
+     #398 C2 几何统一：历史内容 cover 尺寸全库缺失时，加载完成后用图片实测
+     intrinsic 尺寸回填比例盒——与浮窗媒体链（Image 预加载实测）同一数据源，
+     转场两端比例一致，消除收尾取景跳变；实测前维持 3:4 防御值（同浮窗）。 */
+  const [measuredCover, setMeasuredCover] = useState<{ w: number; h: number } | null>(null);
   const coverWidth = data.cover_width;
   const coverHeight = data.cover_height;
   const hasCoverSize =
     typeof coverWidth === "number" && typeof coverHeight === "number" && coverWidth > 0 && coverHeight > 0;
-  const coverAspectRatio = hasCoverSize ? `${coverWidth} / ${coverHeight}` : COVER_DEFAULT_ASPECT_RATIO;
+  const effectiveWidth = hasCoverSize ? coverWidth : measuredCover?.w;
+  const effectiveHeight = hasCoverSize ? coverHeight : measuredCover?.h;
+  const hasEffectiveSize = Boolean(effectiveWidth && effectiveHeight);
+  const coverAspectRatio = hasEffectiveSize
+    ? `${effectiveWidth} / ${effectiveHeight}`
+    : COVER_DEFAULT_ASPECT_RATIO;
   const coverIsExtreme =
-    hasCoverSize &&
-    Math.max(coverWidth / coverHeight, coverHeight / coverWidth) > COVER_EXTREME_RATIO_THRESHOLD;
+    hasEffectiveSize &&
+    Math.max(effectiveWidth! / effectiveHeight!, effectiveHeight! / effectiveWidth!) >
+      COVER_EXTREME_RATIO_THRESHOLD;
+  /* 图片加载落定后（仅在元数据缺失时）回填实测比例。两条进入路径：
+     onLoad 事件 + 回调 ref 的 complete 自愈——SSR 出的 <img> 在 React 水合
+     挂上 onLoad 之前就可能完成加载（快网/缓存/测试桩即时响应），事件会被
+     错过，next/image 内部自带同款自愈，受控 <img> 须自己补（#409）。 */
+  function measureIntrinsic(img: HTMLImageElement) {
+    if (hasCoverSize) return;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setMeasuredCover((prev) =>
+        prev?.w === img.naturalWidth && prev?.h === img.naturalHeight
+          ? prev
+          : { w: img.naturalWidth, h: img.naturalHeight },
+      );
+    }
+  }
+  function handleCoverLoad(event: React.SyntheticEvent<HTMLImageElement>) {
+    measureIntrinsic(event.currentTarget);
+  }
+  function coverImgRef(img: HTMLImageElement | null) {
+    if (img?.complete) measureIntrinsic(img);
+  }
 
   const typeLabel = contentType === "sheet_music" ? t('home.sheetMusic') : contentType === "prompt" ? t('home.aiPrompt') : contentType === "mod" ? t('home.mod') : contentType === "video" ? t('home.video') : contentType === "audio" ? t('home.audio') : contentType === "image" ? t('home.image') : t('home.text');
 
@@ -105,24 +141,47 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
         }}
       >
         {coverUrl ? (
-          <Image
-            src={coverUrl}
-            alt={displayTitle}
-            fill
-            className={cn(
-              "object-contain transition-transform duration-300 motion-reduce:transform-none",
-              isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
-            )}
-            sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
-          />
+          onOpenDetail ? (
+            /* #430 两变体渐进（修订 #409 F1）：信息流卡片封面用轻量快变体
+               （w=420，带宽/解码更轻）——浮窗首帧保持层与该串同源，必命中缓存；
+               1080 规范变体由 pointerdown/hover 预取预热、settle 后交叉淡入。
+               next/image 的响应式 sizes 无法跨端钉死同一变体，故用受控 <img>。 */
+            <img
+              src={coverRenderSrc(coverUrl, CARD_COVER_VARIANT_WIDTH) ?? coverUrl}
+              alt={displayTitle}
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+              ref={coverImgRef}
+              className={cn(
+                "absolute inset-0 h-full w-full object-contain transition-transform duration-300 motion-reduce:transform-none",
+                isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
+              )}
+              onLoad={handleCoverLoad}
+            />
+          ) : (
+            <Image
+              src={coverUrl}
+              alt={displayTitle}
+              fill
+              className={cn(
+                "object-contain transition-transform duration-300 motion-reduce:transform-none",
+                isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
+              )}
+              sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
+              onLoad={handleCoverLoad}
+            />
+          )
         ) : (
           <img
             src={placeholderSrc}
             alt={displayTitle}
+            ref={coverImgRef}
             className={cn(
               "h-full w-full object-contain transition-transform duration-300 motion-reduce:transform-none",
               isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
             )}
+            onLoad={handleCoverLoad}
           />
         )}
       </div>
@@ -211,14 +270,43 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
     </div>
   );
 
-  /* 浮窗模式：主点击区为按钮打开共享详情浮层；作者身份入口分离为独立链接。 */
+  /* 浮窗模式：主点击区为按钮打开共享详情浮层；作者身份入口分离为独立链接。
+     #430 预取时机前移（instant.page 口径）：hover 65ms 防抖 + pointerdown 即刻
+     预取 1080 规范变体（settle 交叉淡入与就绪门的消费目标）；onClick 保留为
+     键盘激活路径兜底（prefetchCoverVariant 内部去重，重复调用零成本）。
+     #398 C1/C4：浮窗封面挂载时大概率已解码，转场不再等 MB 级原图。 */
+  const hoverPrefetchTimer = useRef<number | null>(null);
+  const prefetchTarget = coverUrl ?? placeholderSrc;
+  const scheduleHoverPrefetch = () => {
+    if (hoverPrefetchTimer.current !== null) return;
+    hoverPrefetchTimer.current = window.setTimeout(() => {
+      hoverPrefetchTimer.current = null;
+      prefetchCoverVariant(prefetchTarget);
+    }, 65);
+  };
+  const cancelHoverPrefetch = () => {
+    if (hoverPrefetchTimer.current === null) return;
+    window.clearTimeout(hoverPrefetchTimer.current);
+    hoverPrefetchTimer.current = null;
+  };
+  const prefetchNow = () => {
+    cancelHoverPrefetch();
+    prefetchCoverVariant(prefetchTarget);
+  };
+
   if (onOpenDetail) {
     return (
       <article className={cardClasses}>
         <button
           type="button"
           aria-label={displayTitle}
-          onClick={(event) => onOpenDetail(data, event.currentTarget)}
+          onPointerDown={prefetchNow}
+          onMouseEnter={scheduleHoverPrefetch}
+          onMouseLeave={cancelHoverPrefetch}
+          onClick={(event) => {
+            prefetchCoverVariant(coverUrl ?? placeholderSrc);
+            onOpenDetail(data, event.currentTarget);
+          }}
           className="block w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {cover}

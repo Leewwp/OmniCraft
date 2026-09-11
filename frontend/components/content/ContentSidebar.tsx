@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight, FileText, GitBranchPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface AuthorInfo {
   id?: number;
@@ -172,12 +173,26 @@ export function ContentSidebar({
             {followAction ? (
               <div className="mt-3">{followAction}</div>
             ) : (
+              /* #415 O1b：静态兜底与 FollowButton 同视觉（实底恒定 + hover 取消关注红边；无交互） */
               <Button
-                variant={isFollowing ? "outline" : "default"}
+                variant="default"
                 size="sm"
-                className="mt-3 w-full rounded-full"
+                className={cn(
+                  "group mt-3 w-full rounded-full",
+                  isFollowing && "hover:border-destructive! hover:text-destructive!",
+                )}
               >
-                {isFollowing ? t('social.following') : t('social.follow')}
+                <span className="grid justify-items-center">
+                  <span className="invisible col-start-1 row-start-1" aria-hidden="true">{t('social.unfollow')}</span>
+                  {isFollowing ? (
+                    <>
+                      <span className="col-start-1 row-start-1 group-hover:hidden">{t('social.following')}</span>
+                      <span className="hidden col-start-1 row-start-1 group-hover:inline">{t('social.unfollow')}</span>
+                    </>
+                  ) : (
+                    <span className="col-start-1 row-start-1">{t('social.follow')}</span>
+                  )}
+                </span>
               </Button>
             )}
           </div>
@@ -247,13 +262,13 @@ export function ContentSidebar({
                 <div className="flex flex-col gap-2">
                   <Link
                     href={`/original/${originalId}/fanworks`}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-accent-subtle px-4 py-2 text-xs font-medium text-accent-emphasis transition-colors hover:border-border-strong hover:bg-muted"
+                    className={buttonVariants({ variant: "outline", className: "gap-1.5" })}
                   >
                     {t('common.clickToView')} <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                   <Link
                     href={`/studio/publish/fanwork?source_original_id=${originalId}`}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                    className={buttonVariants({ className: "gap-1.5" })}
                   >
                     <GitBranchPlus className="h-3.5 w-3.5" />
                     {t('content.createFanwork')}

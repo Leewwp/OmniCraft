@@ -21,6 +21,20 @@
 | `result` | `VARCHAR(24)` | NOT NULL | result |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 
+### agent_access_tokens
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `name` | `VARCHAR(64)` | NOT NULL | name |
+| `token_hash` | `VARCHAR(64)` | NOT NULL | token_hash |
+| `token_prefix` | `VARCHAR(12)` | NOT NULL | token_prefix |
+| `scopes` | `VARCHAR(32)` | NOT NULL DEFAULT 'download' | scopes |
+| `last_used_at` | `TIMESTAMPTZ` | - | last_used_at |
+| `revoked_at` | `TIMESTAMPTZ` | - | revoked_at |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
 ### agent_conversations
 
 | 列名 | 类型 | 约束 | 说明 |
@@ -31,6 +45,8 @@
 | `context_id` | `BIGINT` | - | context_id |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `title` | `VARCHAR(200)` | - | title |
+| `pinned_at` | `TIMESTAMPTZ` | - | pinned_at |
 
 ### agent_messages
 
@@ -42,6 +58,7 @@
 | `content` | `TEXT` | - | content |
 | `tool_calls` | `JSONB` | - | tool_calls |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `citations` | `JSONB` | - | citations |
 
 ### ai_review_records
 
@@ -54,6 +71,7 @@
 | `result` | `VARCHAR(20)` | NOT NULL | result |
 | `raw_response` | `JSONB` | - | raw_response |
 | `scanned_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | scanned_at |
+| `provider_task_id` | `VARCHAR(128)` | - | provider_task_id |
 
 ### appeals
 
@@ -69,6 +87,41 @@
 | `resolved_by` | `BIGINT` | -> users.id | resolved_by |
 | `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### archive_scan_attempts
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `scan_job_id` | `BIGINT` | NOT NULL -> archive_scan_jobs.id | scan_job_id |
+| `attempt_no` | `INTEGER` | NOT NULL | attempt_no |
+| `result` | `VARCHAR(16)` | NOT NULL | result |
+| `duration_ms` | `INTEGER` | NOT NULL | duration_ms |
+| `engine_version` | `VARCHAR(64)` | - | engine_version |
+| `signature_version` | `VARCHAR(64)` | - | signature_version |
+| `detection_name` | `VARCHAR(255)` | - | detection_name |
+| `error_code` | `VARCHAR(64)` | - | error_code |
+
+### archive_scan_jobs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `attachment_id` | `BIGINT` | NOT NULL -> content_attachments.id | attachment_id |
+| `scan_version` | `INTEGER` | NOT NULL DEFAULT 0 | scan_version |
+| `status` | `VARCHAR(32)` | NOT NULL DEFAULT 'pending' | status |
+| `attempts` | `INTEGER` | NOT NULL DEFAULT 0 | attempts |
+| `next_attempt_at` | `TIMESTAMPTZ` | - | next_attempt_at |
+| `object_sha256` | `VARCHAR(64)` | - | object_sha256 |
+| `engine_version` | `VARCHAR(64)` | - | engine_version |
+| `signature_version` | `VARCHAR(64)` | - | signature_version |
+| `detection_name` | `VARCHAR(255)` | - | detection_name |
+| `quarantine_key` | `TEXT` | - | quarantine_key |
+| `error_code` | `VARCHAR(64)` | - | error_code |
+| `started_at` | `TIMESTAMPTZ` | - | started_at |
+| `finished_at` | `TIMESTAMPTZ` | - | finished_at |
 
 ### author_blocklist
 
@@ -102,6 +155,18 @@
 | `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### chunk_embeddings
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `chunk_id` | `BIGINT` | NOT NULL -> rag_chunks.id | chunk_id |
+| `embedding` | `vector(1536)` | NOT NULL | embedding |
+| `embedding_model` | `VARCHAR(100)` | NOT NULL | embedding_model |
+| `embedded_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | embedded_at |
+| — | — | UNIQUE (`chunk_id`, `embedding_model`) | table constraint |
 
 ### collaboration_invites
 
@@ -179,6 +244,12 @@
 | `is_primary` | `BOOLEAN` | DEFAULT TRUE | is_primary |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `sort_order` | `INT` | - | sort_order |
+| `scan_status` | `VARCHAR(32)` | NOT NULL DEFAULT 'not_required' | scan_status |
+| `scan_required` | `BOOLEAN` | NOT NULL DEFAULT FALSE | scan_required |
+| `scan_version` | `INTEGER` | NOT NULL DEFAULT 0 | scan_version |
+| `last_scan_job_id` | `BIGINT` | - | last_scan_job_id |
+| `scanned_at` | `TIMESTAMPTZ` | - | scanned_at |
+| `checksum_sha256` | `VARCHAR(64)` | - | checksum_sha256 |
 
 ### content_contributors
 
@@ -263,6 +334,21 @@
 | `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
 | `tag` | `VARCHAR(50)` | NOT NULL | tag |
 
+### content_usage_guides
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_id` | `BIGINT` | NOT NULL -> content_items.id | content_id |
+| `locale` | `VARCHAR(10)` | NOT NULL | locale |
+| `requirements` | `JSONB` | NOT NULL DEFAULT '[]' | requirements |
+| `steps` | `JSONB` | NOT NULL DEFAULT '[]' | steps |
+| `notes` | `TEXT` | NOT NULL DEFAULT '' | notes |
+| `source` | `VARCHAR(20)` | NOT NULL DEFAULT 'author' | source |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| — | — | UNIQUE (`content_id`, `locale`) | table constraint |
+
 ### content_versions
 
 | 列名 | 类型 | 约束 | 说明 |
@@ -315,6 +401,40 @@
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
 | `is_pinned` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_pinned |
 | `last_active_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | last_active_at |
+
+### eval_golden_cases
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `case_key` | `VARCHAR(128)` | NOT NULL | case_key |
+| `schema_version` | `INTEGER` | NOT NULL DEFAULT 1 | schema_version |
+| `query` | `TEXT` | NOT NULL | query |
+| `query_language` | `VARCHAR(16)` | NOT NULL | query_language |
+| `viewer_context` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | viewer_context |
+| `relevant_evidence` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | relevant_evidence |
+| `relevant_content_ids` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | relevant_content_ids |
+| `expected_citations` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | expected_citations |
+| `forbidden_content_ids` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | forbidden_content_ids |
+| `answer_rubric` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | answer_rubric |
+| `classification` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | classification |
+| `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+
+### eval_runs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `run_key` | `VARCHAR(128)` | NOT NULL | run_key |
+| `dataset_checksum` | `VARCHAR(64)` | NOT NULL | dataset_checksum |
+| `retriever_version` | `VARCHAR(64)` | NOT NULL | retriever_version |
+| `chunking_version` | `VARCHAR(64)` | NOT NULL | chunking_version |
+| `index_version` | `VARCHAR(64)` | NOT NULL | index_version |
+| `metrics` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | metrics |
+| `environment` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | environment |
+| `artifact_path` | `TEXT` | NOT NULL | artifact_path |
 
 ### favorites
 
@@ -376,6 +496,76 @@
 | `target_id` | `BIGINT` | NOT NULL | target_id |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | — | — | UNIQUE (`follower_id`, `target_type`, `target_id`) | table constraint |
+
+### inbox_consumers
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `consumer_group` | `VARCHAR(64)` | NOT NULL | consumer_group |
+| `event_id` | `BIGINT` | NOT NULL | event_id |
+| `consumed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | consumed_at |
+
+### index_projection_status
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `content_id` | `BIGINT` | NOT NULL -> content_items.id | content_id |
+| `index_version` | `INT` | NOT NULL | index_version |
+| `chunking_version` | `INT` | NOT NULL | chunking_version |
+| `embedding_model` | `VARCHAR(100)` | NOT NULL | embedding_model |
+| `state` | `VARCHAR(20)` | NOT NULL | state |
+| `error_summary` | `TEXT` | NOT NULL DEFAULT '' | error_summary |
+| `last_indexed_at` | `TIMESTAMPTZ` | - | last_indexed_at |
+| `is_current` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_current |
+| — | — | UNIQUE (`content_id`, `index_version`) | table constraint |
+
+### ip_profile_versions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
+| `proposal_id` | `BIGINT` | NOT NULL -> ip_proposals.id | proposal_id |
+| `snapshot` | `JSONB` | NOT NULL | snapshot |
+| `changes` | `JSONB` | NOT NULL | changes |
+| `yes_votes` | `INT` | NOT NULL DEFAULT 0 | yes_votes |
+| `no_votes` | `INT` | NOT NULL DEFAULT 0 | no_votes |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | created_at |
+
+### ip_proposal_votes
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `proposal_id` | `BIGINT` | NOT NULL -> ip_proposals.id | proposal_id |
+| `voter_id` | `BIGINT` | NOT NULL -> users.id | voter_id |
+| `vote` | `VARCHAR(8)` | NOT NULL | vote |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | created_at |
+| — | — | UNIQUE (`proposal_id`, `voter_id`) | table constraint |
+
+### ip_proposals
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
+| `proposer_id` | `BIGINT` | NOT NULL -> users.id | proposer_id |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'open' | status |
+| `description_change` | `TEXT` | - | description_change |
+| `cover_url_change` | `TEXT` | - | cover_url_change |
+| `tags_add` | `JSONB` | NOT NULL DEFAULT '[]' | tags_add |
+| `tags_remove` | `JSONB` | NOT NULL DEFAULT '[]' | tags_remove |
+| `moderation_state` | `VARCHAR(16)` | NOT NULL DEFAULT 'approved' | moderation_state |
+| `yes_votes` | `INT` | NOT NULL DEFAULT 0 | yes_votes |
+| `no_votes` | `INT` | NOT NULL DEFAULT 0 | no_votes |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | created_at |
+| `deadline_at` | `TIMESTAMPTZ` | NOT NULL | deadline_at |
+| `closed_at` | `TIMESTAMPTZ` | - | closed_at |
+| `effective_at` | `TIMESTAMPTZ` | - | effective_at |
 
 ### ip_review_logs
 
@@ -561,6 +751,23 @@
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | — | — | UNIQUE (`provider`, `provider_uid`) | table constraint |
 
+### outbox_events
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `aggregate_id` | `BIGINT` | NOT NULL | aggregate_id |
+| `event_type` | `VARCHAR(128)` | NOT NULL | event_type |
+| `schema_version` | `INTEGER` | NOT NULL DEFAULT 1 | schema_version |
+| `payload` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | payload |
+| `traceparent` | `VARCHAR(55)` | - | traceparent |
+| `tracestate` | `VARCHAR(512)` | - | tracestate |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'pending' | status |
+| `attempts` | `INTEGER` | NOT NULL DEFAULT 0 | attempts |
+| `next_attempt_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | next_attempt_at |
+| `sent_at` | `TIMESTAMPTZ` | - | sent_at |
+
 ### password_reset_tokens
 
 | 列名 | 类型 | 约束 | 说明 |
@@ -586,6 +793,31 @@
 | `reject_reason` | `TEXT` | - | reject_reason |
 | `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### rag_chunks
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `content_id` | `BIGINT` | NOT NULL -> content_items.id | content_id |
+| `content_version` | `INT` | NOT NULL | content_version |
+| `chunk_index` | `INT` | NOT NULL | chunk_index |
+| `chunk_key` | `CHAR(64)` | NOT NULL | chunk_key |
+| `chunking_version` | `INT` | NOT NULL | chunking_version |
+| `heading` | `TEXT` | NOT NULL DEFAULT '' | heading |
+| `text` | `TEXT` | NOT NULL | text |
+| `source_start` | `INT` | NOT NULL | source_start |
+| `source_end` | `INT` | NOT NULL | source_end |
+| `zone` | `VARCHAR(10)` | NOT NULL | zone |
+| `content_type` | `VARCHAR(20)` | NOT NULL | content_type |
+| `category` | `VARCHAR(50)` | - | category |
+| `ip` | `BIGINT` | -> ips.id | ip |
+| `tags` | `TEXT[]` | NOT NULL DEFAULT '{}' | tags |
+| `index_version` | `INT` | NOT NULL | index_version |
+| — | — | UNIQUE (`index_version`, `chunk_key`) | table constraint |
+| — | — | UNIQUE (`content_id`, `content_version`, `chunking_version`, `index_version`, `chunk_index`) | table constraint |
 
 ### reactions
 

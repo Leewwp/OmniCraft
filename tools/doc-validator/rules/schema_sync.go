@@ -208,7 +208,16 @@ func parseTableBody(tableName, body string) TableDef {
 
 	colRe := regexp.MustCompile(`^\s*(\w+)\s+(\S+)`)
 	primaryKeyRe := regexp.MustCompile(`PRIMARY\s+KEY\s*\((\w+)\)`)
-	uniqueRe := regexp.MustCompile(`UNIQUE\s*\((\w+(?:\s*,\s*\w+)*)\)`)
+	uniqueRe := regexp.MustCompile(`(?is)UNIQUE\s*\(([^)]+)\)`)
+	for _, match := range uniqueRe.FindAllStringSubmatch(body, -1) {
+		columns := strings.Split(match[1], ",")
+		for i := range columns {
+			columns[i] = strings.TrimSpace(columns[i])
+		}
+		if len(columns) > 1 {
+			td.UniqueConstraints = append(td.UniqueConstraints, columns)
+		}
+	}
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -231,7 +240,6 @@ func parseTableBody(tableName, body string) TableDef {
 				cols[i] = strings.TrimSpace(cols[i])
 			}
 			if len(cols) > 1 {
-				td.UniqueConstraints = append(td.UniqueConstraints, cols)
 				continue
 			}
 			for _, c := range cols {
@@ -300,7 +308,8 @@ func isTableConstraint(line string) bool {
 		strings.HasPrefix(upper, "FOREIGN KEY") ||
 		strings.HasPrefix(upper, "CHECK") ||
 		strings.HasPrefix(upper, "CONSTRAINT") ||
-		strings.HasPrefix(upper, "INDEX") ||
+		strings.HasPrefix(upper, "INDEX ") ||
+		strings.HasPrefix(upper, "INDEX(") ||
 		strings.HasPrefix(upper, "EXCLUDE") {
 		return true
 	}

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FilterPills } from "@/components/ui/filter-pills";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
@@ -244,12 +245,6 @@ export function FacetedSearchSidebar({
     setAvailableTags([]);
   }
 
-  function handleTagToggle(tag: string) {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
-  }
-
   function handleRemoveTag(tag: string) {
     setSelectedTags((prev) => prev.filter((t) => t !== tag));
   }
@@ -314,32 +309,18 @@ export function FacetedSearchSidebar({
         className,
       )}
     >
-      {/* Category tabs */}
+      {/* Category tabs（#414 O1a：收敛为共享 FilterPills，primary 色系改 accent） */}
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {t('search.filter.mainCategory')}
         </span>
-        <div className="flex flex-wrap gap-1.5">
-          {categories.map((cat) => {
-            const active = selectedCategory === cat.name;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => handleCategorySelect(cat.name)}
-                className={cn(
-                  "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-all duration-150 select-none active:scale-95",
-                  "focus:outline-none focus:ring-2 focus:ring-ring",
-                  active
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground hover:bg-muted/80 cursor-pointer",
-                )}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
+        <FilterPills
+          wrap
+          ariaLabel={t('search.filter.mainCategory')}
+          options={categories.map((cat) => ({ value: cat.name, label: cat.name }))}
+          value={selectedCategory}
+          onChange={handleCategorySelect}
+        />
       </div>
 
       {/* Selected tags chips */}
@@ -388,30 +369,17 @@ export function FacetedSearchSidebar({
             {selectedCategory ? t('search.filter.noTagsForCategory') : t('search.filter.selectCategoryFirst')}
           </p>
         ) : (
-          <div className="flex flex-wrap gap-1 max-h-[300px] overflow-y-auto">
-            {availableTags.map((tag) => {
-              const isSelected = selectedTags.includes(tag.name);
-              return (
-                <button
-                  key={tag.name}
-                  type="button"
-                  onClick={() => handleTagToggle(tag.name)}
-                  disabled={isSelected}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-all duration-150 select-none active:scale-95",
-                    "focus:outline-none focus:ring-2 focus:ring-ring",
-                    isSelected
-                      ? "border-primary bg-primary/10 text-primary cursor-default"
-                      : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground hover:bg-muted/80 cursor-pointer",
-                  )}
-                >
-                  {tag.name}
-                  <span className="text-xs tabular-nums text-muted-foreground/70">
-                    {tag.count}
-                  </span>
-                </button>
-              );
-            })}
+          /* #414 O1a：标签组收敛为共享 FilterPills 多选（点击添加/再次点击移除，
+             取代旧的「已选即禁用」形态） */
+          <div className="max-h-[300px] overflow-y-auto">
+            <FilterPills
+              wrap
+              selectionMode="multiple"
+              ariaLabel={t('search.filter.tagsLabel')}
+              options={availableTags.map((tag) => ({ value: tag.name, label: tag.name, count: tag.count }))}
+              value={selectedTags}
+              onChange={setSelectedTags}
+            />
           </div>
         )}
       </div>
@@ -437,30 +405,17 @@ export function FacetedSearchSidebar({
         {advancedOpen && (
           <div className="mt-3">
             <div className="flex flex-col gap-3">
-              {/* Content type multi-select */}
+              {/* Content type multi-select（#414 O1a：收敛为共享 FilterPills 多选） */}
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-medium text-muted-foreground">{t('search.contentType')}</span>
-                <div className="flex flex-wrap gap-1">
-                  {CONTENT_TYPE_OPTIONS.map((opt) => {
-                    const active = contentTypes.includes(opt.key);
-                    return (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => handleContentTypeToggle(opt.key)}
-                        className={cn(
-                          "inline-flex items-center rounded-md border px-2 py-0.5 text-xs transition-all duration-150 select-none active:scale-95",
-                          "focus:outline-none focus:ring-2 focus:ring-ring",
-                          active
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-transparent text-muted-foreground hover:border-primary hover:text-foreground hover:bg-muted/30 cursor-pointer",
-                        )}
-                      >
-                        {t(opt.label)}
-                      </button>
-                    );
-                  })}
-                </div>
+                <FilterPills
+                  wrap
+                  selectionMode="multiple"
+                  ariaLabel={t('search.contentType')}
+                  options={CONTENT_TYPE_OPTIONS.map((opt) => ({ value: opt.key, label: t(opt.label) }))}
+                  value={contentTypes}
+                  onChange={setContentTypes}
+                />
               </div>
 
               {/* Time range */}
@@ -570,7 +525,7 @@ export function FacetedSearchSidebar({
                 key={s.id}
                 type="button"
                 onClick={() => handleApplySavedSearch(s)}
-                className="text-xs text-left text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 transition-all duration-150 active:scale-[0.98] truncate"
+                className="text-xs text-left text-muted-foreground hover:text-foreground hover:bg-muted rounded-md px-2 py-1 transition-colors duration-150 truncate"
               >
                 {s.name}
               </button>

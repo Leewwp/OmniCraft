@@ -14,12 +14,22 @@ export interface AgentCitation {
   title: string;
   zone: "original" | "fanwork";
   excerpt?: string;
+  contentVersion?: number;
+  chunkKey?: string;
+  chunkIndex?: number;
+  route?: string;
+  source?: "bm25" | "vector" | "hybrid_rrf";
 }
 
 export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
   const zone: AgentCitation["zone"] = citation.zone === "original" ? "original" : "fanwork";
   const normalized: AgentCitation = { contentId: citation.content_id, title: citation.title, zone };
   if (citation.excerpt !== undefined) normalized.excerpt = citation.excerpt;
+  if (citation.content_version !== undefined) normalized.contentVersion = citation.content_version;
+  if (citation.chunk_key !== undefined) normalized.chunkKey = citation.chunk_key;
+  if (citation.chunk_index !== undefined) normalized.chunkIndex = citation.chunk_index;
+  if (citation.route !== undefined) normalized.route = citation.route;
+  if (citation.source !== undefined) normalized.source = citation.source;
   return normalized;
 }
 
@@ -49,7 +59,44 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
     title: title.trim(),
     zone,
   };
+  const expandedFields = [
+    candidate.content_version,
+    candidate.chunk_key,
+    candidate.chunk_index,
+    candidate.route,
+    candidate.source,
+  ];
+  const hasExpandedFields = expandedFields.some((field) => field !== undefined);
+  if (hasExpandedFields && expandedFields.some((field) => field === undefined)) return null;
+  const contentVersion = candidate.content_version;
+  if (contentVersion !== undefined) {
+    if (typeof contentVersion !== "number" || !Number.isInteger(contentVersion) || contentVersion <= 0) return null;
+    normalized.content_version = contentVersion;
+  }
+  const chunkKey = candidate.chunk_key;
+  if (chunkKey !== undefined) {
+    if (typeof chunkKey !== "string" || !/^[0-9a-f]{64}$/.test(chunkKey)) return null;
+    normalized.chunk_key = chunkKey;
+  }
+  const chunkIndex = candidate.chunk_index;
+  if (chunkIndex !== undefined) {
+    if (typeof chunkIndex !== "number" || !Number.isInteger(chunkIndex) || chunkIndex < 0) return null;
+    normalized.chunk_index = chunkIndex;
+  }
+  const route = candidate.route;
+  if (route !== undefined) {
+    if (typeof route !== "string") return null;
+    const expectedRoute = zone === "original" ? `/original/${contentId}` : `/content/${contentId}`;
+    if (route !== expectedRoute) return null;
+    normalized.route = route;
+  }
+  const source = candidate.source;
+  if (source !== undefined) {
+    if (source !== "bm25" && source !== "vector" && source !== "hybrid_rrf") return null;
+    normalized.source = source;
+  }
   const excerpt = candidate.excerpt;
+  if (hasExpandedFields && (typeof excerpt !== "string" || excerpt.trim() === "")) return null;
   if (typeof excerpt === "string" && excerpt.trim() !== "") {
     normalized.excerpt = excerpt;
   }
@@ -77,6 +124,14 @@ export function normalizeAgentTool(raw: unknown): AgentStreamTool | null {
     return null;
   }
   const normalized: AgentStreamTool = { name: name.trim(), status };
+  const argsSummary = candidate.args_summary;
+  if (typeof argsSummary === "string" && argsSummary.trim() !== "") {
+    normalized.args_summary = argsSummary.trim();
+  }
+  const hits = candidate.hits;
+  if (typeof hits === "number" && Number.isInteger(hits) && hits >= 0) {
+    normalized.hits = hits;
+  }
   const durationMs = candidate.duration_ms;
   if (typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0) {
     normalized.duration_ms = Math.floor(durationMs);
@@ -111,6 +166,10 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
       if (typeof answerKind === "string" && answerKind !== "") event.answer_kind = answerKind;
       return event;
     }
+    case "think_delta": {
+      const delta = candidate.delta;
+      return typeof delta === "string" ? { type: "think_delta", delta } : null;
+    }
     case "tool_status": {
       const tool = normalizeAgentTool(candidate.tool);
       return tool ? { type: "tool_status", tool } : null;
@@ -129,9 +188,15 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
     }
     case "done": {
       const event: { type: "done" } & AgentStreamEvent = { type: "done" };
+      const traceId = candidate.trace_id;
+      if (typeof traceId === "string" && traceId !== "") event.trace_id = traceId;
       const conversationId = candidate.conversation_id;
       if (typeof conversationId === "number" && Number.isInteger(conversationId) && conversationId > 0) {
         event.conversation_id = conversationId;
+      }
+      const messageId = candidate.message_id;
+      if (typeof messageId === "number" && Number.isInteger(messageId) && messageId > 0) {
+        event.message_id = messageId;
       }
       const answerKind = candidate.answer_kind;
       if (typeof answerKind === "string" && answerKind !== "") event.answer_kind = answerKind;
@@ -147,15 +212,37 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
           .map(normalizeAgentTool)
           .filter((tool): tool is AgentStreamTool => tool !== null);
       }
+      const usage = candidate.usage;
+      if (typeof usage === "object" && usage !== null) {
+        const tokens = usage as Record<string, unknown>;
+        if (typeof tokens.prompt_tokens === "number" && typeof tokens.completion_tokens === "number") {
+          event.usage = {
+            prompt_tokens: tokens.prompt_tokens,
+            completion_tokens: tokens.completion_tokens,
+          };
+        }
+      }
       if (typeof candidate.degraded === "boolean") event.degraded = candidate.degraded;
+      /* SP-15 B #435：done 携带的推荐追问逐条校验为非空字符串，上限 3 条；
+         缺失/畸形一律省略（渐进增强，无则无）。 */
+      if (Array.isArray(candidate.follow_ups)) {
+        const followUps = candidate.follow_ups.filter(
+          (item): item is string => typeof item === "string" && item.trim() !== "",
+        );
+        if (followUps.length > 0) event.follow_ups = followUps.slice(0, 3);
+      }
       return event;
     }
     case "error": {
-      const event: { type: "error"; error_code?: string; error_message?: string } = { type: "error" };
+      const event: Extract<AgentStreamEvent, { type: "error" }> = { type: "error" };
       const errorCode = candidate.error_code;
       if (typeof errorCode === "string" && errorCode !== "") event.error_code = errorCode;
       const errorMessage = candidate.error_message;
       if (typeof errorMessage === "string" && errorMessage !== "") event.error_message = errorMessage;
+      if (candidate.degraded === true && candidate.degraded_reason === "provider_error") {
+        event.degraded = true;
+        event.degraded_reason = "provider_error";
+      }
       return event;
     }
     default:

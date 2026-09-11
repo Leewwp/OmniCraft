@@ -24,7 +24,11 @@ func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
 			DesktopDeployEnabled:  false,
 		},
 		Agent: config.AgentConfig{
-			WebAgentEnabled: false,
+			WebAgentEnabled:   false,
+			LLMProvider:       "minimax",
+			LLMModel:          "MiniMax-M3",
+			EmbeddingProvider: "openai_compat",
+			EmbeddingModel:    "text-embedding-v4",
 		},
 		Captcha: config.CaptchaConfig{
 			Provider: "aliyun_v2",
@@ -42,6 +46,21 @@ func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
 			ImageGalleryMaxItems: 9,
 			VideoGalleryMinItems: 1,
 			VideoGalleryMaxItems: 3,
+		},
+		Limits: config.LimitsConfig{
+			VideoMaxMB:      300,
+			VideoMaxSec:     180,
+			ImageMaxMB:      20,
+			TextMaxMB:       10,
+			ModMaxMB:        500,
+			SheetMusicMaxMB: 50,
+		},
+		Publish: config.PublishConfig{
+			TypeOrderOriginal: []string{"image", "article", "video"},
+			TypeOrderFanwork:  []string{"mod", "prompt", "image"},
+		},
+		Social: config.SocialConfig{
+			CommentFoldThreshold: 0.30,
 		},
 		Collaboration: config.CollaborationConfig{
 			InviteDailyLimit:       20,
@@ -106,24 +125,31 @@ func TestPublicConfigAllowlist(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	forbidden := []string{"secret", "access_key", "api_key", "dsn", "password", "hmac", "private", "cdn", "ttl", "rate_limit", "threshold", "min_score"}
+	// T47（FIX-29c）按票面裁决暴露 comment_fold_threshold，故 'threshold'
+	// 不再是禁词；其余敏感词照旧全量禁止。
+	forbidden := []string{"secret", "access_key", "api_key", "dsn", "password", "hmac", "private", "cdn", "ttl", "rate_limit", "min_score", "auto_hide"}
 	for _, word := range forbidden {
 		if strings.Contains(strings.ToLower(body), strings.ToLower(word)) {
 			t.Errorf("public config must not contain '%s'", word)
 		}
 	}
 
-	if _, has := resp["limits"]; has {
-		t.Error("public config must not expose 'limits'")
-	}
 	if _, has := resp["reputation"]; has {
 		t.Error("public config must not expose 'reputation'")
 	}
 	if _, has := resp["judge"]; has {
 		t.Error("public config must not expose 'judge'")
 	}
-	if _, has := resp["social"]; has {
-		t.Error("public config must not expose 'social'")
+	// T47：social 仅允许暴露 comment_fold_threshold（折叠展示阈值），
+	// report_auto_hide_rate 等审核旋钮保持 server-only。
+	social, ok := resp["social"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must contain 'social' object (comment_fold_threshold)")
+	}
+	for key := range social {
+		if key != "comment_fold_threshold" {
+			t.Errorf("social must not expose server-only key '%s'", key)
+		}
 	}
 	if _, has := resp["cache"]; has {
 		t.Error("public config must not expose 'cache'")
@@ -236,6 +262,34 @@ func TestPublicConfigExposesOnlyCollaborationMaxInviteesPerPublish(t *testing.T)
 	}
 }
 
+// Agent 模型身份（provider/model 名）随公开配置下发；凭证与端点永不暴露。
+func TestPublicConfigExposesAgentModelIdentity(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Agent struct {
+			ChatProvider      string `json:"chat_provider"`
+			ChatModel         string `json:"chat_model"`
+			EmbeddingProvider string `json:"embedding_provider"`
+			EmbeddingModel    string `json:"embedding_model"`
+		} `json:"agent"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Agent.ChatProvider != "minimax" || resp.Agent.ChatModel != "MiniMax-M3" {
+		t.Errorf("agent chat identity = %s/%s, want minimax/MiniMax-M3", resp.Agent.ChatProvider, resp.Agent.ChatModel)
+	}
+	if resp.Agent.EmbeddingProvider != "openai_compat" || resp.Agent.EmbeddingModel != "text-embedding-v4" {
+		t.Errorf("agent embedding identity = %s/%s, want openai_compat/text-embedding-v4", resp.Agent.EmbeddingProvider, resp.Agent.EmbeddingModel)
+	}
+}
+
 func TestPublicConfigNormalizesOmittedGalleryLimits(t *testing.T) {
 	cfg := &config.Config{}
 	r := gin.New()
@@ -253,5 +307,79 @@ func TestPublicConfigNormalizesOmittedGalleryLimits(t *testing.T) {
 	}
 	if resp.Upload != (PublicUploadDTO{ImageGalleryMinItems: 2, ImageGalleryMaxItems: 9, VideoGalleryMinItems: 1, VideoGalleryMaxItems: 3}) {
 		t.Fatalf("upload limits = %#v, want specification defaults", resp.Upload)
+	}
+}
+
+// T25（FIX-41）：发布类型顺序与上传大小上限随公开配置下发（脱敏数值，
+// 前端动态消费，admin 改配置无需发版）。
+func TestPublicConfigExposesPublishTypeOrderAndUploadCaps(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Publish struct {
+			TypeOrderOriginal []string `json:"type_order_original"`
+			TypeOrderFanwork  []string `json:"type_order_fanwork"`
+		} `json:"publish"`
+		Limits map[string]int `json:"limits"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(resp.Publish.TypeOrderOriginal) != 3 || resp.Publish.TypeOrderOriginal[0] != "image" {
+		t.Errorf("publish.type_order_original = %v, want config order", resp.Publish.TypeOrderOriginal)
+	}
+	if len(resp.Publish.TypeOrderFanwork) != 3 || resp.Publish.TypeOrderFanwork[0] != "mod" {
+		t.Errorf("publish.type_order_fanwork = %v, want config order", resp.Publish.TypeOrderFanwork)
+	}
+
+	wantCaps := map[string]int{
+		"video_max_mb":       300,
+		"image_max_mb":       20,
+		"text_max_mb":        10,
+		"mod_max_mb":         500,
+		"sheet_music_max_mb": 50,
+	}
+	if len(resp.Limits) != len(wantCaps) {
+		t.Fatalf("limits object has %d keys %v, want exactly the %d upload caps", len(resp.Limits), resp.Limits, len(wantCaps))
+	}
+	for key, wantValue := range wantCaps {
+		got, has := resp.Limits[key]
+		if !has {
+			t.Errorf("limits must contain '%s'", key)
+			continue
+		}
+		if got != wantValue {
+			t.Errorf("limits.%s = %d, want %d", key, got, wantValue)
+		}
+	}
+}
+
+// T47（FIX-29c）：评论折叠阈值随公开配置下发（前端禁止硬编码 0.30）。
+func TestPublicConfigExposesCommentFoldThreshold(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Social struct {
+			CommentFoldThreshold float64 `json:"comment_fold_threshold"`
+		} `json:"social"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Social.CommentFoldThreshold <= 0 || resp.Social.CommentFoldThreshold >= 1 {
+		t.Fatalf("social.comment_fold_threshold = %v, want a configured ratio in (0,1)", resp.Social.CommentFoldThreshold)
 	}
 }

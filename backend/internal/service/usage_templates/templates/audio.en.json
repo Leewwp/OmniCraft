@@ -1,0 +1,17 @@
+{
+  "content_type": "audio",
+  "locale": "en",
+  "requirements": [
+    "A player that supports the audio format (MP3 / WAV / FLAC, …)"
+  ],
+  "steps": [
+    "Download the audio file",
+    "Import it into your music library or play directly",
+    "For remixing, import into a DAW or editor"
+  ],
+  "notes": "Formats differ in quality and size; WAV/FLAC are lossless, MP3 is compressed.",
+  "safety": [
+    "Mind the volume during long listening sessions",
+    "Check the author's license before redistributing or commercial use"
+  ]
+}

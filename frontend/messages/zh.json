@@ -12,6 +12,7 @@
     "delete": "删除",
     "edit": "编辑",
     "view": "查看",
+    "viewAll": "查看全部",
     "submit": "提交",
     "submitting": "提交中...",
     "operationFailed": "操作失败",
@@ -43,7 +44,10 @@
       "votes": "票"
     },
     "rateLimited": "操作过于频繁，请稍后再试",
-    "endReached": "已经到底了"
+    "endReached": "已经到底了",
+    "insufficientReputation": "信誉分不足，暂时无法执行该操作",
+    "blocked": "你已被限制执行该操作",
+    "alreadyReported": "你已举报过该内容"
   },
   "nav": {
     "siteName": "万象工坊",
@@ -70,7 +74,8 @@
     "notifications": "通知",
     "favorites": "我的喜欢",
     "myOriginal": "我的原创",
-    "agent": "AI Agent"
+    "agent": "AI Agent",
+    "adminPanel": "管理后台"
   },
   "auth": {
     "suspendedTitle": "账号已被封禁",
@@ -93,8 +98,11 @@
     "createAccount": "创建账号",
     "hasAccount": "已有账号？",
     "loginNow": "立即登录",
+    "login": "登录",
     "errorInvalidCredentials": "邮箱或密码不正确",
     "errorBanned": "账号已被封禁，请联系管理员",
+    "bannedFeedbackHint": "如需申诉或有疑问，可通过工单联系我们：",
+    "bannedFeedbackEntry": "提交工单",
     "errorLoginFailed": "登录失败，请稍后重试",
     "errorNetwork": "网络错误，请检查连接后重试",
     "errorUsernameTooShort": "用户名至少 2 个字符",
@@ -140,7 +148,7 @@
     "errorTermsVersionMismatch": "用户协议版本不匹配，请刷新页面",
     "errorPrivacyVersionMismatch": "隐私政策版本不匹配，请刷新页面",
     "errorEmailRequired": "请输入邮箱地址",
-    "captchaLoading": "正在加载验证码...",
+    "captchaLoading": "验证码加载中...",
     "captchaReady": "请先完成验证码再创建账号。",
     "captchaVerified": "验证码已通过",
     "captchaFailed": "验证码验证失败，请重试",
@@ -162,10 +170,13 @@
     "hidePassword": "隐藏密码",
     "showConfirmPassword": "显示确认密码",
     "hideConfirmPassword": "隐藏确认密码",
-    "captchaLoading": "验证码加载中...",
-    "errorSessionExpired": "登录状态已过期，请重新登录"
+    "errorSessionExpired": "登录状态已过期，请重新登录",
+    "captchaRequired": "请先完成验证码验证",
+    "captchaUnavailable": "验证码服务暂时不可用，请稍后重试",
+    "errorInvalidPassword": "当前密码不正确"
   },
   "home": {
+    "contentFilterLabel": "内容类型筛选",
     "heroTitle": "发现、分享、共创你的热爱。",
     "heroSubtitle": "OmniCraft 万象工坊 — 全民创意分享平台",
     "heroDescription": "二创区、原创区 — 发现、分享、共创你的热爱。Mod 下载与部署、乐谱分享、AI 辅助创作。",
@@ -234,13 +245,8 @@
     "creatorsLabel": "创作者",
     "recommendedIps": "推荐 IP",
     "browseAllIps": "浏览全部 IP →",
-    "trendingTopics": "热门话题 · 本周",
-    "trending1": "#春日穿搭挑战",
-    "trending2": "#周末厨房日记",
-    "trending3": "#桌面改造计划",
-    "trending4": "#猫咪日常",
-    "trending5": "#极简生活",
-    "trendingParticipants": "参与",
+    "trendingContents": "热门原创 · 本周",
+    "trendingHeat": "热度",
     "ipLoadFailed": "IP 内容暂时加载失败，请稍后重试",
     "contentLoadFailed": "内容暂时加载失败，请稍后重试"
   },
@@ -281,7 +287,7 @@
     "allContent": "全部内容",
     "categoryMod": "Mod",
     "versionHistory": "版本历史",
-    "noVersionHistory": "暂无版本历史",
+    "noVersionHistory": "暂无版本历史。内容发布、编辑与 PR 合并都会产生版本；此内容发布于版本功能上线前，因此没有版本记录。",
     "latest": "最新",
     "preview": "预览",
     "restoreVersion": "恢复到此版本",
@@ -382,6 +388,11 @@
     "backToZonePage": "返回内容页",
     "backToIpPage": "返回 IP 详情",
     "backToAgent": "返回对话",
+    "backToTarget": "返回到：{target}",
+    "sourceNounRecommendation": "推荐流",
+    "sourceNounZonePage": "内容列表",
+    "sourceNounIpPage": "IP 详情页",
+    "sourceNounAgent": "AI 助手",
     "openRelated": "打开内容详情：{title}",
     "notFoundTitle": "内容不存在或已删除",
     "notFoundDescription": "这件作品可能已被作者删除，或当前账号没有查看权限。",
@@ -393,7 +404,19 @@
     "ip": "所属 IP",
     "sourceOriginal": "关联原创",
     "derivatives": "衍生二创",
-    "viewAll": "查看全部"
+    "viewAll": "查看全部",
+    "rateLimitedTitle": "操作太频繁了",
+    "rateLimitedDescription": "请求触发了限流保护，稍等片刻再试即可；关闭详情后仍会回到原来的浏览位置。"
+  },
+  "overlayVariant": {
+    "relatedTitle": "关联内容",
+    "originalBadge": "原创",
+    "seriesLabel": "同系列 · {title}",
+    "seriesPosition": "第 {current}/{total} 篇",
+    "previousChapter": "上一章",
+    "nextChapter": "下一章",
+    "previousChapterA11y": "上一章：{title}",
+    "nextChapterA11y": "下一章：{title}"
   },
   "collections": {
     "picker": {
@@ -504,50 +527,94 @@
     },
     "userList": {
       "header": {
-        "title": "{name} \u7684\u6536\u85cf\u96c6",
-        "subtitle": "{count} \u4e2a\u53ef\u89c1\u6536\u85cf\u96c6"
+        "title": "{name} 的收藏集",
+        "subtitle": "{count} 个可见收藏集"
       },
       "actions": {
-        "create": "\u65b0\u5efa\u6536\u85cf\u96c6",
-        "refresh": "\u5237\u65b0"
+        "create": "新建收藏集",
+        "refresh": "刷新"
       },
       "form": {
-        "createTitle": "\u521b\u5efa\u6536\u85cf\u96c6",
-        "editTitle": "\u7f16\u8f91\u6536\u85cf\u96c6",
-        "zone": "\u5206\u533a",
-        "original": "\u539f\u521b",
-        "fanwork": "\u4e8c\u521b",
-        "title": "\u6807\u9898",
-        "description": "\u63cf\u8ff0",
-        "isPublic": "\u516c\u5f00\u6536\u85cf\u96c6"
+        "createTitle": "创建收藏集",
+        "editTitle": "编辑收藏集",
+        "zone": "分区",
+        "original": "原创",
+        "fanwork": "二创",
+        "title": "标题",
+        "description": "描述",
+        "isPublic": "公开收藏集"
       },
       "empty": {
-        "ownerTitle": "\u6682\u65e0\u6536\u85cf\u96c6",
-        "ownerDescription": "\u521b\u5efa\u6536\u85cf\u96c6\u6765\u6574\u7406\u5df2\u4fdd\u5b58\u7684\u5185\u5bb9\u3002",
-        "visitorTitle": "\u6682\u65e0\u516c\u5f00\u6536\u85cf\u96c6",
-        "visitorDescription": "\u8be5\u7528\u6237\u5c1a\u672a\u5206\u4eab\u4efb\u4f55\u6536\u85cf\u96c6\u3002"
+        "ownerTitle": "暂无收藏集",
+        "ownerDescription": "创建收藏集来整理已保存的内容。",
+        "visitorTitle": "暂无公开收藏集",
+        "visitorDescription": "该用户尚未分享任何收藏集。"
       },
       "error": {
-        "title": "\u6536\u85cf\u96c6\u4e0d\u53ef\u7528",
-        "description": "\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+        "title": "收藏集不可用",
+        "description": "请稍后重试。"
       },
       "delete": {
-        "title": "\u5220\u9664\u6536\u85cf\u96c6\uff1f",
-        "description": "\u5c06\u79fb\u9664 {title}\uff0c\u5df2\u6536\u85cf\u5185\u5bb9\u4e0d\u4f1a\u88ab\u5220\u9664\u3002",
-        "confirm": "\u5220\u9664"
+        "title": "删除收藏集？",
+        "description": "将移除 {title}，已收藏内容不会被删除。",
+        "confirm": "删除"
       },
       "toast": {
-        "loadFailed": "\u6536\u85cf\u96c6\u52a0\u8f7d\u5931\u8d25",
-        "created": "\u6536\u85cf\u96c6\u5df2\u521b\u5efa",
-        "updated": "\u6536\u85cf\u96c6\u5df2\u66f4\u65b0",
-        "deleted": "\u6536\u85cf\u96c6\u5df2\u5220\u9664",
-        "saveFailed": "\u6536\u85cf\u96c6\u4fdd\u5b58\u5931\u8d25",
-        "deleteFailed": "\u6536\u85cf\u96c6\u5220\u9664\u5931\u8d25"
+        "loadFailed": "收藏集加载失败",
+        "created": "收藏集已创建",
+        "updated": "收藏集已更新",
+        "deleted": "收藏集已删除",
+        "saveFailed": "收藏集保存失败",
+        "deleteFailed": "收藏集删除失败"
       },
       "a11y": {
-        "grid": "\u7528\u6237\u6536\u85cf\u96c6"
+        "grid": "用户收藏集"
       }
     }
+  },
+  "proposal": {
+    "statusOpen": "进行中",
+    "statusAdopted": "已通过",
+    "statusRejected": "已否决",
+    "statusHistory": "改动历史",
+    "filterLabel": "提案状态筛选",
+    "create": "发起提案",
+    "cancelCreate": "取消",
+    "createFormTitle": "发起共治提案",
+    "fieldDescription": "新简介",
+    "fieldCover": "新封面",
+    "fieldTags": "标签变更",
+    "coverOld": "当前封面",
+    "coverNew": "提案封面",
+    "coverPlaceholder": "新封面图片地址（https://…，留空则不修改封面）",
+    "diffExpand": "展开全文",
+    "diffCollapse": "收起",
+    "descriptionPlaceholder": "填写新的 IP 简介（留空则不修改简介）",
+    "tagAdd": "新增标签（每案一个）",
+    "tagRemove": "移除标签（每案一个）",
+    "createRules": "名称/类目不可提案；同一 IP 同时仅一个进行中提案；提交后由关注者投票。",
+    "submit": "提交提案",
+    "needOneField": "至少修改一个字段",
+    "created": "提案已提交",
+    "createFailed": "提案提交失败",
+    "daysLeft": "剩 {count} 天",
+    "voteScale": "{yes}/{min} 票",
+    "voteYes": "赞成",
+    "voteNo": "反对",
+    "voteRecorded": "投票已记录",
+    "voteFailed": "投票失败",
+    "votedAs": "已投「{choice}」，不可更改",
+    "followToVote": "关注该 IP 后即可参与共治投票",
+    "followNow": "一键关注",
+    "followedUnlocked": "已关注，投票权已解锁",
+    "followFailed": "关注失败",
+    "emptyTitle": "还没有进行中的提案",
+    "emptyHint": "第一个提案由你发起。",
+    "emptyCta": "发起第一个提案",
+    "historyEmpty": "暂无生效记录",
+    "historyEmptyHint": "通过的提案会按生效时间记录在这里。",
+    "effectiveAt": "生效于 {date}",
+    "voteResult": "{yes} 赞成 / {no} 反对"
   },
   "publish": {
     "title": "发布内容",
@@ -586,7 +653,17 @@
     "errorIpRequired": "二创区发布必须选择 IP",
     "errorCoverRequired": "请上传封面图",
     "errorAttachmentRequired": "请至少上传一个内容附件",
-    "errorPublishFailed": "发布失败，请稍后重试"
+    "errorPublishFailed": "发布失败，请稍后重试",
+    "frozen": "发布功能已被冻结：因近期多次违规，发布暂停 7 天，到期自动解冻；完成素质课程可申请提前解除限制。",
+    "fileTooLarge": "文件超出大小限制，请压缩后重试",
+    "invalidMimeType": "不支持的文件类型",
+    "mediaSetInvalid": "媒体组合不符合画廊规范，请检查封面与媒体列表",
+    "sourceNotAllowedForOriginal": "原创内容不能添加来源归属",
+    "fanworkSourceRequired": "二次创作需关联 IP 或选择灵感来源",
+    "multipleSourceConflict": "只能选择一个来源（IP / 原作 / 灵感作品）",
+    "sourceOriginalUnavailable": "所选原作不存在或已不可用",
+    "sourceFanworkUnavailable": "所选灵感作品不存在或已不可用",
+    "sourceImmutable": "来源归属创建后不可修改"
   },
   "capabilities": {
     "deniedBanned": "账号当前已被封禁，无法进行互动操作。",
@@ -650,7 +727,13 @@
       "reject": "违规",
       "confirmVote": "确认投「{vote}」",
       "reasonPlaceholder": "可选：填写判定理由",
-      "confirm": "确认"
+      "confirm": "确认",
+      "previewWarning": "该内容因被举报进入众裁审核，可能包含争议内容，请谨慎查看",
+      "previewLoadButton": "查看内容",
+      "previewLoadFailed": "内容预览加载失败",
+      "mediaLoadButton": "加载媒体",
+      "skipCase": "跳过本案",
+      "reportThisContent": "举报此内容"
     },
     "verdict": {
       "title": "判决详情",
@@ -662,8 +745,15 @@
       "result": "判决结果：{result}",
       "judgeReasons": "判官理由（按赞数排序）",
       "noReasons": "暂无判官提交理由",
-      "loadFailed": "加载判决详情失败"
-    }
+      "loadFailed": "加载判决详情失败",
+      "selfVoteForbidden": "不能给自己的判定理由点赞",
+      "qualificationRequired": "需要判官资格才能参与理由投票"
+    },
+    "insufficientQuestions": "该类别题库不足，暂时无法开始考核，请稍后再试",
+    "readingTimeTooShort": "阅读时间不足，请先完整阅读说明",
+    "loadMore": "加载更多待审案件",
+    "examSessionExpired": "考试会话已过期，请重新选择类型抽题",
+    "examAlreadyQualified": "你已持有该类型的判官资格，无需再考"
   },
   "dashboard": {
     "title": "创作者后台",
@@ -759,7 +849,8 @@
       "goReports": "举报处理",
       "goFeedback": "反馈管理",
       "goAppeals": "申诉处理",
-      "goQueue": "队列监控"
+      "goQueue": "队列监控",
+      "partialLoadFailed": "部分仪表盘数据加载失败"
     },
     "reports": {
       "title": "举报处理",
@@ -784,7 +875,9 @@
       "dismissConfirm": "确认驳回此举报吗？驳回后举报将被关闭。",
       "confirmUphold": "确认维持",
       "confirmDismiss": "确认驳回",
-      "explanationPlaceholder": "请输入处理说明（必填）..."
+      "explanationPlaceholder": "请输入处理说明（必填）...",
+      "actionTaken": "处理说明",
+      "updateFailed": "处理失败，请稍后重试"
     },
     "ips": {
       "title": "IP 库管理",
@@ -824,7 +917,17 @@
       "confirmBan": "确认封禁",
       "banReason": "封禁原因",
       "loadFailed": "加载待审内容失败",
-      "banFailed": "封禁失败"
+      "banFailed": "封禁失败",
+      "listTab": "内容列表",
+      "trashTab": "回收站",
+      "restore": "恢复",
+      "restoreTitle": "恢复内容",
+      "restoreConfirm": "确认恢复「{title}」？恢复后将重新发布并前台可见。",
+      "confirmRestore": "确认恢复",
+      "restoreFailed": "恢复失败，请稍后重试",
+      "colDeletedAt": "删除时间",
+      "noTrashedContents": "回收站为空",
+      "noTrashedHint": "被删除的内容会出现在这里，可随时恢复"
     },
     "users": {
       "title": "用户管理",
@@ -868,6 +971,12 @@
       "confirmApprove": "确认通过",
       "confirmReject": "确认驳回",
       "opinion": "处理意见",
+      "statusFilter": "状态筛选",
+      "statusPending": "待处理",
+      "statusApproved": "已通过",
+      "statusRejected": "已驳回",
+      "statusAll": "全部",
+      "viewContent": "查看内容",
       "loadFailed": "加载申诉列表失败",
       "processFailed": "处理申诉失败"
     },
@@ -980,12 +1089,18 @@
       "noStats": "暂无队列数据",
       "topic": "主题",
       "depth": "深度",
-      "lag": "延迟",
+      "lag": "积压",
       "failures": "失败数",
       "dlq": "死信队列",
       "noDLQ": "死信队列为空",
       "loadFailed": "加载队列数据失败",
-      "readOnlyNote": "Beta 阶段队列页面为只读模式，不支持重放操作。"
+      "readOnlyNote": "队列页面支持实时监控各 topic 积压与失败数；死信条目可重放回原 topic（原条目保留在死信队列）。",
+      "replay": "重放",
+      "replayTitle": "重放死信条目",
+      "replayConfirm": "将条目 {id} 重投回原 topic「{topic}」？原条目保留在死信队列中，不会删除。",
+      "replaySuccess": "条目 {id} 已重投回原 topic（原条目保留在死信队列）",
+      "replayFailed": "条目 {id} 重放失败，请稍后重试",
+      "retries": "重试 {count} 次"
     },
     "auditLogs": {
       "title": "审计日志",
@@ -993,7 +1108,8 @@
       "allActions": "全部操作",
       "noLogs": "暂无审计记录",
       "noMetadata": "无元数据"
-    }
+    },
+    "navNotifications": "系统通知"
   },
   "social": {
     "like": "点赞",
@@ -1005,6 +1121,7 @@
     "reportFailed": "举报提交失败，请稍后重试",
     "comments": "评论",
     "commentPlaceholder": "写下你的评论...",
+    "sendComment": "发布评论",
     "loginToComment": "请登录后参与评论",
     "noComments": "暂无评论，来抢沙发吧",
     "noCommentsHint": "评论和回复会在对话开始后显示在这里。",
@@ -1012,7 +1129,28 @@
     "loadFailed": "加载评论失败",
     "follow": "关注",
     "following": "已关注",
-    "unfollow": "取消关注"
+    "unfollow": "取消关注",
+    "reply": "回复",
+    "replyPlaceholder": "回复 @{name}…",
+    "showReplies": "展开回复",
+    "hideReplies": "收起回复",
+    "noReplies": "还没有回复",
+    "repliesLoaded": "已加载回复",
+    "edit": "编辑",
+    "saveEdit": "保存",
+    "cancelEdit": "取消",
+    "editedMark": "已编辑",
+    "delete": "删除",
+    "deleteCommentTitle": "删除这条评论？",
+    "deleteCommentDesc": "删除后评论将不再展示，该操作不可撤销。",
+    "deleteReplyTitle": "删除这条回复？",
+    "deleteReplyDesc": "删除后回复将不再展示，该操作不可撤销。",
+    "loadMoreComments": "加载更多评论",
+    "commentBlocked": "内容未通过安全审核，请修改后重试",
+    "moderationUnavailable": "审核服务暂时不可用，请稍后重试",
+    "commentCount": "{count} 条评论",
+    "commentFolded": "已折叠 · 点击显示",
+    "commentCollapse": "收起"
   },
   "pr": {
     "submit": "提交修改申请",
@@ -1032,6 +1170,27 @@
     "cover": "IP 封面",
     "category": "分类：{category}",
     "uncategorized": "未分类",
+    "contentCategories": "内容类目",
+    "hubDiscussionCount": "{count} 讨论",
+    "hubWorkCount": "{count} 作品",
+    "hubLoginHint": "登录后参与讨论与共治",
+    "hubSearchPlaceholder": "在 IP 内搜索…",
+    "hubClearSearch": "清空搜索",
+    "hubModules": "IP 模块",
+    "hubTab_share": "内容分享",
+    "hubTab_discussions": "讨论区",
+    "hubTab_proposals": "提案投票",
+    "hubNoSearchResult": "未找到与「{q}」相关的内容",
+    "hubNoSearchHint": "换个关键词，或清空搜索浏览全部内容。",
+    "hubEmptyShareHint": "还没有绑定该 IP 的二创作品。",
+    "hubEmptyDiscussions": "暂无讨论",
+    "hubEmptyDiscussionsHint": "来发起第一个话题吧。",
+    "hubDiscussionLoadHint": "帖子加载失败，可重试或关闭浮层。",
+    "hubPinned": "置顶",
+    "hubSortLatestReply": "最新回复",
+    "hubSortNewestPost": "最新发布",
+    "hubSortMostReplies": "最多回复",
+    "hubSortHot": "热门",
     "noDescription": "暂无 IP 介绍",
     "noDescriptionShort": "暂无简介",
     "enterDiscussion": "进入讨论区",
@@ -1050,7 +1209,9 @@
     "sortHot": "最热门",
     "sortMostContents": "最多内容",
     "sortNewest": "最新",
-    "sortLabel": "IP 排序方式"
+    "sortLabel": "IP 排序方式",
+    "tagsLabel": "IP 标签",
+    "createIP": "创建 IP"
   },
   "user": {
     "profile": "用户 #{id}",
@@ -1058,6 +1219,7 @@
     "following": "已关注",
     "follow": "关注",
     "editProfile": "编辑资料",
+    "sendMessage": "发私信",
     "tabPublish": "发布",
     "tabFavorites": "收藏",
     "tabCollections": "收藏集",
@@ -1115,6 +1277,65 @@
       },
       "a11y": {
         "acceptInvites": "接收联合创作邀请"
+      }
+    },
+    "reputation": {
+      "title": "信誉明细",
+      "total": "共 {total} 条",
+      "empty": "暂无信誉变动记录",
+      "loadFailed": "信誉明细加载失败",
+      "loadMore": "加载更多",
+      "loading": "加载中...",
+      "reasons": {
+        "ai_violation": "AI 审核违规",
+        "judge_error_rate": "众裁错误率调整",
+        "judge_accuracy": "众裁准确率奖励",
+        "rehab": "康复课程",
+        "quality_content": "优质内容",
+        "quality_comment": "优质评论",
+        "pr_merged": "PR 已合并",
+        "tag_recognized": "标签建议被认可",
+        "valid_report": "有效举报",
+        "malicious_report": "恶意举报",
+        "malicious_tag_report": "恶意标签举报",
+        "admin_adjust": "管理员调整"
+      }
+    },
+    "agentTokens": {
+      "title": "Agent 接入令牌",
+      "description": "为你的外部 Agent（Claude Code、Codex 等）签发访问令牌；泄露可随时吊销止血。",
+      "create": "创建令牌",
+      "createConfirm": "签发",
+      "nameLabel": "令牌名称",
+      "scope": {
+        "download": "下载（download）",
+        "upload": "上传（upload）"
+      },
+      "scopeHelp": "下载 scope 允许获取内容下载链接；上传 scope 允许通过 Agent 发布内容（走完整审核流）。",
+      "empty": "还没有令牌。创建一枚，配合 /agent 页面的接入说明交给你的 Agent 使用。",
+      "lastUsed": "最近使用：{time}",
+      "never": "从未使用",
+      "revoke": "吊销",
+      "revokeConfirm": {
+        "title": "吊销这枚令牌？",
+        "description": "「{name}」（{prefix}…）吊销后立即失效，使用它的 Agent 会马上收到 401。此操作不可撤销。"
+      },
+      "issued": {
+        "title": "令牌已创建——请立即复制保存",
+        "copy": "复制",
+        "copied": "已复制",
+        "onceWarning": "这是该令牌明文的唯一一次展示，关闭后无法再次查看。",
+        "done": "我已保存，关闭"
+      },
+      "error": {
+        "invalid": "请填写令牌名称并至少勾选一个 scope。",
+        "create": "创建令牌失败，请稍后重试。"
+      },
+      "toast": {
+        "loadFailed": "令牌列表加载失败",
+        "copyFailed": "复制失败，请手动选择复制",
+        "revoked": "令牌已吊销",
+        "revokeFailed": "吊销失败，请稍后重试"
       }
     }
   },
@@ -1189,12 +1410,9 @@
     "loadingGuide": "正在生成使用指导...",
     "noGuideAvailable": "暂无使用指导",
     "guideError": "使用指导生成失败，请稍后重试",
-    "searchAgentPlaceholder": "用自然语言搜索，如「适合新手的家具 Mod」...",
     "searchKeywordPlaceholder": "输入关键词搜索...",
-    "searchAgentNoResults": "AI 搜索未找到结果，已切换为关键词搜索",
-    "searchAgentDowngrade": "AI 搜索暂时不可用，已切换为关键词搜索",
-    "aiSearch": "AI 搜索",
-    "keywordSearch": "关键词搜索",
+    "searchAgentEntryHint": "想用自然语言提问？",
+    "searchAgentEntryCta": "问 AI 助手",
     "featureDisabledTitle": "Agent 工作台尚未开放",
     "featureDisabledDescription": "AI Agent 能力暂未开放，请稍后再试。",
     "workspace": {
@@ -1206,11 +1424,13 @@
       "closeConversations": "关闭对话列表",
       "emptyConversations": "还没有会话，点击上方按钮开启新对话。",
       "untitled": "对话",
+      "editTitleLabel": "编辑会话标题",
       "privacyHint": "仅检索当前账号可见的已发布内容；站内事实回答必须带有效引用。",
       "groupToday": "今天",
       "groupYesterday": "昨天",
       "groupEarlier": "更早",
       "transcriptLabel": "对话正文",
+      "messageHiddenByModeration": "该回复未通过安全审核，已隐藏",
       "composerLabel": "向 Agent 提问",
       "inputPlaceholder": "描述你要找的作品、来源或使用方式",
       "send": "发送",
@@ -1226,6 +1446,8 @@
       "emptyTitle": "从站内内容开始研究",
       "emptyDescription": "询问作品、来源、使用方式或创作方向。Agent 会给出经服务端校验的站内引用；没有依据时会明确停止。",
       "jumpToLatest": "跳到最新",
+      "followUpsLabel": "推荐追问",
+      "followUpFill": "填入输入框",
       "errorTitle": "本次请求未完成",
       "errorRetry": "重新发送",
       "conversationLoadFailed": "会话加载失败",
@@ -1233,7 +1455,30 @@
       "stoppedNotice": "已停止生成",
       "suggestionLayout": "想找「无人站台」主题的视觉参考，最好能同时看到氛围图和文字叙事。",
       "suggestionMusic": "想用最短的练习理解和弦与主旋律的关系。",
-      "suggestionMod": "找一些适合新手的家具 Mod。"
+      "suggestionMod": "找一些适合新手的家具 Mod。",
+      "rateLimitTitle": "AI 请求过于频繁",
+      "rateLimitHint": "已触发限流：可能是每分钟限额（请约 1 分钟后再试）或每日限额（明天恢复）已用尽，此时重试必定失败。",
+      "traceLabel": "追踪 ID",
+      "turnDetails": "本轮详情",
+      "turnUsage": "Token 用量：输入 {prompt} / 输出 {completion}",
+      "groupPinned": "置顶",
+      "menuLabel": "会话操作",
+      "menuRename": "重命名",
+      "menuPin": "置顶",
+      "menuUnpin": "取消置顶",
+      "menuDelete": "删除会话",
+      "renameInputLabel": "会话 {id} 重命名输入框",
+      "renameFailed": "重命名失败，请稍后重试",
+      "pinFailed": "置顶操作失败，请稍后重试",
+      "deleteConfirmTitle": "删除此会话？",
+      "deleteConfirmDescription": "会话内的全部消息将被删除，且不可恢复。",
+      "deleteConfirmAction": "删除会话",
+      "deleteSuccess": "会话已删除",
+      "deleteFailed": "删除失败，请稍后重试",
+      "copyMessage": "复制回答",
+      "copySuccess": "已复制到剪贴板",
+      "copyFailed": "复制失败，请手动选择文本",
+      "regenerate": "重新生成"
     },
     "tools": {
       "title": "工具状态",
@@ -1265,24 +1510,41 @@
       "unknownSuccess": "处理完成",
       "unknownFailed": "处理失败",
       "unknownSkipped": "已跳过",
-      "duration": "{seconds}s"
+      "duration": "{seconds}s",
+      "stepsSummary": "{count} 个工具步骤",
+      "hits": "{count} 条命中"
     },
     "citations": {
       "title": "站内依据",
       "count": "{count} 条已校验引用",
       "invalid": "该引用不可用",
       "zoneOriginal": "原文",
-      "zoneFanwork": "同人"
+      "zoneFanwork": "同人",
+      "collapse": "收起引用",
+      "expand": "展开引用（{count} 条）"
     },
     "noEvidence": {
       "title": "未找到足够依据",
-      "description": "公开内容中没有足够材料支持这次回答。Agent 没有生成推测性结论。"
+      "description": "公开内容里没有找到足够的材料。换个说法或补充细节——比如题材、类型、作者——再试一次。",
+      "searchCta": "搜索站内内容"
+    },
+    "degraded": {
+      "title": "已切换到搜索降级模式",
+      "description": "本次未生成模型总结，请查看可用的站内依据。"
     },
     "a11y": {
       "conversationItem": "对话 #{id}",
       "streamStatus": "回答生成中",
       "jumpToLatest": "跳到最新消息"
-    }
+    },
+    "gate": {
+      "loadFailed": "功能配置加载失败，无法确认该功能是否可用。"
+    },
+    "thinking": {
+      "label": "已深度思考",
+      "streamingLabel": "思考中…"
+    },
+    "rateLimited": "AI 助手请求过于频繁，请稍后再试"
   },
   "search": {
     "saveSearch": "保存此搜索",
@@ -1302,6 +1564,7 @@
     "listView": "列表视图",
     "filter": {
       "mainCategory": "大类",
+      "tagsLabel": "标签筛选",
       "selectedTags": "已选标签",
       "clearAll": "全部清除",
       "tags": "标签",
@@ -1319,7 +1582,16 @@
       "searchSaved": "搜索已保存",
       "saveFailed": "保存失败，请重试",
       "loadedSearch": "已加载搜索「{name}」"
-    }
+    },
+    "resultTabsLabel": "结果类型",
+    "tabContents": "内容",
+    "tabUsers": "用户",
+    "usersNoResults": "没有匹配的用户",
+    "usersNoResultsHint": "换个关键词试试，或用完整用户名搜索",
+    "userReputation": "信誉 {value}",
+    "suggestionsLabel": "搜索建议",
+    "missingQuery": "请输入搜索关键词",
+    "queryTooLong": "搜索关键词过长，请精简后重试"
   },
   "recommend": {
     "title": "为你推荐",
@@ -1338,6 +1610,7 @@
     "noCourses": "暂无可用课程",
     "minReading": "最低阅读 {sec} 秒",
     "rewardPoints": "+{pts} 信誉分",
+    "courseContent": "课程内容",
     "startLearning": "开始学习",
     "pleaseRead": "请先阅读",
     "readingProgress": "已阅读 {elapsed} / {required} 秒",
@@ -1361,7 +1634,8 @@
     "bodyPlaceholder": "写下你的想法...",
     "replyCount": "{count} 条回复",
     "noReplies": "暂无回复，来发表第一条评论吧",
-    "replyPlaceholder": "写下你的回复..."
+    "replyPlaceholder": "写下你的回复...",
+    "replyAction": "回复"
   },
   "support": {
     "title": "支持创作者",
@@ -1390,14 +1664,28 @@
     "activate": "激活",
     "deleteConfig": "删除配置",
     "deleteTitle": "删除 LLM 配置",
-    "deleteDescription": "确认删除配置「{name}」吗？此操作不可撤销。"
+    "deleteDescription": "确认删除配置「{name}」吗？此操作不可撤销。",
+    "activateNotFound": "配置不存在（可能已被删除），请刷新列表",
+    "activateFailed": "激活失败，请稍后重试",
+    "testFailed": "连接测试失败"
   },
   "appeals": {
     "title": "我的申诉",
     "subtitle": "对被标记内容提出申诉",
+    "tabLabel": "申诉与举报",
+    "appealsTab": "我的申诉",
+    "reportsTab": "我的举报",
+    "noReports": "暂无举报记录",
+    "reportPending": "待处理",
+    "reportResolved": "已处理",
+    "reportDismissed": "未成立",
+    "actionTaken": "处置说明",
+    "reportFallbackAction": "已处理，未附处置说明",
     "newAppeal": "新建申诉",
     "typeContent": "内容",
     "typeComment": "评论",
+    "typeAccount": "账号（封禁申诉）",
+    "accountHint": "账号申诉无需填写目标 ID，将自动关联你的账号。",
     "targetId": "目标 ID",
     "reason": "申诉理由",
     "submit": "提交",
@@ -1408,7 +1696,9 @@
     "rejected": "已驳回",
     "noAppeals": "暂无申诉记录",
     "loadFailed": "加载失败",
-    "submitFailed": "提交失败"
+    "submitFailed": "提交失败",
+    "adminResponse": "处理意见",
+    "exists": "该目标已有待处理的申诉，请等待处理完成"
   },
   "history": {
     "title": "浏览历史",
@@ -1504,8 +1794,16 @@
     "selectConversation": "选择一个对话开始聊天",
     "replyPlaceholder": "输入消息...",
     "startConversation": "开始对话",
-    "dmReplyRequired": "\u5bf9\u65b9\u5c1a\u672a\u56de\u590d\uff0c\u8bf7\u7b49\u5f85\u56de\u590d\u540e\u518d\u53d1\u9001\u65b0\u6d88\u606f",
-    "sendMessage": "\u53d1\u9001\u6d88\u606f",
+    "dmReplyRequired": "对方尚未回复，请等待回复后再发送新消息",
+    "sendMessage": "发送消息",
+    "compose": {
+      "title": "给 {name} 发私信",
+      "description": "发送第一条消息后将建立对话；在对方回复前无法连续发送第二条。",
+      "label": "消息内容",
+      "placeholder": "输入第一封私信…",
+      "success": "私信已发送",
+      "blocked": "内容包含违规内容，无法发送"
+    },
     "broadcastLabel": "广播",
     "systemLabel": "系统",
     "notificationOpensTarget": "可打开相关项",
@@ -1782,6 +2080,7 @@
       "analytics": "数据看板",
       "collaboration": "协作管理",
       "publishContent": "发布创作",
+      "createIP": "创建 IP",
       "overview": "数据概览",
       "followers": "粉丝分析",
       "myContent": "我的内容",
@@ -1789,23 +2088,69 @@
       "prManagement": "PR 管理",
       "contributors": "贡献者",
       "tagSuggestions": "标签建议",
-      "revenue": "收益数据"
+      "revenue": "收益数据",
+      "favorites": "收藏集",
+      "myIPs": "我的 IP"
     },
     "series": {
       "title": "内容系列管理",
       "subtitle": "整理公开内容并维护章节顺序。",
       "create": "创建系列",
       "delete": "删除系列",
-      "empty": { "title": "还没有内容系列", "description": "创建一个系列，把相关内容按顺序整理起来。" },
-      "list": { "ariaLabel": "我的内容系列" },
-      "detail": { "ariaLabel": "系列详情" },
-      "form": { "title": "系列标题", "description": "系列简介", "zone": "分区", "cover": "系列封面", "coverAutomatic": "自动使用首项封面", "createSubmit": "创建", "save": "保存修改" },
-      "items": { "title": "已添加内容", "ariaLabel": "系列内容排序列表", "empty": "系列中还没有内容", "add": "添加" },
-      "search": { "title": "添加内容", "label": "搜索可添加内容", "placeholder": "按标题搜索自己的内容..." },
-      "confirm": { "deleteTitle": "删除系列？", "deleteDescription": "删除“{title}”后，系列顺序会被移除，但不会删除内容。" },
-      "toast": { "created": "系列已创建", "saved": "系列已保存", "deleted": "系列已删除", "itemAdded": "内容已添加", "itemRemoved": "内容已移除", "reordered": "顺序已更新" },
-      "error": { "loadFailed": "系列加载失败，请重试。", "saveFailed": "保存失败，请重试。", "deleteFailed": "删除失败，请重试。", "itemFailed": "内容操作失败，请重试。" },
-      "a11y": { "backToList": "返回系列列表", "moveUp": "将 {title} 上移", "moveDown": "将 {title} 下移", "removeItem": "从系列移除 {title}" }
+      "empty": {
+        "title": "还没有内容系列",
+        "description": "创建一个系列，把相关内容按顺序整理起来。"
+      },
+      "list": {
+        "ariaLabel": "我的内容系列"
+      },
+      "detail": {
+        "ariaLabel": "系列详情"
+      },
+      "form": {
+        "title": "系列标题",
+        "description": "系列简介",
+        "zone": "分区",
+        "cover": "系列封面",
+        "coverAutomatic": "自动使用首项封面",
+        "createSubmit": "创建",
+        "save": "保存修改"
+      },
+      "items": {
+        "title": "已添加内容",
+        "ariaLabel": "系列内容排序列表",
+        "empty": "系列中还没有内容",
+        "add": "添加"
+      },
+      "search": {
+        "title": "添加内容",
+        "label": "搜索可添加内容",
+        "placeholder": "按标题搜索自己的内容..."
+      },
+      "confirm": {
+        "deleteTitle": "删除系列？",
+        "deleteDescription": "删除“{title}”后，系列顺序会被移除，但不会删除内容。"
+      },
+      "toast": {
+        "created": "系列已创建",
+        "saved": "系列已保存",
+        "deleted": "系列已删除",
+        "itemAdded": "内容已添加",
+        "itemRemoved": "内容已移除",
+        "reordered": "顺序已更新"
+      },
+      "error": {
+        "loadFailed": "系列加载失败，请重试。",
+        "saveFailed": "保存失败，请重试。",
+        "deleteFailed": "删除失败，请重试。",
+        "itemFailed": "内容操作失败，请重试。"
+      },
+      "a11y": {
+        "backToList": "返回系列列表",
+        "moveUp": "将 {title} 上移",
+        "moveDown": "将 {title} 下移",
+        "removeItem": "从系列移除 {title}"
+      }
     },
     "publish": {
       "originalTitle": "发布原创",
@@ -1937,6 +2282,30 @@
         "other": "其他二创内容"
       }
     },
+    "publishIP": {
+      "title": "创建 IP",
+      "backToStudio": "返回工作室",
+      "nameLabel": "IP 名称",
+      "namePlaceholder": "为你的 IP 起一个名字...",
+      "nameRequired": "请输入 IP 名称",
+      "nameTooLong": "IP 名称不能超过 {max} 个字符",
+      "descriptionLabel": "IP 介绍",
+      "descriptionPlaceholder": "介绍这个 IP 的世界观、题材或创作方向...",
+      "coverLabel": "封面",
+      "coverHint": "可选；上传后作为 IP 封面展示。",
+      "categoryLabel": "分类",
+      "tagLabel": "标签",
+      "tagPlaceholder": "输入标签后回车添加",
+      "addTag": "添加标签",
+      "submit": "提交创建",
+      "submitting": "提交中...",
+      "cancel": "取消",
+      "successTitle": "已提交，等待审核",
+      "successPending": "IP「{name}」已提交。审核通过后将在 IP 库公开，在此之前仅自己可见。",
+      "successView": "查看 IP 详情",
+      "successCreateAnother": "继续创建",
+      "failed": "创建失败，请稍后再试"
+    },
     "overview": {
       "title": "数据概览",
       "subtitle": "查看你的创作数据总览",
@@ -1975,12 +2344,65 @@
       "noContent": "你还没有发布任何内容",
       "startCreating": "开始创作",
       "edit": "编辑",
-      "delete": "删除"
+      "delete": "删除",
+      "banReason": "封禁原因",
+      "statusDraft": "草稿",
+      "statusPending": "审核中",
+      "statusUnderReview": "复核中",
+      "statusBanned": "已封禁",
+      "appeal": "去申诉",
+      "editBannedDisabled": "已封禁内容不可编辑，请先申诉",
+      "editDialogTitle": "编辑内容",
+      "editDialogHint": "已发布内容的标题或封面变更会重新触发审核。",
+      "fieldTitle": "标题",
+      "fieldCover": "封面地址",
+      "fieldPublic": "公开可见",
+      "fieldAllowCopy": "允许转载",
+      "save": "保存",
+      "editSaved": "内容已更新",
+      "editFailed": "更新内容失败",
+      "deleted": "内容已删除",
+      "deleteFailed": "删除内容失败",
+      "deleteTitle": "删除内容",
+      "deleteDescription": "确认删除《{title}》吗？此操作不可撤销。",
+      "guide": "使用指导"
+    },
+    "guide": {
+      "dialogTitle": "使用指导",
+      "dialogHint": "填写安装/使用要求与步骤；留空字段对读者回退到系统模板。",
+      "fieldRequirements": "前置要求（每行一条）",
+      "requirementsPlaceholder": "例如：Minecraft 1.20.1+\nForge 47",
+      "fieldSteps": "使用步骤（每行一步）",
+      "stepsPlaceholder": "例如：\n1. 解压下载文件\n2. 放入 mods 目录",
+      "fieldNotes": "补充说明",
+      "notesPlaceholder": "补充说明或备注（支持 Markdown）",
+      "draftButton": "AI 草稿",
+      "drafting": "生成中…",
+      "draftedHint": "当前内容包含 AI 草稿，保存后将标记 source=llm_assisted。",
+      "save": "保存",
+      "saved": "使用指导已保存",
+      "loadFailed": "加载使用指导失败",
+      "draftFailed": "AI 草稿生成失败",
+      "saveFailed": "保存使用指导失败"
     },
     "pr": {
       "title": "PR 管理",
       "subtitle": "管理内容协同修改请求",
-      "empty": "PR 请求将在此处显示"
+      "empty": "PR 请求将在此处显示",
+      "create": {
+        "title": "发起修改建议（PR）",
+        "baseVersionLabel": "选择基准版本",
+        "messageLabel": "说明你的修改",
+        "messagePlaceholder": "向作者说明这次修改的意图…",
+        "newTextLabel": "新文本",
+        "newTextPlaceholder": "在此粘贴或撰写修改后的完整文本…",
+        "submit": "提交 PR",
+        "submitting": "提交中…",
+        "success": "PR 已提交，等待作者审核",
+        "loadFailed": "加载版本信息失败",
+        "selectVersionRequired": "请选择基准版本",
+        "backToList": "返回 PR 列表"
+      }
     },
     "contributors": {
       "title": "贡献者",
@@ -2051,6 +2473,25 @@
         "saveFailed": "收藏集保存失败",
         "deleteFailed": "收藏集删除失败"
       }
+    },
+    "myIPs": {
+      "title": "我的 IP",
+      "subtitle": "查看你创建的 IP 的审核状态与原因",
+      "empty": "还没有创建任何 IP",
+      "create": "创建 IP",
+      "colName": "名称",
+      "colCategory": "分类",
+      "colStatus": "状态",
+      "colDate": "提交时间",
+      "colReason": "审核意见",
+      "colActions": "操作",
+      "statusPending": "审核中",
+      "statusApproved": "已通过",
+      "statusRejected": "未通过",
+      "noReason": "-",
+      "resubmit": "重新提交",
+      "view": "查看",
+      "loadFailed": "加载 IP 列表失败"
     }
   },
   "adminNotifications": {
@@ -2201,21 +2642,58 @@
     "pageErrorDesc": "发生了意外错误，请稍后重试",
     "notFound": "页面未找到",
     "notFoundDesc": "您访问的页面不存在或已被移除",
-    "backHome": "返回首页",
-    "INVALID_ID": "无效的 ID",
-    "USER_NOT_FOUND": "用户不存在",
-    "DB_ERROR": "数据库错误",
-    "FORBIDDEN": "权限不足",
-    "INVALID_BODY": "请求格式错误",
-    "NO_FIELDS": "未提供更新字段",
-    "VALIDATION_ERROR": "输入验证失败",
-    "INVALID_PASSWORD": "密码不正确",
-    "INTERNAL_ERROR": "服务器内部错误",
-    "COURSE_NOT_FOUND": "课程未找到",
-    "ALREADY_COMPLETED": "已完成",
-    "FEATURE_DISABLED": "功能未启用",
-    "UNAUTHORIZED": "未登录",
-    "NOT_FOUND": "资源不存在",
-    "CONFLICT": "资源冲突"
+    "backHome": "返回首页"
+  },
+  "markdown": {
+    "copyCode": "复制代码",
+    "citationJump": "跳转到引用 {index}"
+  },
+  "agentAccess": {
+    "hero": {
+      "title": "把 OmniCraft 接进你的 Agent",
+      "subtitle": "匿名只读搜索、浏览内容与使用指导；PAT 令牌解锁下载与一句话上传（含强制确认门）——在你的 Claude Code / Codex / Gemini CLI 里直接用。"
+    },
+    "status": {
+      "live": "可用",
+      "planned": "P3 上线"
+    },
+    "channels": {
+      "aria": "接入通道"
+    },
+    "rest": {
+      "title": "REST API v1",
+      "point1": "匿名只读：搜索 / 列表 / 详情 / 版本 / 使用指导 / 分类 / 标签 / IP / 用户 / 统计",
+      "point2": "OpenAPI 3.1 契约：GET /api/v1/openapi.json（含 curl 消费示例）",
+      "point3": "匿名 GET 带 s-maxage=300 缓存与 ETag 条件请求（304）"
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "point1": "Streamable HTTP 端点：POST /api/v1/mcp（本站同源）",
+      "point2": "匿名只读四工具：omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories；PAT 按令牌 scope 追加 omnicraft_request_download（download）与 omnicraft_suggest_publish_metadata / omnicraft_create_content / omnicraft_request_upload_url（upload）"
+    },
+    "skill": {
+      "title": "Agent Skill",
+      "point1": "一键安装：curl -fsSL https://raw.githubusercontent.com/Leewwp/OmniCraft/main/agent-access/skill/install.sh | bash",
+      "point2": "教 Agent 搜内容、读使用指导、按步骤安装，以及凭 PAT 下载与一句话上传（含强制确认门：完整草稿摘要经你确认后才写）"
+    },
+    "verify": {
+      "title": "验证问题",
+      "subtitle": "装好后用这个问题冒烟——两行 curl 应返回含乐谱内容的搜索结果与使用指导：",
+      "keyword": "乐谱"
+    },
+    "limits": {
+      "title": "频率与配额",
+      "point1": "限流按 IP：搜索 30 次/分钟，常规读取 300 次/分钟",
+      "point2": "匿名面只读；下载与上传需要个人访问令牌（PAT，账户设置 → Agent 令牌，scope 分 download / upload）",
+      "point3": "响应均为 JSON；分页默认 page_size=20，搜索上限 50"
+    },
+    "versioning": {
+      "title": "版本承诺",
+      "body": "v1 契约内不 break：字段只增不改义。破坏性变更走 v2 并保留弃用期——届时在此页与 OpenAPI 文档同步公告迁移指引。"
+    },
+    "boundary": {
+      "title": "能力边界",
+      "body": "匿名面只返回已发布且公开的内容（草稿/私密/审核中/封禁内容绝不出现在任何匿名响应中）；使用指导的安全提示恒来自平台模板。"
+    }
   }
 }

@@ -1,18 +1,139 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Users } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
+import { silentError } from "@/lib/error-handler";
+import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
-export default function StudioContributorsPage() {
+interface Contributor {
+  user_id: number;
+  username: string;
+  contribution_count: number;
+  source: "merged" | "invite" | string;
+  blocked: boolean;
+}
+
+export default function ContributorsPage() {
   const t = useTranslations();
+  const { user } = useAuth();
+  const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [pendingContributor, setPendingContributor] = useState<Contributor | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    void loadContributors();
+  }, [user]);
+
+  async function loadContributors() {
+    setError("");
+    setLoading(true);
+    try {
+      // T50 (FIX-22d): 服务端聚合（PR 计数/来源/真实屏蔽状态），替换前端
+      // 逐内容 N+1 拼装与恒为 false 的 blocked。
+      const data = await api.get<{ contributors?: Array<Omit<Contributor, "contribution_count"> & { pr_count: number }> }>(
+        "/api/v1/users/me/contributors"
+      );
+      setContributors(
+        (data.contributors || []).map((c) => ({
+          user_id: c.user_id,
+          username: c.username || t('common.userLabel', { id: c.user_id }),
+          contribution_count: c.pr_count,
+          source: c.source,
+          blocked: c.blocked,
+        }))
+      );
+    } catch (e) {
+      silentError(e, { component: 'ContributorsPage', action: 'loadContributors' });
+      setError(t('dashboard.contributors.loadFailed'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleBlock(contributor: Contributor) {
+    const action = contributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block');
+    setError("");
+    try {
+      if (contributor.blocked) {
+        await api.delete(`/api/v1/dashboard/contributors/${contributor.user_id}/block`);
+      } else {
+        await api.post(`/api/v1/dashboard/contributors/${contributor.user_id}/block`, {});
+      }
+      setContributors((prev) =>
+        prev.map((c) => (c.user_id === contributor.user_id ? { ...c, blocked: !c.blocked } : c))
+      );
+    } catch (e) {
+      silentError(e, { component: 'ContributorsPage', action: 'toggleBlock' });
+      setError(t(getUserFacingErrorKey(e)));
+      throw e;
+    }
+  }
+
+  if (loading) {
+    return <div className="mx-auto w-full max-w-4xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
+  }
+
   return (
-    <div>
-      <h1 className="mb-1 text-xl font-bold text-foreground">{t('studio.contributors.title')}</h1>
-      <p className="mb-6 text-sm text-muted-foreground">{t('studio.contributors.subtitle')}</p>
-      <div className="rounded-lg border border-border bg-card p-12 text-center">
-        <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-        <p className="text-muted-foreground">{t('studio.contributors.empty')}</p>
+    <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">
+      <div className="rounded-md border border-border bg-card p-4 ">
+        <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.contributors.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.contributors.subtitle')}</p>
       </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {contributors.length === 0 ? (
+        <div className="rounded-md border border-border bg-card p-12 text-center ">
+          <p className="text-sm text-muted-foreground">{t('dashboard.contributors.noContributors')}</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-md border border-border bg-card ">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colUsername')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colContributions')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colStatus')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contributors.map((c) => (
+                <tr key={c.user_id} className="border-b border-border hover:bg-muted/20">
+                  <td className="px-4 py-3 font-medium">{c.username}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{c.contribution_count}</td>
+                  <td className="px-4 py-3">
+                    <span className={c.blocked ? "text-destructive text-xs" : "text-emerald-600 text-xs"}>
+                      {c.blocked ? t('dashboard.contributors.blocked') : t('dashboard.contributors.normal')}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button size="sm" variant={c.blocked ? "outline" : "destructive"} onClick={() => setPendingContributor(c)}>
+                      {c.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block')}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {pendingContributor && (
+        <ConfirmModal
+          open
+          onOpenChange={(open) => { if (!open) setPendingContributor(null); }}
+          title={pendingContributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block')}
+          description={t('dashboard.contributors.confirmAction', { action: pendingContributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block') })}
+          confirmLabel={pendingContributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block')}
+          onConfirm={() => toggleBlock(pendingContributor)}
+        />
+      )}
     </div>
   );
 }

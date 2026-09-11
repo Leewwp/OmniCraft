@@ -7,7 +7,7 @@ import { AlertCircle, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { normalizeContentList } from "@/lib/content";
 import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 interface RelatedFanworksProps {
   sourceContentId: number;
@@ -21,6 +21,9 @@ interface RelatedFanworksProps {
   onData?: (items: ContentCardData[]) => void;
   /** #90 嵌入模式：不渲染自身 bordered 容器（由宿主 RelatedContents 提供外层单容器）。 */
   embedded?: boolean;
+  /** 扇出收敛（2026-09-09 用户裁决）：宿主（浮层层内）已拉取同一接口时直供数据，
+      不再自拉；竞速期宿主未就绪时为 undefined，回退自拉（行为同旧版）。 */
+  initialData?: { items: ContentCardData[]; total: number };
 }
 
 type RowStatus = "loading" | "ready" | "error";
@@ -36,6 +39,7 @@ export function RelatedFanworks({
   onOpenDetail,
   onData,
   embedded = false,
+  initialData,
 }: RelatedFanworksProps) {
   const t = useTranslations();
   const [items, setItems] = useState<ContentCardData[]>([]);
@@ -48,7 +52,18 @@ export function RelatedFanworks({
     onDataRef.current = onData;
   }, [onData]);
 
+  /* 扇出收敛：宿主直供时消费宿主数据并回报 onData（RelatedContents 空态判定
+     依赖落定信号），不发请求。 */
   useEffect(() => {
+    if (!initialData) return;
+    setItems(initialData.items);
+    setTotal(initialData.total);
+    setStatus("ready");
+    onDataRef.current?.(initialData.items);
+  }, [initialData]);
+
+  useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setStatus("loading");
     api
@@ -69,11 +84,11 @@ export function RelatedFanworks({
     return () => {
       cancelled = true;
     };
-  }, [sourceContentId, attempt]);
+  }, [sourceContentId, attempt, initialData]);
 
   const containerClass = embedded
     ? undefined
-    : "rounded-lg border border-border-default bg-canvas-default p-4";
+    : "rounded-lg border border-border-default bg-card p-4";
 
   if (status === "loading") {
     return (
@@ -147,7 +162,7 @@ export function RelatedFanworks({
           {createHref && (
             <Link
               href={createHref}
-              className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-all hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className={buttonVariants({ size: "sm", className: "gap-1.5" })}
             >
               {t("relatedFanworks.actions.create")}
             </Link>

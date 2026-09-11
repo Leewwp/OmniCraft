@@ -99,6 +99,127 @@ services:
           memory: 512M
           cpus: "0.5"
 
+  opensearch:
+    image: opensearchproject/opensearch:2.19.3
+    container_name: omnicraft-opensearch
+    profiles: ["full-infra"]
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health | grep -Eq '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  opensearch-seed:
+    image: opensearchproject/opensearch:2.19.3
+    container_name: omnicraft-opensearch-seed
+    profiles: ["full-infra"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    volumes:
+      - ./ops/opensearch/seed.sh:/seed.sh:ro
+    entrypoint: ["/bin/sh", "/seed.sh"]
+    environment:
+      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_INDEX: "omnicraft-rag-v1"
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.1"
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: omnicraft-jaeger
+    profiles: ["full-infra"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+    expose:
+      - "4317"
+      - "4318"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:14269/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.120.0
+    container_name: omnicraft-otel-collector
+    profiles: ["full-infra"]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./ops/observability/otel-collector.yml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      jaeger:
+        condition: service_healthy
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    healthcheck:
+      # The standard Collector image is distroless and has no shell/wget.
+      # Its native config validation is the supported container probe.
+      test: ["CMD", "/otelcol", "validate", "--config=/etc/otelcol/config.yaml"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+
+  clamav:
+    image: clamav/clamav:1.4.3
+    container_name: omnicraft-clamav
+    profiles: ["security", "full-infra"]
+    expose:
+      - "3310"
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+      - ./ops/clamav/clamd.conf:/etc/clamav/clamd.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --config-file=/etc/clamav/clamd.conf --ping 1 --fdpass /etc/hosts >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - archive_security
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+
   backend:
     build:
       context: ./backend
@@ -108,6 +229,10 @@ services:
     environment:
       DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
+      RAG_INDEX_URL: "http://opensearch:9200"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
+      OBSERVABILITY_TRACING_ENABLED: "true"
+      OTEL_SERVICE_NAME: "omnicraft-server"
     ports:
       - "8080:8080"
     depends_on:
@@ -161,6 +286,40 @@ services:
         limits:
           memory: 512M
           cpus: "0.5"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: omnicraft-worker
+    env_file: .env
+    environment:
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+      RAG_INDEX_URL: "http://opensearch:9200"
+      CLAMD_ADDRESS: "clamav:3310"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
+      OBSERVABILITY_TRACING_ENABLED: "true"
+      OTEL_SERVICE_NAME: "omnicraft-worker"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["./worker"]
+    networks:
+      - default
+      - archive_security
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
 
   nginx:
     image: nginx:alpine
@@ -284,5 +443,11 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  ssl_certs:
+  opensearch_data:
+  clamav_signatures:
   alertmanager_data:
+  ssl_certs:
+
+networks:
+  archive_security:
+    internal: true

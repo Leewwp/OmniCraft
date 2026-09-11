@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 )
@@ -47,7 +49,12 @@ func seedAgentGroundingDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.AgentConversation{}, &model.AgentMessage{}); err != nil {
+	// :memory: databases are per-connection; pinning one connection keeps the
+	// schema visible to the async auto-title goroutine and follow-up turns.
+	if sqlDB, dbErr := db.DB(); dbErr == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.AgentConversation{}, &model.AgentMessage{}, &model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -61,24 +68,32 @@ func seedAgentGroundingDB(t *testing.T) *gorm.DB {
 	}
 
 	now := time.Now()
-	// NOTE: GORM replaces zero values of `default`-tagged fields on Create
-	// (IsPublic default:true would store true), so fixtures are inserted with
-	// raw SQL to keep deterministic visibility states.
+	// content_items 的 is_public/allow_copy 无 gorm 默认值（#318 修复后显式
+	// 零值原样落库），夹具裸 SQL 必须带全两列以保持确定性可见性状态。
 	contents := []model.ContentItem{
-		{ID: 100, Title: "Published Public", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, CreatedAt: now, UpdatedAt: now},
-		{ID: 101, Title: "Private Other Author", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, CreatedAt: now, UpdatedAt: now},
-		{ID: 102, Title: "Banned Author Content", AuthorID: 2, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, CreatedAt: now, UpdatedAt: now},
-		{ID: 103, Title: "Under Review", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "under_review", IsPublic: true, CreatedAt: now, UpdatedAt: now},
-		{ID: 104, Title: "Soft Deleted", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, DeletedAt: &now, CreatedAt: now, UpdatedAt: now},
-		{ID: 105, Title: "Viewer Own Private", AuthorID: 3, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, CreatedAt: now, UpdatedAt: now},
+		{ID: 100, Title: "Published Public", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 101, Title: "Private Other Author", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 102, Title: "Banned Author Content", AuthorID: 2, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 103, Title: "Under Review", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "under_review", IsPublic: true, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 104, Title: "Soft Deleted", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, AllowCopy: true, DeletedAt: &now, CreatedAt: now, UpdatedAt: now},
+		{ID: 105, Title: "Viewer Own Private", AuthorID: 3, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
 	}
 	for _, c := range contents {
 		if err := db.Exec(
-			"INSERT INTO content_items (id, title, description, author_id, zone, content_type, status, is_public, created_at, updated_at, deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-			c.ID, c.Title, c.Description, c.AuthorID, c.Zone, c.ContentType, c.Status, c.IsPublic, c.CreatedAt, c.UpdatedAt, c.DeletedAt,
+			"INSERT INTO content_items (id, title, description, author_id, zone, content_type, status, is_public, allow_copy, created_at, updated_at, deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+			c.ID, c.Title, c.Description, c.AuthorID, c.Zone, c.ContentType, c.Status, c.IsPublic, c.AllowCopy, c.CreatedAt, c.UpdatedAt, c.DeletedAt,
 		).Error; err != nil {
 			t.Fatalf("seed content %d: %v", c.ID, err)
 		}
+	}
+	if err := db.Create(&model.ContentVersion{ID: 1000, ContentItemID: 100, AuthorID: 1, VersionNumber: 1, StorageType: "full", StorageKey: "grounding-test", Status: "active", IsLatest: true}).Error; err != nil {
+		t.Fatalf("seed content version: %v", err)
+	}
+	if err := db.Create(&model.RagChunk{ContentID: 100, ContentVersion: 1, ChunkIndex: 0, ChunkKey: strings.Repeat("b", 64), ChunkingVersion: 1, Text: "Published Public", SourceStart: 0, SourceEnd: 15, Zone: "original", ContentType: "mod", IndexVersion: 1}).Error; err != nil {
+		t.Fatalf("seed rag chunk: %v", err)
+	}
+	if err := db.Create(&model.IndexProjectionStatus{ContentID: 100, IndexVersion: 1, ChunkingVersion: 1, EmbeddingModel: "test", State: "ready", IsCurrent: true, ErrorSummary: ""}).Error; err != nil {
+		t.Fatalf("seed projection status: %v", err)
 	}
 	return db
 }
@@ -253,21 +268,21 @@ func TestAgentGrounding(t *testing.T) {
 	})
 
 	t.Run("usage-guide endpoints reuse the same viewer-aware resolver", func(t *testing.T) {
-		_, err := svc.UsageGuide(ctx, viewerID, 101)
+		_, err := svc.UsageGuide(ctx, viewerID, 101, false)
 		if err == nil || !errors.Is(err, ErrContentNotFound) {
 			t.Fatalf("UsageGuide(private) err = %v, want ErrContentNotFound", err)
 		}
-		_, err = svc.UsageGuide(ctx, viewerID, 102)
+		_, err = svc.UsageGuide(ctx, viewerID, 102, false)
 		if err == nil || !errors.Is(err, ErrContentNotFound) {
 			t.Fatalf("UsageGuide(banned author) err = %v, want ErrContentNotFound", err)
 		}
-		if err := svc.UsageGuideStream(ctx, viewerID, 103, func(string, bool) error { return nil }); !errors.Is(err, ErrContentNotFound) {
+		if err := svc.UsageGuideStream(ctx, viewerID, 103, false, func(string, bool) error { return nil }); !errors.Is(err, ErrContentNotFound) {
 			t.Fatalf("UsageGuideStream(under review) err = %v, want ErrContentNotFound", err)
 		}
 		if provider.chatCalls+provider.streamCalls != 0 {
 			t.Fatal("hidden usage-guide requests must never reach the provider")
 		}
-		if err := svc.UsageGuideStream(ctx, viewerID, 100, func(string, bool) error { return nil }); err != nil {
+		if err := svc.UsageGuideStream(ctx, viewerID, 100, false, func(string, bool) error { return nil }); err != nil {
 			t.Fatalf("UsageGuideStream(visible) err = %v, want success", err)
 		}
 		if provider.streamCalls != 1 {
@@ -301,7 +316,7 @@ func TestAgentGrounding(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveChatContext(visible): %v", err)
 		}
-		if err := svc.ChatStream(ctx, viewerID, []llm.ChatMessage{{Role: "user", Content: "tell me"}}, resolved, func(AgentStreamEvent) error { return nil }); err != nil {
+		if err := svc.ChatStream(ctx, viewerID, ChatTurnInput{Message: "tell me"}, resolved, func(AgentStreamEvent) error { return nil }); err != nil {
 			t.Fatalf("ChatStream(visible) err = %v", err)
 		}
 		if provider.streamCalls != beforeStream+1 {
@@ -325,7 +340,7 @@ func TestAgentGrounding(t *testing.T) {
 
 	t.Run("every returned citation is revalidated after model output", func(t *testing.T) {
 		citations := []AgentCitation{
-			{ContentID: 100, Title: "Published Public", Zone: "original"},
+			{ContentID: 100, ContentVersion: 1, ChunkKey: strings.Repeat("b", 64), ChunkIndex: 0, Title: "Published Public", Zone: "original", Route: "/original/100", Excerpt: "Published Public", Source: "vector"},
 			{ContentID: 101, Title: "Private", Zone: "original"},
 			{ContentID: 102, Title: "Banned", Zone: "original"},
 			{ContentID: 103, Title: "Under Review", Zone: "original"},
@@ -351,10 +366,20 @@ func TestAgentGrounding(t *testing.T) {
 		}
 	})
 
-	t.Run("trace ids are generated and stable across requests", func(t *testing.T) {
-		a, b := newTraceID(), newTraceID()
-		if a == "" || a == b || len(a) != 32 {
-			t.Fatalf("trace ids %q %q, want two distinct 32-hex values", a, b)
+	t.Run("trace ids come from the request context", func(t *testing.T) {
+		provider := trace.NewTracerProvider()
+		t.Cleanup(func() {
+			if err := provider.Shutdown(context.Background()); err != nil {
+				t.Errorf("shutdown tracer provider: %v", err)
+			}
+		})
+		ctxA, spanA := provider.Tracer("agent-test").Start(context.Background(), "request-a")
+		ctxB, spanB := provider.Tracer("agent-test").Start(context.Background(), "request-b")
+		defer spanA.End()
+		defer spanB.End()
+		a, b := observability.TraceID(ctxA), observability.TraceID(ctxB)
+		if a == "" || a == b || len(a) != 32 || len(b) != 32 {
+			t.Fatalf("trace ids %q %q, want two distinct OTel ids", a, b)
 		}
 	})
 }

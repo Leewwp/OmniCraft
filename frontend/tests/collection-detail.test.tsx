@@ -125,7 +125,7 @@ test("ContentTypeFilter updates the content_type query and refetches", async () 
   const view = await renderCollectionDetailPage("9");
   await waitFor(() => assert.ok(view.getByText("Public references")));
 
-  fireEvent.click(view.getByRole("tab", { name: "Video" }));
+  fireEvent.click(view.getByRole("button", { name: "Video" }));
 
   await waitFor(() => {
     assert.ok(window.location.search.includes("content_type=video"));

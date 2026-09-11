@@ -1,4 +1,4 @@
-FROM golang:1.25.12-alpine AS builder
+FROM golang:1.25.13-alpine AS builder
 
 WORKDIR /src
 
@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /gate .
 
 FROM alpine:3.23
 
-RUN apk add --no-cache ca-certificates
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates
 
 WORKDIR /app
 

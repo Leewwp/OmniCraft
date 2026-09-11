@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -76,7 +77,12 @@ func newStreamTestService(t *testing.T, provider llm.LLMProvider, cfg *config.Co
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}); err != nil {
+	// :memory: databases are per-connection; pinning one connection keeps the
+	// schema visible to the async auto-title goroutine and follow-up turns.
+	if sqlDB, dbErr := db.DB(); dbErr == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
+	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}, &model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Create(&model.User{ID: 1, Username: "author", Email: "author@example.com"}).Error; err != nil {
@@ -86,8 +92,17 @@ func newStreamTestService(t *testing.T, provider llm.LLMProvider, cfg *config.Co
 	if err := db.Create(&model.ContentItem{ID: 88, Title: "Published Test Content", AuthorID: 1, Zone: "fanwork", ContentType: "mod", Status: "published", IsPublic: true, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
 		t.Fatalf("seed content: %v", err)
 	}
+	if err := db.Create(&model.ContentVersion{ID: 880, ContentItemID: 88, AuthorID: 1, VersionNumber: 1, StorageType: "full", StorageKey: "stream-test", Status: "active", IsLatest: true}).Error; err != nil {
+		t.Fatalf("seed content version: %v", err)
+	}
+	if err := db.Create(&model.RagChunk{ContentID: 88, ContentVersion: 1, ChunkIndex: 0, ChunkKey: fmt.Sprintf("%064x", 88), ChunkingVersion: 1, Heading: "", Text: "Published Test Content", SourceStart: 0, SourceEnd: 23, Zone: "fanwork", ContentType: "mod", IndexVersion: 1}).Error; err != nil {
+		t.Fatalf("seed rag chunk: %v", err)
+	}
+	if err := db.Create(&model.IndexProjectionStatus{ContentID: 88, IndexVersion: 1, ChunkingVersion: 1, EmbeddingModel: "test", State: "ready", IsCurrent: true, ErrorSummary: ""}).Error; err != nil {
+		t.Fatalf("seed projection status: %v", err)
+	}
 	if cfg == nil {
-		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200}}
+		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200, ChatContextTokenBudget: 100000}}
 	}
 	return NewAgentService(provider, nil, nil, nil, db, cfg), db
 }
@@ -112,14 +127,17 @@ func collectStreamEvents(t *testing.T, err error, events *[]AgentStreamEvent) {
 }
 
 func TestAgentStreamEmitsTypedEventsAndDoneContract(t *testing.T) {
-	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{{{Content: "The answer"}, {Done: true}}}}
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{toolCallDelta("get_content_detail", `{"content_id":88}`)},
+		{{Content: "The answer"}, {Done: true}},
+	}}
 	svc, _ := newStreamTestService(t, provider, nil)
 
 	var events []AgentStreamEvent
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -178,7 +196,7 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "find it"}},
+		ChatTurnInput{Message: "find it"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -189,6 +207,7 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	}
 	var toolSeen, citationSeen bool
 	doneKind := ""
+	doneAnswer := ""
 	for _, ev := range events {
 		switch ev.Type {
 		case AgentEventToolStatus:
@@ -204,6 +223,7 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 			t.Fatalf("forbidden tool id must not produce a citation event")
 		case AgentEventDone:
 			doneKind = string(ev.AnswerKind)
+			doneAnswer = ev.Answer
 		}
 	}
 	if !toolSeen {
@@ -212,8 +232,21 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	if citationSeen {
 		t.Fatal("citations must not be emitted for forbidden content")
 	}
+	// A-02: live model deltas may stream before the verdict; the done event
+	// keeps the final no_evidence semantics (empty answer).
 	if doneKind != "no_evidence" {
 		t.Fatalf("done answer_kind = %q, want no_evidence after forbidden tool result", doneKind)
+	}
+	if doneAnswer != "" {
+		t.Fatalf("done answer = %q, want no-evidence answer to stay empty", doneAnswer)
+	}
+
+	var messages []model.AgentMessage
+	if err := svc.db.Where("role = ?", "assistant").Find(&messages).Error; err != nil {
+		t.Fatalf("load persisted assistant messages: %v", err)
+	}
+	if len(messages) != 1 || messages[0].Content == nil || *messages[0].Content != "" {
+		t.Fatalf("persisted assistant messages = %#v, want one empty no-evidence message", messages)
 	}
 }
 
@@ -228,7 +261,7 @@ func TestAgentStreamVisibleToolProducesCitationAndGroundedAnswer(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "what is this"}},
+		ChatTurnInput{Message: "what is this"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -258,7 +291,7 @@ func TestAgentStreamVisibleToolProducesCitationAndGroundedAnswer(t *testing.T) {
 }
 
 func TestAgentStreamToolCallLimitStopsLoopWithStableDone(t *testing.T) {
-	cfg := &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 1, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200}}
+	cfg := &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 1, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200, ChatContextTokenBudget: 100000}}
 	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
 		{toolCallDelta("get_content_detail", `{"content_id": 88}`)},
 		{toolCallDelta("get_content_detail", `{"content_id": 88}`)},
@@ -270,7 +303,7 @@ func TestAgentStreamToolCallLimitStopsLoopWithStableDone(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "loop"}},
+		ChatTurnInput{Message: "loop"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -299,7 +332,7 @@ func TestAgentStreamProviderErrorEmitsSafeErrorEvent(t *testing.T) {
 	streamErr := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -318,6 +351,9 @@ func TestAgentStreamProviderErrorEmitsSafeErrorEvent(t *testing.T) {
 	if errorEvent.ErrorCode != "AGENT_PROVIDER_ERROR" {
 		t.Fatalf("error code = %q, want AGENT_PROVIDER_ERROR", errorEvent.ErrorCode)
 	}
+	if !errorEvent.Degraded || errorEvent.DegradedReason != "provider_error" {
+		t.Fatalf("provider error degradation = (%v, %q), want (true, provider_error)", errorEvent.Degraded, errorEvent.DegradedReason)
+	}
 	if strings.Contains(errorEvent.ErrorMessage, "RAW") || strings.Contains(errorEvent.ErrorMessage, "SECRET") {
 		t.Fatalf("raw provider error leaked to client: %q", errorEvent.ErrorMessage)
 	}
@@ -334,7 +370,7 @@ func TestAgentStreamClientCancellationCancelsProviderContext(t *testing.T) {
 	err := svc.ChatStream(
 		ctx,
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -349,6 +385,9 @@ func TestAgentStreamClientCancellationCancelsProviderContext(t *testing.T) {
 	}
 	if errorEvent == nil || errorEvent.ErrorCode != "STREAM_CANCELLED" {
 		t.Fatalf("cancelled stream events = %#v, want STREAM_CANCELLED error event", events)
+	}
+	if errorEvent.Degraded || errorEvent.DegradedReason != "" {
+		t.Fatalf("cancelled stream degradation = (%v, %q), want (false, empty)", errorEvent.Degraded, errorEvent.DegradedReason)
 	}
 }
 
@@ -377,7 +416,7 @@ func TestAgentStreamUnknownToolNamesAreIgnoredWithStableDone(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -413,7 +452,7 @@ func TestAgentStreamAppendsAssistantToolCallMessageBeforeToolResults(t *testing.
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -472,7 +511,7 @@ func TestAgentStreamAccumulatesStreamedToolCallFragmentsByIndex(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "what is this"}},
+		ChatTurnInput{Message: "what is this"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -540,7 +579,7 @@ func TestAgentStreamPassesThroughProviderUsageTokens(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -566,5 +605,30 @@ func TestAgentStreamPassesThroughProviderUsageTokens(t *testing.T) {
 	}
 	if doneEvent.Usage.PromptTokens != 120 || doneEvent.Usage.CompletionTokens != 300 {
 		t.Fatalf("done usage tokens = %#v, want provider {120, 300}", doneEvent.Usage)
+	}
+}
+
+// 2026-09-06 实测修复：模型自然产出的引用标注常超过 citation_max_count，
+// 超限的 [n] 若不剥离会在前端渲染为不可点死引用。
+func TestStripOrphanCitationMarkers(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		kept int
+		want string
+	}{
+		{name: "keeps markers within limit", in: "雨夜 [1] 与许愿墙 [2]", kept: 2, want: "雨夜 [1] 与许愿墙 [2]"},
+		{name: "strips markers beyond limit", in: "第一篇 [1] 第二篇 [2] 第三篇 [3]", kept: 2, want: "第一篇 [1] 第二篇 [2] 第三篇 "},
+		{name: "strips all when nothing kept", in: "全部 [1] 剥离 [2]", kept: 0, want: "全部 [1] 剥离 [2]"},
+		{name: "leaves markdown links untouched", in: "见 [1](https://example.com) 与 [2](/x)", kept: 1, want: "见 [1](https://example.com) 与 [2](/x)"},
+		{name: "ignores non-marker brackets", in: "数组写法 [1,2] 与 [abc] 保留 [1]", kept: 1, want: "数组写法 [1,2] 与 [abc] 保留 [1]"},
+		{name: "handles multibyte neighbors", in: "雨夜值班[12]结束", kept: 1, want: "雨夜值班结束"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := stripOrphanCitationMarkers(tc.in, tc.kept); got != tc.want {
+				t.Fatalf("stripOrphanCitationMarkers(%q, %d) = %q, want %q", tc.in, tc.kept, got, tc.want)
+			}
+		})
 	}
 }

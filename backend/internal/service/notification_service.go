@@ -289,6 +289,12 @@ func (s *NotificationService) Notify(userID int64, channel, notifType, title, bo
 		return
 	}
 	recovery.GoSafe(func() {
+		// sender_id=0 means "no sender" (system calls); 0 violates the users
+		// FK, so persist NULL — same normalisation the queue worker applies.
+		var senderRef *int64
+		if senderID != 0 {
+			senderRef = &senderID
+		}
 		n := &model.Notification{
 			UserID:     userID,
 			Channel:    channel,
@@ -297,10 +303,126 @@ func (s *NotificationService) Notify(userID int64, channel, notifType, title, bo
 			Body:       &body,
 			TargetType: &targetType,
 			TargetID:   &targetID,
-			SenderID:   &senderID,
+			SenderID:   senderRef,
 		}
 		if err := s.notifRepo.Create(n); err != nil {
 			slog.Error("failed to create notification", "error", err, "user_id", userID, "channel", channel)
 		}
 	})
+}
+
+// NotifyContentStatus delivers the author-facing content status-change
+// notification (FIX-17): channel=system, type=content_status, target=content,
+// and the body carries the reason when one is known. Unknown statuses are
+// dropped so callers can pass transitions through unconditionally. Copy stays
+// in backend Chinese templates on purpose; locale templating is a registered
+// non-goal for this phase.
+func (s *NotificationService) NotifyContentStatus(authorID, contentID int64, contentTitle, status, reason string, senderID int64) {
+	title, body, ok := contentStatusNotificationCopy(contentTitle, status, reason)
+	if !ok {
+		return
+	}
+	s.Notify(authorID, "system", "content_status", title, body, "content", contentID, senderID)
+}
+
+// NotifyIPDecision delivers the IP-creator-facing review decision
+// notification (T16/FIX-24): channel=system, type=ip_status, target=ip, and
+// the body carries the admin-provided reason on rejection. Unknown decisions
+// are dropped so callers can pass transitions through unconditionally. Copy
+// stays in backend Chinese templates on purpose; locale templating is a
+// registered non-goal for this phase.
+func (s *NotificationService) NotifyIPDecision(creatorID, ipID int64, ipName, decision, reason string, senderID int64) {
+	title, body, ok := ipDecisionNotificationCopy(ipName, decision, reason)
+	if !ok {
+		return
+	}
+	s.Notify(creatorID, "system", "ip_status", title, body, "ip", ipID, senderID)
+}
+
+// ipDecisionNotificationCopy renders the creator-facing copy for an IP
+// review decision. ok=false means the decision has no creator notification.
+func ipDecisionNotificationCopy(ipName, decision, reason string) (title, body string, ok bool) {
+	if ipName == "" {
+		ipName = "你提交的 IP"
+	}
+	reasonSuffix := ""
+	if reason != "" {
+		reasonSuffix = "原因：" + reason
+	}
+	switch decision {
+	case "approved":
+		title = "IP 已通过审核"
+		body = "「" + ipName + "」已通过审核并在 IP 库公开。"
+	case "rejected":
+		title = "IP 未通过审核"
+		body = "「" + ipName + "」未通过审核。你可以调整后重新提交。"
+	default:
+		return "", "", false
+	}
+	if reasonSuffix != "" {
+		body += reasonSuffix
+	}
+	return title, body, true
+}
+
+// NotifyReportResolution closes the reporter feedback loop (FIX-28a): when an
+// admin resolves or dismisses a report, the reporter gets a system
+// notification whose body carries the action-taken note. Unknown statuses are
+// dropped. Copy stays in backend Chinese templates on purpose; locale
+// templating is a registered non-goal for this phase.
+func (s *NotificationService) NotifyReportResolution(reporterID, reportID int64, status, actionTaken string, senderID int64) {
+	title, body, ok := reportResolutionNotificationCopy(status, actionTaken)
+	if !ok {
+		return
+	}
+	s.Notify(reporterID, "system", "report_result", title, body, "report", reportID, senderID)
+}
+
+// reportResolutionNotificationCopy renders the reporter-facing copy for a
+// report resolution. ok=false means the status has no reporter notification.
+func reportResolutionNotificationCopy(status, actionTaken string) (title, body string, ok bool) {
+	switch status {
+	case "resolved":
+		title = "举报已处理"
+		if actionTaken == "" {
+			actionTaken = "经核实举报成立"
+		}
+	case "dismissed":
+		title = "举报已处理"
+		if actionTaken == "" {
+			actionTaken = "经核实举报不成立"
+		}
+	default:
+		return "", "", false
+	}
+	return title, actionTaken, true
+}
+
+// contentStatusNotificationCopy renders the author-facing copy for a content
+// status transition. ok=false means the status has no author notification.
+func contentStatusNotificationCopy(contentTitle, status, reason string) (title, body string, ok bool) {
+	if contentTitle == "" {
+		contentTitle = "你的内容"
+	}
+	reasonSuffix := ""
+	if reason != "" {
+		reasonSuffix = "原因：" + reason
+	}
+	switch status {
+	case "banned":
+		title = "内容已被封禁"
+		body = "《" + contentTitle + "》已被封禁。"
+	case "under_review":
+		title = "内容进入人工复核"
+		body = "《" + contentTitle + "》已进入人工复核。"
+	case "published":
+		title = "内容已通过审核"
+		body = "《" + contentTitle + "》已通过审核并公开发布。"
+	default:
+		return "", "", false
+	}
+	if reasonSuffix != "" {
+		body += reasonSuffix
+	}
+	return title, body, true
 }

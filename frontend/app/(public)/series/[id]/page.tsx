@@ -59,7 +59,7 @@ export default function SeriesDetailPage({ params }: SeriesDetailPageProps) {
   if (state.status === "loading") {
     return (
       <main className="mx-auto w-full max-w-[1080px] space-y-6 px-4 py-6 md:px-6">
-        <div className="flex flex-col gap-4 rounded-lg border border-border-default bg-canvas-default p-4 sm:flex-row">
+        <div className="flex flex-col gap-4 rounded-lg border border-border-default bg-card p-4 sm:flex-row">
           <Skeleton className="h-[140px] w-full rounded-md sm:w-[220px]" />
           <div className="flex-1 space-y-3">
             <Skeleton className="h-7 w-2/3" />
@@ -101,7 +101,7 @@ export default function SeriesDetailPage({ params }: SeriesDetailPageProps) {
 
   return (
     <main className="mx-auto w-full max-w-[1080px] space-y-6 px-4 py-6 md:px-6">
-      <header className="flex flex-col gap-4 rounded-lg border border-border-default bg-canvas-default p-4 sm:flex-row">
+      <header className="flex flex-col gap-4 rounded-lg border border-border-default bg-card p-4 sm:flex-row">
         {series.cover ? (
           <img src={series.cover} alt={t("series.detail.a11y.cover", { title: series.title })} className="h-auto aspect-video w-full rounded-md border border-border-default object-cover sm:h-[140px] sm:w-[220px] sm:aspect-auto" />
         ) : (
@@ -127,7 +127,7 @@ export default function SeriesDetailPage({ params }: SeriesDetailPageProps) {
         {visibleItems.length === 0 ? (
           <EmptyState icon={BookOpen} title={t("series.detail.empty.title")} description={t("series.detail.empty.description")} />
         ) : (
-          <ol className="divide-y divide-border-default rounded-lg border border-border-default bg-canvas-default" aria-label={t("series.detail.items.ariaLabel")}>
+          <ol className="divide-y divide-border-default rounded-lg border border-border-default bg-card" aria-label={t("series.detail.items.ariaLabel")}>
             {visibleItems.map((item, index) => (
               <li key={item.id}>
                 <Link href={item.content.zone === "original" ? `/original/${item.content.id}` : `/content/${item.content.id}`} className="flex min-h-11 items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-canvas-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-emphasis">

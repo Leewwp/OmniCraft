@@ -20,6 +20,13 @@ func (r *NotificationRepository) Create(n *model.Notification) error {
 	return r.db.Create(n).Error
 }
 
+// CreateTx persists a notification inside the caller's transaction. The
+// notification worker uses it so the row and the inbox completion record
+// commit (or roll back) together.
+func (r *NotificationRepository) CreateTx(ctx context.Context, tx *gorm.DB, n *model.Notification) error {
+	return tx.WithContext(ctx).Create(n).Error
+}
+
 func (r *NotificationRepository) ListActiveRecipientIDs() ([]int64, error) {
 	return r.ListActiveRecipientIDsWithContext(context.Background())
 }

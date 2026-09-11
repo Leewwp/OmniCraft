@@ -239,26 +239,30 @@ test("exiting the overlay restores focus to the triggering card", async () => {
 
 test("home feed and original zone wire the shared overlay with zone-page source", () => {
   const home = read("components/home/HomePageClient.tsx");
-  const original = read("app/(public)/original/page.tsx");
-  for (const source of [home, original]) {
+  const originalFeed = read("components/original/OriginalFeedClient.tsx");
+  for (const source of [home, originalFeed]) {
     assert.match(source, /<OverlayMasonryGrid/);
     assert.match(source, /source="zone-page"/);
     assert.doesNotMatch(source, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
   }
-  assert.match(home, /items=\{contents\}/);
-  assert.match(original, /emptyText=\{t\("home\.noOriginalContent"\)\}/);
+  /* #410 F2：feed 段接线（items 经 useContentInfiniteFeed 供给 OverlayMasonryGrid）。 */
+  assert.match(home, /<OverlayMasonryGrid[\s\S]*?items=\{items\}/);
+  assert.match(originalFeed, /emptyText=\{t\("home\.noOriginalContent"\)\}/);
 });
 
-test("IP detail and IP category pages wire the shared overlay with ip-page source", () => {
-  const ipDetail = read("app/(public)/ip/[ipId]/page.tsx");
-  const ipCategory = read("app/(public)/ip/[ipId]/[category]/page.tsx");
-  for (const source of [ipDetail, ipCategory]) {
-    assert.match(source, /<OverlayMasonryGrid/);
-    assert.match(source, /source="ip-page"/);
-    assert.doesNotMatch(source, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
-  }
-  assert.match(ipDetail, /items=\{contents\}/);
-  assert.match(ipCategory, /items=\{contents\}/);
+test("IP hub surfaces wire the shared overlay with ip-page source", () => {
+  const ipShareTab = read("components/ip/hub/IPShareTab.tsx");
+  assert.match(ipShareTab, /<OverlayMasonryGrid/);
+  assert.match(ipShareTab, /source="ip-page"/);
+  assert.doesNotMatch(ipShareTab, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
+  assert.match(ipShareTab, /items=\{contents\}/);
+
+  // Legacy /ip/[id]/[category] + /ip/[id]/discussions routes 301 to the hub
+  // query form via next.config redirects (#290).
+  const nextConfig = read("next.config.ts");
+  assert.match(nextConfig, /\/ip\/:ipId\/:category/);
+  assert.match(nextConfig, /tab=share/);
+  assert.match(nextConfig, /tab=discussions/);
 });
 
 test("direct-URL detail pages keep full-page rendering (deep links preserved)", () => {

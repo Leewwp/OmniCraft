@@ -12,6 +12,7 @@ for (const [key, value] of Object.entries({
   self: dom.window,
   document: dom.window.document,
   navigator: dom.window.navigator,
+  getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
   Element: dom.window.Element,
   HTMLElement: dom.window.HTMLElement,
   Node: dom.window.Node,
@@ -169,7 +170,14 @@ export const testMessages = {
       },
     },
   },
+  nav: {
+    siteName: "OmniCraft",
+  },
   studio: {
+    sidebar: {
+      collapse: "Collapse sidebar",
+      expand: "Expand sidebar",
+    },
     publish: {
       media: {
         imageTitle: "Image set",
@@ -226,8 +234,46 @@ export function installDom() {
   document.head.innerHTML = "";
   document.body.innerHTML = "";
   window.history.replaceState({}, "", "http://localhost/");
+  installAuthFetchStubOnce();
 
   return dom;
+}
+
+// 把 lib/api 裸 fetch 的 auth 端点（/auth/csrf、/auth/refresh）钉在本进程内，
+// 防止单测挂载 AuthProvider 时打真实网络（#381 后 AuthContext 走 refreshSession
+// 裸 fetch 管线）。返回恢复函数。
+export function installAuthFetchStub(options?: { refreshStatus?: number }) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const path = String(input);
+    if (path.endsWith("/auth/csrf")) {
+      return new Response(JSON.stringify({ csrf_token: "test-csrf" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (path.endsWith("/auth/refresh")) {
+      return new Response(
+        JSON.stringify({ code: "INVALID_TOKEN", message: "not logged in" }),
+        { status: options?.refreshStatus ?? 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return originalFetch(input, init);
+  }) as typeof fetch;
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}
+
+// installDom 的幂等版 auth stub：整个单测进程内默认钉住 auth 端点，任何渲染
+// AuthProvider 的用例都不依赖各自文件级补丁（CI 慢网络下在途 fetch 跨用例
+// 泄漏会把下一个用例刚设置的 token 抹掉——#392 CI Frontend gates 实证）。
+let authFetchStubInstalled = false;
+
+function installAuthFetchStubOnce() {
+  if (authFetchStubInstalled || typeof globalThis.fetch !== "function") return;
+  installAuthFetchStub();
+  authFetchStubInstalled = true;
 }
 
 export function renderWithIntl(node: React.ReactNode) {

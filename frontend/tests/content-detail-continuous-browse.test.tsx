@@ -302,13 +302,18 @@ function swipeLeftOnMedia(which: "first" | "last" = "last") {
   dispatchTouch(scroller, "touchend", 40, 105);
 }
 
-/** 当前媒体（aria-current）的图片地址：切篇后媒体区重置到新内容首项的断言锚点。 */
+/** 当前媒体（aria-current）的图片地址：切篇后媒体区重置到新内容首项的断言锚点。
+    #398 C1 后图片走 next/image 变体（jsdom 下 SVG 直通为绝对地址）——剥 origin、
+    解出优化器 url 参数后与原始路径比对。 */
 function currentMediaSrc(): string | null {
-  return (
+  const raw =
     document.querySelector('[aria-current="true"] img')?.getAttribute("src") ??
     document.querySelector('[aria-current="true"] video')?.getAttribute("src") ??
-    null
-  );
+    null;
+  if (!raw) return null;
+  const param = raw.match(/[?&]url=([^&]+)/);
+  const path = param ? decodeURIComponent(param[1]) : raw;
+  return path.replace(/^https?:\/\/[^/]+/, "");
 }
 
 test.afterEach(() => {

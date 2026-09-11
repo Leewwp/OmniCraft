@@ -2,19 +2,29 @@ package container
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
+	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/mcpserver"
+	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
+	"omnicraft/backend/internal/pkg/clamav"
+	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/mail"
 	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
+	ragservice "omnicraft/backend/internal/service/rag"
 	"omnicraft/backend/internal/worker"
 )
 
@@ -49,6 +59,10 @@ type ServiceContainer struct {
 	SearchRepo        *repository.SearchRepository
 	FeedbackRepo      *repository.FeedbackRepository
 	AdminAuditRepo    *repository.AdminAuditRepository
+	OutboxRepo        *repository.OutboxRepository
+	ArchiveScanRepo   *repository.ArchiveScanRepository
+	OpenSearchRepo    *repository.OpenSearchRepository
+	HybridRetriever   *ragservice.HybridRetriever
 
 	// Services
 	AuthService         *service.AuthService
@@ -63,15 +77,27 @@ type ServiceContainer struct {
 	StatsService        *service.StatsService
 	IPStatsService      *service.IPStatsService
 	AgentService        *service.AgentService
+	AgentTokenService   *service.AgentAccessTokenService
 	NotificationService *service.NotificationService
 	PRService           *service.PRService
+	VersionService      *service.VersionService
+	UsageGuideService   *service.UsageGuideService
+	MCPHandler          http.Handler
 	SearchService       *service.SearchService
+	IPProposalService   *service.IPProposalService
 	FeedbackService     *service.FeedbackService
 	AdminAuditService   *service.AdminAuditService
 	CollabInviteService *service.CollabInviteService
 	CaptchaVerifier     captcha.CaptchaVerifier
 	CaptchaProvider     captcha.CaptchaVerifier
 	CaptchaTickets      *captcha.TicketStore
+	RAGProjection       *ragservice.Projection
+	ArchiveObjectStore  worker.ArchiveScanObjectStore
+	ArchiveScanner      worker.ArchiveScanner
+	// DisplayURLSigner issues short-lived signed GET URLs for display media
+	// at the API serialization boundary (B-002); nil-safe passthrough when
+	// OSS is not configured.
+	DisplayURLSigner *service.DisplayURLSigner
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -113,9 +139,27 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.SearchRepo = repository.NewSearchRepository(db)
 	c.FeedbackRepo = repository.NewFeedbackRepository(db)
 	c.AdminAuditRepo = repository.NewAdminAuditRepository(db)
+	c.OutboxRepo = repository.NewOutboxRepository(db)
+	backoff := make([]time.Duration, 0, len(cfg.ArchiveScan.RetryBackoffSec))
+	for _, seconds := range cfg.ArchiveScan.RetryBackoffSec {
+		if seconds >= 0 {
+			backoff = append(backoff, time.Duration(seconds)*time.Second)
+		}
+	}
+	c.ArchiveScanRepo = repository.NewArchiveScanRepositoryWithOutbox(db, repository.ArchiveScanRetryPolicy{Backoff: backoff}, c.OutboxRepo)
+	if cfg.Features.ArchiveMalwareScanEnabled {
+		ossClient, ossErr := aliyun.NewOSSClient(cfg.OSS.Endpoint, cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret, cfg.OSS.BucketName)
+		if ossErr != nil {
+			slog.Error("archive scan OSS object store is unavailable", "error", ossErr)
+		} else {
+			c.ArchiveObjectStore = ossClient
+		}
+		c.ArchiveScanner = clamav.NewClient(cfg.ArchiveScan.ClamdAddress, time.Duration(cfg.ArchiveScan.ScanTimeoutSec)*time.Second)
+	}
 
 	// Services
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
+	c.DisplayURLSigner = service.NewDisplayURLSigner(cfg)
 
 	var mailSender mail.MailSender
 	var feedbackMailSender service.FeedbackMailSender
@@ -139,14 +183,34 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPService = service.NewIPService(c.IPRepo)
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)
+	c.ReviewService.SetOutboxRepository(c.OutboxRepo)
+	c.ReviewService.SetArchiveScanGate(service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled))
 	c.JudgeService = service.NewJudgeService(c.JudgeRepo, c.ReputationService, cfg)
-	c.ContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, nil)
-	c.SocialService = service.NewSocialServiceWithRedis(c.SocialRepo, c.ContentRepo, c.UserRepo, cfg, rdb)
+	c.ContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, nil).
+		WithArchiveScanConfig(&cfg.ArchiveScan)
+	c.ContentService.SetOutboxRepository(c.OutboxRepo)
+	c.SocialService = service.NewSocialServiceWithRedis(c.SocialRepo, c.ContentRepo, c.UserRepo, cfg, rdb, c.ReviewService)
 	c.StatsService = service.NewStatsService(db, rdb)
 	c.IPStatsService = service.NewIPStatsService(db, rdb)
 	c.NotificationService = service.NewNotificationService(c.NotificationRepo)
+	// AI 审核结果与 IP 级联下架通知作者（FIX-17a）。
+	c.ReviewService.SetNotificationService(c.NotificationService)
+	// 判官闭案回写内容状态 + 作者通知（FIX-10）。
+	c.JudgeService.SetNotificationService(c.NotificationService)
+	c.JudgeService.SetContentOutcomeWriter(db, rdb, c.OutboxRepo)
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)
+	// merge 事务（版本+正文+索引事件）/ 缓存失效 / +3 信誉分（FIX-21）。
+	c.PRService.SetMergeSupport(rdb, c.OutboxRepo, c.ReputationService)
+	c.VersionService = service.NewVersionService(c.VersionRepo, c.ContentRepo)
+	// FIX-42: 发布事务内建初始版本 v1（full=description）。
+	c.ContentService.SetVersionService(c.VersionService)
 	c.SearchService = service.NewSearchService(c.SearchRepo, rdb)
+	c.IPProposalService = service.NewIPProposalService(
+		c.IPRepo, c.UserRepo, c.FollowRepo,
+		repository.NewIPProposalRepository(db), rdb, cfg,
+	)
+	c.IPProposalService.SetNotifier(c.NotificationService.Notify)
+	c.IPProposalService.SetReviewService(c.ReviewService)
 
 	uploadGrantTTL := 300
 	if cfg.Feedback.UploadGrantTTLSec > 0 {
@@ -159,6 +223,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, c.CaptchaVerifier, uploadGrantTTL, feedbackOSSSigner)
 	c.FeedbackService.SetNotificationService(c.NotificationService)
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
+	c.FeedbackService.SetReviewService(c.ReviewService)
+	c.FeedbackService.SetConfig(cfg)
 	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)
 	c.NotificationService.SetAdminAuditService(c.AdminAuditService)
 	c.CollabInviteService = service.NewCollabInviteService(
@@ -179,15 +245,149 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPService.SetQueueProducer(c.QueueProducer)
 	c.NotificationService.SetQueueProducer(c.QueueProducer)
 
+	// Usage-guide merged view (SP-16 #447): constructed before AgentService
+	// so the in-site agent can read structured guides first.
+	c.UsageGuideService = service.NewUsageGuideService(
+		repository.NewUsageGuideRepository(db),
+		c.ContentRepo,
+	)
+
+	// MCP server surface (SP-16 #449/#451): the four anonymous read-only
+	// tools close over the same repos as the public REST surface; the
+	// PAT-scoped write tools reuse the studio publish/download chains. The
+	// content service here mirrors NewContentHandler's construction (OSS
+	// presign, upload grants, object verifier, archive gate) so external
+	// agents hit byte-identical validation.
+	mcpOSS, mcpOSSErr := service.NewOSSService(cfg)
+	if mcpOSSErr != nil {
+		slog.Warn("MCP upload/download presign is unavailable", "error", mcpOSSErr)
+	}
+	mcpGrantTTL := time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
+	if mcpGrantTTL <= 0 {
+		mcpGrantTTL = 5 * time.Minute
+	}
+	mcpUploadGrants := service.NewUploadGrantService(rdb, mcpGrantTTL)
+	mcpContentSvc := service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, mcpOSS).
+		WithUploadGrantService(mcpUploadGrants).
+		WithUploadedObjectVerifier(mcpOSS).
+		WithArchiveScanConfig(&cfg.ArchiveScan).
+		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
+		WithImageDimensionsResolver(mcpOSS).
+		WithUploadConfig(&cfg.Upload)
+	mcpContentSvc.SetVersionService(c.VersionService)
+	mcpContentSvc.SetQueueProducer(c.QueueProducer)
+	mcpContentSvc.SetArchiveScanRepository(c.ArchiveScanRepo, cfg.Features.ArchiveMalwareScanEnabled)
+	c.MCPHandler = mcpserver.NewHandler(mcpserver.Deps{
+		DB:            db,
+		SearchRepo:    c.SearchRepo,
+		ContentRepo:   c.ContentRepo,
+		CategoryRepo:  c.CategoryRepo,
+		GuideSvc:      c.UsageGuideService,
+		DisplaySigner: c.DisplayURLSigner,
+		Cfg:           cfg,
+		ContentSvc:    mcpContentSvc,
+		// SuggestPublishMetadata reuses the in-chat upload-assist LLM;
+		// AgentService is constructed below, hence the late-bound closure.
+		SuggestPublishMetadata: func(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error) {
+			return c.AgentService.UploadAssist(ctx, 0, title, description, filename, contentType)
+		},
+		// IssueUploadURL mirrors POST /contents/oss-token: presign then
+		// register the grant the later create call consumes.
+		IssueUploadURL: func(ctx context.Context, req service.PresignUploadRequest, userID int64) (*service.PresignUploadResponse, error) {
+			resp, err := mcpOSS.GeneratePresignUploadURL(ctx, req, userID)
+			if err != nil {
+				return nil, err
+			}
+			grant, err := mcpUploadGrants.Issue(ctx, service.UploadGrant{
+				UserID:   userID,
+				Purpose:  "content",
+				OSSKey:   resp.OSSKey,
+				FileType: req.FileType,
+				MimeType: req.MimeType,
+				FileSize: req.FileSize,
+			})
+			if err != nil {
+				return nil, err
+			}
+			resp.GrantID = grant.ID
+			return resp, nil
+		},
+		// The shared per-user hourly upload window (same redis keys as the
+		// web studio uploads).
+		ConsumeUploadQuota: func(ctx context.Context, userID int64) error {
+			return middleware.ConsumeUploadQuota(ctx, rdb, &cfg.RateLimit, userID)
+		},
+	})
+
 	// Create AgentService for worker use
 	provider := llm.NewProvider(cfg)
 	greenClient := aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
+	c.AgentTokenService = service.NewAgentAccessTokenService(
+		repository.NewAgentAccessTokenRepository(db), cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)
+	c.AgentService.SetUsageGuideService(c.UsageGuideService)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
+	opensearchTimeout := time.Duration(cfg.RAG.Index.TimeoutSec) * time.Second
+	c.OpenSearchRepo = repository.NewOpenSearchRepositoryWithLimits(
+		cfg.RAG.Index.URL,
+		&http.Client{Timeout: opensearchTimeout},
+		repository.OpenSearchResponseLimits{
+			ErrorBodyMaxBytes:     int64(cfg.RAG.Index.ErrorBodyMaxBytes),
+			ResponseBodyMaxBytes:  int64(cfg.RAG.Index.ResponseBodyMaxBytes),
+			HealthPollIntervalSec: cfg.RAG.Index.HealthPollIntervalSec,
+		},
+	)
+	// Lexical primary follows rag.hybrid.keyword_source: the pg_jieba
+	// Postgres retriever is the canonical path (viewer-scoped queries); the
+	// OpenSearch retriever serves as the optional fallback. Full-infra stacks
+	// may invert the pair explicitly.
+	var keywordPrimary ragservice.KeywordRetriever = ragservice.NewPostgresKeywordRetriever(c.SearchRepo)
+	var keywordFallback ragservice.KeywordRetriever = ragservice.NewOpenSearchKeywordRetriever(c.OpenSearchRepo)
+	if strings.EqualFold(strings.TrimSpace(cfg.RAG.Hybrid.KeywordSource), "opensearch") {
+		keywordPrimary, keywordFallback = keywordFallback, keywordPrimary
+	}
+	c.HybridRetriever = ragservice.NewHybridRetriever(
+		keywordPrimary,
+		keywordFallback,
+		ragservice.NewPostgresVectorRetriever(c.EmbeddingRepo, cfg.RAG.Index.EmbeddingModel),
+		provider,
+		ragservice.NewDatabaseVisibilityFilter(db),
+		cfg.RAG.Hybrid,
+	)
+	// A-03 retrieval upgrades, each behind its feature flag; defaults stay
+	// off until the A-04 ablation decides them.
+	if cfg.Features.RAGQueryExpansionEnabled {
+		c.HybridRetriever.SetQueryExpander(ragservice.NewLLMQueryExpander(provider))
+	}
+	if cfg.Features.RAGRerankEnabled {
+		if reranker, inputTopK := llm.NewRerankerFromConfig(cfg.RAG.Rerank); reranker != nil {
+			c.HybridRetriever.SetReranker(reranker, inputTopK)
+		}
+	}
+	if cfg.Features.RAGHybridEnabled {
+		c.AgentService.SetContentRetriever(&agentRAGRetriever{retriever: c.HybridRetriever})
+	}
+	c.RAGProjection = ragservice.NewProjectionWithVersionLoader(
+		db,
+		ragservice.NewChunker(ragservice.ChunkerConfig{
+			MaxTokens: cfg.RAG.Chunking.MaxTokens, OverlapTokens: cfg.RAG.Chunking.OverlapTokens,
+			ChunkingVersion: cfg.RAG.Chunking.ChunkingVersion, TokenizerEncoding: cfg.RAG.Chunking.TokenizerEncoding,
+		}),
+		ragservice.NewProviderChunkEmbedder(provider),
+		c.OpenSearchRepo,
+		c.VersionService,
+		ragservice.ProjectionConfig{
+			IndexVersion: cfg.RAG.Index.GenerationStart, EmbeddingModel: cfg.RAG.Index.EmbeddingModel,
+			EmbeddingDimensions:   cfg.Agent.EmbeddingDimensions,
+			LockCleanupTimeoutSec: cfg.RAG.Index.LockCleanupTimeoutSec,
+		},
+	)
 
 	// Wire notification service
 	c.SocialService.SetNotificationService(c.NotificationService)
+	// 举报 auto-hide 触发众裁（FIX-11）：复用 AI 审核路径的幂等建案。
+	c.SocialService.SetJudgeCaseEnsurer(c.ReviewService)
 	c.PRService.SetNotificationService(c.NotificationService)
 
 	// Wire agent service with queue producer
@@ -196,26 +396,90 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	return c
 }
 
-// StartWorkers starts all queue consumers when queue is enabled.
-// Returns a stop function that should be called on shutdown.
+// StartWorkers starts all queue consumers and the outbox relay. It is the
+// single entry point of the standalone worker process (cmd/worker): the API
+// server never starts asynchronous consumers (ADR 0005) and no
+// worker.external=false fallback exists. Returns a stop function that
+// gracefully drains the consumers and the relay.
 func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
-	if c.QueueBroker == nil || !c.Cfg.Queue.Enabled {
+	if c.QueueBroker == nil {
+		slog.Warn("worker: queue broker is nil (queue disabled or redis absent), skipping worker startup")
 		return func() {}
 	}
 
 	mgr := worker.NewWorkerManager(c.QueueBroker)
+	concurrency := c.Cfg.Worker.Concurrency
+	if concurrency < 1 {
+		concurrency = 1
+	}
 
-	mgr.Register("content.review", "omnicraft-content-review", worker.NewReviewWorker(c.ReviewService).Handle)
-	mgr.Register("ip.review", "omnicraft-ip-review", worker.NewReviewWorker(c.ReviewService).Handle)
-	mgr.Register("notification.create", "omnicraft-notification", worker.NewNotificationWorker(c.NotificationRepo).Handle)
-	mgr.Register("count.download", "omnicraft-count", worker.NewCountWorker(c.RDB).Handle)
-	mgr.Register("content.embedding", "omnicraft-embedding", worker.NewEmbeddingWorker(c.AgentService).Handle)
+	reviewWorker := worker.NewReviewWorker(c.ReviewService, c.DB)
+	notificationWorker := worker.NewNotificationWorker(c.NotificationRepo, c.DB)
+	countWorker := worker.NewCountWorker(c.RDB, c.DB)
+	embeddingWorker := worker.NewEmbeddingWorker(c.AgentService, c.DB)
+	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB), nil)
+	if c.Cfg.Features.RAGHybridEnabled {
+		indexerWorker = worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB), c.RAGProjection)
+	}
+
+	subscriptions := []struct {
+		topic   string
+		group   string
+		handler queue.Handler
+	}{
+		{"content.review", "omnicraft-content-review", reviewWorker.Handle},
+		{"ip.review", "omnicraft-ip-review", reviewWorker.Handle},
+		{"notification.create", "omnicraft-notification", notificationWorker.Handle},
+		{"count.download", "omnicraft-count", countWorker.Handle},
+		{"content.embedding", "omnicraft-embedding", embeddingWorker.Handle},
+		{events.TopicContentPublished, "omnicraft-indexer", indexerWorker.Handle},
+		{events.TopicContentUpdated, "omnicraft-indexer", indexerWorker.Handle},
+		{events.TopicContentBanned, "omnicraft-indexer", indexerWorker.Handle},
+		{events.TopicContentDeleted, "omnicraft-indexer", indexerWorker.Handle},
+	}
+	if c.Cfg.Features.ArchiveMalwareScanEnabled && c.ArchiveObjectStore != nil && c.ArchiveScanner != nil {
+		archiveScanWorker := worker.NewArchiveScanWorkerWithDBAndNotifier(
+			c.ArchiveScanRepo,
+			c.ArchiveObjectStore,
+			c.ArchiveScanner,
+			time.Duration(c.Cfg.ArchiveScan.ScanTimeoutSec)*time.Second,
+			c.DB,
+			c.ReviewService,
+		)
+		subscriptions = append(subscriptions, struct {
+			topic   string
+			group   string
+			handler queue.Handler
+		}{worker.ArchiveScanTopic, worker.ArchiveScanConsumerGroup, archiveScanWorker.Handle})
+	} else if c.Cfg.Features.ArchiveMalwareScanEnabled {
+		slog.Error("archive scan worker is disabled because its dependencies are unavailable")
+	}
+	for _, sub := range subscriptions {
+		// Concurrency is one consumer goroutine per topic per unit; the Redis
+		// consumer-group semantics distribute messages across them (each
+		// message is delivered to exactly one consumer).
+		for i := 0; i < concurrency; i++ {
+			mgr.Register(sub.topic, sub.group, sub.handler)
+		}
+	}
 
 	if err := mgr.Start(ctx); err != nil {
 		slog.Error("Failed to start workers", "error", err)
 	}
 
+	relayCtx, relayCancel := context.WithCancel(ctx)
+	recovery.GoSafe(func() {
+		relay := worker.NewRelayWorker(
+			service.NewRelayService(c.OutboxRepo, c.QueueProducer, c.Cfg.Relay.BatchSize, &c.Cfg.Queue),
+			time.Duration(c.Cfg.Relay.PollIntervalSec)*time.Second,
+		)
+		if err := relay.Start(relayCtx); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Error("relay worker stopped unexpectedly", "error", err)
+		}
+	})
+
 	return func() {
+		relayCancel()
 		mgr.Stop()
 	}
 }

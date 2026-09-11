@@ -31,7 +31,11 @@ func (r *TagRepository) GetCooccurringTags(selectedTags []string, category strin
 		Select("t.*").
 		Joins("JOIN content_tags ct ON ct.tag = t.name").
 		Joins("JOIN content_items ci ON ci.id = ct.content_item_id").
-		Where("ci.status = ?", "published").
+		// #446/SP-16 P0：共现计数只统计匿名可见内容——私密/软删/封禁作者
+		// 内容的标签不得经由计数透出（与 ApplyContentVisibilityScope(0) 同口径）。
+		Where("ci.status = ? AND ci.deleted_at IS NULL AND ci.is_public = ?", "published", true).
+		Where("ci.author_id NOT IN (SELECT id FROM users WHERE is_banned = true OR deleted_at IS NOT NULL)").
+		Where("ci.ip_id IS NULL OR ci.ip_id NOT IN (SELECT id FROM ips WHERE status = ?)", "banned").
 		Where("ct.tag NOT IN ?", selectedTags)
 
 	for _, tag := range selectedTags {

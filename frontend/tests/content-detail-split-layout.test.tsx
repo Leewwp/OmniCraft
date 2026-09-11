@@ -87,7 +87,8 @@ test.before(async () => {
 });
 
 /* Media-set image content（#88 双栏适用）：媒体集 = image 附件（首项 1600x900 横图，
-   次项 900x1200 竖图 → 有翻页控件位）。 */
+   次项 1280x720 横图 → 有翻页控件位）。#397 起 split 路径仅服务全横集
+   （任一竖图走 variant 新版布局），故本夹具全部取 ≥16:9 素材。 */
 const IMAGE_DETAIL = {
   content: {
     id: 7,
@@ -114,16 +115,18 @@ const IMAGE_DETAIL = {
       id: 12,
       content_item_id: 7,
       file_type: "image",
-      oss_key: "/seed-media/real/gallery/g02-portrait.svg",
-      width: 900,
-      height: 1200,
+      oss_key: "/seed-media/real/gallery/g02-wide.svg",
+      width: 1280,
+      height: 720,
       sort_order: 1,
     },
   ],
   tags: [],
 };
 
-/* 历史 image 内容：无媒体集附件 → 维持单栏（行内 CoverImage）。 */
+/* 历史 image 内容：无媒体集附件 → 维持单栏（行内 CoverImage）。
+   cover 尺寸给横图（生产 cover_width/height 全库为 0 由 Image 实测，jsdom
+   不加载资源，测试夹具直接提供尺寸走免探测路径）。 */
 const LEGACY_IMAGE_DETAIL = {
   content: {
     id: 8,
@@ -134,6 +137,8 @@ const LEGACY_IMAGE_DETAIL = {
     status: "published",
     description: "Legacy image body",
     cover_image_url: "/seed-media/covers/cover-02.svg",
+    cover_width: 1600,
+    cover_height: 900,
     like_count: 1,
   },
   attachments: [],
@@ -191,6 +196,11 @@ function installApiMock() {
             author: { id: 11, username: "Related Author" },
             status: "published",
             description: `Related ${contentId} body`,
+            /* #397：给横图封面尺寸（无媒体集走封面链），推入层保持 split 路径——
+               无封面内容会落 3:4 文字封面 → variant 布局换壳层，干扰本测试断言。 */
+            cover_image_url: "/seed-media/covers/related-landscape.svg",
+            cover_width: 1600,
+            cover_height: 900,
             like_count: 3,
           },
           attachments: [],
@@ -300,6 +310,10 @@ test("#88 split scroll memory routes to the layer-scroller and restores on pop",
 
   layerScroller.scrollTop = 120;
 
+  /* related 块经 DeferredMount 延后挂载，慢速 runner 上同步查询会先于提交——先等按钮出现再点击。 */
+  await waitFor(() =>
+    assert.ok(view.getByRole("button", { name: "Open content detail: Related 101" })),
+  );
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Open content detail: Related 101" }));
     await Promise.resolve();

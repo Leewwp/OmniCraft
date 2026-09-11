@@ -66,7 +66,11 @@ GREEN_ACCESS_KEY_ID=<green-access-key-id>
 GREEN_ACCESS_KEY_SECRET=<green-access-key-secret>
 GREEN_REGION=cn-shanghai
 GREEN_CALLBACK_URL=https://api.leeppp.online/api/v1/internal/ai-callback
-GREEN_CALLBACK_ALLOWED_IPS=<comma-separated-ip-list>
+# Callback signature seed ([A-Za-z0-9_], max 64 chars). A generated template
+# value is provided; deployers may replace it before first launch.
+GREEN_SEED=eGvqrYixTEzFRDUToSd1lgy3plgaMJDqr0X5Ji7P4TY
+# Aliyun MAIN account UID from the console top-right account info (not the RAM UID).
+GREEN_UID=<aliyun-main-account-uid>
 
 CAPTCHA_ACCESS_KEY_ID=<captcha-access-key-id>
 CAPTCHA_ACCESS_KEY_SECRET=<captcha-access-key-secret>
@@ -93,6 +97,8 @@ openssl rand -base64 64
 openssl rand -base64 32
 openssl rand -base64 32
 ```
+
+The first three are for `JWT_SECRET`, `LLM_KEY_ENCRYPTION_SECRET` and `LOG_IP_HASH_SECRET`; the fourth generates the optional `GREEN_SEED` replacement (take the first 48 `[A-Za-z0-9_]` characters). The generated template `GREEN_SEED` is already valid — regenerating is optional, do it before the first launch if you want a server-local secret.
 
 ## 4. Create Backend Override YAML
 
@@ -198,7 +204,7 @@ The committed single-server compose defines 17 services: six resident Web
 core services, the one-shot `migrate` release gate, and ten resident
 observability/alerting services. Its declared resident memory limits total
 about 5.7 GiB before Ubuntu, Docker and filesystem cache, so it must not be
-started as a full stack on the current 3.6 GiB interview host.
+started as a full stack on the current 3.6 GiB lean host.
 
 On a host with sufficient capacity (8 GiB minimum is the current operational
 target, or when observability is hosted separately), start the full profile:
@@ -208,9 +214,9 @@ docker compose --env-file .env -f docker-compose.single-server.yml up -d --build
 docker compose --env-file .env -f docker-compose.single-server.yml ps
 ```
 
-### 6.2 Resource-constrained interview profile (3.6 GiB)
+### 6.2 Resource-constrained lean profile (3.6 GiB)
 
-The Web-only interview host uses this explicit service boundary:
+The Web-only lean host uses this explicit service boundary:
 
 - resident Web core: `postgres`, `redis`, `pgbouncer`, `backend`, `frontend`,
   `nginx`;
@@ -221,7 +227,7 @@ The Web-only interview host uses this explicit service boundary:
   `redis-exporter`, `cadvisor`, `blackbox`, `node-exporter`, `loki`, `alloy`
   and `loki-gate`.
 
-This profile is a deliberate interview/demo capacity trade-off, not evidence
+This profile is a deliberate demo capacity trade-off, not evidence
 that the full production observability gate is running. It must preserve all
 current release and security contracts: immutable image references, Redis
 authentication, PgBouncer SCRAM, external secret/config override files,
@@ -233,19 +239,41 @@ current compose command. The committed `ops/observability/prometheus.yml`
 also targets Alertmanager, PostgreSQL/Redis exporters, cAdvisor, Blackbox and
 node-exporter and loads rules backed by those targets. Starting it unchanged
 with those services absent produces blind/missing targets and is not an
-acceptable green monitoring state. Before changing the server, provide and
-statically validate a dedicated backend-only Prometheus config and a compose
-override/profile that mounts it. Until that deploy artifact exists, the
-3.6 GiB profile is an approved deployment decision, not an executable release
-command.
+acceptable green monitoring state.
 
-The existing compose limits for the six Web core services plus Prometheus add
-up to about 3.9 GiB. Limits are caps rather than reservations, but that still
-leaves no safe host headroom. The deploy artifact must use measured peak RSS
-to keep aggregate container limits at or below about 2.6 GiB, leaving roughly
-1 GiB for Ubuntu, Docker and page cache. Capture `docker stats`, host available
-memory and OOM evidence during smoke. Build immutable frontend/backend images
-in CI rather than concurrently on this host.
+The deploy artifact now exists and is validated statically before each
+deployment (`docker compose ... config`):
+
+- `docs/deploy/docker-compose.lean.yml` — Compose override that
+  defers the ten observability/alerting services behind the
+  `full-observability` profile, adds the standalone `worker` (ADR 0005: the
+  API server never starts async consumers), and caps the resident limits of
+  the remaining services at ~2.5 GiB (postgres 512m, redis 256m, pgbouncer
+  128m, backend 512m, frontend 512m, nginx 64m, prometheus 256m, worker
+  256m, plus the one-shot `migrate` at 256m). Caps are sized from measured
+  idle RSS on this host (2026-08-31: redis 6 MiB, backend 7 MiB, postgres
+  39 MiB, pgbouncer 5 MiB, nginx 17 MiB, frontend 90 MiB) with headroom for
+  demo traffic.
+- `ops/observability/prometheus.lean.yml` — backend-only
+  Prometheus config (single scrape job, no rule_files, no Alertmanager)
+  mounted over the full config by the same override.
+
+Deployment command on the lean host:
+
+```bash
+docker compose --env-file .env \
+  -f docker-compose.single-server.yml \
+  -f docker-compose.lean.yml up -d --build
+```
+
+Capture `docker stats`, host available memory and OOM evidence during smoke.
+The lean profile preserves all current release and security contracts:
+immutable image references, Redis authentication, PgBouncer SCRAM, external
+secret/config override files, one-shot ledger-backed migrations, JSON log
+rotation, health/readiness checks, backups, and Nginx as the only public
+port owner. Building the frontend on this host peaks around 2 GiB: run it
+with the old stack stopped and rely on the host swap (5.9 GiB configured),
+or build images off-host and transfer them.
 
 The compose stack runs the forward-only migrations as a one-shot `migrate`
 container before the backend starts (`backend.depends_on.migrate:

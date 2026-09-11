@@ -332,7 +332,8 @@ test("recommend page shell follows approved contract", async () => {
   installDom();
   const page = await read("app/(public)/recommend/page.tsx");
   assert.match(page, /sort=recommended/);
-  assert.match(page, /page_size=24/);
+  /* #410 F2：首屏 = 每页 = 12 条（2026-09-07 全局裁决）。 */
+  assert.match(page, /page_size=12/);
   assert.match(page, /getServerApiBase\(\)/);
   assert.match(page, /getBrowserApiBase\(\)/);
   assert.match(page, /normalizeContentList/);

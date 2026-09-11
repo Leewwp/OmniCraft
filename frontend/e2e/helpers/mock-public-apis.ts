@@ -79,7 +79,7 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
-  await mockApiRoute(page, "**/api/v1/stats/summary", (route) =>
+  await mockApiRoute(page, "**/api/v1/stats/summary**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

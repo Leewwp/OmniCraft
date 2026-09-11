@@ -55,7 +55,7 @@
   --color-border-destructive: var(--border-destructive);
   --color-accent-hover: var(--accent-hover);
   --radius-sm: 3px;
-  --radius-md: 4px;
+  --radius-md: 8px;
   --radius-lg: 8px;
   --radius-xl: 12px;
   --radius-full: 9999px;
@@ -68,8 +68,8 @@
 }
 
 :root {
-  /* OmniCraft light palette — Indigo minimal */
-  --background: #ffffff;
+  /* OmniCraft light palette — Indigo minimal（SP-12 U-02 分层画布：画布 #f5f5f5，卡片/弹层保持 #ffffff） */
+  --background: #f5f5f5;
   --foreground: #18181b;
   --card: #ffffff;
   --card-foreground: #18181b;
@@ -109,14 +109,14 @@
 }
 
 .dark {
-  /* OmniCraft dark palette — Indigo minimal */
-  --background: #0d1117;
+  /* OmniCraft dark palette — Indigo minimal（SP-12 U-02 分层画布：画布退深 #010409，卡片族不动 #0d1117；FIX-05：primary/accent-hover 达 AA） */
+  --background: #010409;
   --foreground: #e6edf3;
   --card: #0d1117;
   --card-foreground: #e6edf3;
   --popover: #161b22;
   --popover-foreground: #e6edf3;
-  --primary: #6366f1;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
   --secondary: #161b22;
   --secondary-foreground: #e6edf3;
@@ -124,7 +124,7 @@
   --muted-foreground: #848d97;
   --accent: #161b22;
   --accent-foreground: #e6edf3;
-  --accent-hover: #818cf8;
+  --accent-hover: #4338ca;
   --destructive: #f87171;
   --border: #30363d;
   --input: #30363d;
@@ -150,7 +150,7 @@
 
 /* OmniCraft Custom Design Tokens */
 :root {
-  --canvas-default: #ffffff;
+  --canvas-default: #f5f5f5;
   --canvas-subtle: #f5f5f5;
   --canvas-inset: #fafafa;
   --border-default: #e8e8e8;
@@ -184,7 +184,7 @@
 }
 
 .dark {
-  --canvas-default: #0d1117;
+  --canvas-default: #010409;
   --canvas-subtle: #161b22;
   --canvas-inset: #010409;
   --border-default: #30363d;
@@ -194,7 +194,7 @@
   --fg-default: #e6edf3;
   --fg-muted: #848d97;
   --fg-subtle: #6e7681;
-  --accent-emphasis: #6366f1;
+  --accent-emphasis: #818cf8;
   --accent-subtle: #6366f11a;
 
   /* Tag colors — dark */
@@ -224,28 +224,22 @@
   }
 }
 
-/* ContentDetailOverlay — native dialog backdrop mask (P-01 approved values). */
-.content-detail-overlay::backdrop {
+/* ContentDetailOverlay — 遮罩（P-01 approved values 保持不变）。
+   2026-09-09 遮罩同钟契约：视觉由 dialog 外兄弟层 .content-detail-backdrop
+   承载，不透明度与壳层/封面同一时钟 JS 驱动；::backdrop 仅保留透明命中层
+   （背板点击 target === dialog）。废弃原因：VT 快照期间真实元素不渲染、
+   Safari 不执行 ::backdrop 动画——CSS 动画两方向实测瞬现瞬消，与共享元素
+   放缩完全脱钩。 */
+.content-detail-backdrop {
   background: rgb(9 9 11 / 0.58);
-  animation: overlay-backdrop-in 300ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.dark .content-detail-overlay::backdrop {
+.dark .content-detail-backdrop {
   background: rgb(1 4 9 / 0.78);
 }
 
-.content-detail-overlay[data-closing="true"]::backdrop {
-  animation: overlay-backdrop-out 240ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
-}
-
-@keyframes overlay-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes overlay-backdrop-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+.content-detail-overlay::backdrop {
+  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -284,4 +278,129 @@
   .group:hover [class*="group-hover:-translate-y-"] {
     --tw-translate-y: 0 !important;
   }
+}
+
+/* highlight.js 代码块 token 配色（A-06）：走语义前景色阶，暗色由 .dark 覆盖；
+   只染 token 颜色，容器边框/背景沿用 prose-pre 既有 token。 */
+.hljs-comment,
+.hljs-quote {
+  color: var(--fg-muted, #71717a);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-tag,
+.hljs-name {
+  color: #7c3aed;
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-tag,
+.dark .hljs-name {
+  color: #a78bfa;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition {
+  color: #15803d;
+}
+.dark .hljs-string,
+.dark .hljs-regexp,
+.dark .hljs-addition {
+  color: #4ade80;
+}
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attr,
+.hljs-attribute {
+  color: #b45309;
+}
+.dark .hljs-number,
+.dark .hljs-literal,
+.dark .hljs-variable,
+.dark .hljs-template-variable,
+.dark .hljs-attr,
+.dark .hljs-attribute {
+  color: #fbbf24;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-built_in {
+  color: #1d4ed8;
+}
+.dark .hljs-title,
+.dark .hljs-title.function_,
+.dark .hljs-section,
+.dark .hljs-built_in {
+  color: #60a5fa;
+}
+.hljs-type,
+.hljs-title.class_,
+.hljs-params {
+  color: #0e7490;
+}
+.dark .hljs-type,
+.dark .hljs-title.class_,
+.dark .hljs-params {
+  color: #22d3ee;
+}
+.hljs-deletion {
+  color: #be123c;
+}
+.dark .hljs-deletion {
+  color: #fb7185;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
+/* 内容详情浮层共享元素转场（View Transitions 路径，#409 F1 单一时间轴）：
+   root 交叉淡化 = 壳层不透明度时间线，必须与命名封面组同帧起跑、同长结束、
+   同一缓动族（开 300ms / 关 240ms）——旧 180ms 档与壳层 160ms 先行淡入并存的
+   档位差是「浮窗与图片不同步」的直接根因，二者均已移除。关闭方向由
+   html[data-vt-close]（ContentDetailOverlay 关场起跑前设置）统一压到 240ms 档，
+   几何与缓动方向互逆（同一曲线族反向播放）。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+html[data-vt-close]::view-transition-old(root),
+html[data-vt-close]::view-transition-new(root) {
+  animation-duration: 240ms;
+}
+
+::view-transition-group(content-detail-cover) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+html[data-vt-close]::view-transition-group(content-detail-cover) {
+  animation-duration: 240ms;
+}
+
+::view-transition-old(content-detail-cover),
+::view-transition-new(content-detail-cover) {
+  animation-duration: 300ms;
+}
+
+html[data-vt-close]::view-transition-old(content-detail-cover),
+html[data-vt-close]::view-transition-new(content-detail-cover) {
+  animation-duration: 240ms;
+}
+
+/* #398 C3 快照纯净：浮层打开期间锁定触发卡片的 hover 缩放过渡——VT 旧快照
+   捕获时命名 <img> 必须处于未变换位姿（回退动画半途入镜会表现为取景跳变）。
+   锁由 ContentDetailOverlay 在打开时设置、完全关闭后移除；卡片已被浮层
+   dialog 盖住，瞬时归位不可见。 */
+[data-overlay-motion-lock] [data-slot="card-cover-aspect"] img {
+  transition: none !important;
+  transform: none !important;
 }

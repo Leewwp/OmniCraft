@@ -11,35 +11,68 @@ export interface AgentStreamCitation {
   title: string;
   zone: string;
   excerpt?: string;
+  content_version?: number;
+  chunk_key?: string;
+  chunk_index?: number;
+  route?: string;
+  source?: "bm25" | "vector" | "hybrid_rrf";
 }
 
 export interface AgentStreamTool {
   name: string;
   status: "running" | "success" | "failed" | "error" | "skipped";
+  args_summary?: string;
+  hits?: number;
   duration_ms?: number;
 }
 
 export type AgentStreamEvent =
   | { type: "start"; trace_id?: string; conversation_id?: number; answer_kind?: string }
+  | { type: "think_delta"; delta?: string }
   | { type: "tool_status"; tool?: AgentStreamTool }
   | { type: "delta"; delta?: string }
   | { type: "citation"; citation?: AgentStreamCitation }
   | { type: "usage"; usage?: unknown }
   | {
       type: "done";
+      trace_id?: string;
       conversation_id?: number;
+      message_id?: number;
       answer_kind?: string;
       answer?: string;
       citations?: AgentStreamCitation[];
       tools?: AgentStreamTool[];
+      usage?: { prompt_tokens: number; completion_tokens: number };
       degraded?: boolean;
+      /** SP-15 B #435：grounded 轮推荐追问（2-3 条、每条 ≤20 runes）；缺失 = 无。 */
+      follow_ups?: string[];
     }
-  | { type: "error"; error_code?: string; error_message?: string };
+  | {
+      type: "error";
+      error_code?: string;
+      error_message?: string;
+      degraded?: boolean;
+      degraded_reason?: "provider_error";
+    };
 
 export interface AgentStreamHandlers {
   onEvent: (event: AgentStreamEvent) => void;
   onError?: (error: Error) => void;
   onClose?: () => void;
+}
+
+/** Carries the backend error code (e.g. AGENT_RATE_LIMIT_EXCEEDED) so the
+ *  workspace can render dedicated copy instead of a generic failure. */
+export class AgentStreamError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "AgentStreamError";
+    this.status = status;
+    this.code = code;
+  }
 }
 
 /** 解析一行 SSE 数据。仅接受 `data: <json>` 且带 `type` 字段的事件；[DONE] 与空行忽略。
@@ -119,25 +152,41 @@ export async function startAgentStream(
       handlers.onError?.(error instanceof Error ? error : new Error("authentication recovery failed"));
       return;
     }
-    handlers.onError?.(new Error(`agent stream failed: ${res.status}`));
+    handlers.onError?.(new AgentStreamError(`agent stream failed: ${res.status}`, res.status, code || undefined));
     return;
   }
   if (!res.ok || !res.body) {
-    handlers.onError?.(new Error(`agent stream failed: ${res.status}`));
+    handlers.onError?.(new AgentStreamError(`agent stream failed: ${res.status}`, res.status));
     return;
   }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  // SSE 事件行可能跨网络分块边界：必须行缓冲，只处理完整行，残行留待下一分块；
+  // 上限防御恶意超长行（done 事件含全量 answer+citations，正常远小于此值）。
+  const maxBufferedLineLength = 2 * 1024 * 1024;
+  let buffered = "";
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      for (const line of text.split("\n")) {
+      buffered += decoder.decode(value, { stream: true });
+      if (buffered.length > maxBufferedLineLength) {
+        throw new Error("agent stream aborted: single line exceeded buffer limit");
+      }
+      let newlineIndex = buffered.indexOf("\n");
+      while (newlineIndex >= 0) {
+        const line = buffered.slice(0, newlineIndex);
+        buffered = buffered.slice(newlineIndex + 1);
+        newlineIndex = buffered.indexOf("\n");
         const event = parseAgentStreamLine(line);
         if (event) handlers.onEvent(event);
       }
+    }
+    const tail = buffered + decoder.decode();
+    if (tail) {
+      const event = parseAgentStreamLine(tail);
+      if (event) handlers.onEvent(event);
     }
   } catch (error) {
     if ((error as Error).name !== "AbortError") handlers.onError?.(error as Error);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
@@ -16,9 +17,12 @@ interface IPPickerProps {
   placeholder: string;
   searchLabel: string;
   loadingLabel: string;
+  // T52 optional deep link: "create a new IP" shortcut under the picker.
+  createHref?: string;
+  createLabel?: string;
 }
 
-export function IPPicker({ value, onChange, placeholder, searchLabel, loadingLabel }: IPPickerProps) {
+export function IPPicker({ value, onChange, placeholder, searchLabel, loadingLabel, createHref, createLabel }: IPPickerProps) {
   const [query, setQuery] = useState(value?.name ?? "");
   const [options, setOptions] = useState<IPPickerValue[]>([]);
   const [loading, setLoading] = useState(false);
@@ -98,6 +102,14 @@ export function IPPicker({ value, onChange, placeholder, searchLabel, loadingLab
             </Button>
           ))}
         </div>
+      )}
+      {createHref && createLabel && (
+        <Link
+          href={createHref}
+          className="inline-block text-xs text-accent-emphasis hover:underline"
+        >
+          {createLabel}
+        </Link>
       )}
     </div>
   );

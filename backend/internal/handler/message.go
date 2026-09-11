@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
@@ -17,8 +20,11 @@ import (
 )
 
 type MessageHandler struct {
-	msgRepo  *repository.MessageRepository
-	notifSvc *service.NotificationService
+	msgRepo       *repository.MessageRepository
+	notifSvc      *service.NotificationService
+	cfg           *config.Config
+	reviewSvc     service.TextReviewer
+	displaySigner *service.DisplayURLSigner
 }
 
 type MessageDTO struct {
@@ -53,6 +59,12 @@ func (h *MessageHandler) SetNotificationService(ns *service.NotificationService)
 	h.notifSvc = ns
 }
 
+func (h *MessageHandler) SetReviewService(cfg *config.Config, reviewSvc service.TextReviewer) {
+	h.cfg = cfg
+	h.reviewSvc = reviewSvc
+	h.displaySigner = service.NewDisplayURLSigner(cfg)
+}
+
 func (h *MessageHandler) ListConversations(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -70,7 +82,7 @@ func (h *MessageHandler) ListConversations(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"conversations": conversationDTOs(summaries),
+		"conversations": conversationDTOs(h.displaySigner, summaries),
 		"page":          page,
 		"page_size":     pageSize,
 	})
@@ -87,6 +99,19 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
+	if err := h.moderateText(c.Request.Context(), "dm", body.Text); err != nil {
+		if errors.Is(err, service.ErrTextBlocked) {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "内容包含违规内容，无法发送")
+			return
+		}
+		if errors.Is(err, service.ErrModerationUnavailable) {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "内容审核服务暂时不可用，请稍后重试")
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+
 	msg, err := h.msgRepo.SendWithColdStartGuard(callerID, body.RecipientID, body.Text)
 	if errors.Is(err, repository.ErrDMReplyRequired) {
 		response.Error(c, http.StatusForbidden, "DM_REPLY_REQUIRED", "对方尚未回复，请等待回复后再发送新消息")
@@ -98,10 +123,33 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	}
 
 	if h.notifSvc != nil {
-		h.notifSvc.Notify(body.RecipientID, "system", "message", "新私信", body.Text, "message", msg.ID, callerID)
+		// T36（FIX-30b）：通知 body 只带摘要——私信全文仅存在于会话内，
+		// 不得经通知列表/下拉泄露。
+		h.notifSvc.Notify(body.RecipientID, "system", "message", "新私信", "你有一条新私信", "message", msg.ID, callerID)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": messageDTO(*msg)})
+}
+
+// moderateText runs the text moderation gate before a DM is persisted. Blank
+// text is skipped without an external call. A "block" (or "violation") result
+// rejects the message. Availability policy follows the A4 environment
+// semantics via RunModerationGate: in release mode any moderation failure is
+// fail-closed, while in local/test mode an unconfigured Green client is
+// fail-open and must be recorded via structured logs.
+func (h *MessageHandler) moderateText(ctx context.Context, action, text string) error {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil
+	}
+	var review func(context.Context) (string, error)
+	if h.reviewSvc != nil {
+		review = func(ctx context.Context) (string, error) {
+			return h.reviewSvc.ReviewText(ctx, trimmed)
+		}
+	}
+	return service.RunModerationGate(ctx, h.cfg, action, "content moderation", "message",
+		review, true, service.ErrTextBlocked, service.ErrModerationUnavailable)
 }
 
 func (h *MessageHandler) ListMessages(c *gin.Context) {
@@ -158,12 +206,12 @@ func (h *MessageHandler) LeaveConversation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "left conversation"})
 }
 
-func conversationDTOs(summaries []repository.ConversationSummary) []ConversationDTO {
+func conversationDTOs(signer *service.DisplayURLSigner, summaries []repository.ConversationSummary) []ConversationDTO {
 	dtos := make([]ConversationDTO, 0, len(summaries))
 	for _, summary := range summaries {
 		dto := ConversationDTO{
 			ID:           summary.ID,
-			Participants: participantDTOs(summary.Participants),
+			Participants: participantDTOs(signer, summary.Participants),
 			UnreadCount:  summary.UnreadCount,
 			UpdatedAt:    formatMessageTime(summary.UpdatedAt),
 		}
@@ -176,13 +224,13 @@ func conversationDTOs(summaries []repository.ConversationSummary) []Conversation
 	return dtos
 }
 
-func participantDTOs(participants []repository.ConversationParticipantSummary) []ConversationParticipantDTO {
+func participantDTOs(signer *service.DisplayURLSigner, participants []repository.ConversationParticipantSummary) []ConversationParticipantDTO {
 	dtos := make([]ConversationParticipantDTO, 0, len(participants))
 	for _, participant := range participants {
 		dtos = append(dtos, ConversationParticipantDTO{
 			ID:        participant.ID,
 			Username:  participant.Username,
-			AvatarURL: participant.AvatarURL,
+			AvatarURL: signer.SignURL(participant.AvatarURL),
 		})
 	}
 	return dtos

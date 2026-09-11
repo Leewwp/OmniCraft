@@ -16,7 +16,15 @@ import (
 )
 
 type PRHandler struct {
-	prSvc *service.PRService
+	prSvc    *service.PRService
+	notifSvc *service.NotificationService
+}
+
+// SetNotificationService wires the contributor-facing notification channel
+// (T50: blocking/unblocking a contributor notifies them). nil keeps the
+// local/test path notification-free.
+func (h *PRHandler) SetNotificationService(ns *service.NotificationService) {
+	h.notifSvc = ns
 }
 
 func NewPRHandler(db *gorm.DB) *PRHandler {
@@ -53,6 +61,8 @@ func (h *PRHandler) SubmitPR(c *gin.Context) {
 			response.SafeErrorResponse(c, http.StatusForbidden, "BLOCKED", err)
 		case service.ErrPRConflict:
 			response.Conflict(c, "resource conflict")
+		case service.ErrPRBaseInvalid:
+			response.Error(c, http.StatusBadRequest, "INVALID_BASE_VERSION", "base version does not belong to the content")
 		default:
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		}
@@ -69,9 +79,19 @@ func (h *PRHandler) GetPR(c *gin.Context) {
 		return
 	}
 
-	pr, err := h.prSvc.GetPR(id)
+	// participant gate: content author / PR submitter / admin (FIX-21④).
+	isAdmin := middleware.IsAdmin(c)
+
+	pr, err := h.prSvc.GetPRForViewer(id, middleware.GetUserID(c), isAdmin)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "pr not found"})
+		switch err {
+		case service.ErrPRNotFound, service.ErrContentNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "pr not found"})
+		case service.ErrPRForbidden:
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		default:
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		}
 		return
 	}
 
@@ -94,8 +114,12 @@ func (h *PRHandler) ListPRs(c *gin.Context) {
 		pageSize = 20
 	}
 
-	prs, total, err := h.prSvc.ListPRsPaged(contentID, c.Query("status"), page, pageSize)
+	prs, total, err := h.prSvc.ListPRsPagedForViewer(contentID, c.Query("status"), page, pageSize, middleware.GetUserID(c), middleware.IsAdmin(c))
 	if err != nil {
+		if err == service.ErrContentNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
@@ -119,7 +143,16 @@ func (h *PRHandler) AcceptPR(c *gin.Context) {
 	}
 
 	if err := h.prSvc.AcceptPR(id, callerID); err != nil {
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		switch err {
+		case service.ErrPRNotFound, service.ErrContentNotFound:
+			response.SafeErrorResponse(c, http.StatusNotFound, "NOT_FOUND", err)
+		case service.ErrPRForbidden:
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		case service.ErrPRInvalidState:
+			response.Conflict(c, "pr already resolved")
+		default:
+			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "pr accepted"})
@@ -141,7 +174,16 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 	}
 
 	if err := h.prSvc.RejectPR(id, callerID, body.Reason); err != nil {
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		switch err {
+		case service.ErrPRNotFound, service.ErrContentNotFound:
+			response.SafeErrorResponse(c, http.StatusNotFound, "NOT_FOUND", err)
+		case service.ErrPRForbidden:
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		case service.ErrPRInvalidState:
+			response.Conflict(c, "pr already resolved")
+		default:
+			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "pr rejected"})
@@ -165,10 +207,14 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 	version, err := h.prSvc.ManualMerge(id, callerID, body.MergedText)
 	if err != nil {
 		switch err {
-		case service.ErrPRNotFound:
+		case service.ErrPRNotFound, service.ErrContentNotFound:
 			response.SafeErrorResponse(c, http.StatusNotFound, "NOT_FOUND", err)
 		case service.ErrPRForbidden:
 			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		case service.ErrPRInvalidState:
+			response.Conflict(c, "pr already resolved")
+		case service.ErrPRMergeTextMissing:
+			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "merged text required")
 		default:
 			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		}
@@ -188,6 +234,11 @@ func (h *PRHandler) BlockContributor(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if h.notifSvc != nil {
+		title := "协作权限变更"
+		body := "作者已限制你对其内容的协作（PR 提交将被拒绝）。如有疑问请联系平台。"
+		h.notifSvc.Notify(userID, "system", "contributor_blocked", title, body, "user", callerID, callerID)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "contributor blocked"})
 }
 
@@ -201,6 +252,11 @@ func (h *PRHandler) UnblockContributor(c *gin.Context) {
 	if err := h.prSvc.UnblockContributor(callerID, userID); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
+	}
+	if h.notifSvc != nil {
+		title := "协作权限恢复"
+		body := "作者已恢复你对内容的协作权限。"
+		h.notifSvc.Notify(userID, "system", "contributor_unblocked", title, body, "user", callerID, callerID)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "contributor unblocked"})
 }

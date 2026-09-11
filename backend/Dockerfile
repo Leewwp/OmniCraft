@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25.12-alpine AS builder
+FROM golang:1.25.13-alpine AS builder
 
 WORKDIR /app
 
@@ -14,6 +14,7 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/server ./cmd/server/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/worker ./cmd/worker/main.go
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/migrate ./cmd/migrate
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/release-preflight ./cmd/release-preflight
 
@@ -29,11 +30,12 @@ LABEL org.opencontainers.image.title="OmniCraft backend" \
 	org.opencontainers.image.version="$VERSION" \
 	org.opencontainers.image.revision="$COMMIT"
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
 COPY --from=builder /app/server .
+COPY --from=builder /app/worker .
 COPY --from=builder /app/migrate .
 COPY --from=builder /app/release-preflight .
 COPY --from=builder /app/config.yaml .

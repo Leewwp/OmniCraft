@@ -1,9 +1,14 @@
 package repository
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
+	"unicode"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
@@ -11,10 +16,38 @@ import (
 
 type SearchRepository struct {
 	db *gorm.DB
+
+	// ftsConfigOnce caches the text-search configuration selection (A-03):
+	// pg_jieba's jiebacfg when the extension is installed (041/042 maintain
+	// the stored search_vector with it), the built-in 'simple' otherwise.
+	ftsConfigOnce sync.Once
+	ftsConfig     string
 }
 
 func NewSearchRepository(db *gorm.DB) *SearchRepository {
 	return &SearchRepository{db: db}
+}
+
+// ftsQueryConfig returns the allowlisted text-search configuration used for
+// every tsquery/ts_rank call: "jiebacfg" when pg_jieba is present, "simple"
+// otherwise (mirroring the 041/042 trigger fallback). The value only ever
+// comes from this allowlist, never from user input, so interpolating it into
+// SQL is safe; detection failure degrades to the historical 'simple'.
+func (r *SearchRepository) ftsQueryConfig() string {
+	r.ftsConfigOnce.Do(func() {
+		r.ftsConfig = "simple"
+		if r.db == nil || r.db.Dialector.Name() == "sqlite" {
+			return
+		}
+		var exists bool
+		if err := r.db.Raw("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'pg_jieba')").Scan(&exists).Error; err != nil {
+			return
+		}
+		if exists {
+			r.ftsConfig = "jiebacfg"
+		}
+	})
+	return r.ftsConfig
 }
 
 type SearchSuggestion struct {
@@ -28,12 +61,76 @@ type ContentSearchResult struct {
 	Headline string  `json:"headline,omitempty"`
 }
 
+type RAGChunkSearchResult struct {
+	model.RagChunk
+	Title string  `gorm:"column:title"`
+	Score float64 `gorm:"column:score"`
+}
+
+// SearchRAGChunks is the PostgreSQL keyword fallback for the hybrid retriever.
+// It reads only the current ready chunk generation and repeats the complete
+// viewer visibility predicate before ranking.
+func (r *SearchRepository) SearchRAGChunks(ctx context.Context, query string, topK int, viewerID int64) ([]RAGChunkSearchResult, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, nil
+	}
+	if topK <= 0 {
+		topK = config.RAGDefaultBM25TopK
+	}
+	pattern := "%" + query + "%"
+	cfg := r.ftsQueryConfig()
+	var results []RAGChunkSearchResult
+	// A-03: the lexical fallback consumes the 041-maintained
+	// content_items.search_vector (pg_jieba when installed) for matching and
+	// primary ranking instead of recomputing a runtime 'simple' vector; the
+	// chunk-level rank orders chunks inside one content item. The config
+	// token is allowlist-only (ftsQueryConfig), never user input.
+	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
+		SELECT rc.*, ci.title,
+		       ts_rank_cd(ci.search_vector, plainto_tsquery('%s', ?)) AS content_rank,
+		       ts_rank_cd(to_tsvector('%[1]s', concat_ws(' ', rc.heading, rc.text)), plainto_tsquery('%[1]s', ?)) AS score
+		FROM rag_chunks AS rc
+		JOIN content_items AS ci ON ci.id = rc.content_id
+		JOIN index_projection_status AS ips
+		  ON ips.content_id = rc.content_id
+		 AND ips.index_version = rc.index_version
+		 AND ips.is_current = TRUE
+		 AND ips.state = 'ready'
+		WHERE ci.status = 'published'
+		  AND ci.deleted_at IS NULL
+		  AND NOT EXISTS (
+			  SELECT 1 FROM users AS author
+			  WHERE author.id = ci.author_id
+				AND (author.is_banned = TRUE OR author.deleted_at IS NOT NULL)
+		  )
+		  AND (ci.ip_id IS NULL OR NOT EXISTS (
+			  SELECT 1 FROM ips AS ip WHERE ip.id = ci.ip_id AND ip.status = 'banned'
+		  ))
+		  AND (ci.is_public = TRUE OR ci.author_id = ?)
+		  AND (
+			  ci.search_vector @@ plainto_tsquery('%[1]s', ?)
+			  OR ci.title ILIKE ?
+			  OR rc.heading ILIKE ?
+			  OR rc.text ILIKE ?
+		  )
+		ORDER BY content_rank DESC, score DESC, rc.chunk_key ASC
+		LIMIT ?
+	`, cfg), query, query, viewerID, query, pattern, pattern, pattern, topK).Scan(&results).Error
+	return results, err
+}
+
 func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID int64) ([]SearchSuggestion, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 	var results []SearchSuggestion
-	likePattern := prefix + "%"
+	// Contains matching (T21/FIX-39b): a prefix-only pattern cannot surface
+	// Chinese substrings ("镜头" inside "我的镜头笔记") because users rarely
+	// type from the first character. Cost note: '%x%' defeats btree indexes;
+	// at the current content scale the sequential scan stays negligible and a
+	// pg_trgm GIN index is the escape hatch if suggestions ever slow down.
+	likePattern := "%" + prefix + "%"
 
 	var sql string
 	if r.db.Dialector.Name() == "sqlite" {
@@ -77,6 +174,30 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID 
 	}
 
 	return results, nil
+}
+
+// ResolveTrendingContents maps hot-rank members (content IDs) to their titles
+// under the public visibility scope (FIX-06): unpublished, deleted, private or
+// banned-author entries are dropped so they never reach the discovery surface.
+func (r *SearchRepository) ResolveTrendingContents(ctx context.Context, ids []int64) (map[int64]string, error) {
+	if len(ids) == 0 {
+		return map[int64]string{}, nil
+	}
+	var rows []struct {
+		ID    int64  `gorm:"column:id"`
+		Title string `gorm:"column:title"`
+	}
+	if err := ApplyContentVisibilityScope(r.db.WithContext(ctx).Model(&model.ContentItem{}), 0).
+		Select("content_items.id, content_items.title").
+		Where("content_items.id IN ?", ids).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	titles := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		titles[row.ID] = row.Title
+	}
+	return titles, nil
 }
 
 func (r *SearchRepository) SearchContents(query string, zone, category, contentType string, tagFilters []string, sort, timeRange string, page, pageSize int, viewerID int64) ([]ContentSearchResult, int64, error) {
@@ -168,12 +289,14 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 		`, tagFilters)
 	}
 
-	// Full-text search conditions
-	searchCond := `
-		content_items.search_vector @@ to_tsquery('simple', ?)
+	// Full-text search conditions; the text-search config follows the
+	// jiebacfg/simple selection of the 041-maintained search_vector (A-03).
+	cfg := r.ftsQueryConfig()
+	searchCond := fmt.Sprintf(`
+		content_items.search_vector @@ to_tsquery('%s', ?)
 		OR content_items.title ILIKE ?
 		OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND ct2.tag ILIKE ?)
-	`
+	`, cfg)
 
 	// Count
 	countQuery := q.Where(searchCond, tsQuery, ilikePattern, ilikePattern)
@@ -184,12 +307,12 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 
 	// Data query with score and headline
 	var results []ContentSearchResult
-	if err := q.Select(`
+	if err := q.Select(fmt.Sprintf(`
 		content_items.*,
-		COALESCE(ts_rank_cd(content_items.search_vector, to_tsquery('simple', ?)), 0) AS score,
-		ts_headline('simple', COALESCE(content_items.title, '') || ' ' || COALESCE(content_items.description, ''),
-			phraseto_tsquery('simple', ?), 'MaxWords=35,MinWords=10,ShortWord=3,MaxFragments=3,FragmentDelimiter=...') AS headline
-	`, tsQuery, query).
+		COALESCE(ts_rank_cd(content_items.search_vector, to_tsquery('%s', ?)), 0) AS score,
+		ts_headline('%[1]s', COALESCE(content_items.title, '') || ' ' || COALESCE(content_items.description, ''),
+			phraseto_tsquery('%[1]s', ?), 'MaxWords=35,MinWords=10,ShortWord=3,MaxFragments=3,FragmentDelimiter=...') AS headline
+	`, cfg), tsQuery, query).
 		Where(searchCond, tsQuery, ilikePattern, ilikePattern).
 		Order("score DESC").
 		Offset(offset).Limit(pageSize).
@@ -340,35 +463,43 @@ func (r *SearchRepository) SearchIPs(query string, category string, page, pageSi
 
 func toTSQuery(query string) string {
 	words := splitAndNormalize(query)
-	result := ""
-	for i, w := range words {
-		if i > 0 {
-			result += " & "
-		}
-		result += w + ":*"
+	if len(words) == 0 {
+		// Punctuation-only input must not fall back to `query + ":*"`: any
+		// tsquery boundary character in it is a syntax error for to_tsquery
+		// (#319). The empty tsquery only disables the FTS arm (NOTICE, no
+		// error, @@ is always false); the ILIKE fallbacks still apply.
+		return ""
 	}
-	if result == "" {
-		result = query + ":*"
+	parts := make([]string, 0, len(words))
+	for _, w := range words {
+		parts = append(parts, w+":*")
 	}
-	return result
+	return strings.Join(parts, " & ")
 }
 
+// splitAndNormalize tokenizes a user query into runs of letters/digits.
+// Everything else — whitespace, tsquery operators (&|!()<->'), and any
+// half/full-width punctuation such as : ：·《》 — is a token boundary. The
+// text-search parser treats those characters as lexeme separators too, so
+// splitting here is what keeps the hand-built to_tsquery input operator-safe
+// (#319: a colon glued to a word produced "PIECE::**"-style syntax errors).
 func splitAndNormalize(query string) []string {
 	var words []string
-	current := ""
-	for _, r := range query {
-		if r == ' ' || r == '&' || r == '|' || r == '!' || r == '(' || r == ')' {
-			if current != "" {
-				words = append(words, current)
-				current = ""
-			}
-		} else {
-			current += string(r)
+	var current strings.Builder
+	flush := func() {
+		if current.Len() > 0 {
+			words = append(words, current.String())
+			current.Reset()
 		}
 	}
-	if current != "" {
-		words = append(words, current)
+	for _, r := range query {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			current.WriteRune(r)
+			continue
+		}
+		flush()
 	}
+	flush()
 	return words
 }
 
@@ -431,6 +562,36 @@ func (r *SearchRepository) ListReports(status, targetType string, page, pageSize
 
 	var reports []model.Report
 	if err := baseQuery.Preload("Reporter").
+		Order("created_at DESC").
+		Offset(offset).Limit(pageSize).
+		Find(&reports).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return reports, total, nil
+}
+
+// ListReportsByReporter returns a reporter's own reports (FIX-28a): the
+// reporter_id filter is mandatory, so the me-endpoint cannot leak other
+// users' reports.
+func (r *SearchRepository) ListReportsByReporter(reporterID int64, page, pageSize int) ([]model.Report, int64, error) {
+	if pageSize <= 0 || pageSize > 50 {
+		pageSize = 20
+	}
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * pageSize
+
+	baseQuery := r.db.Model(&model.Report{}).Where("reporter_id = ?", reporterID)
+
+	var total int64
+	if err := baseQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var reports []model.Report
+	if err := baseQuery.
 		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).
 		Find(&reports).Error; err != nil {

@@ -35,6 +35,12 @@ func NewTagHandler(db *gorm.DB, rdb *redis.Client, cacheCfg *config.CacheConfig,
 	}
 }
 
+// SetNotificationService wires the author-facing notification channel for
+// tag suggestions (T49/FIX-22c).
+func (h *TagHandler) SetNotificationService(ns *service.NotificationService) {
+	h.tagSvc.SetNotificationService(ns)
+}
+
 func (h *TagHandler) GetFacetedTags(c *gin.Context) {
 	category := c.Query("category")
 	var selectedTags []string

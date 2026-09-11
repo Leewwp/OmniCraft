@@ -3,36 +3,48 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 
+	"gorm.io/gorm"
+
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/service"
 )
 
+// ReviewWorker applies AI review results from the content.review / ip.review
+// topics. The review services are internally idempotent (provider_task_id
+// dedup, conditional status updates), so the inbox completion record is
+// written after the effect: a crash re-runs the review on redelivery
+// (at-least-once) instead of losing it.
 type ReviewWorker struct {
 	reviewSvc *service.ReviewService
-	rdb       interface {
-		IdempotentCheck(ctx context.Context, topic, msgID string) (bool, error)
-	}
+	db        *gorm.DB
 }
 
-func NewReviewWorker(reviewSvc *service.ReviewService) *ReviewWorker {
+func NewReviewWorker(reviewSvc *service.ReviewService, db *gorm.DB) *ReviewWorker {
 	return &ReviewWorker{
 		reviewSvc: reviewSvc,
+		db:        db,
 	}
 }
 
 func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 	var payload struct {
-		TargetType  string                 `json:"target_type"`
-		TargetID    int64                  `json:"target_id"`
-		ContentType string                 `json:"content_type,omitempty"`
-		Title       string                 `json:"title,omitempty"`
-		Description string                 `json:"description,omitempty"`
-		AuthorID    int64                  `json:"author_id,omitempty"`
-		Result      string                 `json:"result,omitempty"`
-		RawResponse map[string]interface{} `json:"raw_response,omitempty"`
-		Action       string                 `json:"action"`
+		TargetType     string                 `json:"target_type"`
+		TargetID       int64                  `json:"target_id"`
+		ContentType    string                 `json:"content_type,omitempty"`
+		Title          string                 `json:"title,omitempty"`
+		Description    string                 `json:"description,omitempty"`
+		Tags           []string               `json:"tags,omitempty"`
+		AuthorID       int64                  `json:"author_id,omitempty"`
+		CoverImageURL  string                 `json:"cover_image_url,omitempty"`
+		Result         string                 `json:"result,omitempty"`
+		RawResponse    map[string]interface{} `json:"raw_response,omitempty"`
+		ProviderTaskID string                 `json:"provider_task_id,omitempty"`
+		Action         string                 `json:"action"`
 	}
 
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
@@ -47,14 +59,29 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 	switch payload.Action {
 	case "submit_ai_review":
 		input := service.SubmitReviewInput{
-			TargetType:  payload.TargetType,
-			TargetID:    payload.TargetID,
-			ContentType: payload.ContentType,
-			Title:       payload.Title,
-			Description: payload.Description,
-			AuthorID:    payload.AuthorID,
+			TargetType:    payload.TargetType,
+			TargetID:      payload.TargetID,
+			ContentType:   payload.ContentType,
+			Title:         payload.Title,
+			Description:   payload.Description,
+			Tags:          payload.Tags,
+			AuthorID:      payload.AuthorID,
+			CoverImageURL: payload.CoverImageURL,
+			// #195 at-least-once idempotency: Redis Streams re-delivers the
+			// same message id after an ACK loss, so "sync:" + message id is a
+			// stable synthetic key across retries. The prefix keeps the sync
+			// key from ever colliding with an Aliyun async task id inside the
+			// 068 unique index (provider, provider_task_id).
+			SyncKey: "sync:" + msg.ID,
 		}
 		if err := w.reviewSvc.SubmitForAIReview(ctx, input); err != nil {
+			// #321: Green 未配置是永久配置态而非瞬时故障——与同步路径的
+			// A4 本地 fail-open 对齐：警告并 ACK，不做无意义的重试/DLQ。
+			if errors.Is(err, aliyun.ErrGreenNotConfigured) {
+				slog.Warn("review_worker: green not configured, acknowledging submit (A4 local fail-open)",
+					"msg_id", msg.ID, "target_type", payload.TargetType, "target_id", payload.TargetID)
+				return nil
+			}
 			slog.Error("review_worker: SubmitForAIReview failed",
 				"target_type", payload.TargetType, "target_id", payload.TargetID, "error", err)
 			return err
@@ -64,10 +91,11 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 
 	case "process_ai_callback":
 		input := service.AICallbackInput{
-			TargetType:  payload.TargetType,
-			TargetID:    payload.TargetID,
-			Result:      payload.Result,
-			RawResponse: payload.RawResponse,
+			TargetType:     payload.TargetType,
+			TargetID:       payload.TargetID,
+			Result:         payload.Result,
+			RawResponse:    payload.RawResponse,
+			ProviderTaskID: payload.ProviderTaskID,
 		}
 		if err := w.reviewSvc.ProcessAICallback(ctx, input); err != nil {
 			slog.Error("review_worker: ProcessAICallback failed",
@@ -78,8 +106,15 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 			"target_type", payload.TargetType, "target_id", payload.TargetID)
 
 	default:
-		slog.Warn("review_worker: unknown action", "action", payload.Action, "msg_id", msg.ID)
+		// Unknown actions are permanent failures, not silent skips. Returning
+		// an error lets the broker retry with exponential backoff and dead-letter
+		// the message once attempts are exhausted (see TestReviewWorkerUnknownActionLandsInDLQ).
+		return fmt.Errorf("review_worker: unknown action %q", payload.Action)
 	}
 
+	if err := MarkConsumedInbox(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg)); err != nil {
+		slog.Error("review_worker: failed to record inbox completion", "msg_id", msg.ID, "error", err)
+		return err
+	}
 	return nil
 }

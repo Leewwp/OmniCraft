@@ -40,7 +40,9 @@ function ResetPasswordContent() {
     e.preventDefault();
     setError("");
     if (newPassword !== confirmPassword) {
-      setError(t("auth.passwordMismatch"));
+      // #380/F-A006: auth 域只有 errorPasswordMismatch——曾引用不存在的
+      // auth.passwordMismatch，把原始键名当错误文案展示给用户。
+      setError(t("auth.errorPasswordMismatch"));
       return;
     }
     if (newPassword.length < 8) {

@@ -35,10 +35,14 @@ func (r *SocialRepository) FindComment(id int64) (*model.Comment, error) {
 	return &c, nil
 }
 
-func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, pageSize int) ([]model.Comment, int64, error) {
+func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, pageSize int, viewerID int64) ([]model.Comment, int64, error) {
 	var comments []model.Comment
 	var total int64
 	q := r.db.Model(&model.Comment{}).Where("content_item_id = ? AND status = ?", contentID, "published")
+	// #446/SP-16 P0：评论随父内容可见性走——非公开内容下的评论不透出
+	// （评论正文可能引用/讨论隐藏内容，content_item_id 亦是指向泄露）。
+	visSQL, visArgs := ContentVisibilitySQL(viewerID)
+	q = q.Where("content_item_id IN (SELECT id FROM content_items WHERE "+visSQL+")", visArgs...)
 	if parentID == nil {
 		q = q.Where("parent_id IS NULL")
 	} else {
@@ -46,8 +50,12 @@ func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, 
 	}
 	q.Count(&total)
 	offset := (page - 1) * pageSize
-	err := q.Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&comments).Error
-	return comments, total, err
+	err := q.Preload("Author").Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&comments).Error
+	if err != nil {
+		return nil, total, err
+	}
+	r.fillReactionCounts(comments)
+	return comments, total, nil
 }
 
 func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int64, page, pageSize int) ([]model.Comment, int64, error) {
@@ -65,7 +73,70 @@ func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int6
 	err := q.Preload("Author").Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&comments).Error
-	return comments, total, err
+	if err != nil {
+		return nil, total, err
+	}
+	r.fillReactionCounts(comments)
+	return comments, total, nil
+}
+
+// ListCommentsByParentIDs returns published children of the given comments in
+// one query (T46: discussion detail ships top-level page plus its children so
+// the client can nest without extra round-trips).
+func (r *SocialRepository) ListCommentsByParentIDs(parentIDs []int64) ([]model.Comment, error) {
+	if len(parentIDs) == 0 {
+		return nil, nil
+	}
+	var children []model.Comment
+	err := r.db.Model(&model.Comment{}).
+		Where("parent_id IN ? AND status = ?", parentIDs, "published").
+		Preload("Author").Order("created_at ASC").
+		Find(&children).Error
+	if err != nil {
+		return nil, err
+	}
+	r.fillReactionCounts(children)
+	return children, nil
+}
+
+/*
+fillReactionCounts 回填赞/踩展示计数（T47/FIX-29c）：按 reactions 聚合，
+
+	comments.like_count 冗余列从未被维护，禁止直接读。
+*/
+func (r *SocialRepository) fillReactionCounts(comments []model.Comment) {
+	if len(comments) == 0 {
+		return
+	}
+	ids := make([]int64, 0, len(comments))
+	for _, c := range comments {
+		ids = append(ids, c.ID)
+	}
+	var rows []struct {
+		TargetID int64
+		Reaction string
+		Total    int64
+	}
+	if err := r.db.Model(&model.Reaction{}).
+		Select("target_id, reaction, COUNT(*) AS total").
+		Where("target_type = ? AND target_id IN ?", "comment", ids).
+		Group("target_id, reaction").
+		Scan(&rows).Error; err != nil {
+		return
+	}
+	likes := map[int64]int64{}
+	dislikes := map[int64]int64{}
+	for _, row := range rows {
+		if row.Reaction == "like" {
+			likes[row.TargetID] = row.Total
+		} else if row.Reaction == "dislike" {
+			dislikes[row.TargetID] = row.Total
+		}
+	}
+	for i := range comments {
+		comments[i].LikeCount = int(likes[comments[i].ID])
+		comments[i].DislikeCount = int(dislikes[comments[i].ID])
+	}
 }
 
 func (r *SocialRepository) DeleteComment(id int64) error {
@@ -83,6 +154,20 @@ func (r *SocialRepository) CreateDiscussion(d *model.Discussion) error {
 	return r.db.Create(d).Error
 }
 
+// IncrementDiscussionReplyCount maintains the discussion reply counter and
+// last_active_at (latest_reply sort driver). T12/FIX-18 unified semantics:
+// called from SocialService.PostComment's discussion branch so every entry
+// point (/discussions/:id/comments and /social/comments with discussion_id)
+// increments exactly once per comment — no double counting, no missed count.
+// Column semantics mirror DiscussionRepository.IncrementReplyCount.
+func (r *SocialRepository) IncrementDiscussionReplyCount(id int64) error {
+	return r.db.Model(&model.Discussion{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"reply_count":    gorm.Expr("reply_count + 1"),
+			"last_active_at": gorm.Expr("NOW()"),
+		}).Error
+}
+
 func (r *SocialRepository) FindDiscussion(id int64) (*model.Discussion, error) {
 	var d model.Discussion
 	err := r.db.First(&d, id).Error
@@ -95,7 +180,7 @@ func (r *SocialRepository) FindDiscussion(id int64) (*model.Discussion, error) {
 	return &d, nil
 }
 
-func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, pageSize int) ([]model.Discussion, int64, error) {
+func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, pageSize int, viewerID int64) ([]model.Discussion, int64, error) {
 	var discussions []model.Discussion
 	var total int64
 	q := r.db.Model(&model.Discussion{}).Where("status = ?", "published")
@@ -103,7 +188,10 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 		q = q.Where("ip_id = ?", *ipID)
 	}
 	if contentID != nil {
-		q = q.Where("content_item_id = ?", *contentID)
+		// #446/SP-16 P0：按内容过滤时随内容可见性走（与 ListComments 同口径）。
+		visSQL, visArgs := ContentVisibilitySQL(viewerID)
+		q = q.Where("content_item_id = ?", *contentID).
+			Where("content_item_id IN (SELECT id FROM content_items WHERE "+visSQL+")", visArgs...)
 	}
 	q.Count(&total)
 	offset := (page - 1) * pageSize

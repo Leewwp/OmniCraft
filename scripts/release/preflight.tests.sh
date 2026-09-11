@@ -44,7 +44,8 @@ GREEN_ACCESS_KEY_ID=LTAI5t-green-key
 GREEN_ACCESS_KEY_SECRET=real-green-secret
 GREEN_REGION=cn-shanghai
 GREEN_CALLBACK_URL=https://api.omnicraft.test/api/v1/internal/ai-callback
-GREEN_CALLBACK_ALLOWED_IPS=203.0.113.10
+GREEN_SEED=test_seed_1234567890
+GREEN_UID=1234567890123456
 CAPTCHA_ACCESS_KEY_ID=LTAI5t-captcha-key
 CAPTCHA_ACCESS_KEY_SECRET=real-captcha-secret
 SMTP_PASSWORD=smtp-strong-secret
@@ -211,16 +212,16 @@ open(p, "w").write(s)
 PY
 expect_preflight 1 "empty trusted proxies rejected" "$F"
 
-# ------------------------------------------------------------ bad callback
-F="$TEMP_ROOT/bad-callback-ip"
+# ------------------------------------------------------------ bad green uid
+F="$TEMP_ROOT/bad-green-uid"
 make_fixture "$F"
 python3 - "$F/env" <<'PY'
 import sys
 p = sys.argv[1]
-s = open(p).read().replace("GREEN_CALLBACK_ALLOWED_IPS=203.0.113.10", "GREEN_CALLBACK_ALLOWED_IPS=not-an-ip")
+s = open(p).read().replace("GREEN_UID=1234567890123456", "GREEN_UID=not-an-uid")
 open(p, "w").write(s)
 PY
-expect_preflight 1 "invalid callback ip rejected" "$F"
+expect_preflight 1 "invalid green uid rejected" "$F"
 
 # ------------------------------------------------------------ captcha bypass
 F="$TEMP_ROOT/captcha-bypass"

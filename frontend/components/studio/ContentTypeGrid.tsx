@@ -9,6 +9,18 @@ export interface ContentType {
   description: string;
 }
 
+/**
+ * T25（FIX-41）：按运营配置的类型顺序重排类型清单；配置缺失/为空时回退
+ * 前端默认清单。配置里不存在的类型不展示（清单即配置）。
+ */
+export function applyTypeOrder<T extends { value: string }>(types: readonly T[], order: string[] | null | undefined): T[] {
+  if (!order || order.length === 0) return [...types];
+  const byValue = new Map(types.map((type) => [type.value, type]));
+  return order
+    .map((value) => byValue.get(value))
+    .filter((type): type is T => type !== undefined);
+}
+
 interface ContentTypeGridProps {
   types: ContentType[];
   selected?: string | null;

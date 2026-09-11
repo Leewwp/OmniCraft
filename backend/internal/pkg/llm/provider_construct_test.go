@@ -78,10 +78,20 @@ func TestNewProviderFromConfig_RoutesCorrectly(t *testing.T) {
 		}
 	})
 
-	t.Run("empty_type_defaults_to_qwen", func(t *testing.T) {
+	t.Run("empty_type_defaults_to_openai_compat", func(t *testing.T) {
 		p := NewProviderFromConfig("", "key", "", "model", "embed")
-		if _, ok := p.(*QwenProvider); !ok {
-			t.Errorf("expected *QwenProvider for empty type, got %T", p)
+		if _, ok := p.(*OpenAICompatProvider); !ok {
+			t.Errorf("expected *OpenAICompatProvider for empty type, got %T", p)
+		}
+	})
+
+	t.Run("qwen_native_retired_fails_closed", func(t *testing.T) {
+		p := NewProviderFromConfig("qwen", "key", "", "model", "embed")
+		if _, ok := p.(*failingProvider); !ok {
+			t.Errorf("expected *failingProvider for retired native qwen, got %T", p)
+		}
+		if _, err := p.Chat(context.Background(), ChatRequest{}); err == nil || !strings.Contains(err.Error(), "retired") {
+			t.Fatalf("native qwen error = %v, want retirement reason", err)
 		}
 	})
 }
@@ -95,24 +105,9 @@ func TestOpenAICompatProvider_Chat_Serialization(t *testing.T) {
 		receivedBody, _ = io.ReadAll(r.Body)
 
 		resp := openAIResponse{
-			Choices: []struct {
-				Message struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"message"`
-				Delta struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"delta"`
-				FinishReason string `json:"finish_reason"`
-			}{
-				{
-					Message: struct {
-						Content   string     `json:"content"`
-						ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-					}{Content: "test response"},
-				},
-			},
+			Choices: []openAIChoice{{
+				Message: openAIMessage{Content: "test response"},
+			}},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)

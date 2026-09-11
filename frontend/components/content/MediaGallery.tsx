@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { coverRenderSrc } from "@/lib/overlay-motion";
+import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import type { AttachmentData } from "@/lib/content";
 
@@ -26,6 +28,9 @@ interface MediaGalleryProps {
   onReachEnd?: () => void;
   /** 浮层封面同步（#64 决策 11）：首项媒体加载落定/失败时回调一次，驱动主体 reveal。 */
   onFirstMediaSettled?: (state: "ready" | "error") => void;
+  /** #409 F1 首帧保持：入场转场未落定期间，首项图片以卡片封面 src 渲染
+      （媒体链与卡片封面不同文件时防动效期间换图）；落定后由上层清除。 */
+  firstItemHoldSrc?: string | null;
 }
 
 /** 防御性默认比例（AC4）：宽高缺失/历史数据时使用 3:4，不报错不隐藏。 */
@@ -103,6 +108,7 @@ export function MediaGallery({
   onOpenViewer,
   onReachEnd,
   onFirstMediaSettled,
+  firstItemHoldSrc,
 }: MediaGalleryProps) {
   const t = useTranslations();
   const [index, setIndex] = useState(() => clampIndex(initialIndex ?? 0, items.length));
@@ -201,8 +207,11 @@ export function MediaGallery({
   return (
     <section
       data-slot="detail-cover"
+      /* #398 C2：超高图首项标记——浮层转场据此退化为居中缩淡（两端取景语义
+       （卡片 400px 上限 contain 整图 vs 画廊限高滚动顶部裁切）无法统一）。 */
+      data-ultra-tall={ultraTallContainer ? "true" : undefined}
       className={cn(
-        "relative overflow-hidden rounded-lg border border-border-default bg-canvas-default",
+        "relative overflow-hidden rounded-lg border border-border-default bg-card",
         className,
       )}
     >
@@ -245,23 +254,26 @@ export function MediaGallery({
                       <span className="text-xs">{t("media.gallery.error.loadFailed")}</span>
                     </div>
                   ) : (
-                    <img
-                      src={item.url}
+                    /* #409 F1 同源图 + #430 两变体渐进：规范层 w=1080
+                       （coverRenderSrc），首项保持层 = 卡片快变体（holdSrc），
+                       落定且规范层就绪后 180ms 交叉淡入。 */
+                    <HoldCrossfadeImage
+                      canonicalSrc={coverRenderSrc(item.url) || item.url}
+                      holdSrc={itemIndex === 0 ? firstItemHoldSrc : null}
                       alt={t("media.gallery.imageAlt", {
                         current: itemIndex + 1,
                         total: items.length,
                       })}
-                      className={cn(
-                        "w-full object-contain",
-                        tall ? "h-auto" : "h-full",
-                      )}
-                      onLoad={() => {
-                        setLoaded((prev) => ({ ...prev, [item.id]: true }));
-                        if (itemIndex === 0) settleFirstMedia("ready");
-                      }}
-                      onError={() => {
-                        setFailed((prev) => ({ ...prev, [item.id]: true }));
-                        if (itemIndex === 0) settleFirstMedia("error");
+                      imgClassName="object-contain"
+                      flowLayout={tall}
+                      onSettle={(state) => {
+                        if (state === "ready") {
+                          setLoaded((prev) => ({ ...prev, [item.id]: true }));
+                          if (itemIndex === 0) settleFirstMedia("ready");
+                        } else {
+                          setFailed((prev) => ({ ...prev, [item.id]: true }));
+                          if (itemIndex === 0) settleFirstMedia("error");
+                        }
                       }}
                     />
                   )}

@@ -13,7 +13,9 @@ import { ContentCardData } from "@/components/content/ContentCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
 import { SortSelect } from "@/components/ui/SortSelect";
-import { normalizeContentList } from "@/lib/content";
+import { FilterPills } from "@/components/ui/filter-pills";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { useContentInfiniteFeed, type ContentFeedPage } from "@/components/content/use-content-infinite-feed";
 import { api } from "@/lib/api";
 import { loadRecentIps, type RecentIPItem } from "@/lib/ip-visit-history";
 
@@ -28,26 +30,25 @@ interface HomePageClientProps {
   apiBase: string;
   initialIPs: IPItem[];
   initialContents: ContentCardData[];
+  /** SSR 首屏 total（判尽用；与 initialContents 同签名 = 默认筛选态）。 */
+  initialContentTotal: number | null;
 }
 
 interface IPResponse { ips: IPItem[] }
-interface ContentResponse { contents: ContentCardData[] }
 
 const ALL_KEY = "__all__";
 
-export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePageClientProps) {
+export function HomePageClient({ apiBase, initialIPs, initialContents, initialContentTotal }: HomePageClientProps) {
   const t = useTranslations();
   const { user, ipHistoryVersion } = useAuth();
   const [recentIPs, setRecentIPs] = useState<RecentIPItem[]>([]);
   const [ips, setIPs] = useState<IPItem[]>(initialIPs);
-  const [contents, setContents] = useState<ContentCardData[]>(initialContents);
   const [ipCategory, setIPCategory] = useState("");
   const [ipSort, setIPSort] = useState("hot");
   const [contentType, setContentType] = useState("");
   const [contentSort, setContentSort] = useState("hot");
   const [categoryCounts, setCategoryCounts] = useState<Record<string, string>>({});
   const [statsSummary, setStatsSummary] = useState<{ users: number; ips: number; contents: number } | null>(null);
-  const [contentError, setContentError] = useState(false);
   const [ipError, setIpError] = useState(false);
   const [ipCountsError, setIpCountsError] = useState(false);
 
@@ -81,7 +82,8 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
   // Fetch stats summary
   useEffect(() => {
-    api.getStatsSummary()
+    /* #411 F3：二创区头部 = 分区统计（内容数只计二创、创作者 = 区内去重作者数）。 */
+    api.getStatsSummary("fanwork")
       .then(d => { if (d?.summary) setStatsSummary(d.summary); })
       .catch(() => {});
   }, []);
@@ -115,23 +117,6 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
       });
   }, [apiBase, ipCategory, ipSort]);
 
-  useEffect(() => {
-    const q = new URLSearchParams();
-    q.set("zone", "fanwork");
-    q.set("sort", contentSort);
-    q.set("time_range", "all");
-    if (contentType) q.set("content_type", contentType);
-    fetch(`${apiBase}/contents?${q.toString()}`, { cache: "no-store" })
-      .then(r => r.ok ? r.json() as Promise<ContentResponse> : Promise.reject())
-      .then(d => {
-        setContents(normalizeContentList(d.contents));
-        setContentError(false);
-      })
-      .catch(() => {
-        setContentError(true);
-      });
-  }, [apiBase, contentType, contentSort]);
-
   // Sidebar sections
   const formatCount = (v: string | undefined) => v ? parseInt(v, 10).toLocaleString() : "0";
   const sidebarSections = useMemo(() => [
@@ -151,7 +136,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     {
       label: t('home.management'),
       items: [
-        { icon: <Heart className="h-4 w-4" />, label: t('home.myFavorites'), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <Heart className="h-4 w-4" />, label: t('home.myFavorites'), href: user ? "/studio/favorites" : "/login?redirect=/studio/favorites" },
         { icon: <FileText className="h-4 w-4" />, label: t('home.myCreations'), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
         { icon: <Clock className="h-4 w-4" />, label: t('nav.history'), href: user ? "/history" : "/login?redirect=/history" },
       ] as SidebarItem[],
@@ -243,26 +228,14 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {/* Content toolbar */}
         <div className="sticky top-[52px] z-40 bg-background px-4 py-2.5 md:px-6">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-              {contentTypeOptions.map((opt) => {
-                const active = contentType === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setContentType(opt.value)}
-                    aria-pressed={active}
-                    className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                      active
-                        ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
-                        : "border-transparent text-fg-muted hover:bg-canvas-subtle hover:text-foreground cursor-pointer"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* #414 O1a：本地筛选按钮收敛为共享 FilterPills（本页原形态即矮药丸基准） */}
+            <FilterPills
+              ariaLabel={t('home.contentFilterLabel')}
+              options={contentTypeOptions}
+              value={contentType}
+              onChange={setContentType}
+              className="min-w-0 flex-1"
+            />
             <div className="shrink-0">
               <SortSelect
                 ariaLabel={t('common.sortLabel')}
@@ -278,17 +251,86 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
           </div>
         </div>
 
-        {/* Masonry grid */}
+        {/* Masonry grid（#410 F2：筛选签名重挂 feed 段 = 重置回第 1 页） */}
         <div className="px-4 py-4 pb-16 md:px-6">
-          {contentError ? (
-            <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-              {t("home.contentLoadFailed")}
-            </div>
-          ) : (
-            <OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />
-          )}
+          <FanworkFeedSection
+            key={`${contentType}|${contentSort}`}
+            apiBase={apiBase}
+            contentType={contentType}
+            contentSort={contentSort}
+            initialPage={
+              contentType === "" && contentSort === "hot"
+                ? { items: initialContents, total: initialContentTotal }
+                : null
+            }
+            emptyText={t("home.noOriginalContent")}
+            loadFailedText={t("home.contentLoadFailed")}
+            retryText={t("common.retry")}
+          />
         </div>
       </div>
     </div>
+  );
+}
+
+/** 二创内容流段（#410 F2）：useContentInfiniteFeed + 骨架/错误/终态。 */
+function FanworkFeedSection({
+  apiBase,
+  contentType,
+  contentSort,
+  initialPage,
+  emptyText,
+  loadFailedText,
+  retryText,
+}: {
+  apiBase: string;
+  contentType: string;
+  contentSort: string;
+  initialPage: ContentFeedPage | null;
+  emptyText: string;
+  loadFailedText: string;
+  retryText: string;
+}) {
+  const feed = useContentInfiniteFeed({
+    apiBase,
+    filters: { zone: "fanwork", contentType: contentType || undefined, sort: contentSort },
+    initialPage,
+  });
+  const { items, hasMore, isLoading, isLoadingMore, showInitialError, loadError } = feed;
+
+  if (isLoading && items.length === 0) {
+    return (
+      <div aria-busy="true" className="grid grid-cols-2 gap-4 min-[701px]:grid-cols-3 min-[1101px]:grid-cols-4">
+        <SkeletonCard count={12} zone="fanwork" />
+      </div>
+    );
+  }
+
+  if (showInitialError && items.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+        <span>{loadFailedText}</span>
+        <button
+          type="button"
+          onClick={() => feed.retryInitial()}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {retryText}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <OverlayMasonryGrid
+      items={items}
+      emptyText={emptyText}
+      source="zone-page"
+      isLoadingMore={isLoadingMore}
+      hasMore={hasMore}
+      loadError={loadError}
+      onLoadMore={feed.loadMore}
+      onRetry={feed.retryLoadMore}
+    />
   );
 }

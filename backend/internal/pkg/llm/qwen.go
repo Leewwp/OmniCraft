@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"omnicraft/backend/internal/observability"
 )
 
@@ -17,6 +19,7 @@ const qwenBaseURL = "https://dashscope.aliyuncs.com/compatible-mode"
 
 type QwenProvider struct {
 	apiKey     string
+	baseURL    string
 	model      string
 	embedModel string
 	client     *http.Client
@@ -27,15 +30,23 @@ func NewQwenProvider(apiKey, model, embedModel string, opts ...ProviderOption) *
 	if apiKey == "" {
 		apiKey = os.Getenv("AGENT_LLM_API_KEY")
 	}
+	// The chat base follows AGENT_LLM_API_BASE so the root .env stays the
+	// single place where provider endpoints are managed; dedicated DashScope
+	// hosts keep working by pointing that variable at the instance base.
+	base := qwenBaseURL
+	if v := strings.TrimSpace(os.Getenv("AGENT_LLM_API_BASE")); v != "" {
+		base = strings.TrimRight(v, "/")
+	}
 	cfg := providerConfig{timeout: 60 * time.Second, maxRetries: 2}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 	return &QwenProvider{
 		apiKey:     apiKey,
+		baseURL:    base,
 		model:      model,
 		embedModel: embedModel,
-		client:     &http.Client{Timeout: cfg.timeout},
+		client:     &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
 		maxRetries: cfg.maxRetries,
 	}
 }
@@ -50,7 +61,7 @@ func (p *QwenProvider) doPost(ctx context.Context, path string, body interface{}
 	if err != nil {
 		return nil, started, err
 	}
-	resp, err = retryDo(ctx, p.client, qwenBaseURL+path, p.apiKey, b, p.maxRetries)
+	resp, err = retryDo(ctx, p.client, p.baseURL+path, p.apiKey, b, p.maxRetries)
 	return resp, started, err
 }
 
@@ -76,6 +87,15 @@ type qwenResponse struct {
 }
 
 func (p *QwenProvider) Chat(ctx context.Context, req ChatRequest) (response *ChatResponse, err error) {
+	ctx, span := startLLMSpan(ctx, "chat", p.model, "qwen", req.Temperature)
+	totalTokens := -1
+	defer func() {
+		var usage *TokenUsage
+		if response != nil {
+			usage = response.Usage
+		}
+		finishLLMSpanWithTotal(span, err, usage, totalTokens)
+	}()
 	payload := qwenRequest{Model: p.model, Messages: req.Messages}
 	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
@@ -90,6 +110,7 @@ func (p *QwenProvider) Chat(ctx context.Context, req ChatRequest) (response *Cha
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
+	totalTokens = result.Usage.TotalTokens
 	if len(result.Output.Choices) == 0 {
 		return &ChatResponse{Content: result.Output.Text}, nil
 	}
@@ -97,6 +118,9 @@ func (p *QwenProvider) Chat(ctx context.Context, req ChatRequest) (response *Cha
 }
 
 func (p *QwenProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) (err error) {
+	ctx, span := startLLMSpan(ctx, "chat.stream", p.model, "qwen", req.Temperature)
+	totalTokens := -1
+	defer func() { finishLLMSpanWithTotal(span, err, nil, totalTokens) }()
 	payload := qwenRequest{Model: p.model, Messages: req.Messages, Stream: true}
 	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
@@ -123,6 +147,9 @@ func (p *QwenProvider) ChatStream(ctx context.Context, req ChatRequest, handler 
 		var chunk qwenResponse
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			continue
+		}
+		if chunk.Usage.TotalTokens > 0 {
+			totalTokens = chunk.Usage.TotalTokens
 		}
 		var content string
 		if len(chunk.Output.Choices) > 0 {
@@ -162,6 +189,8 @@ type qwenEmbeddingResponse struct {
 }
 
 func (p *QwenProvider) GetEmbedding(ctx context.Context, text string) (embedding []float32, err error) {
+	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, "qwen", 0)
+	defer func() { finishLLMSpan(span, err, nil) }()
 	payload := qwenEmbeddingRequest{Model: p.embedModel}
 	payload.Input.Texts = []string{text}
 	payload.Parameters.TextType = "document"

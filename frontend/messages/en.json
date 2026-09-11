@@ -12,6 +12,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "view": "View",
+    "viewAll": "View all",
     "submit": "Submit",
     "submitting": "Submitting...",
     "operationFailed": "Operation failed",
@@ -43,7 +44,10 @@
       "days": "days",
       "times": "times",
       "votes": "votes"
-    }
+    },
+    "insufficientReputation": "Your reputation score is too low for this action",
+    "blocked": "You are blocked from this action",
+    "alreadyReported": "You have already reported this content"
   },
   "nav": {
     "siteName": "OmniCraft",
@@ -70,7 +74,8 @@
     "notifications": "Notifications",
     "favorites": "My Favorites",
     "myOriginal": "My Originals",
-    "agent": "AI Agent"
+    "agent": "AI Agent",
+    "adminPanel": "Admin Console"
   },
   "auth": {
     "suspendedTitle": "Account suspended",
@@ -97,8 +102,11 @@
     "createAccount": "Create account",
     "hasAccount": "Already have an account?",
     "loginNow": "Log in now",
+    "login": "Log in",
     "errorInvalidCredentials": "Invalid email or password",
     "errorBanned": "Account has been banned. Please contact support.",
+    "bannedFeedbackHint": "To appeal or ask questions, reach us via the feedback form:",
+    "bannedFeedbackEntry": "Submit feedback",
     "errorLoginFailed": "Login failed. Please try again later.",
     "errorNetwork": "Network error. Please check your connection and try again.",
     "errorSessionExpired": "Your session has expired. Please log in again.",
@@ -162,9 +170,13 @@
     "strength_weak": "Weak",
     "strength_medium": "Medium",
     "strength_strong": "Strong",
-    "backToRegister": "Back to Register"
+    "backToRegister": "Back to Register",
+    "captchaRequired": "Please complete the captcha verification first",
+    "captchaUnavailable": "Captcha verification is temporarily unavailable. Please try again later.",
+    "errorInvalidPassword": "The current password is incorrect"
   },
   "home": {
+    "contentFilterLabel": "Content type filter",
     "heroTitle": "Discover, share, and co-create your passion.",
     "heroSubtitle": "OmniCraft — A creative sharing platform for everyone",
     "heroDescription": "Fan Creation Zone & Original Zone — discover, share, and co-create. Mod downloads, sheet music sharing, AI-assisted creation.",
@@ -235,13 +247,8 @@
     "creatorsLabel": "Creators",
     "recommendedIps": "Recommended IPs",
     "browseAllIps": "Browse all IPs →",
-    "trendingTopics": "Trending Topics · This Week",
-    "trending1": "#SpringOutfitChallenge",
-    "trending2": "#WeekendKitchenDiary",
-    "trending3": "#DeskMakeover",
-    "trending4": "#DailyCats",
-    "trending5": "#MinimalLiving",
-    "trendingParticipants": "participants"
+    "trendingContents": "Trending Originals · This Week",
+    "trendingHeat": "heat"
   },
   "content": {
     "originalZone": "Original Zone",
@@ -280,7 +287,7 @@
     "allContent": "All Content",
     "categoryMod": "Mod",
     "versionHistory": "Version History",
-    "noVersionHistory": "No version history",
+    "noVersionHistory": "No version history yet. Publishing, edits and merged PRs create versions; this content predates versioning, so it has no records.",
     "latest": "Latest",
     "preview": "Preview",
     "restoreVersion": "Restore this version",
@@ -381,6 +388,11 @@
     "backToZonePage": "Back to content page",
     "backToIpPage": "Back to IP detail",
     "backToAgent": "Back to conversation",
+    "backToTarget": "Back to: {target}",
+    "sourceNounRecommendation": "recommendations",
+    "sourceNounZonePage": "the content list",
+    "sourceNounIpPage": "the IP detail page",
+    "sourceNounAgent": "the AI assistant",
     "openRelated": "Open content detail: {title}",
     "notFoundTitle": "Content not found or deleted",
     "notFoundDescription": "This work may have been deleted by its author, or your account cannot view it.",
@@ -392,7 +404,19 @@
     "ip": "Belongs to IP",
     "sourceOriginal": "Related original",
     "derivatives": "Derivative fanworks",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "rateLimitedTitle": "Too many requests",
+    "rateLimitedDescription": "The request hit a rate limit. Wait a moment and retry; closing the detail still returns you to your previous position."
+  },
+  "overlayVariant": {
+    "relatedTitle": "Related content",
+    "originalBadge": "Original",
+    "seriesLabel": "Series · {title}",
+    "seriesPosition": "Part {current}/{total}",
+    "previousChapter": "Previous",
+    "nextChapter": "Next",
+    "previousChapterA11y": "Previous: {title}",
+    "nextChapterA11y": "Next: {title}"
   },
   "collections": {
     "picker": {
@@ -548,6 +572,50 @@
       }
     }
   },
+  "proposal": {
+    "statusOpen": "Open",
+    "statusAdopted": "Adopted",
+    "statusRejected": "Rejected",
+    "statusHistory": "History",
+    "filterLabel": "Proposal status filter",
+    "create": "New proposal",
+    "cancelCreate": "Cancel",
+    "createFormTitle": "New governance proposal",
+    "fieldDescription": "New description",
+    "fieldCover": "New cover",
+    "fieldTags": "Tag changes",
+    "coverOld": "Current cover",
+    "coverNew": "Proposed cover",
+    "coverPlaceholder": "New cover image URL (https://…, leave blank to keep it)",
+    "diffExpand": "Show full text",
+    "diffCollapse": "Collapse",
+    "descriptionPlaceholder": "Propose a new IP description (leave blank to keep it)",
+    "tagAdd": "Add tag (one per proposal)",
+    "tagRemove": "Remove tag (one per proposal)",
+    "createRules": "Name/category cannot be proposed; one open proposal per IP at a time; followers vote after submission.",
+    "submit": "Submit proposal",
+    "needOneField": "Change at least one field",
+    "created": "Proposal submitted",
+    "createFailed": "Failed to submit proposal",
+    "daysLeft": "{count} days left",
+    "voteScale": "{yes}/{min} votes",
+    "voteYes": "For",
+    "voteNo": "Against",
+    "voteRecorded": "Vote recorded",
+    "voteFailed": "Vote failed",
+    "votedAs": "Voted “{choice}” — immutable",
+    "followToVote": "Follow this IP to participate in governance voting",
+    "followNow": "Follow now",
+    "followedUnlocked": "Following — voting unlocked",
+    "followFailed": "Follow failed",
+    "emptyTitle": "No open proposals yet",
+    "emptyHint": "The first proposal is yours to make.",
+    "emptyCta": "Create the first proposal",
+    "historyEmpty": "No adopted changes yet",
+    "historyEmptyHint": "Adopted proposals will be listed here by effective time.",
+    "effectiveAt": "Effective {date}",
+    "voteResult": "{yes} for / {no} against"
+  },
   "publish": {
     "title": "Publish Content",
     "subtitle": "Uploaded content will go through review. Fanwork can optionally link to a source original for easier discovery.",
@@ -585,7 +653,17 @@
     "errorIpRequired": "Fanwork requires an IP selection",
     "errorCoverRequired": "Please upload a cover image",
     "errorAttachmentRequired": "Please upload at least one attachment",
-    "errorPublishFailed": "Publishing failed. Please try again later."
+    "errorPublishFailed": "Publishing failed. Please try again later.",
+    "frozen": "Publishing is frozen: due to recent repeated violations, publishing is suspended for 7 days and will automatically unfreeze when the period ends. Completing the integrity course can help lift the restriction early.",
+    "fileTooLarge": "The file exceeds the size limit. Please compress it and try again",
+    "invalidMimeType": "Unsupported file type",
+    "mediaSetInvalid": "The media set violates the gallery contract. Please check the cover and media list",
+    "sourceNotAllowedForOriginal": "Original content cannot carry a source attribution",
+    "fanworkSourceRequired": "Fanwork must link to an IP or select an inspiration source",
+    "multipleSourceConflict": "Only one source may be set (IP, original, or inspiration work)",
+    "sourceOriginalUnavailable": "The selected original content does not exist or is unavailable",
+    "sourceFanworkUnavailable": "The selected fanwork does not exist or is unavailable",
+    "sourceImmutable": "Source attribution is immutable after creation"
   },
   "capabilities": {
     "deniedBanned": "Your account is banned and cannot perform interactions.",
@@ -649,7 +727,13 @@
       "reject": "Violation",
       "confirmVote": "Confirm vote: \"{vote}\"",
       "reasonPlaceholder": "Optional: provide your reasoning",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "previewWarning": "This content entered crowd review after a report and may be controversial. View with care.",
+      "previewLoadButton": "View content",
+      "previewLoadFailed": "Failed to load content preview",
+      "mediaLoadButton": "Load media",
+      "skipCase": "Skip this case",
+      "reportThisContent": "Report this content"
     },
     "verdict": {
       "title": "Verdict Details",
@@ -661,8 +745,15 @@
       "result": "Verdict: {result}",
       "judgeReasons": "Judge Reasoning (sorted by upvotes)",
       "noReasons": "No judge reasoning submitted",
-      "loadFailed": "Failed to load verdict details"
-    }
+      "loadFailed": "Failed to load verdict details",
+      "selfVoteForbidden": "You cannot vote on your own reason",
+      "qualificationRequired": "Judge qualification required to vote on reasons"
+    },
+    "insufficientQuestions": "Not enough questions are available for this category. Please try again later",
+    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first",
+    "loadMore": "Load more cases",
+    "examSessionExpired": "Exam session expired. Please select a type to draw questions again",
+    "examAlreadyQualified": "You already hold the qualification for this content type"
   },
   "dashboard": {
     "title": "Creator Dashboard",
@@ -758,7 +849,8 @@
       "goReports": "Reports",
       "goFeedback": "Feedback",
       "goAppeals": "Appeals",
-      "goQueue": "Queue Monitor"
+      "goQueue": "Queue Monitor",
+      "partialLoadFailed": "Some dashboard data failed to load"
     },
     "reports": {
       "title": "Report Management",
@@ -783,7 +875,9 @@
       "dismissConfirm": "Confirm dismissing this report? The report will be closed.",
       "confirmUphold": "Confirm Uphold",
       "confirmDismiss": "Confirm Dismiss",
-      "explanationPlaceholder": "Enter explanation (required)..."
+      "explanationPlaceholder": "Enter explanation (required)...",
+      "actionTaken": "Action taken",
+      "updateFailed": "Failed to update the report; please retry"
     },
     "ips": {
       "title": "IP Library Management",
@@ -823,7 +917,17 @@
       "confirmBan": "Confirm ban",
       "banReason": "Ban reason",
       "loadFailed": "Failed to load content review list",
-      "banFailed": "Failed to ban content"
+      "banFailed": "Failed to ban content",
+      "listTab": "Contents",
+      "trashTab": "Trash",
+      "restore": "Restore",
+      "restoreTitle": "Restore content",
+      "restoreConfirm": "Restore \"{title}\"? It will be republished and visible on the site.",
+      "confirmRestore": "Restore",
+      "restoreFailed": "Failed to restore. Please try again.",
+      "colDeletedAt": "Deleted at",
+      "noTrashedContents": "Trash is empty",
+      "noTrashedHint": "Deleted content appears here and can be restored anytime"
     },
     "users": {
       "title": "User Management",
@@ -867,6 +971,12 @@
       "confirmApprove": "Approve",
       "confirmReject": "Reject",
       "opinion": "Handling opinion",
+      "statusFilter": "Status filter",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "statusAll": "All",
+      "viewContent": "View content",
       "loadFailed": "Failed to load appeal list",
       "processFailed": "Failed to process appeal"
     },
@@ -984,7 +1094,13 @@
       "dlq": "Dead Letter Queue",
       "noDLQ": "DLQ is empty",
       "loadFailed": "Failed to load queue data",
-      "readOnlyNote": "Queue page is read-only during Beta. Replay controls are not available."
+      "readOnlyNote": "This page monitors per-topic depth, lag and failures; dead-letter entries can be replayed back to their original topic (the original entry stays in the DLQ).",
+      "replay": "Replay",
+      "replayTitle": "Replay dead-letter entry",
+      "replayConfirm": "Re-deliver entry {id} back to its original topic \"{topic}\"? The original entry stays in the dead-letter queue and is not removed.",
+      "replaySuccess": "Entry {id} re-delivered to its original topic (original entry kept in the DLQ)",
+      "replayFailed": "Failed to replay entry {id}. Please try again.",
+      "retries": "{count} retries"
     },
     "auditLogs": {
       "title": "Audit Logs",
@@ -992,7 +1108,8 @@
       "allActions": "All Actions",
       "noLogs": "No audit records",
       "noMetadata": "No metadata"
-    }
+    },
+    "navNotifications": "Notifications"
   },
   "social": {
     "like": "Like",
@@ -1004,6 +1121,7 @@
     "reportFailed": "Failed to submit report. Please try again later.",
     "comments": "Comments",
     "commentPlaceholder": "Write a comment...",
+    "sendComment": "Post comment",
     "loginToComment": "Please log in to comment",
     "noComments": "No comments yet. Be the first!",
     "noCommentsHint": "Comments and replies will appear here once the conversation begins.",
@@ -1011,7 +1129,28 @@
     "loadFailed": "Failed to load comments",
     "follow": "Follow",
     "following": "Following",
-    "unfollow": "Unfollow"
+    "unfollow": "Unfollow",
+    "reply": "Reply",
+    "replyPlaceholder": "Reply to @{name}…",
+    "showReplies": "Show replies",
+    "hideReplies": "Hide replies",
+    "noReplies": "No replies yet",
+    "repliesLoaded": "Replies loaded",
+    "edit": "Edit",
+    "saveEdit": "Save",
+    "cancelEdit": "Cancel",
+    "editedMark": "edited",
+    "delete": "Delete",
+    "deleteCommentTitle": "Delete this comment?",
+    "deleteCommentDesc": "The comment will no longer be displayed. This cannot be undone.",
+    "deleteReplyTitle": "Delete this reply?",
+    "deleteReplyDesc": "The reply will no longer be displayed. This cannot be undone.",
+    "loadMoreComments": "Load more comments",
+    "commentBlocked": "Your content did not pass safety review. Please revise and try again",
+    "moderationUnavailable": "The moderation service is temporarily unavailable. Please try again later",
+    "commentCount": "{count} comments",
+    "commentFolded": "Collapsed · click to show",
+    "commentCollapse": "Collapse"
   },
   "pr": {
     "submit": "Submit Edit Proposal",
@@ -1031,6 +1170,27 @@
     "cover": "IP Cover",
     "category": "Category: {category}",
     "uncategorized": "Uncategorized",
+    "contentCategories": "Content categories",
+    "hubDiscussionCount": "{count} discussions",
+    "hubWorkCount": "{count} works",
+    "hubLoginHint": "Log in to join discussions and governance",
+    "hubSearchPlaceholder": "Search within this IP…",
+    "hubClearSearch": "Clear search",
+    "hubModules": "IP modules",
+    "hubTab_share": "Shares",
+    "hubTab_discussions": "Discussions",
+    "hubTab_proposals": "Proposals",
+    "hubNoSearchResult": "No results for “{q}”",
+    "hubNoSearchHint": "Try another keyword, or clear the search to browse everything.",
+    "hubEmptyShareHint": "No fanworks linked to this IP yet.",
+    "hubEmptyDiscussions": "No discussions yet",
+    "hubEmptyDiscussionsHint": "Start the first topic.",
+    "hubDiscussionLoadHint": "Failed to load the discussion. Retry or close the overlay.",
+    "hubPinned": "Pinned",
+    "hubSortLatestReply": "Latest reply",
+    "hubSortNewestPost": "Newest",
+    "hubSortMostReplies": "Most replies",
+    "hubSortHot": "Hot",
     "noDescription": "No IP description available",
     "noDescriptionShort": "No description",
     "enterDiscussion": "Enter Discussion",
@@ -1049,7 +1209,9 @@
     "sortHot": "Hottest",
     "sortMostContents": "Most Content",
     "sortNewest": "Newest",
-    "sortLabel": "Sort IPs"
+    "sortLabel": "Sort IPs",
+    "tagsLabel": "IP tags",
+    "createIP": "Create IP"
   },
   "user": {
     "profile": "User #{id}",
@@ -1057,6 +1219,7 @@
     "following": "Following",
     "follow": "Follow",
     "editProfile": "Edit Profile",
+    "sendMessage": "Message",
     "tabPublish": "Published",
     "tabFavorites": "Favorites",
     "tabCollections": "Collections",
@@ -1114,6 +1277,65 @@
       },
       "a11y": {
         "acceptInvites": "Accept collaboration invites"
+      }
+    },
+    "reputation": {
+      "title": "Reputation details",
+      "total": "{total} entries",
+      "empty": "No reputation changes yet",
+      "loadFailed": "Failed to load reputation details",
+      "loadMore": "Load more",
+      "loading": "Loading...",
+      "reasons": {
+        "ai_violation": "AI moderation violation",
+        "judge_error_rate": "Judge error rate adjustment",
+        "judge_accuracy": "Judge accuracy reward",
+        "rehab": "Rehabilitation course",
+        "quality_content": "Quality content",
+        "quality_comment": "Quality comment",
+        "pr_merged": "PR merged",
+        "tag_recognized": "Tag suggestion recognized",
+        "valid_report": "Valid report",
+        "malicious_report": "Malicious report",
+        "malicious_tag_report": "Malicious tag report",
+        "admin_adjust": "Admin adjustment"
+      }
+    },
+    "agentTokens": {
+      "title": "Agent access tokens",
+      "description": "Issue tokens for your external agents (Claude Code, Codex, …); revoke anytime to stop a leak.",
+      "create": "Create token",
+      "createConfirm": "Issue",
+      "nameLabel": "Token name",
+      "scope": {
+        "download": "Download",
+        "upload": "Upload"
+      },
+      "scopeHelp": "The download scope allows fetching content download URLs; the upload scope allows publishing via agents (full moderation flow applies).",
+      "empty": "No tokens yet. Create one and hand it to your agent following the /agent access guide.",
+      "lastUsed": "Last used: {time}",
+      "never": "Never used",
+      "revoke": "Revoke",
+      "revokeConfirm": {
+        "title": "Revoke this token?",
+        "description": "\"{name}\" ({prefix}…) stops working immediately — agents using it will get 401s. This cannot be undone."
+      },
+      "issued": {
+        "title": "Token created — copy it now",
+        "copy": "Copy",
+        "copied": "Copied",
+        "onceWarning": "This is the only time the full token is shown; it cannot be viewed again after closing.",
+        "done": "Saved, close"
+      },
+      "error": {
+        "invalid": "Enter a name and pick at least one scope.",
+        "create": "Failed to create the token, please retry."
+      },
+      "toast": {
+        "loadFailed": "Failed to load tokens",
+        "copyFailed": "Copy failed, please select and copy manually",
+        "revoked": "Token revoked",
+        "revokeFailed": "Failed to revoke, please retry"
       }
     }
   },
@@ -1188,12 +1410,9 @@
     "loadingGuide": "Generating usage guide...",
     "noGuideAvailable": "No usage guide available",
     "guideError": "Failed to generate usage guide. Please try again later.",
-    "searchAgentPlaceholder": "Search naturally, e.g. \"beginner furniture mods\"...",
     "searchKeywordPlaceholder": "Search by keyword...",
-    "searchAgentNoResults": "AI search found no results, switched to keyword search",
-    "searchAgentDowngrade": "AI search temporarily unavailable, switched to keyword search",
-    "aiSearch": "AI Search",
-    "keywordSearch": "Keyword Search",
+    "searchAgentEntryHint": "Prefer asking in natural language?",
+    "searchAgentEntryCta": "Ask the AI agent",
     "featureDisabledTitle": "Agent workspace unavailable",
     "featureDisabledDescription": "AI Agent capability is not enabled yet. Please try again later.",
     "workspace": {
@@ -1205,11 +1424,13 @@
       "closeConversations": "Close conversation list",
       "emptyConversations": "No conversations yet. Start a new one above.",
       "untitled": "Conversation",
+      "editTitleLabel": "Edit conversation title",
       "privacyHint": "Only published content visible to your account is searched; grounded answers carry verified references.",
       "groupToday": "Today",
       "groupYesterday": "Yesterday",
       "groupEarlier": "Earlier",
       "transcriptLabel": "Chat transcript",
+      "messageHiddenByModeration": "This reply was hidden after failing a safety check",
       "composerLabel": "Ask the agent",
       "inputPlaceholder": "Describe the works, sources or usage you want to find",
       "send": "Send",
@@ -1225,6 +1446,8 @@
       "emptyTitle": "Start researching from site content",
       "emptyDescription": "Ask about works, sources, usage or creative directions. The agent only cites server-verified public content and stops when there is no evidence.",
       "jumpToLatest": "Jump to latest",
+      "followUpsLabel": "Suggested follow-ups",
+      "followUpFill": "Fill the composer",
       "errorTitle": "This request was not completed",
       "errorRetry": "Resend",
       "conversationLoadFailed": "Failed to load conversation",
@@ -1232,7 +1455,30 @@
       "stoppedNotice": "Stopped generating",
       "suggestionLayout": "Looking for “Empty Platform” themed visual references, ideally with both atmosphere images and text narration.",
       "suggestionMusic": "Want to understand how chords relate to the melody with the shortest practice.",
-      "suggestionMod": "Find beginner-friendly furniture mods."
+      "suggestionMod": "Find beginner-friendly furniture mods.",
+      "rateLimitTitle": "Too many AI requests",
+      "rateLimitHint": "Rate limited: either the per-minute quota (retry in ~1 minute) or the daily quota (resets tomorrow) is exhausted; retrying now will fail.",
+      "traceLabel": "Trace ID",
+      "turnDetails": "Turn details",
+      "turnUsage": "Token usage: {prompt} in / {completion} out",
+      "groupPinned": "Pinned",
+      "menuLabel": "Conversation actions",
+      "menuRename": "Rename",
+      "menuPin": "Pin",
+      "menuUnpin": "Unpin",
+      "menuDelete": "Delete conversation",
+      "renameInputLabel": "Rename conversation {id}",
+      "renameFailed": "Rename failed, please try again later",
+      "pinFailed": "Pin action failed, please try again later",
+      "deleteConfirmTitle": "Delete this conversation?",
+      "deleteConfirmDescription": "All messages in this conversation will be deleted. This cannot be undone.",
+      "deleteConfirmAction": "Delete conversation",
+      "deleteSuccess": "Conversation deleted",
+      "deleteFailed": "Delete failed, please try again later",
+      "copyMessage": "Copy response",
+      "copySuccess": "Copied to clipboard",
+      "copyFailed": "Copy failed, please select the text manually",
+      "regenerate": "Regenerate"
     },
     "tools": {
       "title": "Tool activity",
@@ -1264,24 +1510,41 @@
       "unknownSuccess": "Tool finished",
       "unknownFailed": "Tool failed",
       "unknownSkipped": "Tool skipped",
-      "duration": "{seconds}s"
+      "duration": "{seconds}s",
+      "stepsSummary": "{count} tool steps",
+      "hits": "{count} hits"
     },
     "citations": {
       "title": "Site references",
       "count": "{count} verified references",
       "invalid": "Reference unavailable",
       "zoneOriginal": "Original",
-      "zoneFanwork": "Fanwork"
+      "zoneFanwork": "Fanwork",
+      "collapse": "Collapse citations",
+      "expand": "Show citations ({count})"
     },
     "noEvidence": {
       "title": "Not enough evidence",
-      "description": "Public content does not have enough material to support this answer. The agent did not fabricate a conclusion."
+      "description": "Not enough material was found in public content. Try rephrasing or adding detail — genre, type, or author — and ask again.",
+      "searchCta": "Search site content"
+    },
+    "degraded": {
+      "title": "Search fallback active",
+      "description": "The answer was not generated. Review the available site references."
     },
     "a11y": {
       "conversationItem": "Conversation #{id}",
       "streamStatus": "Generating answer",
       "jumpToLatest": "Jump to latest message"
-    }
+    },
+    "gate": {
+      "loadFailed": "Failed to load feature config; cannot confirm whether this feature is available."
+    },
+    "thinking": {
+      "label": "Thought process",
+      "streamingLabel": "Thinking…"
+    },
+    "rateLimited": "Too many AI assistant requests. Please try again later"
   },
   "search": {
     "saveSearch": "Save this search",
@@ -1301,6 +1564,7 @@
     "listView": "List view",
     "filter": {
       "mainCategory": "Category",
+      "tagsLabel": "Filter by tag",
       "selectedTags": "Selected",
       "clearAll": "Clear All",
       "tags": "Tags",
@@ -1318,7 +1582,16 @@
       "searchSaved": "Search saved",
       "saveFailed": "Save failed, please retry",
       "loadedSearch": "Loaded search \"{name}\""
-    }
+    },
+    "resultTabsLabel": "Result type",
+    "tabContents": "Contents",
+    "tabUsers": "Users",
+    "usersNoResults": "No matching users",
+    "usersNoResultsHint": "Try another keyword or search by full username",
+    "userReputation": "Reputation {value}",
+    "suggestionsLabel": "Search suggestions",
+    "missingQuery": "Please enter a search keyword",
+    "queryTooLong": "The search keyword is too long. Please shorten it"
   },
   "recommend": {
     "title": "Recommended for you",
@@ -1337,6 +1610,7 @@
     "noCourses": "No courses available",
     "minReading": "Minimum {sec}s reading",
     "rewardPoints": "+{pts} reputation",
+    "courseContent": "Course content",
     "startLearning": "Start Learning",
     "pleaseRead": "Please read first",
     "readingProgress": "Read {elapsed} / {required}s",
@@ -1360,7 +1634,8 @@
     "bodyPlaceholder": "Write your thoughts...",
     "replyCount": "{count} replies",
     "noReplies": "No replies yet. Be the first to comment!",
-    "replyPlaceholder": "Write your reply..."
+    "replyPlaceholder": "Write your reply...",
+    "replyAction": "Reply"
   },
   "support": {
     "title": "Support Creator",
@@ -1389,14 +1664,28 @@
     "activate": "Activate",
     "deleteConfig": "Delete configuration",
     "deleteTitle": "Delete LLM configuration",
-    "deleteDescription": "Delete configuration \"{name}\"? This action cannot be undone."
+    "deleteDescription": "Delete configuration \"{name}\"? This action cannot be undone.",
+    "activateNotFound": "Config no longer exists (it may have been deleted). Refresh the list.",
+    "activateFailed": "Activation failed. Please try again.",
+    "testFailed": "Connection test failed"
   },
   "appeals": {
     "title": "My Appeals",
     "subtitle": "Submit appeals for flagged content",
+    "tabLabel": "Appeals and reports",
+    "appealsTab": "My Appeals",
+    "reportsTab": "My Reports",
+    "noReports": "No report records",
+    "reportPending": "Pending",
+    "reportResolved": "Handled",
+    "reportDismissed": "Dismissed",
+    "actionTaken": "Action taken",
+    "reportFallbackAction": "Handled without an action note",
     "newAppeal": "New Appeal",
     "typeContent": "Content",
     "typeComment": "Comment",
+    "typeAccount": "Account (ban appeal)",
+    "accountHint": "No target ID is needed for an account appeal; it will be linked to your account automatically.",
     "targetId": "Target ID",
     "reason": "Appeal reason",
     "submit": "Submit",
@@ -1407,7 +1696,9 @@
     "rejected": "Rejected",
     "noAppeals": "No appeal records",
     "loadFailed": "Failed to load",
-    "submitFailed": "Failed to submit"
+    "submitFailed": "Failed to submit",
+    "adminResponse": "Admin response",
+    "exists": "A pending appeal already exists for this target. Please wait until it is resolved"
   },
   "history": {
     "title": "Browsing History",
@@ -1505,6 +1796,14 @@
     "startConversation": "Start a conversation",
     "dmReplyRequired": "Wait for the recipient to reply before sending another message.",
     "sendMessage": "Send message",
+    "compose": {
+      "title": "Message {name}",
+      "description": "Your first message starts the conversation; a second one waits until they reply.",
+      "label": "Message",
+      "placeholder": "Write your first message…",
+      "success": "Message sent",
+      "blocked": "The content violates community rules and cannot be sent"
+    },
     "broadcastLabel": "Broadcast",
     "systemLabel": "System",
     "notificationOpensTarget": "Opens related item",
@@ -1781,6 +2080,7 @@
       "analytics": "Analytics",
       "collaboration": "Collaboration",
       "publishContent": "Publish Content",
+      "createIP": "Create IP",
       "overview": "Overview",
       "followers": "Followers",
       "myContent": "My Content",
@@ -1788,23 +2088,69 @@
       "prManagement": "PR Management",
       "contributors": "Contributors",
       "tagSuggestions": "Tag Suggestions",
-      "revenue": "Revenue"
+      "revenue": "Revenue",
+      "favorites": "Collections",
+      "myIPs": "My IPs"
     },
     "series": {
       "title": "Content series",
       "subtitle": "Organize public content and maintain its chapter order.",
       "create": "Create series",
       "delete": "Delete series",
-      "empty": { "title": "No content series yet", "description": "Create a series to organize related content in order." },
-      "list": { "ariaLabel": "My content series" },
-      "detail": { "ariaLabel": "Series details" },
-      "form": { "title": "Series title", "description": "Series description", "zone": "Zone", "cover": "Series cover", "coverAutomatic": "Use the first item cover automatically", "createSubmit": "Create", "save": "Save changes" },
-      "items": { "title": "Added content", "ariaLabel": "Series content ordering list", "empty": "No content in this series yet", "add": "Add" },
-      "search": { "title": "Add content", "label": "Search content to add", "placeholder": "Search your content by title..." },
-      "confirm": { "deleteTitle": "Delete series?", "deleteDescription": "Deleting “{title}” removes the series order but does not delete content." },
-      "toast": { "created": "Series created", "saved": "Series saved", "deleted": "Series deleted", "itemAdded": "Content added", "itemRemoved": "Content removed", "reordered": "Order updated" },
-      "error": { "loadFailed": "Unable to load series. Try again.", "saveFailed": "Unable to save. Try again.", "deleteFailed": "Unable to delete. Try again.", "itemFailed": "Content operation failed. Try again." },
-      "a11y": { "backToList": "Back to series list", "moveUp": "Move {title} up", "moveDown": "Move {title} down", "removeItem": "Remove {title} from series" }
+      "empty": {
+        "title": "No content series yet",
+        "description": "Create a series to organize related content in order."
+      },
+      "list": {
+        "ariaLabel": "My content series"
+      },
+      "detail": {
+        "ariaLabel": "Series details"
+      },
+      "form": {
+        "title": "Series title",
+        "description": "Series description",
+        "zone": "Zone",
+        "cover": "Series cover",
+        "coverAutomatic": "Use the first item cover automatically",
+        "createSubmit": "Create",
+        "save": "Save changes"
+      },
+      "items": {
+        "title": "Added content",
+        "ariaLabel": "Series content ordering list",
+        "empty": "No content in this series yet",
+        "add": "Add"
+      },
+      "search": {
+        "title": "Add content",
+        "label": "Search content to add",
+        "placeholder": "Search your content by title..."
+      },
+      "confirm": {
+        "deleteTitle": "Delete series?",
+        "deleteDescription": "Deleting “{title}” removes the series order but does not delete content."
+      },
+      "toast": {
+        "created": "Series created",
+        "saved": "Series saved",
+        "deleted": "Series deleted",
+        "itemAdded": "Content added",
+        "itemRemoved": "Content removed",
+        "reordered": "Order updated"
+      },
+      "error": {
+        "loadFailed": "Unable to load series. Try again.",
+        "saveFailed": "Unable to save. Try again.",
+        "deleteFailed": "Unable to delete. Try again.",
+        "itemFailed": "Content operation failed. Try again."
+      },
+      "a11y": {
+        "backToList": "Back to series list",
+        "moveUp": "Move {title} up",
+        "moveDown": "Move {title} down",
+        "removeItem": "Remove {title} from series"
+      }
     },
     "publish": {
       "originalTitle": "Publish Original",
@@ -1936,6 +2282,30 @@
         "other": "Other fan creation content"
       }
     },
+    "publishIP": {
+      "title": "Create IP",
+      "backToStudio": "Back to Studio",
+      "nameLabel": "IP Name",
+      "namePlaceholder": "Name your IP...",
+      "nameRequired": "IP name is required",
+      "nameTooLong": "IP name must be at most {max} characters",
+      "descriptionLabel": "IP Description",
+      "descriptionPlaceholder": "Describe the world, theme or creative direction of this IP...",
+      "coverLabel": "Cover",
+      "coverHint": "Optional; shown as the IP cover after upload.",
+      "categoryLabel": "Category",
+      "tagLabel": "Tags",
+      "tagPlaceholder": "Type a tag and press Enter",
+      "addTag": "Add Tag",
+      "submit": "Submit",
+      "submitting": "Submitting...",
+      "cancel": "Cancel",
+      "successTitle": "Submitted, pending review",
+      "successPending": "IP \"{name}\" has been submitted. It becomes public in the IP library after approval; until then only you can see it.",
+      "successView": "View IP Details",
+      "successCreateAnother": "Create Another",
+      "failed": "Creation failed, please try again later"
+    },
     "overview": {
       "title": "Overview",
       "subtitle": "View your content analytics",
@@ -1974,12 +2344,65 @@
       "noContent": "You haven't published any content yet",
       "startCreating": "Start Creating",
       "edit": "Edit",
-      "delete": "Delete"
+      "delete": "Delete",
+      "banReason": "Ban reason",
+      "statusDraft": "Draft",
+      "statusPending": "In review",
+      "statusUnderReview": "Under re-review",
+      "statusBanned": "Banned",
+      "appeal": "Appeal",
+      "editBannedDisabled": "Banned content cannot be edited; appeal first",
+      "editDialogTitle": "Edit content",
+      "editDialogHint": "Title or cover changes on published content trigger re-review.",
+      "fieldTitle": "Title",
+      "fieldCover": "Cover URL",
+      "fieldPublic": "Public",
+      "fieldAllowCopy": "Allow copying",
+      "save": "Save",
+      "editSaved": "Content updated",
+      "editFailed": "Failed to update content",
+      "deleted": "Content deleted",
+      "deleteFailed": "Failed to delete content",
+      "deleteTitle": "Delete content",
+      "deleteDescription": "Delete \"{title}\"? This cannot be undone.",
+      "guide": "Usage guide"
+    },
+    "guide": {
+      "dialogTitle": "Usage guide",
+      "dialogHint": "Fill in requirements and steps; empty fields fall back to the system template for readers.",
+      "fieldRequirements": "Requirements (one per line)",
+      "requirementsPlaceholder": "e.g. Minecraft 1.20.1+\nForge 47",
+      "fieldSteps": "Steps (one per line)",
+      "stepsPlaceholder": "e.g.\n1. Unpack the download\n2. Drop it into the mods folder",
+      "fieldNotes": "Notes",
+      "notesPlaceholder": "Extra notes (Markdown supported)",
+      "draftButton": "AI draft",
+      "drafting": "Drafting…",
+      "draftedHint": "Contains an AI draft; saving will mark source=llm_assisted.",
+      "save": "Save",
+      "saved": "Usage guide saved",
+      "loadFailed": "Failed to load the usage guide",
+      "draftFailed": "Failed to generate an AI draft",
+      "saveFailed": "Failed to save the usage guide"
     },
     "pr": {
       "title": "PR Management",
       "subtitle": "Manage content collaboration requests",
-      "empty": "PR requests will appear here"
+      "empty": "PR requests will appear here",
+      "create": {
+        "title": "Propose a Change (PR)",
+        "baseVersionLabel": "Choose base version",
+        "messageLabel": "Describe your change",
+        "messagePlaceholder": "Explain to the author what this change does…",
+        "newTextLabel": "New text",
+        "newTextPlaceholder": "Paste or write the full revised text here…",
+        "submit": "Submit PR",
+        "submitting": "Submitting…",
+        "success": "PR submitted, waiting for the author's review",
+        "loadFailed": "Failed to load versions",
+        "selectVersionRequired": "Please choose a base version",
+        "backToList": "Back to PR list"
+      }
     },
     "contributors": {
       "title": "Contributors",
@@ -2050,6 +2473,25 @@
         "saveFailed": "Failed to save collection",
         "deleteFailed": "Failed to delete collection"
       }
+    },
+    "myIPs": {
+      "title": "My IPs",
+      "subtitle": "Review the status and feedback of IPs you created",
+      "empty": "You haven't created any IPs yet",
+      "create": "Create IP",
+      "colName": "Name",
+      "colCategory": "Category",
+      "colStatus": "Status",
+      "colDate": "Submitted",
+      "colReason": "Review note",
+      "colActions": "Actions",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "noReason": "-",
+      "resubmit": "Resubmit",
+      "view": "View",
+      "loadFailed": "Failed to load IP list"
     }
   },
   "adminNotifications": {
@@ -2200,21 +2642,58 @@
     "pageErrorDesc": "An unexpected error occurred. Please try again later.",
     "notFound": "Page not found",
     "notFoundDesc": "The page you're looking for doesn't exist or has been removed.",
-    "backHome": "Back to home",
-    "INVALID_ID": "Invalid ID",
-    "USER_NOT_FOUND": "User not found",
-    "DB_ERROR": "Database error",
-    "FORBIDDEN": "Access denied",
-    "INVALID_BODY": "Invalid request format",
-    "NO_FIELDS": "No update fields provided",
-    "VALIDATION_ERROR": "Validation failed",
-    "INVALID_PASSWORD": "Incorrect password",
-    "INTERNAL_ERROR": "Internal server error",
-    "COURSE_NOT_FOUND": "Course not found",
-    "ALREADY_COMPLETED": "Already completed",
-    "FEATURE_DISABLED": "Feature not available",
-    "UNAUTHORIZED": "Not logged in",
-    "NOT_FOUND": "Resource not found",
-    "CONFLICT": "Resource conflict"
+    "backHome": "Back to home"
+  },
+  "markdown": {
+    "copyCode": "Copy code",
+    "citationJump": "Jump to citation {index}"
+  },
+  "agentAccess": {
+    "hero": {
+      "title": "Wire OmniCraft into your Agent",
+      "subtitle": "Anonymous read-only search, browsing and usage guides; a personal access token unlocks downloads and one-sentence publishing (with a mandatory confirmation gate) — use it right inside Claude Code / Codex / Gemini CLI."
+    },
+    "status": {
+      "live": "Live",
+      "planned": "Coming in P3"
+    },
+    "channels": {
+      "aria": "Access channels"
+    },
+    "rest": {
+      "title": "REST API v1",
+      "point1": "Anonymous read-only: search / list / detail / versions / usage guides / categories / tags / IPs / users / stats",
+      "point2": "OpenAPI 3.1 contract: GET /api/v1/openapi.json (curl-friendly)",
+      "point3": "Anonymous GETs carry s-maxage=300 caching and ETag revalidation (304)"
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "point1": "Streamable HTTP endpoint: POST /api/v1/mcp (same origin as this site)",
+      "point2": "Anonymous read-only tools: omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories; a PAT adds omnicraft_request_download (download scope) and omnicraft_suggest_publish_metadata / omnicraft_create_content / omnicraft_request_upload_url (upload scope)"
+    },
+    "skill": {
+      "title": "Agent Skill",
+      "point1": "One-line install: curl -fsSL https://raw.githubusercontent.com/Leewwp/OmniCraft/main/agent-access/skill/install.sh | bash",
+      "point2": "Teaches your agent to search, read usage guides, install step by step, and — with a PAT — download and publish in one sentence (mandatory confirmation gate: the full draft summary must be approved before any write)"
+    },
+    "verify": {
+      "title": "Verification question",
+      "subtitle": "Smoke-test your setup with this question — two curl lines should return sheet-music search hits plus the usage guide:",
+      "keyword": "sheet music"
+    },
+    "limits": {
+      "title": "Rate limits",
+      "point1": "Per-IP rate limits: search 30 req/min, regular reads 300 req/min",
+      "point2": "The anonymous surface is read-only; downloads and uploads need a personal access token (PAT, account settings → Agent tokens, download / upload scopes)",
+      "point3": "All responses are JSON; pagination defaults to page_size=20, search caps at 50"
+    },
+    "versioning": {
+      "title": "Versioning promise",
+      "body": "No breaking changes within v1: fields are only added, never repurposed. Breaking changes ship as v2 with a deprecation period — migration notes will be announced here and in the OpenAPI document."
+    },
+    "boundary": {
+      "title": "Capability boundary",
+      "body": "The anonymous surface only returns published, public content (drafts / private / in-review / banned content never appears in any anonymous response); usage-guide safety notes always come from the platform template."
+    }
   }
 }

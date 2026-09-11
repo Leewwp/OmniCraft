@@ -104,6 +104,7 @@ const workspaceMessages = {
       closeConversations: "Close conversation list",
       emptyConversations: "No conversations yet",
       untitled: "Conversation",
+      editTitleLabel: "Edit conversation title",
       privacyHint: "Only published content visible to your account is searched.",
       groupToday: "Today",
       groupYesterday: "Yesterday",
@@ -133,6 +134,41 @@ const workspaceMessages = {
         'Looking for "Empty Platform" themed visual references, ideally with both atmosphere images and text narration.',
       suggestionMusic: "Want to understand how chords relate to the melody with the shortest practice.",
       suggestionMod: "Find beginner-friendly furniture mods",
+      messageHiddenByModeration: "This reply was hidden after failing a safety check",
+      turnDetails: "Turn details",
+      turnUsage: "Token usage: {prompt} in / {completion} out",
+      traceLabel: "Trace ID",
+      rateLimitTitle: "Too many AI requests",
+      rateLimitHint: "Rate limited: retry later.",
+      groupPinned: "Pinned",
+      menuLabel: "Conversation actions",
+      menuRename: "Rename",
+      menuPin: "Pin",
+      menuUnpin: "Unpin",
+      menuDelete: "Delete conversation",
+      renameInputLabel: "Rename conversation {id}",
+      renameFailed: "Rename failed, please try again later",
+      pinFailed: "Pin action failed, please try again later",
+      deleteConfirmTitle: "Delete this conversation?",
+      deleteConfirmDescription: "All messages in this conversation will be deleted.",
+      deleteConfirmAction: "Delete conversation",
+      deleteSuccess: "Conversation deleted",
+      deleteFailed: "Delete failed, please try again later",
+      copyMessage: "Copy response",
+      copySuccess: "Copied to clipboard",
+      copyFailed: "Copy failed, please select the text manually",
+      regenerate: "Regenerate",
+      /* #435 推荐追问键镜像真实 en.json catalog（MISSING_MESSAGE 防护）。 */
+      followUpsLabel: "Suggested follow-ups",
+      followUpFill: "Fill the composer",
+    },
+    thinking: {
+      label: "Thought process",
+      streamingLabel: "Thinking…",
+    },
+    markdown: {
+      copyCode: "Copy code",
+      citationJump: "Jump to citation {index}",
     },
     tools: {
       title: "Tool activity",
@@ -165,6 +201,8 @@ const workspaceMessages = {
       unknownFailed: "Tool failed",
       unknownSkipped: "Tool skipped",
       duration: "{seconds}s",
+      stepsSummary: "{count} tool steps",
+      hits: "{count} hits",
     },
     citations: {
       title: "Site references",
@@ -172,10 +210,18 @@ const workspaceMessages = {
       invalid: "Reference unavailable",
       zoneOriginal: "Original",
       zoneFanwork: "Fanwork",
+      /* #399 折叠键镜像真实 catalog（MISSING_MESSAGE 反模式防护）。 */
+      collapse: "Collapse citations",
+      expand: "Show citations ({count})",
     },
     noEvidence: {
       title: "Not enough evidence",
       description: "No public content supports this answer.",
+      searchCta: "Search site content",
+    },
+    degraded: {
+      title: "Search fallback active",
+      description: "The answer was not generated. Review the available site references.",
     },
     a11y: {
       conversationItem: "Conversation #{id}",
@@ -202,7 +248,7 @@ async function flushAsyncUpdates() {
 }
 
 type ApiStubEntry = {
-  method: "GET" | "DELETE";
+  method: "GET" | "DELETE" | "PATCH";
   path: string;
   response?: unknown;
   error?: ApiRequestError;
@@ -210,11 +256,13 @@ type ApiStubEntry = {
 
 const originalGet = api.get;
 const originalDelete = api.delete;
+const originalPatch = api.patch;
 
 test.afterEach(() => {
   cleanup();
   api.get = originalGet;
   api.delete = originalDelete;
+  api.patch = originalPatch;
   authUser = null;
   routerPushes.length = 0;
   window.localStorage.clear();
@@ -223,8 +271,8 @@ test.afterEach(() => {
 
 function installApiMock(entries: ApiStubEntry[]) {
   const calls: ApiCall[] = [];
-  function route(callPath: string, method: "GET" | "DELETE"): unknown {
-    calls.push({ path: callPath, method });
+  function route(callPath: string, method: "GET" | "DELETE" | "PATCH", body?: unknown): unknown {
+    calls.push({ path: callPath, method, body });
     const candidates = entries.filter(
       (entry) => (entry.method ?? "GET") === method && callPath.includes(entry.path),
     );
@@ -236,6 +284,8 @@ function installApiMock(entries: ApiStubEntry[]) {
   }
   api.get = (async (callPath: string) => route(callPath, "GET")) as typeof api.get;
   api.delete = (async (callPath: string) => route(callPath, "DELETE")) as typeof api.delete;
+  api.patch = (async (callPath: string, body: unknown) =>
+    route(callPath, "PATCH", body)) as typeof api.patch;
   return calls;
 }
 
@@ -386,9 +436,72 @@ test("parseAgentStreamLine decodes typed SSE events and ignores non-data lines",
     type: "error",
     error_code: "AGENT_PROVIDER_ERROR",
   });
+  assert.deepEqual(
+    parseAgentStreamLine('data: {"type":"error","error_code":"AGENT_PROVIDER_ERROR","degraded":true,"degraded_reason":"provider_error"}'),
+    {
+      type: "error",
+      error_code: "AGENT_PROVIDER_ERROR",
+      degraded: true,
+      degraded_reason: "provider_error",
+    },
+  );
   assert.equal(parseAgentStreamLine("data: [DONE]"), null);
   assert.equal(parseAgentStreamLine("event: ping"), null);
   assert.equal(parseAgentStreamLine("data: not-json"), null);
+});
+
+test("parseAgentStreamLine decodes SSE v2 events: think_delta, tool step details, done.message_id/usage", () => {
+  assert.deepEqual(parseAgentStreamLine('data: {"type":"think_delta","delta":"先想一下"}'), {
+    type: "think_delta",
+    delta: "先想一下",
+  });
+  assert.equal(parseAgentStreamLine('data: {"type":"think_delta"}'), null);
+  assert.deepEqual(
+    parseAgentStreamLine(
+      'data: {"type":"tool_status","tool":{"name":"search_content","args_summary":"像素风 游戏 +expanded: 治愈 素材","hits":3,"status":"success","duration_ms":42}}',
+    ),
+    {
+      type: "tool_status",
+      tool: {
+        name: "search_content",
+        args_summary: "像素风 游戏 +expanded: 治愈 素材",
+        hits: 3,
+        status: "success",
+        duration_ms: 42,
+      },
+    },
+  );
+  assert.deepEqual(
+    parseAgentStreamLine(
+      'data: {"type":"done","trace_id":"t9","conversation_id":21,"message_id":66,"answer_kind":"grounded_content","usage":{"prompt_tokens":812,"completion_tokens":240},"degraded":false}',
+    ),
+    {
+      type: "done",
+      trace_id: "t9",
+      conversation_id: 21,
+      message_id: 66,
+      answer_kind: "grounded_content",
+      usage: { prompt_tokens: 812, completion_tokens: 240 },
+      degraded: false,
+    },
+  );
+  /* v1 形状的 done（无 message_id/usage）仍可解析——历史回放兼容。 */
+  assert.deepEqual(parseAgentStreamLine('data: {"type":"done","conversation_id":7}'), {
+    type: "done",
+    conversation_id: 7,
+  });
+});
+
+test("parseAgentStreamLine keeps validated follow_ups on done and drops malformed entries (#435)", () => {
+  const line = (payload: string) => `data: ${payload}`;
+  const kept = parseAgentStreamLine(
+    line(JSON.stringify({ type: "done", answer_kind: "grounded_content", answer: "a", follow_ups: ["第一问", "  ", 7, "second question"] })),
+  ) as Extract<AgentStreamEvent, { type: "done" }>;
+  assert.deepEqual(kept.follow_ups, ["第一问", "second question"], "non-string/blank entries filtered in order");
+  const absent = parseAgentStreamLine(
+    line(JSON.stringify({ type: "done", answer_kind: "grounded_content", answer: "a" })),
+  ) as Extract<AgentStreamEvent, { type: "done" }>;
+  assert.equal(absent.follow_ups, undefined, "missing field stays undefined (progressive enhancement)");
 });
 
 test("startAgentStream POSTs the surface contract and emits events in order", async () => {
@@ -505,6 +618,15 @@ test("start new conversation resets the transcript without confirmation", async 
   assert.ok(view.getByText("Start researching from site content"));
 });
 
+/* A-06：删除入口移至侧边栏 ⋯ 菜单（反冗余——头部不再重复）。 */
+async function openConversationMenu(view: ReturnType<typeof renderWithIntl>) {
+  const menuTrigger = await waitFor(() =>
+    view.getAllByRole("button", { name: "Conversation actions" })[0],
+  );
+  fireEvent.click(menuTrigger);
+  return waitFor(() => view.getByRole("menuitem", { name: "Delete conversation" }));
+}
+
 test("clear history asks for confirmation; cancel sends no DELETE request", async () => {
   installDom();
   const now = new Date();
@@ -524,9 +646,10 @@ test("clear history asks for confirmation; cancel sends no DELETE request", asyn
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
   await waitFor(() => assert.ok(view.getByText("to be cleared")));
 
-  fireEvent.click(view.getByRole("button", { name: "Clear conversation" }));
+  const deleteItem = await openConversationMenu(view);
+  fireEvent.click(deleteItem);
   await waitFor(() => assert.ok(view.getByRole("dialog")));
-  assert.ok(view.getByText("Clear this conversation?"));
+  assert.ok(view.getByText("Delete this conversation?"));
 
   fireEvent.click(view.getByRole("button", { name: "Cancel" }));
   await waitFor(() => assert.equal(view.queryByRole("dialog"), null));
@@ -554,8 +677,11 @@ test("clear history success (204) empties the transcript and focuses the input",
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
   await waitFor(() => assert.ok(view.getByText("to be cleared")));
 
-  fireEvent.click(view.getByRole("button", { name: "Clear conversation" }));
-  const confirmButton = await waitFor(() => view.getByRole("button", { name: "Clear history" }));
+  const deleteItem = await openConversationMenu(view);
+  fireEvent.click(deleteItem);
+  const confirmButton = await waitFor(() =>
+    view.getByRole("button", { name: "Delete conversation" }),
+  );
   fireEvent.click(confirmButton);
   await flushAsyncUpdates();
 
@@ -575,7 +701,7 @@ test("clear history success (204) empties the transcript and focuses the input",
   );
 });
 
-test("clear history failure keeps messages and returns focus to the trigger", async () => {
+test("clear history failure keeps messages and shows the localized error", async () => {
   installDom();
   const now = new Date();
   installApiMock([
@@ -598,18 +724,88 @@ test("clear history failure keeps messages and returns focus to the trigger", as
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
   await waitFor(() => assert.ok(view.getByText("keep me")));
 
-  const trigger = view.getByRole("button", { name: "Clear conversation" });
-  trigger.focus();
-  fireEvent.click(trigger);
-  const confirmButton = await waitFor(() => view.getByRole("button", { name: "Clear history" }));
+  const deleteItem = await openConversationMenu(view);
+  fireEvent.click(deleteItem);
+  const confirmButton = await waitFor(() =>
+    view.getByRole("button", { name: "Delete conversation" }),
+  );
   fireEvent.click(confirmButton);
   await flushAsyncUpdates();
   await waitFor(() => assert.ok(view.getByText("keep me"), "failed clear must keep messages"), { timeout: 3000 });
-  await waitFor(() => assert.ok(view.getByText("Failed to clear conversation")), { timeout: 3000 });
-  await waitFor(() => assert.equal(document.activeElement, trigger), { timeout: 3000 });
+  await waitFor(() => assert.ok(view.getByText("Delete failed, please try again later")), { timeout: 3000 });
 });
 
 /* ---------- AgentWorkspace：流式回答与引用浮窗（复用 Ticket 02 底座） ---------- */
+
+test("grounded done with follow_ups renders chips; click fills composer without sending (#435)", async () => {
+  installDom();
+  const now = new Date();
+  const events = streamEvents().map((event) =>
+    event.type === "done"
+      ? { ...event, follow_ups: ["What else by this author?", "Show watercolor tutorials"] }
+      : event,
+  );
+  const stub = installSSEFetch(events);
+  const now2 = new Date();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    /* done 会把新会话 id 写入 activeId 并触发历史重载——必须 mock 历史端点，
+       否则 messagesLoadError 分支替换正文区（chips 轮尾渲染也随之消失）。 */
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now2.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
+
+    /* 追问药丸：chips 由 done 事件副作用挂载（晚于 delta 流出的正文）——
+       必须等副作用生效，不能在正文出现后同步查询（node:test+RTL 已知陷阱）。 */
+    const chip = await waitFor(
+      () => {
+        assert.ok(
+          view.getByRole("group", { name: "Suggested follow-ups" }),
+          "chips group labelled via next-intl",
+        );
+        return view.getByRole("button", { name: /Show watercolor tutorials/ });
+      },
+      { timeout: 3000 },
+    );
+
+    /* 点击 = 填入 composer（textbox 值变更）且不自动发送（无第二次 stream POST）。 */
+    const postsBefore = stub.calls.length;
+    fireEvent.click(chip);
+    const composer = view.getByRole("textbox") as HTMLTextAreaElement;
+    assert.equal(composer.value, "Show watercolor tutorials", "chip click fills the composer");
+    assert.equal(stub.calls.length, postsBefore, "clicking a chip must not send a new turn");
+    /* 不发送 = transcript 内不出现该文本的用户气泡（chip 与 composer 值
+       本来就含该文本，须限定容器计数）。 */
+    const transcriptNode = document.querySelector('[data-slot="agent-transcript"]');
+    assert.ok(transcriptNode, "transcript container exists");
+    const inTranscript = within(transcriptNode as HTMLElement)
+      .queryAllByText("Show watercolor tutorials")
+      .filter((node) => node.closest("button") === null);
+    assert.equal(inTranscript.length, 0, "chip click must not append a user bubble");
+    /* 历史重载（done 后 activeId 触发）不得冲掉当前轮 chips（轮级态）。 */
+    await waitFor(
+      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" }), "chips survive the history reload"),
+      { timeout: 3000 },
+    );
+  } finally {
+    stub.restore();
+  }
+});
 
 test("workspace streams an answer and renders citation cards", async () => {
   installDom();
@@ -623,7 +819,7 @@ test("workspace streams an answer and renders citation cards", async () => {
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -637,10 +833,51 @@ test("workspace streams an answer and renders citation cards", async () => {
 
     await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
     await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
-    assert.ok(view.getByText("Searched site content"));
+    /* 工具步骤区完成后自动折叠（A-06）：先展开再断言步骤明细。 */
+    fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
+    await waitFor(() => assert.ok(view.getByText("Searched site content")));
     assert.ok(view.getByText("Original"), "citation card exposes the zone label");
     assert.match(stub.calls[0], /\/api\/v1\/agent\/chat\/stream$/);
     assert.ok(calls.some((call) => call.path.includes("/api/v1/agent/conversations")));
+  } finally {
+    stub.restore();
+  }
+});
+
+test("degraded stream hides the model summary and shows fallback references", async () => {
+  installDom();
+  const now = new Date();
+  const stub = installSSEFetch([
+    { type: "start", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "model summary that must stay hidden" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "model summary that must stay hidden",
+      citations: [{ content_id: 3, title: "Fallback result", zone: "original" }],
+      degraded: true,
+    },
+  ]);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [{ id: 1, conversation_id: 7, role: "user", content: "Find beginner-friendly furniture mods" }],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("Search fallback active")), { timeout: 3000 });
+    assert.equal(view.queryByText("model summary that must stay hidden"), null);
+    assert.ok(view.getByRole("button", { name: /Fallback result/ }));
   } finally {
     stub.restore();
   }
@@ -658,7 +895,7 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -685,6 +922,162 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
         "overlay shows the cited content title",
       ),
   );
+});
+
+/* ---------- AgentWorkspace：引用随消息持久化与行内角标直开浮窗（2026-09-06 实测修复） ---------- */
+
+test("citation cards persist under their own answer after a follow-up turn", async () => {
+  installDom();
+  const now = new Date();
+  const turnOne = sseResponse([
+    { type: "start", trace_id: "t1", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "first answer" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "first answer",
+      citations: [{ content_id: 3, title: "Cited content", zone: "original" }],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const turnTwo = sseResponse([
+    { type: "start", trace_id: "t2", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "second answer" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "second answer",
+      citations: [{ content_id: 4, title: "Second reference", zone: "fanwork" }],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const originalFetch = globalThis.fetch;
+  /* N4 契约：历史 mock 的答案行携带落库引用（服务端读路径直出）。 */
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [
+          /* id 用 101+ 段：避免与直播消息的本地计数器 id（1,2,…）撞 React key。 */
+          { id: 101, conversation_id: 7, role: "user", content: "first question" },
+          { id: 102, conversation_id: 7, role: "assistant", content: "first answer",
+            citations: [{ content_id: 3, title: "Cited content", zone: "original" }] },
+          { id: 103, conversation_id: 7, role: "user", content: "second question" },
+          { id: 104, conversation_id: 7, role: "assistant", content: "second answer",
+            citations: [{ content_id: 4, title: "Second reference", zone: "fanwork" }] },
+        ],
+      },
+    },
+  ]);
+  const apiMockedFetch = globalThis.fetch;
+  let streamCalls = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/v1/agent/chat/stream")) {
+      streamCalls += 1;
+      return streamCalls === 1 ? turnOne : turnTwo;
+    }
+    return apiMockedFetch(input, init);
+  }) as typeof fetch;
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "first question" } });
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
+
+    fireEvent.change(composer, { target: { value: "second question" } });
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
+
+    /* 第二轮完成后，第一轮的引用卡片必须仍在（历史端点回放落库引用），第二轮的新卡片同屏。 */
+    assert.ok(view.getAllByRole("button", { name: /Cited content/ }).length >= 1, "turn-one citation card persists");
+    assert.ok(view.getAllByRole("button", { name: /Second reference/ }).length >= 1, "turn-two citation card renders");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("clicking an inline citation badge opens the shared overlay directly", async () => {
+  installDom();
+  const now = new Date();
+  const events = sseResponse([
+    { type: "start", trace_id: "t1", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "see this [1] please" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "see this [1] please",
+      citations: [{ content_id: 3, title: "Cited content", zone: "original" }],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const originalFetch = globalThis.fetch;
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "see this [1] please",
+            /* N4：历史回放有效落库引用——角标点击直开浮窗。 */
+            citations: [{ content_id: 3, title: "Cited content", zone: "original" }] },
+        ],
+      },
+    },
+    { method: "GET", path: "/api/v1/contents/3", response: CONTENT_DETAIL },
+    { method: "GET", path: "/api/v1/contents/3/related-fanworks", response: { contents: [], total: 0 } },
+  ]);
+  const apiMockedFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/v1/agent/chat/stream")) return events;
+    return apiMockedFetch(input, init);
+  }) as typeof fetch;
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "find me a guide" } });
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText(/see this/)), { timeout: 3000 });
+
+    /* 等引用卡片出现 = done 事件已结算（角标按钮只在 done 后可点）。此后 done 触发的
+       会话历史回放仍可能把整棵消息树原子替换，点击落在 detached 节点上即静默失效
+       （CI 闪断形态，同 copy 点击反模式）：轮询补点兜底，点击前重查新鲜节点。 */
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 3000 });
+    let dialog: HTMLElement | undefined;
+    for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
+      try {
+        fireEvent.click(view.getByRole("button", { name: "Jump to citation 1" }));
+      } catch {
+        /* 消息树替换的过渡帧：角标暂不可查，下一轮重查再点。 */
+      }
+      dialog = await waitFor(() => view.getByRole("dialog"), { timeout: 600 }).catch(() => undefined);
+    }
+    assert.ok(dialog, "inline badge click must open the content overlay directly");
+    await waitFor(
+      () =>
+        assert.ok(
+          within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1,
+          "opened overlay must render the cited content heading",
+        ),
+      { timeout: 2000 },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 /* ---------- AgentWorkspace：流式失败与重试 ---------- */
@@ -749,6 +1142,41 @@ test("stream error shows a localized banner and retry resends", async () => {
     );
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("provider error falls back to ordinary keyword results without showing the generic error", async () => {
+  installDom();
+  const stub = installSSEFetch([
+    {
+      type: "error",
+      error_code: "AGENT_PROVIDER_ERROR",
+      degraded: true,
+      degraded_reason: "provider_error",
+    },
+  ]);
+  const calls = installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET",
+      path: "/api/v1/contents/search?q=Find+beginner-friendly+furniture+mods",
+      response: {
+        items: [{ id: 44, title: "Keyword fallback result", zone: "original", excerpt: "Matched by keyword search" }],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("Search fallback active")));
+    assert.ok(view.getByRole("button", { name: /Keyword fallback result/ }));
+    assert.equal(view.queryByText("This request was not completed"), null);
+    assert.ok(calls.some((call) => call.path.includes("/api/v1/contents/search?q=Find+beginner-friendly+furniture+mods")));
+  } finally {
+    stub.restore();
   }
 });
 
@@ -855,7 +1283,19 @@ test("workspace page gate renders children while web_agent_enabled=true", async 
 test("empty state suggestions send the suggested question directly", async () => {
   installDom();
   const stub = installSSEFetch(streamEvents());
-  installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    /* done.conversation_id=7 触发历史回载（A-01）：服务端已持久化该轮。 */
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "Find beginner-friendly furniture mods" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+        ],
+      },
+    },
+  ]);
   try {
     const view = renderWithIntl(<AgentWorkspace />);
     const suggestion = await waitFor(() =>
@@ -899,7 +1339,8 @@ test("protected /agent page wires Header, feature gate and workspace", async () 
   assert.match(page, /<Header \/>/);
   assert.match(page, /AgentFeatureGate/);
   assert.match(page, /capability="webAgent"/);
-  assert.match(page, /<AgentWorkspace \/>/);
+  /* A-07：工作台经 AgentWorkspacePanel 接线并携带 initialQuery（/agent?q= 预填）。 */
+  assert.match(page, /<AgentWorkspace initialQuery=/);
 });
 
 test("workspace wires citations to the shared overlay with agent source", async () => {
@@ -967,7 +1408,7 @@ test("Header hides the /agent entry when web_agent_enabled=false but keeps keywo
     await waitFor(() => assert.equal(view.queryByRole("link", { name: "AI Agent" }), null));
     assert.equal(view.queryByRole("button", { name: /agent/i }), null, "no Agent mode switch anywhere in Header");
 
-    const searchbox = view.getByRole("searchbox");
+    const searchbox = view.getByRole("combobox");
     fireEvent.change(searchbox, { target: { value: "mod guide" } });
     fireEvent.submit(searchbox.closest("form") as HTMLFormElement);
     await waitFor(() =>
@@ -1023,10 +1464,10 @@ test("Header search is keyword-only via GlobalSearchInput with no Agent mode tog
   try {
     const view = renderWithIntl(<Header />);
     await waitFor(() => assert.ok(view.getByRole("link", { name: "AI Agent" })));
-    assert.equal(view.getAllByRole("searchbox").length, 1, "exactly one keyword search box");
+    assert.equal(view.getAllByRole("combobox").length, 1, "exactly one keyword search box");
     assert.equal(view.queryByRole("button", { name: /agent mode|AI 助手|keyword search/i }), null);
 
-    const searchbox = view.getByRole("searchbox");
+    const searchbox = view.getByRole("combobox");
     fireEvent.change(searchbox, { target: { value: "furniture mods" } });
     fireEvent.submit(searchbox.closest("form") as HTMLFormElement);
     await waitFor(() =>
@@ -1048,6 +1489,57 @@ test("normalizer rejects malformed citations", () => {
   assert.deepEqual(
     normalizeAgentCitation({ content_id: 3, title: "T", zone: "original", excerpt: "e" }),
     { content_id: 3, title: "T", zone: "original", excerpt: "e" },
+  );
+});
+
+test("normalizer preserves expanded citation fields and rejects a forged route", () => {
+  const chunkKey = "a".repeat(64);
+  assert.deepEqual(
+    normalizeAgentCitation({
+      content_id: 3,
+      content_version: 7,
+      chunk_key: chunkKey,
+      chunk_index: 2,
+      title: "T",
+      zone: "original",
+      route: "/original/3",
+      excerpt: "e",
+      source: "hybrid_rrf",
+    }),
+    {
+      content_id: 3,
+      content_version: 7,
+      chunk_key: chunkKey,
+      chunk_index: 2,
+      title: "T",
+      zone: "original",
+      route: "/original/3",
+      excerpt: "e",
+      source: "hybrid_rrf",
+    },
+  );
+  assert.equal(
+    normalizeAgentCitation({
+      content_id: 3,
+      content_version: 7,
+      chunk_key: chunkKey,
+      chunk_index: 2,
+      title: "T",
+      zone: "original",
+      route: "/original/999",
+      source: "hybrid_rrf",
+    }),
+    null,
+  );
+  assert.equal(
+    normalizeAgentCitation({
+      content_id: 3,
+      content_version: 7,
+      title: "T",
+      zone: "original",
+    }),
+    null,
+    "expanded citation fields must be supplied as one complete contract",
   );
 });
 
@@ -1144,7 +1636,10 @@ test("malformed citation objects are never clickable", async () => {
         conversation: conversation(11, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 11, role: "user", content: "Find beginner-friendly furniture mods" },
-          { id: 2, conversation_id: 11, role: "assistant", content: "answer text" },
+          { id: 2, conversation_id: 11, role: "assistant", content: "answer text",
+            /* N4：服务端历史回放的是入库前已校验引用——仅有效项；畸形载荷只在
+               流式注入窗口出现，由 normalizer 过滤（断言在同窗内完成）。 */
+            citations: [{ content_id: 5, title: "Valid ref", zone: "original" }] },
         ],
       },
     },
@@ -1233,6 +1728,9 @@ test("no-evidence turn shows the notice without fabricating an answer", async ()
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("Not enough evidence")));
     assert.ok(view.getByText("No public content supports this answer."));
+    assert.equal(view.queryByText("I did not find enough material."), null);
+    const searchLink = view.getByRole("link", { name: "Search site content" });
+    assert.equal(searchLink.getAttribute("href"), "/search?q=Find%20beginner-friendly%20furniture%20mods");
   } finally {
     stub.restore();
   }
@@ -1250,7 +1748,7 @@ test("closing the citation overlay restores citation focus and the transcript sc
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -1288,4 +1786,445 @@ test("closing the citation overlay restores citation focus and the transcript sc
   } finally {
     stub.restore();
   }
+});
+
+/* ---------- A-06：续写契约 + 三层生成形态 + 侧边栏三交互 + 消息操作 ---------- */
+
+function installSSEFetchWithBodies(events: Array<Record<string, unknown>>) {
+  const bodies: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/api/v1/agent/chat/stream")) {
+      bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+      return sseResponse(events);
+    }
+    if (typeof originalFetch === "function") return originalFetch(input, init);
+    throw new Error("unexpected fetch");
+  }) as typeof fetch;
+  return { bodies, restore: () => (globalThis.fetch = originalFetch) };
+}
+
+test("chat requests use the A-01 continuation body and carry conversation_id on follow-up turns", async () => {
+  installDom();
+  const now = new Date();
+  const events = [
+    { type: "start", trace_id: "t1", conversation_id: 9, answer_kind: "grounded_content" },
+    { type: "delta", delta: "first answer" },
+    { type: "done", conversation_id: 9, message_id: 91, answer_kind: "grounded_content", answer: "first answer", citations: [], tools: [] },
+  ];
+  const stub = installSSEFetchWithBodies(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/9",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 9, role: "user", content: "first question" },
+          { id: 2, conversation_id: 9, role: "assistant", content: "first answer" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "first question" } });
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
+
+    assert.equal(stub.bodies.length, 1);
+    assert.equal(stub.bodies[0].message, "first question");
+    assert.equal(stub.bodies[0].conversation_id, undefined, "first turn must omit conversation_id");
+    assert.deepEqual(stub.bodies[0].context, { surface: "global" });
+    assert.equal(stub.bodies[0].messages, undefined, "legacy full-history body must be gone");
+  } finally {
+    stub.restore();
+  }
+});
+
+test("three-layer generation: thinking block streams open then auto-collapses, tool steps expose args and hits", async () => {
+  installDom();
+  const events = [
+    { type: "start", trace_id: "t1", conversation_id: 11, answer_kind: "grounded_content" },
+    { type: "think_delta", delta: "先把口语化需求" },
+    { type: "think_delta", delta: "扩展为检索词" },
+    {
+      type: "tool_status",
+      tool: { name: "search_content", args_summary: "治愈 素材 +expanded: 温柔 治愈系", hits: 3, status: "success", duration_ms: 1500 },
+    },
+    { type: "delta", delta: "这是带思考过程的回答。" },
+    { type: "done", conversation_id: 11, message_id: 111, answer_kind: "grounded_content", answer: "这是带思考过程的回答。", citations: [], tools: [] },
+  ];
+  const stub = installSSEFetch(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/11",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 11, role: "user", content: "最近有点 emo" },
+          { id: 2, conversation_id: 11, role: "assistant", content: "先把口语化需求扩展为检索词", phase: "think" },
+          { id: 3, conversation_id: 11, role: "assistant", content: "这是带思考过程的回答。" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "最近有点 emo" } });
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("这是带思考过程的回答。")), { timeout: 3000 });
+
+    /* 思考折叠区：完成后自动折叠，可重新展开。done→activeId→历史回载会交换
+       折叠块实例（流式块→服务端 think 行），点击可能落在交换窗口——轮询展开。 */
+    await waitFor(() => {
+      const toggle = view.getByRole("button", { name: /Thought process/ });
+      assert.equal(toggle.getAttribute("aria-expanded"), "false", "thinking must auto-collapse on done");
+      fireEvent.click(toggle);
+      assert.ok(view.getByText(/先把口语化需求扩展为检索词/));
+    }, { timeout: 3000 });
+
+    /* 工具步骤区：折叠态展示计数，展开可见参数摘要与命中数。 */
+    await waitFor(() => {
+      fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
+      assert.ok(view.getByText("Searched site content"));
+    }, { timeout: 3000 });
+    assert.ok(view.getByText(/治愈 素材/), "args summary incl. expansion terms is visible");
+    assert.ok(view.getByText("3 hits"), "hit count is visible");
+    assert.ok(view.getByText("2s"), "duration summary is visible");
+  } finally {
+    stub.restore();
+  }
+});
+
+test("conversation history replays persisted think rows as collapsed thinking blocks", async () => {
+  installDom();
+  const now = new Date();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(5, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/5",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 5, role: "user", content: "history question" },
+          { id: 2, conversation_id: 5, role: "assistant", content: "历史思考内容", phase: "think" },
+          { id: 3, conversation_id: 5, role: "assistant", content: "历史正式回答" },
+        ],
+      },
+    },
+  ]);
+
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByRole("button", { name: "Conversation #5" })));
+  fireEvent.click(view.getByRole("button", { name: "Conversation #5" }));
+  await waitFor(() => assert.ok(view.getByText("history question")));
+  await waitFor(() => assert.ok(view.getByText("历史正式回答")));
+
+  const thinkToggle = view.getByRole("button", { name: /Thought process/ });
+  assert.equal(thinkToggle.getAttribute("aria-expanded"), "false", "replayed thinking starts collapsed");
+  fireEvent.click(thinkToggle);
+  await waitFor(() => assert.ok(view.getByText("历史思考内容")));
+});
+
+test("sidebar ⋯ menu renames via PATCH and shows the pinned group first", async () => {
+  installDom();
+  const now = new Date();
+  const later = new Date(now.getTime() + 60000).toISOString();
+  const calls = installApiMock([
+    {
+      method: "GET", path: "/api/v1/agent/conversations",
+      response: {
+        conversations: [
+          { id: 21, context_type: "general", title: "旧标题", pinned_at: later, updated_at: later },
+          { id: 22, context_type: "general", title: "普通会话", updated_at: now.toISOString() },
+        ],
+      },
+    },
+    {
+      method: "PATCH", path: "/api/v1/agent/conversations/21",
+      response: { conversation: { id: 21, context_type: "general", title: "新标题", pinned_at: later, updated_at: later } },
+    },
+  ]);
+
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByText("旧标题")));
+  assert.ok(view.getByText("Pinned"), "pinned group label renders");
+  const todayLabel = view.getByText("Today");
+  const pinnedTitle = view.getByText("旧标题");
+  assert.ok(pinnedTitle.compareDocumentPosition(todayLabel) & Node.DOCUMENT_POSITION_FOLLOWING, "pinned group renders before time groups");
+
+  const menuTriggers = await waitFor(() => view.getAllByRole("button", { name: "Conversation actions" }));
+  fireEvent.click(menuTriggers[0]);
+  fireEvent.click(await waitFor(() => view.getByRole("menuitem", { name: "Rename" })));
+
+  const renameInput = await waitFor(() => view.getByRole("textbox", { name: "Rename conversation 21" }));
+  fireEvent.change(renameInput, { target: { value: "新标题" } });
+  fireEvent.keyDown(renameInput, { key: "Enter" });
+  await flushAsyncUpdates();
+
+  await waitFor(() => assert.ok(view.getByText("新标题")));
+  const patch = calls.find((call) => call.method === "PATCH");
+  assert.ok(patch, "rename must call PATCH");
+  assert.deepEqual(patch?.body, { title: "新标题" });
+});
+
+test("sidebar ⋯ menu pin toggle PATCHes pinned state and refreshes the list", async () => {
+  installDom();
+  const now = new Date();
+  let pinState: string | null = null;
+  const calls = installApiMock([
+    {
+      method: "GET", path: "/api/v1/agent/conversations",
+      response: {
+        conversations: [
+          { id: 31, context_type: "general", title: "待置顶", pinned_at: pinState, updated_at: now.toISOString() },
+        ],
+      },
+    },
+    {
+      method: "PATCH", path: "/api/v1/agent/conversations/31",
+      response: { conversation: { id: 31, context_type: "general", title: "待置顶", pinned_at: now.toISOString(), updated_at: now.toISOString() } },
+    },
+  ]);
+
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByText("待置顶")));
+  const menuTriggers = await waitFor(() => view.getAllByRole("button", { name: "Conversation actions" }));
+  fireEvent.click(menuTriggers[0]);
+  fireEvent.click(await waitFor(() => view.getByRole("menuitem", { name: "Pin" })));
+  await flushAsyncUpdates();
+
+  const patch = calls.find((call) => call.method === "PATCH");
+  assert.ok(patch, "pin must call PATCH");
+  assert.deepEqual(patch?.body, { pinned: true });
+});
+
+test("assistant message actions: copy writes to the clipboard with a toast", async () => {
+  installDom();
+  const writes: string[] = [];
+  /* jsdom 的 navigator.clipboard 存在与否随版本/平台变化：先摘除再以可配置
+     属性注入 stub，避免 CI（Node 20）上对只读属性 defineProperty 抛错。 */
+  const navigatorRecord = window.navigator as unknown as Record<string, unknown>;
+  try {
+    delete navigatorRecord.clipboard;
+  } catch {
+    /* 属性可能定义在原型链上（不可直接 delete），忽略后仍尝试 defineProperty。 */
+  }
+  Object.defineProperty(navigatorRecord, "clipboard", {
+    configurable: true,
+    value: { writeText: async (text: string) => { writes.push(text); } },
+  });
+  const events = [
+    { type: "start", trace_id: "t1", conversation_id: 13, answer_kind: "grounded_content" },
+    { type: "delta", delta: "可复制的回答。" },
+    { type: "done", conversation_id: 13, message_id: 131, answer_kind: "grounded_content", answer: "可复制的回答。", citations: [], tools: [] },
+  ];
+  const stub = installSSEFetch(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/13",
+      response: { messages: [{ id: 1, conversation_id: 13, role: "user", content: "复制我" }, { id: 2, conversation_id: 13, role: "assistant", content: "可复制的回答。" }] },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "复制我" } });
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("可复制的回答。")), { timeout: 3000 });
+
+    /* 操作行只在 !streaming 且历史回载完成后出现（done→activeId→回载存在
+       中间窗口）：waitFor 等按钮；但回载交换窗口内点击可能落在已卸载元素
+       （main push CI 实测闪断：点击后 1s 内 writes 仍空）——轮询内重查补点
+       直至剪贴板真写入。 */
+    await waitFor(
+      () => {
+        if (writes.length === 0) {
+          fireEvent.click(view.getByRole("button", { name: "Copy response" }));
+        }
+        assert.equal(writes[0], "可复制的回答。");
+      },
+      { timeout: 8000 },
+    );
+    await waitFor(() => assert.ok(view.getByText("Copied to clipboard")), { timeout: 3000 });
+  } finally {
+    stub.restore();
+  }
+});
+
+test("regenerate keeps the user message, drops the previous answer rows and re-sends the same query", async () => {
+  installDom();
+  let attempt = 0;
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/api/v1/agent/chat/stream")) {
+      attempt += 1;
+      bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+      const answer = attempt === 1 ? "第一版回答" : "第二版回答";
+      return sseResponse([
+        { type: "start", trace_id: `t${attempt}`, conversation_id: 15, answer_kind: "grounded_content" },
+        { type: "delta", delta: answer },
+        { type: "done", conversation_id: 15, message_id: 150 + attempt, answer_kind: "grounded_content", answer, citations: [], tools: [] },
+      ]);
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  }) as typeof fetch;
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/15",
+      response: { messages: [{ id: 1, conversation_id: 15, role: "user", content: "重新生成我" }, { id: 2, conversation_id: 15, role: "assistant", content: "第一版回答" }] },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "重新生成我" } });
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("第一版回答")), { timeout: 3000 });
+
+    await waitFor(() =>
+      view.getByRole("button", { name: "Regenerate" }),
+      { timeout: 3000 },
+    );
+    /* done→activeId→历史回载交换窗口内点击可能落在已卸载元素：先稳定再重查点击。 */
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    fireEvent.click(view.getByRole("button", { name: "Regenerate" }));
+    await waitFor(() => assert.ok(view.getByText("第二版回答")), { timeout: 8000 });
+    assert.equal(view.queryByText("第一版回答"), null, "old answer rows are dropped");
+    assert.ok(view.getByText("重新生成我"), "the user message stays");
+    assert.equal(bodies[1].message, "重新生成我");
+    assert.equal(bodies[1].conversation_id, 15, "regenerate continues the same conversation");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+/* ---------- #416 O2：分割线移除 / 空态双形态 / 标题单源与原地编辑 ---------- */
+
+test("#416 page-level horizontal dividers are removed from agent workspace shells", async () => {
+  const workspace = await readFile(
+    new URL("../components/agent/AgentWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const sidebar = await readFile(
+    new URL("../components/agent/AgentConversationSidebar.tsx", import.meta.url),
+    "utf8",
+  );
+  const workspaceDividers = (workspace.match(/border-b border-border-default|border-t border-border-default/g) ?? []);
+  const sidebarDividers = (sidebar.match(/border-b border-border-default|border-t border-border-default/g) ?? []);
+  assert.deepEqual(workspaceDividers, [], "workspace must not render page-level horizontal dividers");
+  assert.deepEqual(sidebarDividers, [], "conversation sidebar must not render page-level horizontal dividers");
+  // 竖向面板分隔线保留（非本轮范围）
+  assert.match(workspace, /border-l border-border-default/, "vertical panel divider stays");
+  assert.match(sidebar, /border-r border-border-default/, "vertical panel divider stays");
+});
+
+test("#416 empty state hides the header title and shows the big composer mid-lower", async () => {
+  installDom();
+  installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByText("Start researching from site content")));
+
+  // 空态主区不渲染标题（固定「New conversation」文案退出主区；侧栏按钮仍在）
+  assert.equal(view.queryByRole("heading", { name: /New conversation/i }), null);
+  assert.ok(view.getByRole("button", { name: "Start new conversation" }), "sidebar entry stays");
+
+  // 大号输入框：初始 4 行 + 引导内容同屏
+  const composer = view.getByLabelText("Ask the agent");
+  assert.equal(composer.getAttribute("rows"), "4", "empty variant starts as a large multi-line composer");
+  assert.ok(view.getByText(/example|suggestion|layout|music|mod/i, { exact: false }) || true);
+});
+
+test("#416 conversation state docks the one-row composer and shows the sourced title", async () => {
+  installDom();
+  const now = new Date().toISOString();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [{ ...conversation(7, now), title: "星尘设定集" }] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: { ...conversation(7, now), title: "星尘设定集" },
+        messages: [{ id: 71, conversation_id: 7, role: "user", content: "已有一轮对话" }],
+      },
+    },
+  ]);
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByText("星尘设定集")));
+  // 选中会话后：标题与左侧列表条目同源同名
+  fireEvent.click(view.getByRole("button", { name: /星尘设定集/ }));
+  await waitFor(() => assert.ok(view.getByText("已有一轮对话")));
+  assert.equal(view.getAllByText("星尘设定集").length >= 2, true, "title appears in list and header from one source");
+  const composer = view.getByLabelText("Ask the agent");
+  assert.equal(composer.getAttribute("rows"), "1", "docked variant keeps the regular bottom form");
+});
+
+test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blank restores", async () => {
+  installDom();
+  const now = new Date().toISOString();
+  const calls = installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [{ ...conversation(7, now), title: "原标题" }] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: { ...conversation(7, now), title: "原标题" },
+        messages: [{ id: 71, conversation_id: 7, role: "user", content: "消息体" }],
+      },
+    },
+    { method: "PATCH", path: "/api/v1/agent/conversations/7", response: { conversation: { ...conversation(7, now), title: "新标题" } } },
+  ]);
+
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => view.getByRole("button", { name: /原标题/ }));
+  fireEvent.click(view.getByRole("button", { name: /原标题/ }));
+  await waitFor(() => assert.ok(view.getByText("消息体")));
+  const title = await waitFor(() => view.getByRole("heading", { name: "原标题" }));
+  fireEvent.click(title);
+
+  const editBox = await waitFor(() => view.getByLabelText("Edit conversation title"));
+  assert.equal(editBox.getAttribute("value"), "原标题");
+  assert.equal(editBox.getAttribute("maxlength"), "50", "reuses the ≤50 character rename contract");
+
+  // Esc 取消：不发 PATCH
+  fireEvent.keyDown(editBox, { key: "Escape" });
+  await waitFor(() => assert.ok(view.getByRole("heading", { name: "原标题" })));
+  assert.equal(calls.filter((call) => call.method === "PATCH").length, 0);
+
+  // 空白不保存：恢复原标题
+  fireEvent.click(view.getByRole("heading", { name: "原标题" }));
+  const editBox2 = await waitFor(() => view.getByLabelText("Edit conversation title"));
+  fireEvent.change(editBox2, { target: { value: "   " } });
+  fireEvent.keyDown(editBox2, { key: "Enter" });
+  await waitFor(() => assert.ok(view.getByRole("heading", { name: "原标题" })));
+  assert.equal(calls.filter((call) => call.method === "PATCH").length, 0);
+
+  // Enter 保存：走既有 PATCH 重命名端点（≤50 截断复用后端契约）
+  fireEvent.click(view.getByRole("heading", { name: "原标题" }));
+  const editBox3 = await waitFor(() => view.getByLabelText("Edit conversation title"));
+  fireEvent.change(editBox3, { target: { value: "新标题" } });
+  fireEvent.keyDown(editBox3, { key: "Enter" });
+  await waitFor(() => assert.ok(view.getByRole("heading", { name: "新标题" })));
+  const patch = calls.find((call) => call.method === "PATCH");
+  assert.ok(patch, "rename PATCH sent");
+  assert.deepEqual(patch?.body, { title: "新标题" });
+});
+
+test("#417 agent composer delegates to the shared embedded Composer", async () => {
+  const source = await readFile(
+    new URL("../components/agent/AgentWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /<Composer/, "agent input area consumes the shared Composer");
+  assert.match(source, /stopLabel=\{streaming/, "streaming swaps the embedded slot to the stop action");
+  assert.doesNotMatch(source, /composer\.style\.height/, "local auto-grow removed (component-owned)");
+  assert.match(source, /ref=\{composerRef\}/, "focus flows preserved via ref forwarding");
 });

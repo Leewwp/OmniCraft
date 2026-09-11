@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
-
-	"gorm.io/gorm"
+	"omnicraft/backend/internal/pkg/recovery"
 )
 
 // AgentStreamEventType is the server-owned SSE event name set for the chat
@@ -21,6 +21,7 @@ type AgentStreamEventType string
 
 const (
 	AgentEventStart      AgentStreamEventType = "start"
+	AgentEventThinkDelta AgentStreamEventType = "think_delta"
 	AgentEventToolStatus AgentStreamEventType = "tool_status"
 	AgentEventDelta      AgentStreamEventType = "delta"
 	AgentEventCitation   AgentStreamEventType = "citation"
@@ -43,24 +44,46 @@ const (
 	AgentErrorCodeStorage = "AGENT_STORAGE_ERROR"
 )
 
+var (
+	// ErrAgentInputBlocked is returned by ModerateChatInput when Green flags
+	// the chat input; the handler maps it to a 422 CONTENT_BLOCKED rejection.
+	ErrAgentInputBlocked = errors.New("agent chat input rejected by content moderation")
+	// ErrAgentModerationUnavailable is returned when the input gate cannot run
+	// and the A4 environment semantics require fail-closed (release mode).
+	ErrAgentModerationUnavailable = errors.New("agent content moderation unavailable")
+)
+
 // AgentStreamEvent is the typed stream event. Only the fields relevant to the
-// event Type are populated; there are no raw prompts, tool arguments, internal
-// reasoning or Provider errors in any event.
+// event Type are populated; there are no raw prompts, raw tool arguments
+// (tool steps carry a server-derived summary only), internal reasoning
+// verbatim into non-think channels, or Provider errors in any event. The
+// think_delta event is display-only reasoning forwarded per A-02.
 type AgentStreamEvent struct {
 	Type           AgentStreamEventType `json:"type"`
 	TraceID        string               `json:"trace_id,omitempty"`
 	ConversationID int64                `json:"conversation_id,omitempty"`
-	AnswerKind     AgentAnswerKind      `json:"answer_kind,omitempty"`
-	Delta          string               `json:"delta,omitempty"`
-	Tool           *AgentToolExecution  `json:"tool,omitempty"`
-	Citation       *AgentCitation       `json:"citation,omitempty"`
-	Usage          *AgentUsage          `json:"usage,omitempty"`
-	Answer         string               `json:"answer,omitempty"`
-	Citations      []AgentCitation      `json:"citations,omitempty"`
-	Tools          []AgentToolExecution `json:"tools,omitempty"`
-	Degraded       bool                 `json:"degraded"`
-	ErrorCode      string               `json:"error_code,omitempty"`
-	ErrorMessage   string               `json:"error_message,omitempty"`
+	// MessageID identifies the persisted assistant answer row; it is set on
+	// the done event so clients can reference the stored message.
+	MessageID  int64                `json:"message_id,omitempty"`
+	AnswerKind AgentAnswerKind      `json:"answer_kind,omitempty"`
+	Delta      string               `json:"delta,omitempty"`
+	Tool       *AgentToolExecution  `json:"tool,omitempty"`
+	Citation   *AgentCitation       `json:"citation,omitempty"`
+	Usage      *AgentUsage          `json:"usage,omitempty"`
+	Answer     string               `json:"answer,omitempty"`
+	Citations  []AgentCitation      `json:"citations,omitempty"`
+	Tools      []AgentToolExecution `json:"tools,omitempty"`
+	// FollowUps carries 2-3 suggested next questions (SP-15 B #435). Only the
+	// done event of a grounded_content turn may carry them; generation is a
+	// speculative non-streaming call started at the first answer delta and
+	// joined before done assembly with a bounded budget — a miss, timeout or
+	// parse failure leaves the field empty (progressive enhancement, never a
+	// stream failure). v1 does not persist follow-ups.
+	FollowUps      []string `json:"follow_ups,omitempty"`
+	Degraded       bool     `json:"degraded"`
+	DegradedReason string   `json:"degraded_reason,omitempty"`
+	ErrorCode      string   `json:"error_code,omitempty"`
+	ErrorMessage   string   `json:"error_message,omitempty"`
 }
 
 // ResolvedChatContext is the viewer-preloaded, server-owned chat context. The
@@ -163,7 +186,9 @@ func (a *streamedToolCallAccumulator) calls() []llm.ToolCall {
 // and the request quota reserved by the caller before this method is invoked;
 // every outcome after that — success, timeout, Provider error, client
 // cancellation — consumes that reservation and emits a typed stream event.
-func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, resolved *ResolvedChatContext, handler func(ev AgentStreamEvent) error) error {
+// Conversation history is assembled server-side from the stored conversation
+// (A-01): the client only submits the new message.
+func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTurnInput, resolved *ResolvedChatContext, handler func(ev AgentStreamEvent) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
@@ -171,8 +196,11 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		resolved = &ResolvedChatContext{Surface: model.AgentChatSurfaceGlobal}
 	}
 
-	traceID := newTraceID()
-	traceAgentEvent(traceID, "chat_start", "user_id", userID, "surface", resolved.Surface)
+	traceID := observability.TraceID(ctx)
+	if traceID == "" {
+		traceID = untracedTraceID
+	}
+	traceAgentEvent(traceID, "chat_start", "user_id", userID, "surface", resolved.Surface, "conversation_id", turn.ConversationID)
 	if err := ctx.Err(); err != nil {
 		return emitAgentStreamError(handler, agentContextErrorCode(err), err)
 	}
@@ -182,43 +210,19 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		contextType = "content"
 	}
 
-	conv := &model.AgentConversation{
-		UserID:      userID,
-		ContextType: contextType,
-		ContextID:   resolved.ContentID,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-	if len(messages) > 0 && messages[0].Role == "user" && s.db != nil {
-		if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Create(conv).Error; err != nil {
-				return err
-			}
-			for _, msg := range messages {
-				content := msg.Content
-				if err := tx.Create(&model.AgentMessage{
-					ConversationID: conv.ID,
-					Role:           msg.Role,
-					Content:        &content,
-					CreatedAt:      time.Now(),
-				}).Error; err != nil {
-					return err
-				}
-			}
-			return nil
-		}); err != nil {
-			slog.Error("failed to persist agent conversation", "error", err)
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return emitAgentStreamError(handler, agentContextErrorCode(err), err)
-			}
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+	conv, history, hadAssistantBefore, err := s.resolveChatConversation(ctx, userID, turn, contextType, resolved.ContentID)
+	if err != nil {
+		if errors.Is(err, ErrAgentConversationNotFound) {
+			return emitAgentStreamError(handler, AgentErrorCodeConversationNotFound, err)
 		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return emitAgentStreamError(handler, agentContextErrorCode(err), err)
+		}
+		slog.Error("failed to resolve agent conversation", "error", err)
+		return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 	}
 
-	convID := int64(0)
-	if conv != nil {
-		convID = conv.ID
-	}
+	convID := conv.ID
 	if err := handler(AgentStreamEvent{
 		Type:           AgentEventStart,
 		TraceID:        traceID,
@@ -228,35 +232,83 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		return err
 	}
 
+	// SP-15 A1 rule-layer shortcut: an exact-match chitchat message replays a
+	// server-owned template without any Provider call. The turn already
+	// passed the moderation input gate and consumed its reserved quota (both
+	// happen in the handler before ChatStream), and the user row is already
+	// stored by resolveChatConversation — the shortcut only skips the LLM.
+	if template, ok := s.chitchatShortcutReply(turn.Message); ok {
+		return s.emitChitchatTemplateTurn(traceID, conv, template, handler)
+	}
+
 	policy := s.ToolPolicy()
 	systemMsg := s.serverOwnedSystemPrompt(resolved.Surface, resolved.Content)
 	req := llm.ChatRequest{
-		Messages:  append([]llm.ChatMessage{systemMsg}, messages...),
+		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
 		Tools:     s.ToolDefinitions(),
 		MaxTokens: policy.MaxOutputTokens,
 		Stream:    true,
 	}
 
 	var answerBuf strings.Builder
+	var thinkingBuf strings.Builder
 	var executedTools []AgentToolExecution
 	citationCandidates := make([]AgentCitation, 0, policy.CitationMaxCount)
-	seenCitationIDs := make(map[int64]bool, policy.CitationMaxCount)
+	seenCitationKeys := make(map[string]bool, policy.CitationMaxCount)
+	retrievalSources := make(map[string]string)
+	degraded := false
 	streamErr := error(nil)
 	var lastUsage *llm.TokenUsage
+	// SP-15 B speculative follow-up generation (#435): started at the first
+	// answer delta of a turn that already executed a tool (grounded answers
+	// always have one; chitchat/clarification turns never start a call), joined
+	// below with the remaining budget before done assembly.
+	followUpCh := make(chan []string, 1)
+	followUpStarted := false
+	followUpStartedAt := time.Time{}
 
 loop:
 	for {
 		acc := newStreamedToolCallAccumulator()
-		err := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
+		if s.chatStreamer == nil {
+			streamErr = errors.New("agent streaming provider unavailable")
+			break loop
+		}
+		err := s.chatStreamer.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
 			if len(delta.ToolCalls) > 0 {
 				acc.add(delta.ToolCalls)
 			}
 			if delta.Usage != nil {
 				lastUsage = delta.Usage
 			}
+			// A-02 real streaming: reasoning and body increments are
+			// forwarded as they arrive. Thinking is display-only; it never
+			// enters the answer buffer, tool results or citation revalidation.
+			if delta.Thinking != "" {
+				thinkingBuf.WriteString(delta.Thinking)
+				if err := handler(AgentStreamEvent{Type: AgentEventThinkDelta, Delta: delta.Thinking}); err != nil {
+					return err
+				}
+			}
 			if delta.Content != "" {
 				answerBuf.WriteString(delta.Content)
-				return handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content})
+				if !followUpStarted && len(executedTools) > 0 && s.llmProvider != nil {
+					followUpStarted = true
+					followUpStartedAt = time.Now()
+					question := turn.Message
+					titles := followUpTitles(citationCandidates)
+					prefix := delta.Content
+					provider := s.llmProvider
+					sid := traceID
+					recovery.GoSafe(func() {
+						ctx, cancel := context.WithTimeout(context.Background(), followUpBudget)
+						defer cancel()
+						followUpCh <- generateFollowUps(ctx, provider, sid, question, titles, prefix)
+					})
+				}
+				if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content}); err != nil {
+					return err
+				}
 			}
 			return nil
 		})
@@ -282,8 +334,14 @@ loop:
 
 		toolMessages := make([]llm.ChatMessage, 0, len(roundCalls))
 		for _, tc := range roundCalls {
+			toolStartedAt := time.Now()
 			outcome, toolErr := s.ExecuteTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), userID, nil)
-			execution := AgentToolExecution{Name: tc.Function.Name, Status: AgentToolStatusSuccess}
+			execution := AgentToolExecution{
+				Name:        tc.Function.Name,
+				ArgsSummary: agentToolArgsSummary(tc.Function.Name, json.RawMessage(tc.Function.Arguments)),
+				Status:      AgentToolStatusSuccess,
+				DurationMs:  time.Since(toolStartedAt).Milliseconds(),
+			}
 			result := agentToolResult{OK: true}
 			if toolErr != nil {
 				execution.Status = AgentToolStatusError
@@ -299,24 +357,61 @@ loop:
 				}
 				traceAgentEvent(traceID, "tool_error", "tool", tc.Function.Name, "safe_error", result.Error)
 			} else if outcome != nil {
+				execution.Hits = agentToolHitCount(outcome)
 				result.Detail = outcome.Detail
 				result.Guide = outcome.Guide
 				result.Search = outcome.Search
 				result.Suggest = outcome.Suggest
+				for chunkKey, source := range outcome.RetrievalSources {
+					retrievalSources[chunkKey] = source
+				}
+				if outcome.Degraded {
+					degraded = true
+					traceAgentEvent(traceID, "retrieval_degraded", "tool", tc.Function.Name)
+				}
+				for _, summary := range outcome.Search {
+					citation, ok := citationFromSearchSummary(summary)
+					if !ok || seenCitationKeys[citation.ChunkKey] {
+						continue
+					}
+					seenCitationKeys[citation.ChunkKey] = true
+					citationCandidates = append(citationCandidates, citation)
+				}
 				if outcome.Detail != nil {
-					if !seenCitationIDs[outcome.Detail.ID] {
-						seenCitationIDs[outcome.Detail.ID] = true
-						citationCandidates = append(citationCandidates, AgentCitation{
-							ContentID: outcome.Detail.ID,
-							Title:     outcome.Detail.Title,
-							Zone:      outcome.Detail.Zone,
-							Excerpt:   outcome.Detail.Excerpt,
-						})
+					if !s.ragHybridEnabled() {
+						legacyKey := fmt.Sprintf("content:%d", outcome.Detail.ID)
+						if !seenCitationKeys[legacyKey] {
+							seenCitationKeys[legacyKey] = true
+							citationCandidates = append(citationCandidates, AgentCitation{
+								ContentID: outcome.Detail.ID,
+								Title:     outcome.Detail.Title,
+								Zone:      outcome.Detail.Zone,
+								Excerpt:   outcome.Detail.Excerpt,
+							})
+						}
+					} else {
+						citation, err := s.citationForContent(ctx, userID, outcome.Detail.ID)
+						if err != nil {
+							traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", "citation_truth_unavailable")
+						} else if source, ok := retrievalSources[citation.ChunkKey]; !ok {
+							traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", "citation_source_unavailable")
+						} else if !seenCitationKeys[citation.ChunkKey] {
+							citation.Source = source
+							seenCitationKeys[citation.ChunkKey] = true
+							citationCandidates = append(citationCandidates, citation)
+						}
 					}
 				}
 			}
+			// A-03: expansion terms surface in the tool step summary so the
+			// process panel can show what the retrieval fanned out to. The
+			// outcome is nil when the tool itself failed.
+			if outcome != nil && len(outcome.ExpandedQueries) > 0 {
+				execution.ArgsSummary += " +expanded: " + strings.Join(outcome.ExpandedQueries, " / ")
+			}
 			executedTools = append(executedTools, execution)
 			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
+				s.persistPartialTurn(conv.ID, answerBuf.String())
 				return err
 			}
 			resultJSON, err := json.Marshal(result)
@@ -337,74 +432,408 @@ loop:
 		case errors.Is(streamErr, context.DeadlineExceeded):
 			code = AgentErrorCodeProviderTimeout
 		}
-		if emitErr := handler(AgentStreamEvent{Type: AgentEventError, ErrorCode: string(code), ErrorMessage: safeAgentStreamMessage(code)}); emitErr != nil {
+		providerFallback := code != AgentErrorCodeCancelled
+		degradedReason := ""
+		if providerFallback {
+			degradedReason = "provider_error"
+		}
+		if emitErr := handler(AgentStreamEvent{
+			Type:           AgentEventError,
+			Degraded:       providerFallback,
+			DegradedReason: degradedReason,
+			ErrorCode:      string(code),
+			ErrorMessage:   safeAgentStreamMessage(code),
+		}); emitErr != nil {
 			streamErr = errors.Join(streamErr, emitErr)
 		}
-		if conv != nil && s.db != nil {
-			// The request context is commonly canceled when the client disconnects.
-			// Cleanup must still run so an interrupted turn cannot leave orphaned
-			// conversation history behind.
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := s.db.WithContext(cleanupCtx).Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{}).Error; err != nil {
-				slog.Error("failed to clean up agent messages after stream failure", "error", err)
-			}
-			if err := s.db.WithContext(cleanupCtx).Delete(conv).Error; err != nil {
-				slog.Error("failed to clean up agent conversation after stream failure", "error", err)
-			}
-			cancel()
+		// A-01: stop/failure keeps the conversation and whatever partial
+		// content already streamed out; deletion happens only on the user's
+		// explicit DELETE. The request context is commonly canceled on client
+		// disconnect, so persistence runs on a detached bounded context.
+		if conv != nil {
+			s.persistPartialTurn(conv.ID, answerBuf.String())
 		}
 		return streamErr
 	}
 
-	citations := s.RevalidateCitations(ctx, userID, citationCandidates)
+	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
+	answer := answerBuf.String()
+	kind := ClassifyStreamAnswer(citations, executedTools, answer, degraded, s.conversationalMaxRunes())
+	// SP-15 B join (#435): only a grounded, non-degraded turn waits for the
+	// speculative follow-up call. A result already sitting in the buffered
+	// channel is taken non-blockingly even when the budget has elapsed; only a
+	// still-missing result waits, bounded by what remains of followUpBudget
+	// since the first delta. A miss or timeout attaches nothing.
+	followUps := []string(nil)
+	if followUpStarted && kind == AgentAnswerGroundedContent && !degraded {
+		received := false
+		select {
+		case items := <-followUpCh:
+			followUps = items
+			received = true
+		default:
+		}
+		if !received {
+			remaining := followUpBudget - time.Since(followUpStartedAt)
+			if remaining > 0 {
+				timer := time.NewTimer(remaining)
+				select {
+				case items := <-followUpCh:
+					followUps = items
+				case <-timer.C:
+					traceAgentEvent(traceID, "follow_ups_missed", "reason", "timeout")
+				}
+				timer.Stop()
+			} else {
+				traceAgentEvent(traceID, "follow_ups_missed", "reason", "budget_elapsed")
+			}
+		}
+	}
+	if len(followUps) > 0 {
+		traceAgentEvent(traceID, "follow_ups_attached", "count", len(followUps))
+	}
+	// 引用上限之外的 [n] 标注是死引用（前端渲染为不可点角标）：终稿与落库前
+	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。
+	answer = stripOrphanCitationMarkers(answer, len(citations))
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
+			s.persistPartialTurn(conv.ID, answerBuf.String())
 			return err
 		}
 	}
 
-	kind := ClassifyGroundedAnswer(citations)
 	usage := &AgentUsage{}
 	if lastUsage != nil {
 		usage = &AgentUsage{PromptTokens: lastUsage.PromptTokens, CompletionTokens: lastUsage.CompletionTokens}
 	}
 	if err := handler(AgentStreamEvent{Type: AgentEventUsage, Usage: usage}); err != nil {
+		s.persistPartialTurn(conv.ID, answerBuf.String())
 		return err
 	}
 
-	answer := answerBuf.String()
-	if conv != nil && s.db != nil {
-		if err := s.db.WithContext(ctx).Create(&model.AgentMessage{
+	if kind == AgentAnswerNoEvidence || degraded {
+		answer = ""
+	}
+	answerMessageID := int64(0)
+	if s.db != nil {
+		// The provider already finished; the client may disconnect at any
+		// moment, so the final answer persists on a detached bounded context.
+		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if think := thinkingBuf.String(); think != "" {
+			// A-02: the reasoning block persists as its own phase-marked row
+			// (tool_calls = {"phase":"think"}) ahead of the answer row, for
+			// history replay and audit; readers treat it as display-only.
+			if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
+				ConversationID: conv.ID,
+				Role:           "assistant",
+				Content:        &think,
+				ToolCalls:      model.JSONMap{"phase": "think"},
+				CreatedAt:      time.Now(),
+			}).Error; err != nil {
+				cancel()
+				slog.Error("failed to persist agent thinking message", "error", err)
+				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+			}
+		}
+		answerRow := model.AgentMessage{
 			ConversationID: conv.ID,
 			Role:           "assistant",
 			Content:        &answer,
-			CreatedAt:      time.Now(),
-		}).Error; err != nil {
+			// N4：引用随答案行落库（完整 9 字段形态，含 RAG 溯源），历史端点
+			// 直接回放跳转入口；think 行不落引用。
+			Citations: citationsToModel(citations),
+			CreatedAt: time.Now(),
+		}
+		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
+			cancel()
 			slog.Error("failed to persist agent assistant message", "error", err)
 			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 		}
-		if err := s.db.WithContext(ctx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
+		answerMessageID = answerRow.ID
+		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
+			cancel()
 			slog.Error("failed to update agent conversation timestamp", "error", err)
 			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 		}
+		cancel()
+		if !hadAssistantBefore {
+			s.scheduleAutoTitle(traceID, conv.ID, firstUserMessage(history))
+		}
+		// A-05: the persisted answer is audited asynchronously after the
+		// turn; a flagged row is redacted by the history endpoint.
+		s.scheduleOutputModeration(traceID, answerMessageID, answer)
 	}
 
 	if err := handler(AgentStreamEvent{
 		Type:           AgentEventDone,
 		TraceID:        traceID,
 		ConversationID: convID,
+		MessageID:      answerMessageID,
 		AnswerKind:     kind,
 		Answer:         answer,
 		Citations:      citations,
 		Tools:          executedTools,
 		Usage:          usage,
-		Degraded:       false,
+		Degraded:       degraded,
+		FollowUps:      followUps,
 	}); err != nil {
 		return err
 	}
 
 	traceAgentEvent(traceID, "chat_done", "conversation_id", convID, "surface", resolved.Surface, "answer_kind", kind, "tools", len(executedTools))
 	return nil
+}
+
+// emitChitchatTemplateTurn finishes a rule-layer shortcut turn (SP-15 A1):
+// one delta carrying the whole template, then a conversational done event.
+// The assistant template row persists like any answer (history replay stays
+// complete), but no LLM auto-title is scheduled — a chitchat excerpt is not
+// worth a title call and the title-IS-NUL semantics let the first real
+// question name the conversation later. Output moderation is skipped too: the
+// text is a server-owned constant, not model- or user-generated content.
+func (s *AgentService) emitChitchatTemplateTurn(traceID string, conv *model.AgentConversation, template string, handler func(ev AgentStreamEvent) error) error {
+	if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: template}); err != nil {
+		return err
+	}
+	messageID := int64(0)
+	if s.db != nil {
+		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		answerRow := model.AgentMessage{
+			ConversationID: conv.ID,
+			Role:           "assistant",
+			Content:        &template,
+			CreatedAt:      time.Now(),
+		}
+		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
+			cancel()
+			slog.Error("failed to persist agent chitchat template message", "error", err)
+			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+		}
+		messageID = answerRow.ID
+		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
+			cancel()
+			slog.Error("failed to update agent conversation timestamp", "error", err)
+			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+		}
+		cancel()
+	}
+	if err := handler(AgentStreamEvent{
+		Type:           AgentEventDone,
+		TraceID:        traceID,
+		ConversationID: conv.ID,
+		MessageID:      messageID,
+		AnswerKind:     AgentAnswerConversational,
+		Answer:         template,
+		Usage:          &AgentUsage{},
+	}); err != nil {
+		return err
+	}
+	traceAgentEvent(traceID, "chat_done", "conversation_id", conv.ID, "answer_kind", AgentAnswerConversational, "shortcut", "chitchat")
+	return nil
+}
+
+// conversationalMaxRunes guards against a nil cfg (DB-less service seams).
+func (s *AgentService) conversationalMaxRunes() int {
+	if s.cfg == nil {
+		return 0
+	}
+	return s.cfg.Agent.ConversationalMaxRunes
+}
+
+// SP-15 B (#435) follow-up generation constants. followUpBudget is a var so
+// tests can shorten the join window; production reads the 4s spec value.
+var followUpBudget = 4 * time.Second
+
+const (
+	followUpMaxCount = 3
+	// followUpMaxTokens 需覆盖思考型模型的 reasoning 开销：M3 的思考链会先吃
+	// completion 预算（SP-13 既有教训），128 时正文只剩 2 字符残根。
+
+	followUpMaxRunes   = 20
+	followUpMaxTitles  = 8
+	followUpPrefixCap  = 200
+	followUpMaxTokens  = 1024
+	followUpMaxTitleLn = 80
+)
+
+// followUpTitles lifts the display titles of the current citation candidates
+// for the generation prompt (pre-revalidation is fine: the prompt only needs
+// what the model saw while answering).
+func followUpTitles(candidates []AgentCitation) []string {
+	titles := make([]string, 0, followUpMaxTitles)
+	for _, c := range candidates {
+		if len(titles) >= followUpMaxTitles {
+			break
+		}
+		if t := strings.TrimSpace(c.Title); t != "" {
+			titles = append(titles, truncateChatRunes(t, followUpMaxTitleLn))
+		}
+	}
+	return titles
+}
+
+// followUpRequest builds the bounded non-streaming prompt: user question +
+// retrieved titles + answer prefix, asking for 2-3 same-language follow-up
+// questions, one per line, each within the rune cap.
+func followUpRequest(question string, titles []string, answerPrefix string) llm.ChatRequest {
+	var b strings.Builder
+	b.WriteString("You suggest follow-up questions for a site-content assistant. ")
+	b.WriteString("Based on the user's question, the retrieved result titles, and the beginning of the answer, propose 2-3 short follow-up questions the user might ask next about site content (works, IPs, usage). ")
+	b.WriteString("Rules: one question per line, no numbering, no bullets; each question at most 20 characters; write in the same language as the user's question; output nothing else.\n")
+	b.WriteString("User question: ")
+	b.WriteString(strings.TrimSpace(question))
+	b.WriteString("\nRetrieved titles: ")
+	if len(titles) == 0 {
+		b.WriteString("(none)")
+	} else {
+		b.WriteString(strings.Join(titles, " / "))
+	}
+	b.WriteString("\nAnswer beginning: ")
+	b.WriteString(truncateChatRunes(strings.TrimSpace(answerPrefix), followUpPrefixCap))
+	return llm.ChatRequest{
+		Messages:  []llm.ChatMessage{{Role: "user", Content: b.String()}},
+		MaxTokens: followUpMaxTokens,
+	}
+}
+
+// generateFollowUps runs the small non-streaming call and parses its line
+// output. Every failure mode (call error, empty or over-long lines, garbage)
+// returns nil — the feature degrades to "no follow-ups" silently and never
+// affects the main stream. The traceID labels the side call for diagnosis.
+func generateFollowUps(ctx context.Context, provider llm.LLMProvider, traceID, question string, titles []string, answerPrefix string) []string {
+	resp, err := provider.Chat(ctx, followUpRequest(question, titles, answerPrefix))
+	if err != nil {
+		reason := "provider_error"
+		if ctx.Err() == context.DeadlineExceeded {
+			reason = "deadline_exceeded"
+		}
+		traceAgentEvent(traceID, "follow_ups_call_failed", "reason", reason)
+		return nil
+	}
+	if resp == nil {
+		traceAgentEvent(traceID, "follow_ups_call_failed", "reason", "nil_response")
+		return nil
+	}
+	items := parseFollowUpItems(resp.Content)
+	if len(items) == 0 {
+		traceAgentEvent(traceID, "follow_ups_parse_empty", "content_runes", len([]rune(resp.Content)))
+	}
+	return items
+}
+
+// parseFollowUpItems normalizes model line output into 1..3 trimmed, deduped,
+// rune-bounded questions; anything invalid is dropped.
+func parseFollowUpItems(content string) []string {
+	seen := make(map[string]bool, followUpMaxCount)
+	items := make([]string, 0, followUpMaxCount)
+	for _, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		line = strings.TrimPrefix(line, "-")
+		line = strings.TrimPrefix(line, "*")
+		line = strings.TrimSpace(line)
+		line = strings.TrimSuffix(line, "。")
+		line = strings.TrimSpace(line)
+		// M3 常见编号前缀（prompt 已禁但不可全信）：1. / 1、 / (1) / ①。
+		for {
+			trimmed := strings.TrimLeft(line, "0123456789")
+			if trimmed != line && (strings.HasPrefix(trimmed, ".") || strings.HasPrefix(trimmed, "、") || strings.HasPrefix(trimmed, ")")) {
+				line = strings.TrimSpace(strings.TrimLeft(trimmed, ".、) "))
+				continue
+			}
+			break
+		}
+		if strings.HasPrefix(line, "①") || strings.HasPrefix(line, "②") || strings.HasPrefix(line, "③") {
+			line = strings.TrimSpace(line[3:])
+		}
+		if line == "" || strings.HasPrefix(line, "(") || strings.HasPrefix(line, "（") {
+			continue
+		}
+		runes := []rune(line)
+		if len(runes) == 0 || len(runes) > followUpMaxRunes {
+			continue
+		}
+		if seen[line] {
+			continue
+		}
+		seen[line] = true
+		items = append(items, line)
+		if len(items) >= followUpMaxCount {
+			break
+		}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return items
+}
+
+// ModerateChatInput applies the A-05 input admission gate over a chat message
+// before the turn starts. A "block" (or normalized "violation") result
+// rejects the input. Availability follows the A4 environment semantics via
+// RunModerationGate: release mode fails closed on any moderation failure,
+// while local/test mode fails open when Green is not configured (recorded via
+// structured logs). Blank text is skipped without an external call.
+func (s *AgentService) ModerateChatInput(ctx context.Context, text string) error {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil
+	}
+	var review func(context.Context) (string, error)
+	if s.greenClient != nil {
+		review = func(ctx context.Context) (string, error) {
+			res, err := s.greenClient.TextModeration(ctx, trimmed)
+			if err != nil {
+				return "", err
+			}
+			return NormalizeReviewResult(res.Result), nil
+		}
+	}
+	return RunModerationGate(ctx, s.cfg, "agent_chat_input", "content moderation", "chat turn",
+		review, true, ErrAgentInputBlocked, ErrAgentModerationUnavailable)
+}
+
+// scheduleOutputModeration asynchronously audits a persisted assistant answer
+// through Green text moderation (A-05). It is a post-turn audit, never an
+// admission gate: it must not block or fail the stream. On "block" the stored
+// answer row is flagged (tool_calls = {"moderation":"blocked"}) so the
+// conversation history returns a redacted representation; the raw text stays
+// stored for audit. Scan unavailability is fail-open with structured logs in
+// every environment — hiding every answer because the scanner is down would
+// break the product, unlike the input gate's release fail-closed semantics.
+func (s *AgentService) scheduleOutputModeration(traceID string, messageID int64, answer string) {
+	if s.db == nil || s.greenClient == nil {
+		return
+	}
+	text := strings.TrimSpace(answer)
+	if text == "" {
+		return
+	}
+	recovery.GoSafe(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		res, err := s.greenClient.TextModeration(ctx, text)
+		envMode := "unknown"
+		if s.cfg != nil {
+			envMode = s.cfg.Server.Mode
+		}
+		if err != nil {
+			slog.Warn("agent output moderation skipped, answer kept visible",
+				"action", "agent_chat_output", "env_mode", envMode, "policy", "fail_open", "reason", err.Error())
+			traceAgentEvent(traceID, "output_moderation_skipped", "message_id", messageID)
+			return
+		}
+		if NormalizeReviewResult(res.Result) != "block" {
+			return
+		}
+		if err := s.db.WithContext(ctx).Model(&model.AgentMessage{}).
+			Where("id = ?", messageID).
+			Update("tool_calls", model.JSONMap{"moderation": "blocked"}).Error; err != nil {
+			slog.Error("failed to flag moderated agent answer", "message_id", messageID, "error", err)
+			traceAgentEvent(traceID, "output_moderation_flag_failed", "message_id", messageID)
+			return
+		}
+		traceAgentEvent(traceID, "output_moderation_blocked", "message_id", messageID)
+	})
 }
 
 // safeAgentStreamCode maps a stream failure to a safe event code without
@@ -432,6 +861,8 @@ func safeAgentStreamMessage(code AgentStreamEventType) string {
 	switch code {
 	case AgentErrorCodeStorage:
 		return "agent history unavailable"
+	case AgentStreamEventType(AgentErrorCodeConversationNotFound):
+		return "conversation no longer available"
 	case AgentErrorCodeCancelled:
 		return "stream cancelled"
 	case AgentErrorCodeProviderTimeout:
@@ -450,4 +881,50 @@ func emitAgentStreamError(handler func(ev AgentStreamEvent) error, code string, 
 		return errors.Join(cause, err)
 	}
 	return cause
+}
+
+// stripOrphanCitationMarkers removes plain [n] citation markers that no longer
+// resolve to a kept citation (n 超出保留引用数或非法)。模型自然产出的标注量
+// 常超过 citation_max_count，残留的角标在前端渲染为不可点死引用；终稿与落库
+// 前统一剥离。Markdown 链接形如 [1](url) 的数字文本不受影响。
+func stripOrphanCitationMarkers(answer string, kept int) string {
+	if kept <= 0 {
+		return answer
+	}
+	var b strings.Builder
+	b.Grow(len(answer))
+	for i := 0; i < len(answer); {
+		if answer[i] == '[' {
+			if end := strings.IndexByte(answer[i+1:], ']'); end > 0 {
+				inner := answer[i+1 : i+1+end]
+				if n, ok := parseCitationMarker(inner); ok {
+					next := i + end + 2
+					followedByParen := next < len(answer) && answer[next] == '('
+					if !followedByParen && (n > kept || n <= 0) {
+						i = next
+						continue
+					}
+				}
+			}
+		}
+		b.WriteByte(answer[i])
+		i++
+	}
+	return b.String()
+}
+
+// parseCitationMarker accepts short pure-digit marker bodies only ("12", not
+// "1,2" or long digit runs that are unlikely citation marks).
+func parseCitationMarker(inner string) (int, bool) {
+	if len(inner) == 0 || len(inner) > 3 {
+		return 0, false
+	}
+	n := 0
+	for k := 0; k < len(inner); k++ {
+		if inner[k] < '0' || inner[k] > '9' {
+			return 0, false
+		}
+		n = n*10 + int(inner[k]-'0')
+	}
+	return n, true
 }

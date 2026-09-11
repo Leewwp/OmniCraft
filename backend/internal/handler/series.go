@@ -20,7 +20,8 @@ import (
 )
 
 type SeriesHandler struct {
-	seriesSvc *service.SeriesService
+	seriesSvc     *service.SeriesService
+	displaySigner *service.DisplayURLSigner
 }
 
 type seriesOwnerResponse struct {
@@ -65,6 +66,12 @@ type seriesContentResponse struct {
 func NewSeriesHandler(db *gorm.DB) *SeriesHandler {
 	repo := repository.NewSeriesRepository(db)
 	return &SeriesHandler{seriesSvc: service.NewSeriesService(repo)}
+}
+
+// SetDisplayURLSigner wires display URL signing for series cover and item
+// content covers (B-002).
+func (h *SeriesHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
+	h.displaySigner = signer
 }
 
 func (h *SeriesHandler) CreateSeries(c *gin.Context) {
@@ -120,7 +127,7 @@ func (h *SeriesHandler) ListCandidates(c *gin.Context) {
 	}
 	result := make([]seriesContentResponse, 0, len(items))
 	for _, item := range items {
-		result = append(result, mapSeriesContent(item))
+		result = append(result, mapSeriesContent(h.displaySigner, item))
 	}
 	c.JSON(http.StatusOK, gin.H{"items": result, "total": len(result)})
 }
@@ -143,13 +150,13 @@ func (h *SeriesHandler) GetSeries(c *gin.Context) {
 		h.writeSeriesError(c, err)
 		return
 	}
-	series := mapSeriesDetail(detail.Series, detail.Cover, detail.ItemCount)
+	series := mapSeriesDetail(h.displaySigner, detail.Series, detail.Cover, detail.ItemCount)
 	if management {
 		series.CoverContentID = detail.Series.CoverContentID
 	}
 	items := make([]seriesItemResponse, 0, len(detail.Items))
 	for _, item := range detail.Items {
-		items = append(items, mapSeriesItem(item))
+		items = append(items, mapSeriesItem(h.displaySigner, item))
 	}
 	c.JSON(http.StatusOK, gin.H{"series": series, "items": items})
 }
@@ -321,28 +328,37 @@ func mapSeriesSummary(series model.ContentSeries) seriesSummaryResponse {
 	return seriesSummaryResponse{ID: series.ID, Title: series.Title, Description: series.Description, Zone: series.Zone}
 }
 
-func mapSeriesDetail(series model.ContentSeries, cover *string, itemCount int64) seriesDetailResponse {
+func mapSeriesDetail(signer *service.DisplayURLSigner, series model.ContentSeries, cover *string, itemCount int64) seriesDetailResponse {
+	signedCover := cover
+	if signer != nil && cover != nil {
+		signed := signer.SignURL(*cover)
+		signedCover = &signed
+	}
 	return seriesDetailResponse{
 		ID: series.ID, Title: series.Title, Description: series.Description, Zone: series.Zone,
 		Owner: seriesOwnerResponse{ID: series.OwnerID, Username: series.Owner.Username},
-		Cover: cover, ItemCount: itemCount,
+		Cover: signedCover, ItemCount: itemCount,
 	}
 }
 
-func mapSeriesItem(item model.ContentSeriesItem) seriesItemResponse {
+func mapSeriesItem(signer *service.DisplayURLSigner, item model.ContentSeriesItem) seriesItemResponse {
 	content := item.ContentItem
 	return seriesItemResponse{
 		ID:            item.ID,
 		SortOrder:     item.SortOrder,
 		ContentItemID: item.ContentItemID,
-		Content:       mapSeriesContent(content),
+		Content:       mapSeriesContent(signer, content),
 	}
 }
 
-func mapSeriesContent(content model.ContentItem) seriesContentResponse {
+func mapSeriesContent(signer *service.DisplayURLSigner, content model.ContentItem) seriesContentResponse {
+	coverImageURL := content.CoverImageURL
+	if signer != nil {
+		coverImageURL = signer.SignURL(coverImageURL)
+	}
 	return seriesContentResponse{
 		ID: content.ID, Title: content.Title, Zone: content.Zone, ContentType: content.ContentType,
-		CoverImageURL: content.CoverImageURL, Status: content.Status,
+		CoverImageURL: coverImageURL, Status: content.Status,
 	}
 }
 

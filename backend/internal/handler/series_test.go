@@ -282,8 +282,9 @@ func TestContentDetailSeriesMembershipsHidesInvisibleCurrentContent(t *testing.T
 	series := seedSeriesHandlerSeries(t, db, 200, owner.ID, "hidden membership title", "original")
 	require.NoError(t, db.Create(&model.ContentSeriesItem{SeriesID: series.ID, ContentItemID: current.ID}).Error)
 
+	// FIX-12+43：pending 内容匿名直接 404（比「隐藏 membership」更强的收口）。
 	rec := requestCollection(t, router, "", http.MethodGet, "/api/v1/contents/"+itoa64(current.ID), "")
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	require.NotContains(t, rec.Body.String(), series.Title)
 	var payload struct {
 		Memberships []json.RawMessage `json:"series_memberships"`

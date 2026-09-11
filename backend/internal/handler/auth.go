@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -29,6 +30,7 @@ type AuthHandler struct {
 	captchaVerifier     captcha.CaptchaVerifier
 	rdb                 *redis.Client
 	cfg                 *config.Config
+	displaySigner       *service.DisplayURLSigner
 }
 
 type AuthCapabilities struct {
@@ -45,7 +47,9 @@ func buildAuthCapabilities(user *model.User, cfg *config.Config) (AuthCapabiliti
 		Reputation:      user.Reputation,
 	}
 	decision := service.EvaluateInteractionAccess(status, cfg, true, true)
-	if !decision.Allowed && !service.IsSoftDenialReason(decision.DenialReason) {
+	// T29（FIX-15）：USER_BANNED 与软拒绝一致，以 capabilities 表达
+	// （can_interact=false），封禁屏借 /auth/me 200 可达；硬失败仍 503。
+	if !decision.Allowed && !service.IsSoftDenialReason(decision.DenialReason) && decision.DenialReason != service.DenialReasonUserBanned {
 		return AuthCapabilities{}, decision.DenialReason
 	}
 	return AuthCapabilities{
@@ -57,7 +61,7 @@ func buildAuthCapabilities(user *model.User, cfg *config.Config) (AuthCapabiliti
 func NewAuthHandler(authService *service.AuthService, verificationService *service.VerificationService, userRepo *repository.UserRepository, captchaVerifier captcha.CaptchaVerifier, rdb *redis.Client, cfg *config.Config) *AuthHandler {
 	// Wire up the circular dependency: VerificationService needs AuthService for pending registration flow
 	verificationService.SetAuthService(authService)
-	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, captchaVerifier: captchaVerifier, rdb: rdb, cfg: cfg}
+	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, captchaVerifier: captchaVerifier, rdb: rdb, cfg: cfg, displaySigner: service.NewDisplayURLSigner(cfg)}
 }
 
 func refreshCookieName(cfg *config.Config) string {
@@ -251,8 +255,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	h.clearLoginFailures(c, input.Email)
 	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
 
+	h.displaySigner.DecorateUser(user)
+	userMap, err := h.selfUserPayload(user)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"user":         user,
+		"user":         userMap,
 		"capabilities": capabilities,
 		"tokens": gin.H{
 			"access_token": tokens.AccessToken,
@@ -304,6 +314,21 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	})
 }
 
+// selfUserPayload marshals the user (email hidden at model level, FIX-19a) and
+// re-attaches the email explicitly: login and /auth/me are self paths.
+func (h *AuthHandler) selfUserPayload(user *model.User) (map[string]any, error) {
+	payload, err := json.Marshal(user)
+	if err != nil {
+		return nil, err
+	}
+	userMap := map[string]any{}
+	if err := json.Unmarshal(payload, &userMap); err != nil {
+		return nil, err
+	}
+	userMap["email"] = user.Email
+	return userMap, nil
+}
+
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -324,8 +349,14 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 	c.Header("X-CSRF-Token", csrfToken)
+	h.displaySigner.DecorateUser(user)
+	userMap, err := h.selfUserPayload(user)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"user":         user,
+		"user":         userMap,
 		"csrf_token":   csrfToken,
 		"capabilities": capabilities,
 	})

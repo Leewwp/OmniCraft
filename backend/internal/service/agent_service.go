@@ -27,31 +27,101 @@ var ErrAgentDisabled = errors.New("web agent is disabled")
 var ErrAgentFileTooLarge = errors.New("file too large for upload assist")
 
 type AgentService struct {
-	llmProvider   llm.LLMProvider
-	embeddingRepo *repository.EmbeddingRepository
-	contentRepo   *repository.ContentRepository
-	searchRepo    *repository.SearchRepository
-	greenClient   *aliyun.GreenClient
-	db            *gorm.DB
-	cfg           *config.Config
-	queueProducer queue.Producer
-	vectorSearch  func(embedding []float32, topK int) ([]repository.EmbeddingSearchResult, error)
+	llmProvider     llm.LLMProvider
+	chatStreamer    agentChatStreamer
+	embeddingRepo   *repository.EmbeddingRepository
+	contentRepo     *repository.ContentRepository
+	searchRepo      *repository.SearchRepository
+	usageGuideSvc   *UsageGuideService
+	ragChunkRepo    *repository.RagChunkRepository
+	hybridRetriever AgentContentRetriever
+	greenClient     agentGreenScanner
+	db              *gorm.DB
+	cfg             *config.Config
+	queueProducer   queue.Producer
+	vectorSearch    func(embedding []float32, topK int) ([]repository.EmbeddingSearchResult, error)
+}
+
+// agentChatStreamer is the narrow Provider capability consumed by the Agent
+// workspace streaming loop. The broader llm.LLMProvider remains available to
+// legacy non-streaming and embedding callers behind the compatibility shell.
+type agentChatStreamer interface {
+	ChatStream(ctx context.Context, req llm.ChatRequest, handler func(delta llm.ChatDelta) error) error
+}
+
+// agentGreenScanner is the Green text scan seam consumed by the Agent chat
+// guardrails (A-05): the input admission gate and the post-turn output audit.
+// *aliyun.GreenClient is the production implementation; tests inject a fake.
+type agentGreenScanner interface {
+	TextModeration(ctx context.Context, text string) (*aliyun.GreenScanResult, error)
+}
+
+// AgentRetrievalCandidate is the service-owned boundary for RAG results. The
+// concrete HybridRetriever lives in service/rag and is adapted by the
+// container, keeping the AgentService contract independent of that package's
+// projection dependencies.
+type AgentRetrievalCandidate struct {
+	ChunkKey        string
+	ContentID       int64
+	ContentVersion  int
+	ChunkIndex      int
+	ChunkingVersion int
+	IndexVersion    int
+	Title           string
+	Heading         string
+	Text            string
+	Zone            string
+	ContentType     string
+	Source          string
+}
+
+type AgentRetrievalResult struct {
+	Candidates []AgentRetrievalCandidate
+	Degraded   string
+	// ExpandedQueries mirrors the query-expansion terms used by the hybrid
+	// pipeline (A-03), for display in the tool step panel.
+	ExpandedQueries []string
+}
+
+type AgentContentRetriever interface {
+	Retrieve(ctx context.Context, query string, viewerID int64) (AgentRetrievalResult, error)
 }
 
 func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
+	return newAgentServiceWithChatStreamer(provider, provider, embeddingRepo, contentRepo, greenClient, db, cfg)
+}
+
+// newAgentServiceWithChatStreamer keeps the public compatibility constructor
+// while allowing the workspace stream to depend on a narrower capability.
+// Legacy helpers still receive the broader provider through provider.
+func newAgentServiceWithChatStreamer(provider llm.LLMProvider, chatStreamer agentChatStreamer, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
 	svc := &AgentService{
 		llmProvider:   provider,
+		chatStreamer:  chatStreamer,
 		embeddingRepo: embeddingRepo,
 		contentRepo:   contentRepo,
-		greenClient:   greenClient,
 		db:            db,
 		cfg:           cfg,
 		queueProducer: queue.NewNoopProducer(),
+	}
+	// A nil *aliyun.GreenClient must leave the interface nil (not a typed-nil
+	// pointer) so unconfigured environments take the explicit skip paths.
+	if greenClient != nil {
+		svc.greenClient = greenClient
+	}
+	if db != nil {
+		svc.ragChunkRepo = repository.NewRagChunkRepository(db)
 	}
 	if embeddingRepo != nil {
 		svc.vectorSearch = embeddingRepo.VectorSearch
 	}
 	return svc
+}
+
+// SetGreenScanner injects the Green text scan seam. Tests substitute a fake
+// to assert chat guardrail semantics without real credentials.
+func (s *AgentService) SetGreenScanner(sc agentGreenScanner) {
+	s.greenClient = sc
 }
 
 type UploadAssistResult struct {
@@ -256,90 +326,17 @@ func aggregateComplianceResults(greenResult, greenReason string, llmResult *Comp
 }
 
 type ContentSummary struct {
-	ID          int64    `json:"id"`
-	Title       string   `json:"title"`
-	ContentType string   `json:"content_type"`
-	Score       float64  `json:"score"`
-	Tags        []string `json:"tags"`
-}
-
-// NLSearchResult carries the search outcome. Degraded=true means conversational
-// (embedding) search was unavailable and the server fell back to normal
-// keyword search; the UI then shows localized copy instead of a model answer.
-type NLSearchResult struct {
-	Results  []ContentSummary `json:"results"`
-	Degraded bool             `json:"degraded"`
-}
-
-func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int64) (*NLSearchResult, error) {
-	if !s.cfg.Agent.WebAgentEnabled {
-		return nil, ErrAgentDisabled
-	}
-
-	embedding, err := s.llmProvider.GetEmbedding(ctx, query)
-	if err == nil && s.vectorSearch != nil {
-		results, err := s.vectorSearch(embedding, 20)
-		if err != nil {
-			return nil, err
-		}
-
-		contentIDs := make([]int64, 0, len(results))
-		scoreMap := make(map[int64]float64, len(results))
-		for _, r := range results {
-			contentIDs = append(contentIDs, r.ContentItemID)
-			scoreMap[r.ContentItemID] = r.Score
-		}
-
-		contents, err := s.listVisibleNLSearchContents(contentIDs, viewerID)
-		if err != nil {
-			return nil, err
-		}
-
-		summaries := make([]ContentSummary, 0, len(contents))
-		for _, content := range contents {
-			summaries = append(summaries, ContentSummary{
-				ID:          content.ID,
-				Title:       content.Title,
-				ContentType: content.ContentType,
-				Score:       scoreMap[content.ID],
-			})
-		}
-		return &NLSearchResult{Results: summaries}, nil
-	}
-
-	// Conversational search is unavailable (embedding failure or missing
-	// vector search). Degrade to normal keyword search through the shared
-	// viewer-aware search path; never fabricate an answer.
-	fallback, fallbackErr := s.keywordSearchFallback(ctx, query, viewerID)
-	if fallbackErr != nil {
-		if err != nil {
-			return nil, err
-		}
-		return nil, fallbackErr
-	}
-	traceAgentEvent(newTraceID(), "nl_search_degraded", "user_id", viewerID)
-	return &NLSearchResult{Results: fallback, Degraded: true}, nil
-}
-
-// keywordSearchFallback runs the standard keyword search with the same
-// viewer-aware visibility rules as conversational search.
-func (s *AgentService) keywordSearchFallback(ctx context.Context, query string, viewerID int64) ([]ContentSummary, error) {
-	if s.searchRepo == nil {
-		return nil, errors.New("keyword search unavailable")
-	}
-	results, _, err := s.searchRepo.SearchContents(strings.TrimSpace(query), "", "", "", nil, "", "", 1, 10, viewerID)
-	if err != nil {
-		return nil, err
-	}
-	summaries := make([]ContentSummary, 0, len(results))
-	for _, r := range results {
-		summaries = append(summaries, ContentSummary{
-			ID:          r.ID,
-			Title:       r.Title,
-			ContentType: r.ContentType,
-		})
-	}
-	return summaries, nil
+	ID             int64    `json:"id"`
+	Title          string   `json:"title"`
+	Zone           string   `json:"zone,omitempty"`
+	ContentType    string   `json:"content_type"`
+	ContentVersion int      `json:"content_version,omitempty"`
+	ChunkKey       string   `json:"chunk_key,omitempty"`
+	ChunkIndex     int      `json:"chunk_index,omitempty"`
+	Excerpt        string   `json:"excerpt,omitempty"`
+	Source         string   `json:"source,omitempty"`
+	Score          float64  `json:"-"`
+	Tags           []string `json:"tags,omitempty"`
 }
 
 // CheckContentVisible is the handler-side viewer-aware precheck for
@@ -382,9 +379,14 @@ func (s *AgentService) listVisibleNLSearchContents(contentIDs []int64, viewerID 
 
 type UsageGuideResult struct {
 	Guide string `json:"guide"`
+	// Structured marks that the guide came from persisted structured data
+	// (system template + author specifics) instead of a live LLM call
+	// (SP-16 #447).
+	Structured bool   `json:"structured,omitempty"`
+	Source     string `json:"source,omitempty"`
 }
 
-func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64) (*UsageGuideResult, error) {
+func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64, forceLLM bool) (*UsageGuideResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
 	}
@@ -392,6 +394,18 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
 	if err != nil {
 		return nil, err
+	}
+
+	// SP-16 #447 structured-first: persisted specifics render without any
+	// LLM call; forceLLM (studio draft button) regenerates instead.
+	if !forceLLM {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
+			return &UsageGuideResult{
+				Guide:      RenderUsageGuideMarkdown(view),
+				Structured: true,
+				Source:     view.Source,
+			}, nil
+		}
 	}
 
 	var guideType string
@@ -428,7 +442,7 @@ Format as Markdown.`, content.Title, content.ContentType, content.Description, g
 	return &UsageGuideResult{Guide: resp.Content}, nil
 }
 
-func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, handler func(delta string, done bool) error) error {
+func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, handler func(delta string, done bool) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
@@ -436,6 +450,17 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
 	if err != nil {
 		return err
+	}
+
+	// SP-16 #447 structured-first on the stream contract: one delta carries
+	// the rendered markdown, then done.
+	if !forceLLM {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
+			if err := handler(RenderUsageGuideMarkdown(view), false); err != nil {
+				return err
+			}
+			return handler("", true)
+		}
 	}
 
 	prompt := fmt.Sprintf("Generate a concise usage guide for: %s (type: %s)", content.Title, content.ContentType)
@@ -552,6 +577,66 @@ func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
 	s.searchRepo = repo
 }
 
+// SetUsageGuideService wires the merged guide view the in-site agent reads
+// before falling back to LLM generation (SP-16 #447).
+func (s *AgentService) SetUsageGuideService(svc *UsageGuideService) {
+	s.usageGuideSvc = svc
+}
+
+// structuredUsageGuide returns the merged view when the content has
+// persisted specifics (pure templates never short-circuit the LLM here —
+// they are generic, not content-specific guidance).
+func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID int64) (*UsageGuideView, bool) {
+	if s.usageGuideSvc == nil {
+		return nil, false
+	}
+	view, err := s.usageGuideSvc.GetMergedView(ctx, contentItemID, "zh")
+	if err != nil || view == nil || view.Source == "" {
+		return nil, false
+	}
+	return view, true
+}
+
+// HasStructuredGuide reports whether the usage-guide read will be served
+// from persisted specifics, letting the handler skip quota reservation for
+// non-LLM answers.
+func (s *AgentService) HasStructuredGuide(ctx context.Context, contentItemID int64) bool {
+	_, ok := s.structuredUsageGuide(ctx, contentItemID)
+	return ok
+}
+
+// RenderUsageGuideMarkdown flattens a merged guide view into the Markdown
+// shape the in-site agent surface has always served.
+func RenderUsageGuideMarkdown(view *UsageGuideView) string {
+	var b strings.Builder
+	b.WriteString("## 前置要求\n")
+	for _, item := range view.Requirements {
+		b.WriteString("- " + item + "\n")
+	}
+	b.WriteString("\n## 使用步骤\n")
+	for i, step := range view.Steps {
+		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, step))
+	}
+	if strings.TrimSpace(view.Notes) != "" {
+		b.WriteString("\n## 说明\n" + view.Notes + "\n")
+	}
+	b.WriteString("\n## 安全提示\n")
+	for _, item := range view.Safety {
+		b.WriteString("- " + item + "\n")
+	}
+	return b.String()
+}
+
+// SetContentRetriever injects the viewer-aware hybrid retrieval boundary used
+// by Agent tools and NLSearch. The container supplies the concrete adapter.
+func (s *AgentService) SetContentRetriever(retriever AgentContentRetriever) {
+	s.hybridRetriever = retriever
+}
+
+func (s *AgentService) ragHybridEnabled() bool {
+	return s != nil && s.cfg != nil && s.cfg.Features.RAGHybridEnabled
+}
+
 func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
 	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
 		recovery.GoSafe(func() {
@@ -607,6 +692,33 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	default:
 		parts = append(parts, "surface=global")
 	}
+	// A-06 行内引用锚定（SP-13 R2-Q9）：指示模型在句末标注引用序号，前端把
+	// [n] 渲染为可点击角标并映射到服务端复验后的引用卡片（纯展示层，复验
+	// 语义与引用候选收集逻辑零改动）。引用上限之外的标注由流式收口剥离
+	// （stripOrphanCitationMarkers），此处要求模型克制标注以减少剥离量。
+	parts = append(parts, "when your answer relies on retrieved results, mark the sentence end with 1-based citation indexes like [1] or [2], where n is the position of the result in the search output you used; only mark results you actually used and keep the total number of distinct marks small")
+	// 2026-09-06 实测修复（浏览器验收会话）：两个高频体验缺陷的 prompt 层缓解。
+	// ① 推荐/发现类请求模型会跳过工具直接凭常识作答，而 grounded 契约会把
+	// 无引用回答整体替换为拒答 → 强制先检索再回答；
+	// ② 工具输出含内部 id，模型原样复述暴露实现细节 → 禁止在回答中出现。
+	// （"思考/回答跟随用户语言"指令经实测无法约束 M3 思考链语言，按用户裁决
+	// 移除；该问题仍未解决，待换方案重试。）
+	parts = append(parts, "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge")
+	parts = append(parts, "never mention internal numeric content ids in your answer")
+	// SP-15 A2（2026-09-09）：会话车道指令——寒暄/闲聊/意图不明的消息免工具短答。
+	// 与上一条 must-search 指令互补而非覆盖：内容相关问题永远先检索，本条只放行
+	// 本来就不需要引用的会话轮。短答约束与服务端 ≤160 runes 护栏双保险。
+	// 2026-09-09 评测回退门两轮收紧：首版让模型把裸标题/引文式查询当意图不明跳过
+	// 检索（冻结 test vi-0003/vi-0013/ke-0051 逃逸）；第二版把「含具体标题/引文/
+	// 关键词 = 内容请求必须先检索」提为句首主导子句，澄清仅限零可检索文本的消息。
+	parts = append(parts, "when the user's message contains a concrete title, quote, character name, or keyword that could exist on the site, always call the cited_search tool with it before replying, even if the intent seems ambiguous; for example, a message that is just a title like 「星轨下的制琴师」or 'A Quiet Ledger of Small Storms' is a search request: search that exact text first, then answer from the results, and only say you found nothing usable if the search comes back empty; only for pure greetings, thanks, farewells, or a message with no searchable text at all (for example garbled characters), reply briefly without any tool and without citation marks — one or two sentences in the user's language, either a greeting back or one clarifying question about what site content they need")
+	// SP-15 D1/D2（2026-09-10 #434）：查询理解三件套，prompt 层指令为主。
+	// D1 自包含改写——search_content 的 query 必须消解指代/省略，独立可理解；
+	// few-shot 示例刻意避开冻结评测集查询与站内真实标题（防背题）。D2 复合
+	// 问题拆分——多个子问题多次检索，预算 max_tool_calls_per_turn=8 内充足。
+	// 上方 must-search 与 A2 会话车道指令原文不动，本组指令追加其后。
+	parts = append(parts, "every search_content query must be fully self-contained: resolve all pronouns, ellipsis and context references into the concrete entities they point to (exact titles, author or character names, topics), so each query is understandable with zero prior conversation context; for example, when the user asks 「第二个的作者还有什么作品」 after earlier results, the query must be rewritten like 「《迟到的邮差》的作者的其他作品」 with the resolved title, never a bare reference such as 「第二个」 or 「它的作者」; a message that is just a bare title or quote is itself the self-contained query for its first search")
+	parts = append(parts, "when one message combines several independent sub-questions, decompose it into multiple search_content calls — one call per sub-question, each with its own self-contained query — instead of merging them into a single vague query; the per-turn tool budget is sized for this")
 	return llm.ChatMessage{
 		Role:    "system",
 		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),

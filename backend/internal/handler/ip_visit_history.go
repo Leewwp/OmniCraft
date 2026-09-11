@@ -12,6 +12,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 )
 
 // IPVisitHistoryHandler exposes the account-bound recent IP visit history:
@@ -19,11 +20,18 @@ import (
 // merge for the login cutover. All routes require authentication and live
 // under /api/v1/users/me.
 type IPVisitHistoryHandler struct {
-	repo *repository.IPVisitHistoryRepository
+	repo          *repository.IPVisitHistoryRepository
+	displaySigner *service.DisplayURLSigner
 }
 
 func NewIPVisitHistoryHandler(db *gorm.DB) *IPVisitHistoryHandler {
 	return &IPVisitHistoryHandler{repo: repository.NewIPVisitHistoryRepository(db)}
+}
+
+// SetDisplayURLSigner wires display URL signing for the IP cover summaries
+// (B-002).
+func (h *IPVisitHistoryHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
+	h.displaySigner = signer
 }
 
 // ListRecent returns the current user's up-to-six recent visits as public IP
@@ -38,7 +46,7 @@ func (h *IPVisitHistoryHandler) ListRecent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"items": toIPVisitResponse(items),
+		"items": toIPVisitResponse(h.displaySigner, items),
 		"limit": repository.RecentIPVisitLimit,
 	})
 }
@@ -133,11 +141,11 @@ func (h *IPVisitHistoryHandler) MergeVisits(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"accepted_ip_ids":  accepted,
 		"discarded_ip_ids": discarded,
-		"items":            toIPVisitResponse(items),
+		"items":            toIPVisitResponse(h.displaySigner, items),
 	})
 }
 
-func toIPVisitResponse(items []repository.IPVisitHistoryItem) []gin.H {
+func toIPVisitResponse(signer *service.DisplayURLSigner, items []repository.IPVisitHistoryItem) []gin.H {
 	out := make([]gin.H, 0, len(items))
 	for _, item := range items {
 		out = append(out, gin.H{
@@ -146,7 +154,7 @@ func toIPVisitResponse(items []repository.IPVisitHistoryItem) []gin.H {
 				Name:        item.IPName,
 				Slug:        item.IPSlug,
 				Description: item.IPDescription,
-				CoverURL:    item.IPCoverURL,
+				CoverURL:    signer.SignURL(item.IPCoverURL),
 				Category:    item.IPCategory,
 			},
 			"visited_at": item.VisitedAt.UTC().Format(time.RFC3339Nano),

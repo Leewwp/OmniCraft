@@ -261,12 +261,14 @@ backend/
 │   │   ├── ratelimit.go             # 限流（Redis 令牌桶）
 │   │   ├── logger.go                # 请求日志（JSON、脱敏、HMAC IP）
 │   │   ├── metrics.go               # 低基数请求指标
+│   │   ├── tracing.go               # OTel provider、OTLP export、W3C context
 │   │   ├── panic_recovery.go        # panic 恢复（class 级日志 + 计数）
 │   │   └── cors.go
 │   ├── observability/               # 可观测性（生产基线）
 │   │   ├── logger.go                # JSON slog + client_ip HMAC 哈希/轮换
 │   │   ├── metrics.go               # Prometheus 指标与 DB/Redis 收集器
 │   │   ├── server.go                # 内部 :9091（/metrics /healthz /readyz）
+│   │   ├── tracing.go               # OTel provider、OTLP export、采样与 trace ID
 │   │   └── logger.go                # 迁移/备份 textfile 指标写入
 │   ├── handler/                     # HTTP 处理器（按模块）
 │   │   ├── auth.go
@@ -359,6 +361,7 @@ backend/
 | `DELETE` | `/api/v1/contents/:id` | contentHandler.DeleteContent |
 | `DELETE` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.UnblockContributor |
 | `DELETE` | `/api/v1/ips/:id/follow` | followHandler.UnfollowIP |
+| `DELETE` | `/api/v1/mcp` | mcpProxy |
 | `DELETE` | `/api/v1/messages/:id` | msgHandler.DeleteMessage |
 | `DELETE` | `/api/v1/messages/conversations/:id` | msgHandler.LeaveConversation |
 | `DELETE` | `/api/v1/series/:id` | seriesHandler.DeleteSeries |
@@ -366,11 +369,14 @@ backend/
 | `DELETE` | `/api/v1/social/comments/:id` | socialHandler.DeleteComment |
 | `DELETE` | `/api/v1/users/:id/follow` | followHandler.UnfollowUser |
 | `DELETE` | `/api/v1/users/me` | userHandler.DeleteAccount |
+| `DELETE` | `/api/v1/users/me/agent-tokens/:id` | agentTokenHandler.Revoke |
 | `DELETE` | `/api/v1/users/me/history` | histHandler.ClearHistory |
 | `DELETE` | `/api/v1/users/me/saved-searches/:id` | tagHandler.DeleteSavedSearch |
 | `DELETE` | `/api/v1/users/me/tag-groups/:id` | tagHandler.DeleteTagGroup |
 | `GET` | `/api/v1/admin/appeals` | adminHandler.ListAppeals |
+| `GET` | `/api/v1/admin/archive-scan-jobs/:id` | adminArchiveScanHandler.GetJob |
 | `GET` | `/api/v1/admin/audit-logs` | adminAuditHandler.ListAuditLogs |
+| `GET` | `/api/v1/admin/audit-logs/actions` | adminAuditHandler.ListAuditActions |
 | `GET` | `/api/v1/admin/config` | adminHandler.GetConfig |
 | `GET` | `/api/v1/admin/contents` | adminHandler.ListUnderReviewContents |
 | `GET` | `/api/v1/admin/contents/trash` | adminHandler.ListTrashedContents |
@@ -396,6 +402,8 @@ backend/
 | `GET` | `/api/v1/contents` | contentHandler.ListContents |
 | `GET` | `/api/v1/contents/:id` | contentHandler.GetContent |
 | `GET` | `/api/v1/contents/:id/download` | contentHandler.DownloadContent |
+| `GET` | `/api/v1/contents/:id/guide` | usageGuideHandler.GetGuide |
+| `GET` | `/api/v1/contents/:id/guide/specifics` | usageGuideHandler.GetAuthorGuide |
 | `GET` | `/api/v1/contents/:id/prs` | prHandler.ListPRs |
 | `GET` | `/api/v1/contents/:id/related-fanworks` | contentHandler.ListRelatedFanworks |
 | `GET` | `/api/v1/contents/:id/versions` | handler.NewVersionHandler(...).ListVersions |
@@ -409,14 +417,19 @@ backend/
 | `GET` | `/api/v1/ips/:id/contents` | ipHandler.GetIPContents |
 | `GET` | `/api/v1/ips/:id/discussions` | discHandler.ListDiscussions |
 | `GET` | `/api/v1/ips/:id/discussions/search` | discHandler.SearchDiscussions |
+| `GET` | `/api/v1/ips/:id/proposals` | proposalHandler.ListProposals |
+| `GET` | `/api/v1/ips/:id/proposals/:proposalId` | proposalHandler.GetProposal |
+| `GET` | `/api/v1/ips/:id/versions` | proposalHandler.ListVersions |
 | `GET` | `/api/v1/ips/stats/category_counts` | ipStatsHandler.GetCategoryCounts |
 | `GET` | `/api/v1/judge/cases/:id/verdict` | judgeHandler.GetVerdictDetail |
 | `GET` | `/api/v1/judge/exam/:category` | judgeHandler.GetExam |
 | `GET` | `/api/v1/judge/queue` | judgeHandler.GetQueue |
+| `GET` | `/api/v1/mcp` | mcpProxy |
 | `GET` | `/api/v1/messages` | msgHandler.ListConversations |
 | `GET` | `/api/v1/messages/:id` | msgHandler.ListMessages |
 | `GET` | `/api/v1/notifications` | notifHandler.ListNotifications |
 | `GET` | `/api/v1/notifications/unread-count` | notifHandler.UnreadCount |
+| `GET` | `/api/v1/openapi.json` | handler.NewOpenAPIV1Handler(...).Serve |
 | `GET` | `/api/v1/pr/:id` | prHandler.GetPR |
 | `GET` | `/api/v1/rehab/courses` | rehabHandler.ListCourses |
 | `GET` | `/api/v1/rehab/courses/:id` | rehabHandler.GetCourse |
@@ -431,6 +444,7 @@ backend/
 | `GET` | `/api/v1/social/discussions` | socialHandler.ListDiscussions |
 | `GET` | `/api/v1/social/discussions/:id` | socialHandler.GetDiscussion |
 | `GET` | `/api/v1/social/reactions` | socialHandler.ListReactions |
+| `GET` | `/api/v1/social/reports/me` | socialHandler.ListMyReports |
 | `GET` | `/api/v1/stats/summary` | statsHandler.GetSummary |
 | `GET` | `/api/v1/tags/faceted` | tagHandler.GetFacetedTags |
 | `GET` | `/api/v1/tags/search` | tagHandler.SearchTags |
@@ -440,10 +454,14 @@ backend/
 | `GET` | `/api/v1/users/:id/followers` | followHandler.GetFollowers |
 | `GET` | `/api/v1/users/:id/following` | followHandler.GetFollowing |
 | `GET` | `/api/v1/users/:id/reputation` | userHandler.GetReputation |
+| `GET` | `/api/v1/users/me/agent-tokens` | agentTokenHandler.List |
 | `GET` | `/api/v1/users/me/contents` | userHandler.GetMyContents |
+| `GET` | `/api/v1/users/me/contributors` | userHandler.GetMyContributors |
 | `GET` | `/api/v1/users/me/followers/stats` | followHandler.GetFollowerStats |
 | `GET` | `/api/v1/users/me/history` | histHandler.GetHistory |
 | `GET` | `/api/v1/users/me/ip-visits` | ipVisitHistoryHandler.ListRecent |
+| `GET` | `/api/v1/users/me/ips` | ipHandler.GetMyIPs |
+| `GET` | `/api/v1/users/me/pending-tasks` | userHandler.GetMyPendingTasks |
 | `GET` | `/api/v1/users/me/saved-searches` | tagHandler.ListSavedSearches |
 | `GET` | `/api/v1/users/me/tag-groups` | tagHandler.ListTagGroups |
 | `GET` | `/api/v1/users/search` | searchHandler.SearchUsers |
@@ -454,6 +472,7 @@ backend/
 | `PATCH` | `/api/v1/admin/feedback/:id` | adminFeedbackHandler.PatchFeedback |
 | `PATCH` | `/api/v1/admin/llm-configs/:id` | adminHandler.UpdateLLMConfig |
 | `PATCH` | `/api/v1/admin/reports/:id` | adminHandler.ResolveReport |
+| `PATCH` | `/api/v1/agent/conversations/:id` | agentHandler.UpdateConversation |
 | `PATCH` | `/api/v1/contents/:id` | contentHandler.UpdateContent |
 | `PATCH` | `/api/v1/dashboard/tag-suggestions/:id` | tagHandler.UpdateTagSuggestion |
 | `PATCH` | `/api/v1/discussions/:id/pin` | discHandler.PinDiscussion |
@@ -464,6 +483,9 @@ backend/
 | `PATCH` | `/api/v1/users/me/support-info` | userHandler.UpdateSupportInfo |
 | `PATCH` | `/api/v1/users/me/tag-groups/:id` | tagHandler.UpdateTagGroup |
 | `POST` | `/api/v1/admin/appeals/:id` | adminHandler.ResolveAppeal |
+| `POST` | `/api/v1/admin/archive-scan-jobs/:id/manual-review` | adminArchiveScanHandler.StartManualReview |
+| `POST` | `/api/v1/admin/archive-scan-jobs/:id/resolve` | adminArchiveScanHandler.ResolveManualReview |
+| `POST` | `/api/v1/admin/archive-scan-jobs/:id/retry` | adminArchiveScanHandler.Retry |
 | `POST` | `/api/v1/admin/categories` | catHandler.AdminCreateCategory |
 | `POST` | `/api/v1/admin/contents/:id/ban` | adminHandler.BanContent |
 | `POST` | `/api/v1/admin/feedback/:id/replies` | adminFeedbackHandler.ReplyFeedback |
@@ -474,11 +496,12 @@ backend/
 | `POST` | `/api/v1/admin/llm-configs/:id/activate` | adminHandler.ActivateLLMConfig |
 | `POST` | `/api/v1/admin/llm-configs/:id/test` | adminHandler.TestLLMConfig |
 | `POST` | `/api/v1/admin/notifications/broadcast` | adminHandler.BroadcastNotification |
+| `POST` | `/api/v1/admin/queue/dlq/:id/replay` | adminHandler.ReplayDLQEntry |
+| `POST` | `/api/v1/admin/rag/rebuild` | adminRAGHandler.Rebuild |
 | `POST` | `/api/v1/admin/users/:id/ban` | adminHandler.BanUser |
 | `POST` | `/api/v1/admin/users/:id/unban` | adminHandler.UnbanUser |
 | `POST` | `/api/v1/agent/chat/stream` | agentHandler.ChatStream |
 | `POST` | `/api/v1/agent/compliance-check` | agentHandler.ComplianceCheck |
-| `POST` | `/api/v1/agent/search` | agentHandler.NLSearch |
 | `POST` | `/api/v1/agent/upload-assist` | agentHandler.UploadAssist |
 | `POST` | `/api/v1/appeals` | appealHandler.SubmitAppeal |
 | `POST` | `/api/v1/auth/forgot-password` | authHandler.ForgotPassword |
@@ -508,9 +531,12 @@ backend/
 | `POST` | `/api/v1/ips` | ipHandler.CreateIP |
 | `POST` | `/api/v1/ips/:id/discussions` | discHandler.CreateDiscussion |
 | `POST` | `/api/v1/ips/:id/follow` | followHandler.FollowIP |
+| `POST` | `/api/v1/ips/:id/proposals` | proposalHandler.CreateProposal |
+| `POST` | `/api/v1/ips/:id/proposals/:proposalId/vote` | proposalHandler.SubmitVote |
 | `POST` | `/api/v1/judge/exam/submit` | judgeHandler.SubmitExam |
 | `POST` | `/api/v1/judge/reasons/:id/vote` | judgeHandler.VoteReason |
 | `POST` | `/api/v1/judge/vote` | judgeHandler.SubmitVote |
+| `POST` | `/api/v1/mcp` | mcpProxy |
 | `POST` | `/api/v1/messages` | msgHandler.SendMessage |
 | `POST` | `/api/v1/notifications/read-all` | notifHandler.MarkAllRead |
 | `POST` | `/api/v1/pr` | prHandler.SubmitPR |
@@ -526,6 +552,7 @@ backend/
 | `POST` | `/api/v1/social/discussions` | socialHandler.PostDiscussion |
 | `POST` | `/api/v1/social/reactions` | socialHandler.React |
 | `POST` | `/api/v1/users/:id/follow` | followHandler.FollowUser |
+| `POST` | `/api/v1/users/me/agent-tokens` | agentTokenHandler.Create |
 | `POST` | `/api/v1/users/me/history` | histHandler.RecordView |
 | `POST` | `/api/v1/users/me/ip-visits/merge` | ipVisitHistoryHandler.MergeVisits |
 | `POST` | `/api/v1/users/me/saved-searches` | tagHandler.CreateSavedSearch |
@@ -533,6 +560,7 @@ backend/
 | `PUT` | `/api/v1/admin/categories/reorder` | catHandler.AdminReorderCategories |
 | `PUT` | `/api/v1/collections/:id` | collectionHandler.UpdateCollection |
 | `PUT` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.UpdateItem |
+| `PUT` | `/api/v1/contents/:id/guide` | usageGuideHandler.SaveGuide |
 | `PUT` | `/api/v1/series/:id` | seriesHandler.UpdateSeries |
 | `PUT` | `/api/v1/series/:id/items/reorder` | seriesHandler.ReorderItems |
 | `PUT` | `/api/v1/users/me/ip-visits/:ipId` | ipVisitHistoryHandler.RecordVisit |
@@ -648,9 +676,11 @@ omnicraft://deploy?content_id=xxx&token=yyy
 
 ## 7. 可观测性（日志、指标、就绪）
 
-日志使用结构化 JSON（稳定字段 `time/level/msg/service/environment/version/trace_id/request_id/route/method/status/duration_ms/client_ip/error_class`）。`client_ip` 只保存 `LOG_IP_HASH_SECRET` 的 HMAC-SHA256 前 128 bit（32 位小写十六进制）+ 非敏感 `client_ip_key_id`；日志永不出现原始 IP、token、cookie、授权头、验证码票据、签名 URL 查询串或消息正文。前一把哈希密钥只在显式轮换窗口内可用（`observability.ip_key_rotation`）。release 模式缺少哈希密钥时 fail-closed 拒绝启动。
+日志使用结构化 JSON（稳定字段 `time/level/msg/service/environment/version/trace_id/request_id/route/method/status/duration_ms/client_ip/error_class`）。`trace_id` 是 OTel 128-bit trace，`request_id` 仍是独立的 8-byte hex 请求关联 ID；SSE `trace_id` 沿用当前 OTel context。`client_ip` 只保存 `LOG_IP_HASH_SECRET` 的 HMAC-SHA256 前 128 bit（32 位小写十六进制）+ 非敏感 `client_ip_key_id`；日志永不出现原始 IP、token、cookie、授权头、验证码票据、签名 URL 查询串或消息正文。前一把哈希密钥只在显式轮换窗口内可用（`observability.ip_key_rotation`）。release 模式缺少哈希密钥时 fail-closed 拒绝启动。
 
 指标低基数：请求量/错误率/延迟（route 模板 + method + status_class 标签）、panic、DB pool、Redis pool、队列积压、worker 失败、迁移状态，以及 OSS/Green/CAPTCHA/SMTP/LLM 外部依赖按依赖名+结果聚合的成功/失败/延迟。`/healthz` 仅进程存活；`/readyz` 依赖感知（DB+Redis 超时探测）且不泄露连接细节；`/metrics` 只在内网 `:9091` 暴露。
+
+Tracing 使用 head-based ratio sampling，经 OTLP/gRPC 只发往 `observability.tracing.endpoint`；full-infra 由 OTel Collector 转发到 Jaeger，Collector 离线只丢弃遥测并告警，不改变业务路径。HTTP、Redis Streams、GORM 和 LLM span 共享 W3C context；GenAI span 只记录 provider/model、temperature 和 token usage，不记录 prompt 或 embedding 正文。
 
 参考栈：应用 JSON stdout → Docker `json-file` 轮转（10MB×5）→ Grafana Alloy（只读日志挂载，无 Docker 控制权）→ Loki（命名卷、30 天 retention）；Prometheus 内网抓取、30 天+磁盘上限双 retention；操作员经 `loki-gate`（127.0.0.1 绑定、token 认证、查询审计落盘）或 SSH 隧道访问。warning/error 审计摘要每日加密归档（异地目标凭证为 Ops-08 输入）。迁移器、`backup-db.sh`、`recovery-drill.sh` 向 `METRICS_TEXTFILE_DIR` 输出 success/failure/last-success 文本指标。
 
@@ -712,10 +742,10 @@ FRONTEND_URL=https://app.leeppp.online     # 当前生产环境实际域名
 |------|------|----------|------|
 | Web 核心 | `frontend`、`backend`、`postgres`、`pgbouncer`、`redis`、`nginx` | 常驻 | `nginx` 是唯一公网入口；其余服务仅在 Compose 内网通信 |
 | 发布门 | `migrate` | 每次发布一次性运行 | 迁移成功后 backend 才能启动；完成后退出，不计入常驻内存 |
-| 3.6 GiB 面试观测 | `prometheus` | 常驻 | 仅抓取 backend 的低基数应用指标，使用精简 scrape 配置，不加载依赖完整观测栈的 targets/rules |
+| 3.6 GiB 精简观测 | `prometheus` | 常驻 | 仅抓取 backend 的低基数应用指标，使用精简 scrape 配置，不加载依赖完整观测栈的 targets/rules |
 | 完整生产观测 | `alertmanager`、`postgres-exporter`、`redis-exporter`、`cadvisor`、`blackbox`、`node-exporter`、`loki`、`alloy`、`loki-gate` | 资源充足或迁往独立监控节点后常驻 | 提供主机/依赖/容器指标、外部探测、告警投递和集中日志查询 |
 
-3.6 GiB 面试服务器采用“6 个 Web 核心常驻服务 + 一次性 `migrate` +
+3.6 GiB 低配服务器采用“6 个 Web 核心常驻服务 + 一次性 `migrate` +
 精简 `prometheus`”。这不是完整生产观测档：结构化 JSON 日志、Docker
 日志轮转、`/healthz`、内网 `/readyz` 和 `/metrics`、备份/恢复脚本仍须
 保留，但完整日志链（Alloy → Loki → loki-gate）和告警链在该主机暂缓。
@@ -729,7 +759,7 @@ Prometheus 上限合计也约 3.9 GiB。`deploy.resources.limits` 是上限而�
 完整 `ops/observability/prometheus.yml` 会抓取 Alertmanager、数据库/Redis
 exporter、cAdvisor、Blackbox 和 node-exporter。精简档不能仅停掉这些容器后
 继续宣称监控全绿；服务器切换前必须提供并校验只抓取 `backend:9091` 的
-独立 Prometheus 配置。完整生产发布仍使用 17 服务模板，不受面试精简档
+独立 Prometheus 配置。完整生产发布仍使用 17 服务模板，不受资源精简档
 影响。
 
 ---

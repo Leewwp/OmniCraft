@@ -234,18 +234,23 @@ test("SeriesNav overlay directory opens a bounded scrollable listbox with the cu
     const view = renderSeriesNav([memberships[0]], { onNavigateInOverlay: () => {} });
 
     fireEvent.click(view.getByRole("button", { name: "查看 山海纪行 系列目录" }));
-    await waitFor(() => assert.equal(view.getAllByRole("option").length, 3));
+    /* 布尔恒等断言：失败时不序列化 DOM 节点数组（c52cea4 教训）。 */
+    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
 
     const listbox = view.getByRole("listbox");
     assert.match(listbox.className, /max-h-72/, "directory must be height-bounded");
     assert.match(listbox.className, /overflow-y-auto/, "directory must scroll internally");
 
     const options = view.getAllByRole("option");
-    assert.equal(options.length, 3);
+    assert.ok(options.length === 3);
     assert.equal(options[0]?.getAttribute("aria-selected"), "false");
     assert.equal(options[1]?.getAttribute("aria-selected"), "true", "current chapter must be aria-selected");
     assert.ok(options[1]?.textContent?.includes("山雨"));
-    assert.equal(document.activeElement, options[1], "focus must enter the selector at the current chapter");
+    /* 聚焦当前章节项在被动 effect 中执行（提交后异步冲刷，CI 负载下可能晚于
+       DOM 出现）——#313/#315/#342 的闪断点：必须等焦点真正落位再断言，不能在
+       选项出现后立即断言（与 keyboard flow 测试的 round3 加固同款）。 */
+    await waitFor(() => assert.ok(document.activeElement === options[1]));
+    assert.ok(document.activeElement === options[1], "focus must enter the selector at the current chapter");
   } finally {
     restoreFetch();
   }
@@ -259,27 +264,35 @@ test("SeriesNav overlay directory keyboard flow selects chapters and Escape rest
     const trigger = view.getByRole("button", { name: "查看 山海纪行 系列目录" });
 
     fireEvent.click(trigger);
-    await waitFor(() => assert.equal(view.getAllByRole("option").length, 3));
+    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
     const options = view.getAllByRole("option");
+    /* 聚焦当前章节项在被动 effect 中执行（提交后异步冲刷，CI 负载下可能晚于
+       DOM 出现）：先等焦点真正落位再发键，避免按键发在 body 上。 */
+    await waitFor(() => assert.ok(document.activeElement === options[1]));
 
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "ArrowDown" }));
-    assert.equal(document.activeElement, options[2], "ArrowDown must move to the next option");
+    assert.ok(document.activeElement === options[2], "ArrowDown must move to the next option");
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "ArrowUp" }));
-    assert.equal(document.activeElement, options[1], "ArrowUp must move back");
+    assert.ok(document.activeElement === options[1], "ArrowUp must move back");
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "ArrowUp" }));
-    assert.equal(document.activeElement, options[0], "ArrowUp must wrap around");
+    assert.ok(document.activeElement === options[0], "ArrowUp must wrap around");
 
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "Enter" }));
     assert.deepEqual(pushed, [10], "Enter on an option must push that chapter");
 
     fireEvent.click(trigger);
-    await waitFor(() => assert.equal(view.getAllByRole("option").length, 3));
+    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
+    /* 重开后焦点效应同样异步落位：Escape 必须发在选项上，否则关不掉目录。 */
+    await waitFor(() =>
+      assert.ok(view.getAllByRole("option").some((option) => option === document.activeElement)),
+    );
     await act(async () => {
       fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     assert.equal(view.queryByRole("listbox"), null, "Escape must close the directory");
-    assert.equal(document.activeElement, trigger, "Escape must return focus to the catalog trigger");
+    /* 布尔恒等断言：失败时不序列化整棵 Fiber 树（c52cea4 的既定教训）。 */
+    assert.ok(document.activeElement === trigger, "Escape must return focus to the catalog trigger");
   } finally {
     restoreFetch();
   }
@@ -292,7 +305,7 @@ test("SeriesNav overlay directory never re-pushes the current chapter", async ()
     const view = renderSeriesNav([memberships[0]], { onNavigateInOverlay: (id) => pushed.push(id) });
 
     fireEvent.click(view.getByRole("button", { name: "查看 山海纪行 系列目录" }));
-    await waitFor(() => assert.equal(view.getAllByRole("option").length, 3));
+    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
     const options = view.getAllByRole("option");
     fireEvent.click(options[1] as Element);
 

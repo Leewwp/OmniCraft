@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestNLSearchAppliesVisibilityScope(t *testing.T) {
+func TestAgentRetrievalAppliesVisibilityScope(t *testing.T) {
 	source := readAgentServiceSource(t)
 	required := []string{
 		"published",
@@ -16,15 +16,15 @@ func TestNLSearchAppliesVisibilityScope(t *testing.T) {
 	}
 	for _, r := range required {
 		if !strings.Contains(source, r) {
-			t.Fatalf("NLSearch must apply visibility scope including %q check", r)
+			t.Fatalf("agent retrieval must apply visibility scope including %q check", r)
 		}
 	}
 }
 
-func TestNLSearchAcceptsViewerID(t *testing.T) {
+func TestAgentRetrievalAcceptsViewerID(t *testing.T) {
 	source := readAgentServiceSource(t)
 	if !strings.Contains(source, "viewerID") && !strings.Contains(source, "viewer_id") {
-		t.Fatal("NLSearch must accept a viewerID parameter to apply is_public/author visibility rules")
+		t.Fatal("agent retrieval must accept a viewerID parameter to apply is_public/author visibility rules")
 	}
 }
 

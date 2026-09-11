@@ -30,10 +30,14 @@ export default function JudgeQueuePage() {
   const [cases, setCases] = useState<JudgeCaseData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [votedCaseId, setVotedCaseId] = useState<number | null>(null);
   const [queueTotal, setQueueTotal] = useState(0);
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 20;
 
   const loadQueue = useCallback(async () => {
     if (!user) return;
@@ -41,10 +45,11 @@ export default function JudgeQueuePage() {
     setError("");
     try {
       const data = await api.get<{ cases: JudgeCaseData[]; total: number }>(
-        "/api/v1/judge/queue?page=1&page_size=20"
+        `/api/v1/judge/queue?page=1&page_size=${PAGE_SIZE}`
       );
       setCases(data.cases || []);
       setQueueTotal(data.total || 0);
+      setPage(1);
       setCurrentIndex(0);
       setVotedCaseId(null);
     } catch (e) {
@@ -54,6 +59,28 @@ export default function JudgeQueuePage() {
       setLoading(false);
     }
   }, [user, t]);
+
+  const hasMore = cases.length < queueTotal;
+
+  const loadMore = useCallback(async () => {
+    if (!user || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const next = page + 1;
+      const data = await api.get<{ cases: JudgeCaseData[]; total: number }>(
+        `/api/v1/judge/queue?page=${next}&page_size=${PAGE_SIZE}`
+      );
+      setCases((prev) => [...prev, ...(data.cases || [])]);
+      setQueueTotal(data.total || 0);
+      setPage(next);
+    } catch (e) {
+      silentError(e, { component: 'JudgeQueuePage', action: 'loadMore' });
+      setError(t(getUserFacingErrorKey(e, "judge.loadQueueFailed")));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [user, loadingMore, hasMore, page, t]);
 
   useEffect(() => {
     if (user) {
@@ -125,17 +152,34 @@ export default function JudgeQueuePage() {
           </Button>
         </div>
       ) : currentIndex >= cases.length ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center ">
-          <p className="text-sm text-muted-foreground">
-            {t('judge.queueCompleted')}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t('judge.queueSummary', { total: queueTotal })}
-          </p>
-          <Button size="sm" className="mt-4" variant="outline" onClick={() => void loadQueue()}>
-            {t('judge.refreshQueue')}
-          </Button>
-        </div>
+        hasMore ? (
+          <div className="rounded-md border border-border bg-card p-12 text-center ">
+            <p className="text-sm text-muted-foreground">
+              {t('judge.queueSummary', { total: queueTotal })}
+            </p>
+            <Button
+              size="sm"
+              className="mt-4"
+              variant="outline"
+              disabled={loadingMore}
+              onClick={() => void loadMore()}
+            >
+              {loadingMore ? t('judge.loadingQueue') : t('judge.loadMore')}
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-md border border-border bg-card p-12 text-center ">
+            <p className="text-sm text-muted-foreground">
+              {t('judge.queueCompleted')}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('judge.queueSummary', { total: queueTotal })}
+            </p>
+            <Button size="sm" className="mt-4" variant="outline" onClick={() => void loadQueue()}>
+              {t('judge.refreshQueue')}
+            </Button>
+          </div>
+        )
       ) : (
         <div className="space-y-4">
           <ReviewCard
@@ -143,7 +187,21 @@ export default function JudgeQueuePage() {
             disabled={isInteractionBlocked}
             submitting={submitting}
             onVote={(caseId, vote, reason) => void handleVote(caseId, vote, reason)}
+            onSkip={goNextCase}
           />
+
+          {hasMore && currentIndex >= cases.length - 3 && (
+            <div className="text-center">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? t('judge.loadingQueue') : t('judge.loadMore')}
+              </Button>
+            </div>
+          )}
 
           {votedCaseId && (
             <>

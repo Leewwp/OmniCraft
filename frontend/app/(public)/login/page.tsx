@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Brush, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApiRequestError } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,10 +26,13 @@ function LoginPageContent() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  // T29（FIX-15）：USER_BANNED 登录拒绝时展示申诉/工单指引（产品内唯一出路入口）。
+  const [bannedGuidance, setBannedGuidance] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setBannedGuidance(false);
     setIsLoading(true);
 
     try {
@@ -37,6 +41,9 @@ function LoginPageContent() {
       router.push(redirect);
     } catch (err) {
       silentError(err, { component: "LoginPage", action: "handleSubmit" });
+      if (err instanceof ApiRequestError && err.code === "USER_BANNED") {
+        setBannedGuidance(true);
+      }
       setError(t(getUserFacingErrorKey(err, "auth.errorLoginFailed")));
     } finally {
       setIsLoading(false);
@@ -110,9 +117,20 @@ function LoginPageContent() {
             </label>
 
             {error && (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
+              <div className="space-y-2" role="alert">
+                <p className="text-sm text-destructive">{error}</p>
+                {bannedGuidance && (
+                  <p className="text-sm text-muted-foreground">
+                    {t("auth.bannedFeedbackHint")}{" "}
+                    <Link
+                      href="/feedback"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {t("auth.bannedFeedbackEntry")}
+                    </Link>
+                  </p>
+                )}
+              </div>
             )}
 
             <Button type="submit" className="mt-1 w-full" disabled={isLoading}>

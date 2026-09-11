@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "cases": [
     {
       "id": "exact_keyword_lookup",
@@ -22,6 +22,7 @@
         "expected_content_ids": [1001],
         "forbidden_content_ids": [],
         "expected_tool_names": ["search_content"],
+        "citation_source": "vector",
         "degraded": false
       }
     },
@@ -46,6 +47,7 @@
         "expected_content_ids": [1002],
         "forbidden_content_ids": [],
         "expected_tool_names": ["search_content"],
+        "citation_source": "vector",
         "degraded": false
       }
     },
@@ -79,6 +81,7 @@
         "expected_content_ids": [1003, 1004],
         "forbidden_content_ids": [],
         "expected_tool_names": ["search_content", "get_content_detail"],
+        "citation_source": "vector",
         "degraded": false
       }
     },
@@ -136,6 +139,7 @@
         "expected_content_ids": [1005],
         "forbidden_content_ids": [1006, 1007],
         "expected_tool_names": ["search_content"],
+        "citation_source": "vector",
         "degraded": false
       }
     },
@@ -161,6 +165,7 @@
         "expected_content_ids": [1008],
         "forbidden_content_ids": [],
         "expected_tool_names": ["search_content"],
+        "citation_source": "vector",
         "degraded": false
       }
     },
@@ -185,6 +190,7 @@
         "expected_content_ids": [1009],
         "forbidden_content_ids": [7777],
         "expected_tool_names": ["search_content", "get_content_detail"],
+        "citation_source": "vector",
         "degraded": false
       }
     },
@@ -205,11 +211,12 @@
         }
       ],
       "expected": {
-        "answer_kind": "grounded_content",
+        "answer_kind": "no_evidence",
         "expected_content_ids": [1010],
         "forbidden_content_ids": [],
         "expected_tool_names": ["get_content_detail"],
-        "degraded": false
+        "degraded": false,
+        "error_code": "AGENT_NO_EVIDENCE"
       }
     },
     {

@@ -27,8 +27,7 @@
 - Page: /ips IP 库
 - Page: /login 登录页
 - Page: /register 注册页
-- Page: /ip/[ipId] IP 详情页
-- Page: /ip/[ipId]/[category] IP 类目内容列表
+- Page: /ip/[ipId] IP 详情页（含类目就地切换，U-01 并入原独立类目页）
 - Page: /ip/[ipId]/discussions 讨论区列表
 - Page: /ip/[ipId]/discussions/[discussionId] 讨论详情
 - Page: /ip/[ipId]/discussions/new 发帖页
@@ -60,6 +59,7 @@
 - Page: /studio 创作者工作室
 - Page: /studio/publish/original 发布原创
 - Page: /studio/publish/fanwork 发布二创
+- Page: /studio/publish/ip 创建 IP
 - Page: /studio/overview 数据概览
 - Page: /studio/series 内容系列管理
 - Page: /studio/favorites 收藏集管理
@@ -71,7 +71,7 @@
 - Page: /collections/[id] 收藏集详情（Task 122-124）
 - Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
 
-### Components（72）
+### Components（73）
 - Component: Button 与 Badge 共享动作原语
 - Component: Card 共享容器原语
 - Component: Form Controls 表单原语
@@ -85,6 +85,8 @@
 - Component: TagBadge
 - Component: IPCard
 - Component: IPCategoryTabs
+- Component: FilterPills 筛选药丸（全站筛选形态基准；2026-09-07 O1a 矮化裁决取代 SP-12 旧基准）
+- Component: ContentStatusBadge 内容状态徽标（T44/FIX-14 新增）
 - Component: ContentDetail
 - Component: ContentDetailOverlay
 - Component: MediaGallery 媒体集画廊
@@ -109,7 +111,7 @@
 - Component: ComplianceCheckBadge
 - Component: UsageGuidePanel
 - Component: GlobalSearchInput
-- Component: FollowButton
+- Component: FollowButton 关注按钮（#415 O1b 恒宽规范，取代「已关注=outline」旧契约）
 - Component: NotificationDropdown
 - Component: NotificationList
 - Component: ConversationList
@@ -154,8 +156,9 @@
 - **颜色 token**：使用 `design/design-system.md` 定义的 CSS 自定义属性，以 `--xxx` 格式引用（`--` 前缀的 CSS 自定义属性），使用时通过 `var()` 读取值：`--background`、`--foreground`、`--primary`、`--border` 等基础色，以及 `--canvas-default`、`--canvas-subtle`、`--border-default`、`--fg-muted`、`--accent-emphasis`、`--accent-subtle` 等自定义 token。标签颜色使用预设的 6 色体系 (blue/green/purple/orange/rose/sky)。所有颜色支持 light/dark 双模式，暗色模式通过根级 `.dark` 类自动切换。
 - **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace`。正文与标题只使用 12 / 14 / 16 / 20 / 24px 五档；紧凑指标数字例外须在组件章节登记。
 - **间距阶梯**：使用 4px 基线；卡片 12px、区块 16px、详情卡 20/24px、页面 gutter 16/24px、网格 gap 16px、区块间距 24/32px。
-- **圆角**：rounded-sm (3px) 小元素 / rounded-md (4px) 按钮/输入框 / rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 标签/药丸按钮。核心原则：统一圆角，`rounded-lg` (8px) 为默认，标签用 `rounded-full`。
-- **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）
+- **圆角**：rounded-sm (3px) 小元素（checkbox）/ rounded-md (8px) 按钮/输入框（操作控件，与卡片同档，SP-12 U-01 起自 4px 提升）/ rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 筛选选择与信息标签（药丸）。核心原则：矩形=操作控件、药丸=选择/信息（形状语义见 design-system.md）。
+- **控件高度**：三档体系——紧凑 28px (`h-7`) / 常规 36px (`h-9`) / 表单与主 CTA 44-48px (`min-h-11`~`h-12`)；硬规则**同排控件同高**（SP-12 U-01 起生效，权威见 design-system.md「高度体系」）。
+- **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）；`active:scale` 按压缩放仅限页面级主 CTA，hover 加深一档。
 - **层级**：静态卡片/面板使用 elevation 1，hover 使用 elevation 2，Dropdown/Drawer/Modal 使用 elevation 3；阴影必须配合 1px border，不得造成布局位移；`prefers-reduced-motion: reduce` 下禁用缩放、位移和脉冲。
 
 ## Global Interaction Patterns
@@ -169,14 +172,42 @@
 ## Component: Button 与 Badge 共享动作原语
 
 **视觉契约**
-- Button 使用 `rounded-md` (4px)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
-- Primary hover 使用 `--accent-hover`；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
-- 默认高度 32px，lg 36px；icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
+- Button 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
+- Primary hover 使用 `--accent-hover`（dark 为 #4338CA，白字 7.90:1 ≥AA）；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
+- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
 - Badge 始终 `rounded-full`、12px medium、20px 高，无 elevation；可交互 Badge 仅做 150ms 颜色/边框过渡，focus-visible 与 Button 相同。
 
 **响应式与动效**
 - 移动端不缩小文字；独立动作或 icon-only 动作保持 44px 触控目标，密集工具栏可沿用 U-02A 已批准的 coarse-pointer 媒体规则。
 - active 反馈不得通过会导致布局抖动的 margin/border-width 实现；reduced-motion 下禁用位移与缩放。
+
+## Component: ContentStatusBadge 内容状态徽标（T44/FIX-14 新增）
+
+**覆盖文件**: `components/studio/ContentStatusBadge.tsx`（消费 Badge 原语，variant=outline + 语义 token className）
+
+**视觉契约**
+- 信息药丸：复用 Badge 原语形态（`rounded-full`、12px medium、20px 高、1px 边框），`text-[10px]` 与 studio 列表行的 zone/type 徽标同档。
+- 状态映射（仅非 published 显示——已发布是常态不标注）：draft=`canvas-subtle`/`fg-muted`（中性）；pending=`primary/10` 底 + `primary` 字（进行中）；under_review=`accent-subtle` 底 + `accent-emphasis` 字（复核）；banned=`destructive/10` 底 + `destructive` 字 + `border-destructive/30`（终态警示）。全部消费既有语义 token，不引入任意色。
+- 不用颜色单独表达状态：文案 i18n（zh 草稿/审核中/复核中/已封禁，en Draft/In review/Under re-review/Banned）与颜色一一对应同现。
+
+**行为契约**
+- 未知/未来状态返回 null（不渲染），状态词表收敛在组件内 `STATUS_STYLES`/`STATUS_KEYS`。
+- banned 行在 studio 列表额外携带 ban_reason 文本与「去申诉」outline 按钮（`/appeals?target_type=content&target_id=` 预填跳转）；编辑按钮 disabled（终态禁改，T43/FIX-13 的前端呼应）。
+
+## Component: UsageGuideDialog studio 使用指导编辑弹层（SP-16 #447 新增）
+
+**覆盖文件**: `components/studio/UsageGuideDialog.tsx`（studio 列表行 BookOpen 图标按钮触发）
+
+**视觉契约**
+- 弹层形态沿用 FIX-14 编辑弹层同款：`fixed inset-0 z-50` + `bg-foreground/40` 遮罩、`max-w-lg` 卡片（`rounded-lg` + 1px `border-border` + `bg-card`）、高内容用 `max-h-[85vh]` 内滚动。
+- locale 切换 = 同排两个 28px 高 pill 按钮（`h-7 px-3 text-xs`），选中 default、未选 outline——与 IP 库 pill 选择态同档。
+- 三字段全部走 Form Controls 原语（Label 14px medium + Textarea `rounded-lg` 边框态）；「AI 草稿」按钮 = notes 标签行右对齐 outline sm 档 + Sparkles 14px 图标，生成中 disabled。
+- AI 草稿提示 = 12px `text-muted-foreground` 行内文本，不用颜色/图标单独表达。
+
+**行为契约**
+- requirements/steps 按行拆分为字符串数组（trim + 去空行）；notes 为自由 Markdown；保存 `PUT /contents/:id/guide`（source= llm_assisted 当内容含 AI 草稿）。
+- AI 草稿走站内 agent 端点 `GET /agent/usage-guide/:id?draft=true`（强制生成路径），草稿只填入空 notes 不覆盖作者手写内容。
+- 留空字段在读者侧回退系统模板（安全提示永远来自模板，作者不可移除）；i18n `studio.guide.*` zh/en 全量。
 
 ## Component: Card 共享容器原语
 
@@ -191,7 +222,8 @@
 **覆盖文件**: `checkbox.tsx`、`field.tsx`、`input.tsx`、`label.tsx`、`select.tsx`、`switch.tsx`、`textarea.tsx`
 
 **视觉契约**
-- Input/Select/Textarea 使用 `rounded-md` (4px)、1px `border-input`、`bg-background`、14px 正文；移动端输入文字保持 16px 以避免浏览器自动缩放，`md` 起恢复 14px。
+- Input/Select/Textarea 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、1px `border-input`、`bg-background`、14px 正文；移动端输入文字保持 16px 以避免浏览器自动缩放，`md` 起恢复 14px。
+- 高度对齐控件三档：常规 36px；表单内取 44-48px 并与同排提交按钮同高（同排同高硬规则）。
 - hover（非 disabled）提升到 `border-strong`；focus-visible 使用 2px `--ring` + 2px background offset；invalid 使用 `border-destructive` + destructive ring，不以 placeholder 或颜色单独表达错误。
 - Label 为 14px medium；Field 间距使用 8px，hint/error 为 12px，error 保留 `role=alert`。
 - Checkbox 使用 16px 方形、`rounded-sm` (3px)、checked=`primary`；Switch 为 44×24px 药丸轨道，checked=`primary`、unchecked=`muted`，thumb 使用 elevation 1。两者沿用同一 focus/disabled 契约。
@@ -204,7 +236,7 @@
 
 **视觉契约**
 - Popup/Submenu 使用 `bg-popover` + 1px `border-border` + `rounded-lg` (8px) + elevation 3，不再用 ring 模拟边框或使用未登记的 shadow 档位。
-- Item 使用 `rounded-md` (4px)、14px、最小 32px 高；hover/focus 使用中性 `accent`，checked/selected 可使用 `accent-subtle` + `accent-emphasis`，destructive 只使用 destructive token。
+- Item 使用 `rounded-md`（--radius-md=8px，SP-12 U-01 起随操作控件档位）、14px、最小 32px 高；hover/focus 使用中性 `accent`，checked/selected 可使用 `accent-subtle` + `accent-emphasis`，destructive 只使用 destructive token。
 - Label/shortcut 使用 12px muted；separator 为 1px `border`。菜单宽度不得超过可用视口，长内容省略或纵向滚动。
 
 **动效与响应式**
@@ -302,6 +334,7 @@ interface HeaderProps {
 - 仅提供普通关键词、标签和分类分面筛选；不得在侧边栏嵌入 Agent 模式或自然语言问答入口。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- **三组筛选药丸收敛（#414 O1a）**：分类（单选）/ 标签（多选）/ 内容类型（多选）全部为共享 `Component: FilterPills`（wrap 换行形态）；primary 色系药丸废除；标签「已选即禁用」废除，多选语义 = 点击添加、再次点击移除（与已选摘要 chips 的移除语义一致）。
 
 **Props 接口**
 ```ts
@@ -342,6 +375,101 @@ interface FacetedSearchSidebarProps {
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
 - 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+
+## Component: AgentFollowUpChips 推荐追问药丸（SP-15 B #435 新增）
+
+**Key Constraints**
+- **动作药丸（action pill），非选择控件**：与共享 `Component: FilterPills` 的筛选语义明确区分——无 `aria-pressed`、无选中态、无就地切换/URL 同步；点击 = 将追问文本填入 composer 输入框并聚焦，**不自动发送**（用户回车确认，防误触）。
+- 仅 `grounded_content` 答案轮渲染（no_evidence/conversational/degraded/流式中一律不渲染）；v1 不落库，历史回放不渲染（done 事件 `follow_ups` 是唯一数据源）。
+- 每条 ≤20 runes、2-3 条、跟随用户语言，由服务端生成与裁剪；组件只做展示与点击回调，不做内容加工。
+- 无障碍标签走 next-intl（容器 `agent.workspace.followUpsLabel`；每颗药丸 aria-label = 追问文本 + `agent.workspace.followUpFill` 动作说明）。
+
+**Props 接口**
+```ts
+interface AgentFollowUpChipsProps {
+  followUps: string[];
+  /** 填入 composer（不发送）；由工作台把焦点移至输入框 */
+  onFill: (query: string) => void;
+}
+```
+
+**视觉结构**
+- 容器: 答案消息（及其引用列表）下方 `<div role="group" className="flex flex-wrap gap-2">`
+- 药丸: 原生 `<button type="button">`，`rounded-full border border-border-default bg-canvas-default px-3.5 py-1.5 text-sm`
+
+**尺寸规范**
+- 紧凑高度档：`px-3.5 py-1.5`（约 28px，与 FilterPills 同档但语义为动作触发）
+- 字号: `text-sm` (14px)；容器间距 `gap-2`
+
+**状态变体**
+- default: 透明底 + 1px `border-border-default` + `text-fg-default`
+- hover / focus-visible: `bg-accent-subtle` + `text-accent-emphasis` + `border-accent-emphasis`（悬停预告主动作；token 与 FilterPills 选中态相同但语义不同——本组件无持久选中态）
+- focus-visible 追加标准 `focus-visible:ring-2 focus-visible:ring-ring`；150ms `transition-colors`
+
+**响应式行为**
+- flex wrap 换行，小屏自然堆叠，无横向滚动。
+
+**暗色模式适配**
+- 全局切换暗色类后组件自动映射 canvas/accent token 变量。
+
+**关键交互**
+- 点击 = `onFill(追问文本)`，由工作台 `setInput` 并把焦点移到 composer；Enter 发送仍由用户执行。
+- 原生 button 语义：Tab 可达，Enter/Space 触发；无 loading/disabled 态（错过 done 的 follow_ups 静默不存在，渐进增强）。
+
+## Page: /agent-access 外部 Agent 接入落地页（SP-16 #448 新增）
+
+**Key Constraints**
+- 公开页（(public) 组，Header/Footer 由 public layout 提供）；无侧边栏、无认证态内容。
+- 遵循全局 Indigo 三档层级：卡片 `bg-card` + 1px `border-border` + `rounded-lg`（8px）+ shadow-none。
+- 路径说明：票面原文「/agent 落地页」因 /agent 已被站内 Agent 工作台占用（同路径两 route group 会构建冲突），落位 /agent-access——票内已留痕待用户裁决。
+
+**视觉层级**
+- 顶部 hero：BookOpen 32px primary 图标 + 2xl 标题 + sm muted 副标题。
+- 三通道卡（`md:grid-cols-3`）：每卡 = 图标 + 右上角状态药丸（可用=primary/10 底+primary 字；P3 上线=muted 底+muted 字）、14px semibold 标题、12px muted 要点列表（1px 圆点引导）。
+- 验证问题卡：等宽字体代码块（`bg-canvas-subtle` + `rounded-lg` + 12px）展示两行 curl 与期望输出注释。
+- 频率/版本/边界三卡：`md:grid-cols-2` 两卡 + 全宽一卡；16px 图标 + 14px semibold 标题 + 12px muted 正文。
+
+**状态变体**
+- 三通道均为 live 态（primary 药丸）——#449（P3）落地后 MCP/Skill 卡已回填地址与安装命令并翻态。
+
+**交互细节**
+- 卡片纯展示无交互锚点（安装动作由用户复制 curl 完成）；外部链接仅 openapi.json 地址文本。
+- i18n：`agentAccess.*` zh/en 全量；关键词（如验证问题关键词「乐谱/sheet music」）走 i18n 而非硬编码。
+
+**响应式规则**
+- 移动（≤700px）：三通道卡纵向堆叠；代码块横向滚动。
+- 桌面：max-w-4xl 居中容器。
+
+## Component: AgentTokensCard 令牌管理卡片（SP-16 #450 新增）
+
+**覆盖文件**: `components/settings/AgentTokensCard.tsx`（挂载于 `/settings` 分组卡区）
+
+**Key Constraints**
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，表面保持 shadow-none、1px border，颜色引用预定义 token。
+- **令牌明文只在创建成功弹层展示一次**（复制按钮 + 关闭即永不可再见）；列表只显示 token_prefix、名称、scopes、最近使用时间，任何状态不得出现完整明文。
+- 吊销为破坏性操作，必须 `ConfirmModal` 二次确认；确认文案携带被吊销令牌的名称与前缀。
+
+**视觉契约**
+- 分组卡与设置页其他组一致：`rounded-md border border-border bg-card p-4 space-y-3`，标题 14px semibold + 说明 12px muted。
+- 令牌行使用紧凑列表：名称 14px medium、`oc_pat_xxxxx` 前缀等宽字体 12px、scopes 用 TagBadge 药丸（download/upload 各一枚）、最近使用 12px muted（空值显示 never 文案）；行右侧吊销按钮 `size=sm variant=outline`（destructive 文案色）。
+- 创建入口为卡片头部 `size=sm` 主按钮；创建表单为卡片内联展开区（`bg-canvas-subtle` 1px border 容器）：名称 Input（36px 档，maxLength 64）+ download/upload 两枚 Checkbox（显式 label，默认勾选 download）。
+- 明文展示弹层：等宽字体全宽文本块 + `bg-canvas-subtle` 底 + 复制按钮；下方 12px destructive 警示文案（「关闭后无法再次查看」）。
+
+**状态变体**
+- loading: 行区 Skeleton，高度镜像单行令牌。
+- empty: 组内 EmptyState（无 CTA），提示前往 `/agent` 了解接入方式。
+- creating/saving: 按钮内嵌 Spinner + disabled。
+- error: 行内红字（i18n `settings.agentTokens.error.*`）+ Toast。
+- limit-reached（409 AGENT_TOKEN_LIMIT_REACHED）: 创建表单内行内错误，提示先吊销。
+
+**交互与 i18n**
+- 全部文案走 `settings.agentTokens.*`（zh/en 双语齐全，禁硬编码）。
+- 键盘：创建/复制/吊销按钮原生可达；Checkbox 显式 label。
+- 数据：`GET/POST /api/v1/users/me/agent-tokens`、`DELETE /api/v1/users/me/agent-tokens/:id`；创建成功后刷新列表并弹明文层。
+
+**Playwright 截图检查点**
+- `screenshots/sp16-settings-agent-tokens-zh.png`：设置页令牌管理卡（含至少一枚令牌行，zh）。
+- `screenshots/sp16-settings-agent-tokens-create-en.png`：创建弹层 + 明文一次展示（en，截图前须对明文做遮挡或使用已吊销令牌）。
 
 ## Page: / 首页
 
@@ -608,196 +736,77 @@ interface FacetedSearchSidebarProps {
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
-## Page: /ip/[ipId] IP 详情页
+## Page: /ip/[ipId] IP 详情页（贴吧式社区枢纽，#290 重构）
 
 **Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
+- 单页 query 驱动：`/ip/[ipId]?tab=share|discussions|proposals&type=&sort=&status=&q=&d=`；tab/筛选就地切换（`router.replace`，不滚动不跳页），搜索 `?q=` 走 history push 可后退；刷新/分享链接/后退均还原状态；词表外的参数值回落默认。
+- 三模块页内切换：内容分享（媒体类型 FilterPills + 四排序 newest/hot/most_views/best_rated + OverlayMasonryGrid 作品卡）/ 讨论区（四排序 latest_reply/newest_post/most_replies/hot + 置顶标识 + 「发起讨论」入口）/ 提案投票（四状态筛选 open/adopted/rejected/history + 提案卡 + 发起表单 + 未关注引导）。
+- IP 内搜索：回车或失焦提交（输入过程不即时过滤）；搜索后停留在当前三模块结构，各 tab 内过滤同关键词；tab 计数与媒体类型 chips 计数随命中数收缩，清空搜索还原全量；当前 tab 无命中 → EmptyState「未找到与「q」相关的内容」。
+- 内容分享 tab 只收该 IP 的二创（zone=fanwork）；作品卡复用内容详情浮层（`Component: ContentDetailOverlay`）。
+- 讨论帖详情为页内浮层（DiscussionDetailOverlay）：标题/正文/作者 + 回帖；Esc、浏览器后退、点遮罩或 X 关闭；加载失败呈现 role="alert" + 重试。
+- 共治提案卡片：字段级 diff（简介文本块 / 封面 URL / 标签 +绿 −红 chips）+ 赞成/反对双色进度条 + 门槛刻度（取自后端 config，禁止前端硬编码）+ 剩余天数 + 投票按钮；已投显示所投选择并锁按钮；未关注者投票被拒（PROPOSAL_NOT_ELIGIBLE）→ 页内「关注后可参与共治投票」面板一键关注原地解锁。
+- 头部身份区：封面/名称/类目/简介/TagBadge 标签 + 关注数/讨论数/作品数三统计 + FollowButton（#415 O1b 恒宽规范：组件内置「取消关注」隐藏占位，无外部 min-w）；统计随搜索命中收缩展示。
+- 旧子路由 301 收敛：`/ip/[ipId]/[category]` → `?tab=share&type=<category>`；`/ip/[ipId]/discussions*` → `?tab=discussions`。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
+- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画；SSR 只提供身份区与统计首屏，模块列表客户端拉取。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-- **讨论区契约（#64 决策 19 / 审计问题 8 权威）**：compact 讨论区必须有「发起讨论」入口（有权限时），空讨论时也显示带 CTA 的空态；发帖动作受既有认证、封禁与信誉互动守卫约束，UI 不得承诺不可用的操作。讨论区列表页与发帖页已有自己的「发帖」入口，本节只约束 IP 详情页 compact 形态。
+- 信誉分 < 3：发帖/投票等互动受既有信誉守卫约束（服务端为准，UI 以服务端错误码呈现引导）。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：带 1px 边框的卡片容器；IP 详情包含紧凑讨论区（DiscussionBoard compact）
+- 主容器：居中最大宽度，页面背景 `bg-background`（SP-12 分层画布：亮 #F5F5F5 画布 / 暗 #010409 画布，卡片浮于画布之上）
+- 身份区卡片：封面（208px 宽 / h-36）+ 名称/类目/简介/标签/统计/关注按钮；`bg-card` + 1px border
+- 粘性工具行（sticky top-[52px]）：搜索框（药丸形态输入）+ 三模块 tab（药丸 + 计数徽标）；背景 `bg-canvas-default` + 底边框
+
+**控件规格（SP-12 精修方向延续）**
+- 三模块 tab 与筛选药丸：FilterPills 形态（见 `Component: FilterPills`）；tab 触控高度三档制中取 36/44px 档；选中态 = accent-subtle 底 + accent-emphasis 字 + 描边。
+- 搜索框：rounded-full 输入（信息输入类，非操作按钮），min-h-9；清空 X 按钮内嵌右侧。
+- 讨论卡/提案卡：8px 圆角矩形卡片容器，hover 边框 accent 化（150ms）。
+- Hero 操作行（关注按钮）：矩形操作控件，min-w-[104px] 固定宽度，同排同高。
 
 **核心组件清单**
-- `Header`
-- `ContentCard`
-- `MasonryGrid`
-- `DiscussionBoard`（compact：发起讨论入口 + 讨论列表摘要 + 空态 CTA）
-- `Footer`
+- `IPHubClient`（身份区 + 粘性搜索/tab 行 + 三模块编排）
+- `IPShareTab` / `IPDiscussionsTab` / `IPProposalsTab`
+- `DiscussionDetailOverlay`（#290 新增：讨论帖详情浮层）
+- `OverlayMasonryGrid`（作品卡网格，source="ip-page"；页面禁止直接使用裸 MasonryGrid）
+- `FilterPills`、`SortSelect`、`TagBadge`、`FollowButton`、`EmptyState`、`Skeleton`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px（max-w-7xl）
+- 无侧边栏全宽布局；区域间距（block）：24px（`gap-6`）；卡片内 16px（`p-4`）
+- 分享网格：2 列（≤700px）/ 3 列（≤1100px）/ 4 列（>1100px）
+- 讨论列表与提案列表：单列卡片纵排（`space-y-2` / `space-y-3`）
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 身份区 + 三模块 tab + 当前模块列表。
+- loading: 各模块自持骨架（分享=卡片网格骨架；讨论/提案=行卡骨架），身份区 SSR 直出。
+- empty: 各模块 EmptyState；无 open 提案 → CTA「第一个提案由你发起」；搜索无命中 → 「未找到与「q」相关的内容」+ 清空引导。
+- error: 列表加载失败静默为空态；浮层加载失败 role="alert" + 重试；投票/关注失败 Toast。
+- 特殊状态：未登录关注/投票跳登录；未关注投票弹页内关注引导。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 身份区封面与信息纵排；tab 行纵向堆叠（搜索框一行、tab 一行）；分享网格 2 列。
+- 平板 (≤1100px): 分享网格 3 列。
+- PC (>1100px): 分享网格 4 列，粘性工具行横排。
 
 **暗色模式适配**
 - 背景色 token: `canvas-default` -> `canvas-default.dark`
 - 边框色 token: `border-default` -> `border-default.dark`
 - 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
+- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)；diff 色（emerald/red 系）沿用语义色 token。
 
 **交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
+- 按钮 hover/active/disabled: 依据 Global Interaction Patterns；动效 150ms。
 - 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 数据加载策略: SSR 身份区 + stats；模块列表与搜索计数客户端拉取（`cache: "no-store"`）。
 
-## Page: /ip/[ipId]/[category] IP 类目内容列表
+## Page: /ip/[ipId]/discussions 讨论区列表（已移除，#290）
 
-**Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
+- 路由已删除：301 → `/ip/[ipId]?tab=discussions`。讨论列表并入 IP 详情页 Hub 的 discussions tab（见 `Page: /ip/[ipId]`）；本节仅作历史索引，不再是实现依据。
 
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：带 1px 边框的卡片容器
+## Page: /ip/[ipId]/discussions/[discussionId] 讨论详情（已移除，#290）
 
-**核心组件清单**
-- `Header`
-- `ContentCard`
-- `MasonryGrid`
-- `Footer`
-
-**布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
-
-**状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
-
-**响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
-
-## Page: /ip/[ipId]/discussions 讨论区列表
-
-**Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：搜索栏 + 讨论列表 + 发帖入口
-
-**核心组件清单**
-- `Header`
-- `DiscussionCard`
-- `EmptyState`
-- `LoadingSpinner`
-
-**布局规范**
-- 页面最大宽度：960px，居中
-- 搜索框 + 发帖按钮 → 讨论卡片列表（按活跃时间倒序）
-- 区域间距（block）：16px (`space-y-4`)
-
-**状态变体**
-- default: 讨论列表卡片（标题/作者/回复数/最后活跃时间）+ 搜索框。
-- loading: 骨架屏（Skeleton 灰色块列表）。
-- empty: "暂无讨论" EmptyState。
-- error: Toast 右上角报错。
-- 特殊状态：信誉分不足用户发帖按钮 disabled。
-
-**响应式规则**
-- 移动 (≤700px): 讨论列表全宽（margin 16px），卡片间距 12px。
-- 平板 (≤1100px): 内容区最大宽度 720px，居中。
-- PC (>1100px): 内容区最大宽度 960px，居中。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
-
-## Page: /ip/[ipId]/discussions/[discussionId] 讨论详情
-
-**Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：讨论主帖 + 回复列表，各模块带 1px border
-
-**核心组件清单**
-- `Header`
-- `DiscussionCard`
-- `ReplyList`
-- `CommentSection`（回复区复用楼中楼组件）
-- `EmptyState`
-- `LoadingSpinner`
-
-**布局规范**
-- 页面最大宽度：960px，居中
-- 讨论主帖 → 回复列表（按时间排序）
-- 区域间距（block）：24px (`space-y-6`)
-
-**状态变体**
-- default: 讨论标题/内容/作者 + 回复列表 + 回复输入框。
-- loading: 骨架屏（Skeleton）。
-- empty: 讨论不存在 404 EmptyState。
-- error: Toast 右上角报错。
-- 特殊状态：信誉分不足时回复按钮 disabled。
-
-**响应式规则**
-- 移动 (≤700px): 讨论详情全宽（margin 16px），回复列表卡片间距 12px。
-- 平板 (≤1100px): 内容区最大宽度 720px，居中。
-- PC (>1100px): 内容区最大宽度 960px，居中。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 路由已删除：301 → `/ip/[ipId]?tab=discussions`。讨论帖详情改为 IP 详情页内的 `DiscussionDetailOverlay` 浮层（Esc/浏览器后退/遮罩/X 关闭，含回帖），规格见 `Page: /ip/[ipId]`；本节仅作历史索引，不再是实现依据。
 
 ## Page: /ip/[ipId]/discussions/new 发帖页
 
@@ -1420,7 +1429,7 @@ interface FacetedSearchSidebarProps {
 - 投票分布实时显示
 
 **状态变体**
-- default: 案例详情 + 违规/不违规投票按钮 + 理由输入 + 投票分布。
+- default: 受控内容预览（内容预警横幅 + 点击后加载内容本体 + 案件类型标签）+ 违规/不违规投票按钮 + 理由输入 + 投票分布 + 跳过本案/举报此内容。
 - loading: 骨架屏（Skeleton 灰色块）。
 - empty: 队列空时 EmptyState"暂无待审内容"。
 - error: Toast 右上角报错。
@@ -1719,6 +1728,7 @@ interface FacetedSearchSidebarProps {
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 驳回原因（T16/FIX-24）：reject 的 ConfirmModal `requireReason` 必填，原因随 `{reason}` 提交落库 `ip_review_logs` 并以 ip_status 系统通知告知创建者；approve 同步发送通过通知。IP 状态机无回退——创建者重提路径 = 重新新建（产品已接受，不提供「修改后重审」）。
 
 ## Page: /admin/contents 内容终审
 
@@ -2269,52 +2279,59 @@ interface IPCardProps {
 - 整卡是有完整可访问名称的 Link；Tab 聚焦、Enter 跳转。点击/键盘激活都记录最近 IP。
 - **最近访问（#64 决策 16-18 / #73 权威）**：匿名用户记录在本机 localStorage（`recent_ips`，去重保留 6 条，按最近访问排序）；登录后与独立 IP 访问历史模型幂等合并（重复按最新访问时间归并，服务器确认成功后清除本地记录；合并失败时保留本地，不丢失）。可见列表保持当前 6 条上限、按最近访问时间倒序。签入态历史来自账号绑定源（跨会话/跨设备一致），不依赖内容浏览历史。
 
-## Component: IPCategoryTabs
+## Component: IPCategoryTabs（已移除，#290）
+
+- 组件已删除：IP 详情页重构为单页三模块 Hub 后，类目间跳转 tab 不再存在。类目/媒体类型筛选由 `Component: FilterPills` 承担（`IPShareTab` 内），模块切换由 Hub 三 tab（`IPHubClient`）承担。本节仅作历史索引，不再是实现依据；新代码禁止复活本组件。
+
+## Component: FilterPills 筛选药丸（全站筛选形态基准；2026-09-07 SP-14 O1a 矮化裁决定稿）
+
+> 覆盖文件：`frontend/components/ui/filter-pills.tsx`（U-03 从 /ips 现有实现提炼；#414 O1a 按矮药丸新基准改造并收敛全部本地拷贝）。
+> 权威：形态/选中态/动效 token 以 `design/design-system.md`「筛选选择控件」为唯一 token 权威，本节为组件规格。
+> **裁决更替记载（2026-09-07 SP-14 O1a，用户确认）**：本节取代 SP-12 批次「44px 触控高度 + Check 勾号」旧规格；旧形态不再是任何页面的合法形态。
 
 **Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 全站筛选/类目选择控件的唯一形态：药丸 `rounded-full`、紧凑高度档（`px-3.5 py-1.5`，约 28px）、**无勾号图标**、`aria-pressed` 表达选中。
+- 选中态全站唯一基准：`bg-accent-subtle` + `text-accent-emphasis` + 1px `border-accent-emphasis` + `font-semibold`；未选中：透明底/透明描边 + `text-muted-foreground`，hover `bg-muted` + `text-foreground`。零新 token。
+- 可及性「不只靠颜色」四线索：底色 + 描边 + 字重 + `aria-pressed`（#414 起不依赖勾号图标）。
+- 切换交互一律**就地切换 + URL query 同步**（`router.replace`，不滚动不跳页）；禁止整页跳转式筛选。
+- 选择模式由 `selectionMode` 显式声明：`"single"`（默认，可选 `clearable` = 点击已选中项清空，用于类目可选场景）/ `"multiple"`（点击添加、再次点击移除、可清空，用于搜索侧栏标签/内容类型）。
+- 操作按钮（提交/发布等）不得使用本组件形态（形状语义：矩形=操作、药丸=选择）。
 
 **Props 接口**
 ```ts
-interface IPCategoryTabsProps {
-  className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
-}
+interface FilterPillOption { value: string; label: string; count?: number }
+
+// 判别联合：single（默认）与 multiple 各自约束 value/onChange 形态
+{ selectionMode?: "single"; value: string; onChange: (value: string) => void; clearable?: boolean }
+{ selectionMode: "multiple"; value: string[]; onChange: (value: string[]) => void }
+// 公共：options / ariaLabel（必传，i18n）/ className? / loading? / disabled? / wrap?
 ```
 
-**视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
-
-**尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+**布局规范**
+- 容器：`nav`，默认横向 `overflow-x-auto`（`scrollbar-width: none`，底部 `pb-1` 防裁切，项间 `gap-1`）；侧栏等窄容器传 `wrap` 改为 `flex flex-wrap gap-1.5` 换行堆叠。
+- 每项：`inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-3.5 py-1.5 text-xs font-medium whitespace-nowrap select-none`。
+- 移动端 (375px) 保持紧凑高度与横向滚动（或 wrap 换行），不整页跳转。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- selected：见 Key Constraints 选中态基准（aria-pressed=true）。
+- default：透明底 + muted 文字。
+- hover：`bg-muted` + `text-foreground`，150ms 颜色过渡。
+- focus-visible：`ring-2 ring-ring`，与 Button 统一。
+- disabled/loading：整组 `opacity-50` 并保持当前选中态可见。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
+- 全部经 token 自动映射（accent-subtle/accent-emphasis dark 值）；dark `--accent-emphasis` #818CF8 对暗卡片 6.34:1 ≥AA（FIX-05 裁决）。
 
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+**可访问性**
+- 容器 `nav` + `aria-label`；各项 `aria-pressed`；选中不得只靠颜色（底色 + 描边 + 字重三视觉线索 + aria-pressed 程序线索）。
+- 键盘：Tab 逐项、Enter/Space 选中；横向滚动区域可用方向键滚动。
+
+**i18n key namespace**
+- 由接入方传入 options label（复用各页面既有类目/类型键，如 `home.*`）；本组件自身无常驻字符串，`ariaLabel` 必传。
+
+**收敛注记（#414 O1a 收敛完成态）**
+- 已收敛消费方：ContentTypeFilter（收藏集）、IP 库（IPBrowseClient）、原创区（OriginalFeedClient）、IP 详情内容/提案（IPShareTab/IPProposalsTab）、二创首页（HomePageClient，本地拷贝已删除——本页即矮药丸原始基准）、搜索侧栏（FacetedSearchSidebar 三组：分类单选/标签多选/内容类型多选，primary 色系已废）、Studio 发布表单两处（PublishForm 原创类目 + IPPublishForm IP 类目（clearable））。
+- 禁止新增偏离形态的筛选控件或本地拷贝；特例（管理后台下拉、时间/排序下拉、TagBadge）见 design-system.md「筛选选择控件」。
 
 ## Component: ContentDetail
 
@@ -2403,11 +2420,19 @@ interface ContentDetailProps {
 - 打开时保存背景滚动位置与触发元素；完全退出后恢复最初触发入口的滚动位置和焦点；Agent 引用入口必须恢复原会话滚动位置并聚焦引用卡片。
 - 支持显式关闭、遮罩点击、Esc 和浏览器返回关闭；浮层内部点击不关闭。
 
-**共享元素转场（#64 决策 7-10 权威，覆盖 #67 原型与 #68 接入）**
+**共享元素转场（#64 决策 7-10 权威，覆盖 #67 原型与 #68 接入；#398 C1~C4；#409 F1 动效契约重建为现行权威）**
 - 转场核心为手动计算的 FLIP 几何：source 矩形 = 触发卡片封面/媒体区；开启动画把该视觉锚点放大为浮层封面几何，同时外壳按同一时间线推进；关闭时仅在 source 矩形仍可测量（在视口、未 detach）时反向回归。
-- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）。
-- View Transition API 是渐进增强：`document.startViewTransition` 可用时启用，不支持的环境继续走 FLIP。
-- 时长与缓动：开 300ms / 关 240ms，共享缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化。
+- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）；超高图当前项同样退化（两端取景语义无法统一：卡片 400px contain 整图 vs 浮窗 3:4 名义宽内部滚动）。
+- View Transition API 是渐进增强：`document.startViewTransition` 可用时启用，不支持的环境继续走 FLIP；VT 命名落在两端封面 `<img>` 本身（盒底色/边框差异随 root 交叉淡化消化）。
+- **C1 图源统一（#409 F1 收紧为三处同源）**：卡片封面、点击预取、浮窗首帧（MediaGallery/竖屏集媒体列/CoverImage）三者渲染**同一 URL 串**——位图一律为唯一规范变体 `w=1080`（`coverRenderSrc`，优化器管线），SVG 与 data: 占位直通原地址（优化器对 SVG 400，next/image 对 .svg 本就直通）；浮窗模式的卡片封面用受控 `<img>`（响应式 sizes 无法跨端钉死同一变体）。点击卡片瞬间预取同一变体并 decode；MediaViewer 看大图维持原图。
+- **C2 几何统一**：卡片 cover 盒与浮窗锚点盒同一比例数据源——cover 元数据缺失时卡片在封面加载后用实测 intrinsic 回填（与浮窗媒体链同源），防御值同为 3:4；锚点盒不含翻页控件。
+- **C3 快照纯净**：浮层打开期间触发卡带 `data-overlay-motion-lock` 锁定 hover 缩放（VT 旧快照捕获时 `<img>` 未变换位姿），完全关闭后解除。
+- **C4 真就绪**：转场起跑等浮窗实际渲染的封面 `<img>` decode 完成；150ms 上限仅极端网络兜底（点击时预取使解码通常已完成）。
+- **F1 单一时间轴（2026-09-08 取代 #398 落地时的壳层先行反馈形态）**：壳层不透明度与封面几何动画同帧起跑、同长结束、同一缓动族——开 300ms / 关 240ms 逐向单一时钟（每个方向内部壳层与封面共用同一时钟，几何与缓动方向互逆）；旧「壳层 160ms 先行反馈淡入」与「VT root 180ms 交叉淡化」并存的档位差已移除（VT root 交叉淡化并入 300/240 档，关闭方向经 `html[data-vt-close]` 统一压到 240ms）；FLIP/VT/降级三路径同契约。参与 transform 动画的元素动效期间临时提升合成层（will-change），结束释放。
+- **F1 动效期间零换图**：动画进行中禁止封面 src 变化、骨架消失、媒体链附件替换；媒体链选出与卡片封面不同的文件时，首帧保持渲染卡片封面（`coverHoldSrc` 传递），入场落定后才切换到链内媒体。
+- **F1 起跑前几何冻结**：竖屏集媒体列的 width 过渡在入场未落定期关闭（挂载期从百分比兜底到实测像素的过渡不得与共享元素转场同窗）；variant 布局的转场起跑额外等待媒体列首次实测（ResizeObserver 回报）后才测量。
+- **遮罩与面板同钟（2026-09-09 用户验收反馈轮确立）**：遮罩视觉由 dialog 外兄弟层 `.content-detail-backdrop` 承载（`pointer-events-none fixed inset-0 z-[70]`，top-layer 语义保证其在面板之下、页面之上），不透明度与壳层/封面同一时钟驱动——开 = 按压反馈层 0.35（160ms ease-out，数据未就绪期的唯一视觉反馈）→ 入场动效起跑同帧升至 1（VT 路径经「回调内置新态」由 root 交叉淡化承载）；关 = 与壳层同帧 240ms 降至 0；reduced-motion 随 100ms 淡化档。**禁止**使用 `::backdrop` CSS 动画（VT 快照期间真实元素不渲染 + Safari 不执行 `::backdrop` 动画，两方向瞬现瞬消，2026-09-09 用户录屏实锤）；原生 `::backdrop` 仅保留透明命中层（背板点击 target === dialog）。VT 开路径壳层置 1 只能在 startViewTransition 回调内（新态）——回调前置 1 会烘进旧快照、root 交叉淡化失去壳层渐显。桌面面板视觉（底色/边框/圆角/阴影）随壳层元素走、dialog 永久只承担定位与尺寸——入场前壳层 opacity 0 时旧快照里不得残留白板面板。
+- 时长与缓动：开 300ms / 关 240ms，共享缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化（SP-12「动效 150ms」豁免项，用户 2026-09-06 裁决）。
 - 封面加载与主体同步：浮层在最终封面几何内展示媒体加载态（骨架/稳定占位）；封面加载成功才显示主体内容；加载失败显示稳定占位符后仍展示可用详情，不无限阻塞。
 
 **导航栈（逐层返回）**
@@ -2439,7 +2464,14 @@ interface ContentDetailOverlayProps {
 - 外壳与封面共享同一开合动画进度：开 300ms / 关 240ms，同帧同缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化。
 - 触发卡无缩略图或不在视口时，入场降级为居中轻缩放 + 淡化。
 - Agent 来源不增加专属详情外观。
-- **桌面双栏（#88 权威）**：仅 image/video 内容，PC 端为左媒体右信息——媒体区（MediaGallery）高度上限 = 视口可用高度，宽度按媒体比例自适应；信息区（标题/作者/操作/正文/评论区）独立滚动；「封面与正文共享同一水平框架」的既有约束继续成立。文本型内容（article/sheet_music 等）维持单栏。
+- **桌面双栏（#88 权威，#397 起仅全横集）**：仅 image/video 内容且全部素材 w/h ≥ 16:9（恰 16:9 归横图）时，PC 端为左媒体右信息——媒体区（MediaGallery）高度上限 = 视口可用高度，宽度按媒体比例自适应；信息区（标题/作者/操作/正文/评论区）独立滚动；「封面与正文共享同一水平框架」的既有约束继续成立。文本型内容（article/sheet_music 等）若无竖版封面媒体链也维持单栏。
+- **竖屏集新版布局（#397 R2 权威，variant）**：任一素材 w/h < 16:9（含方图/3:2/16:10；混合集一律新版；全部缺几何不判竖维持现设计）且 ≥1100px 视口时走小红书式左媒体/右文字版式——
+  - 朝向判定用素材 intrinsic 尺寸（视频 = 视频尺寸，poster 仅显示）；全类型媒体源链 = 真实媒体集 → 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）。
+  - 媒体列贴边满幅（负 margin 抵消浮窗内边距），列宽 = 可用高 × 当前图比例（逐张自适应、240ms 过渡；上限 = 根区宽 − 右栏最小宽 380px），装不下处黑底 letterbox；超高图（h/w > 2）按 3:4 名义宽取列宽 + 锚点盒内部竖向滚动。
+  - 控件：悬浮半透明圆形左右箭头（hover 显现）+ 底部半透明指示点 + 右上「N / M」角标 + 图片左右 1/3 隐形点击翻页（仅图片项；视频 controls 区不遮挡）+ 中间 1/3 点击进 MediaViewer；单素材无控件。
+  - 壳层 float：顶层为 variant 时移除 header（grid 单行），返回/关闭 = 悬浮半透明圆钮（媒体列左上/右栏右上）；返回钮 hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；sr-only 标题保留 dialog 无障碍名称/初始焦点锚点/多层栈文案三职；右栏内容顶部留白避让悬浮钮。
+  - 右栏（唯一滚动容器 layer-scroller）内容序：内容详情（标题/作者 + 关注/元信息/正文/标签/操作）→ 关联内容块（布局钉死：①二创关联的原创「原创」徽标行，点击浮窗内压栈 → ②同系列跳转，取第一个系列，系列名 + 第 X/Y 篇 + 上一章/下一章边界禁用 → ③衍生二创列表；无关联整块不渲染）→ 评论区（右栏末块）。
+  - 动效锚点不变量（R3 契约挂点）：`data-slot="detail-cover"` 锚点盒不含翻页控件；媒体几何单一比例源 = 当前项 intrinsic。
 - **移动单列（#89 权威）**：移动端全屏单列——媒体全宽 contain，信息在其下滚动；媒体集内翻页，最后一项继续上滑 = 沿触发上下文列表前进到下一篇；列表到底显示「已经到底」提示；不提供「上一篇」；查看器不参与内容级切换。
 
 **唯一滚动模型**
@@ -3065,6 +3097,20 @@ interface ReactionBarProps {
 - 移动 (≤700px): 按钮无文字仅图标，紧凑排列 `gap-0.5`。
 - 平板+ (≥701px): 图标 + 文字显示，`gap-1`。
 
+## Component: Composer
+
+**Key Constraints**
+- 全站唯一聊天式输入组件（#413 F6a 确立）：私信窗、IP 讨论回复、顶层评论、Agent 工作台四处复用；不得再新建平行实现。
+- 容器：1px border 输入盒（`rounded-md border-border-default bg-canvas-default`，focus-within 转 `accent-emphasis` 边 + 1px ring），背景融合非独立悬浮卡片；多行自动增高、上限 208px 转内部滚动。
+- 按键语义显式模式三档（`enter` / `ctrl-enter` / `button-only`），统一 isComposing 防护：输入法选词 Enter 不得提交。
+
+**发送按钮（2026-09-09 用户验收拍板，参照两态附件图）**
+- 位置与形状：内嵌输入盒右下角（与内边缘 8px），**36px 实底圆钮**（`h-9 w-9 rounded-full`），白色上箭头图形（ArrowUp, 2.5 描边）；文本区右/底各预留 44px（`pr-11 pb-11`）任何输入量下不重叠。
+- 双态显性：**可发送 = 主题色实底**（`bg-primary text-primary-foreground`，hover `primary/90`）；**不可发送（空文本/禁用）= 浅灰实底 + 弱化图形**（`bg-canvas-subtle text-fg-subtle`）。空灰/满彩的两态切换由调用方 `submitDisabled`（通常 `!text.trim() || busy`）驱动。
+- 提交中：保持主题色实底，图形换 spinner（行动进行中的视觉连续性）。
+- 流式停止钮（#417）：同一内嵌位、同规格圆钮（主题色实底 + 白色方块图形），渲染期间替代发送钮。
+- a11y：按钮 aria-label 必填（sr-only 文本同源）；focus-visible 2px ring。
+
 ## Component: CommentSection
 
 **Key Constraints**
@@ -3110,9 +3156,10 @@ interface Comment {
   - 每条评论: `px-4 py-3`
     - 头像 + 用户名 + 相对时间
     - 评论内容 `text-sm text-foreground`
-    - 操作栏: 点赞按钮 + 回复按钮 + 删除按钮（仅作者可见）
-    - 回复列表: 嵌套的 CommentSection（简化版，仅回复列表）
-  - 加载更多: 底部「加载更多」按钮或 IntersectionObserver 触发
+    - 操作栏: 点赞/点踩按钮（附聚合计数，来自 reactions 聚合而非冗余列）+ 回复按钮 + 举报按钮（登录可见；ConfirmModal 填原因，重复举报 409 有提示并进入「已举报」态）+ 编辑按钮 + 删除按钮（编辑/删除仅作者可见；编辑走 PATCH 重过审核，422 显示审核拦截文案）
+- 高踩比折叠（FIX-29c）：点踩/点赞比 ≥ 阈值（/config/public `social.comment_fold_threshold` 下发，勿硬编码）默认折叠为「已折叠 · 点击显示」，展开后可再收起；点赞为 0 且有点踩视为无穷大同样折叠
+    - 回复区: 「展开回复/收起回复」懒加载开关（GET `?parent_id=` 拉取子回复），两级扁平展示——对回复的回复提交时 parent_id 挂到顶层根，不产生第三层缩进
+  - 加载更多: 底部「加载更多评论」按钮（服务端 total 驱动；每页 20 条，替代旧版固定 50 条截断）
 
 **尺寸规范**
 - 内间距: `px-4 py-3`
@@ -3164,6 +3211,7 @@ interface VersionHistoryProps {
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
 - empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- empty（FIX-42，T51）: 空态文案必须说明版本来源（发布/编辑/PR 合并产生版本）与存量内容无 v1 的原因（版本功能上线前发布，不回填）；走 `content.noVersionHistory` i18n key，`text-muted-foreground` 一行展示，不使用红色 destructive 边框（空态非错误）。
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
@@ -3292,6 +3340,7 @@ interface ExamQuestionProps {
 **Key Constraints**
 - 赛博判官业务规则：只有具有对应类型的判官权限（judge_qualifications）或通过考核才能操作。
 - 信誉分必须 >= 3 才能行使众裁权利，否则禁用功能。
+- 受控内容预览（T40/FIX-36d）：内容预警横幅常驻；内容本体点击「查看内容」后才请求（持资格判官读 under_review 豁免），媒体需再点「加载媒体」二次确认后才渲染；卡片提供「跳过本案」与「举报此内容」入口；已投案件不再出现在本人队列。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
@@ -3421,12 +3470,14 @@ interface ConfirmModalProps {
 - 遮罩点击: 关闭 Modal。
 - ESC: 关闭 Modal。
 
-## Page: /agent Agent 工作台
+## Page: /agent Agent 工作台（A-06 DeepSeek 化形态）
 
 **Key Constraints**
 - 受保护路由；只有 config 中 `agent.web_agent_enabled=true` 且用户已登录并满足现有邮箱验证要求时可进入。
 - Agent 是顶部导航进入的独立全页工作台。不得在 Root Layout 挂载全站右下角聊天入口；现有 `AgentChatWidget.tsx` 仅是待迁移的旧实现名。
-- 遵守全局 Indigo 三档层级规则：静置面板 `--elevation-1`，抽屉/搜索浮层 `--elevation-3`，阴影永远配合 1px border，不单独承担分隔；视觉方向在已批准的 P-01 决策范围内实现。
+- 遵守全局 Indigo 三档层级规则：静置面板 `--elevation-1`，抽屉/搜索浮层 `--elevation-3`，阴影永远配合 1px border，不单独承担分隔；视觉 token 全部取自 SP-12 U-01/U-02 定稿（8px 矩形操作控件、高度三档、#f5f5f5 亮画布/#010409 暗画布、150ms 动效）。
+- **反冗余原则**：全局导航已有的跳转/功能不在工作台重复；引用卡片打开 ContentDetailOverlay 属内容导航，不违反反冗余。
+- 请求契约 = A-01 续写模型：`{conversation_id?, message, context}`，上下文由服务端按 token 预算组装；客户端不再上传历史。
 - 唯一滚动模型：工作台固定为 Header 下方剩余视口高度，外壳与会话侧栏/主列不滚动，仅对话正文区域纵向滚动。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3446,64 +3497,71 @@ interface AgentCitation {
 
 interface AgentToolStatus {
   name: 'search_content' | 'get_content_detail' | 'get_usage_guide' | 'suggest_publish_metadata';
-  status: 'running' | 'success' | 'failed';
-  label: string;
+  status: 'running' | 'success' | 'failed' | 'error' | 'skipped';
+  args_summary?: string;   // 服务端派生的参数摘要（检索词/查询扩展词），不含原始 JSON
+  hits?: number;           // 检索命中数
+  duration_ms?: number;
 }
 ```
 
 **视觉结构**
 - 页面外层：受保护的全高工作区，位于共享 Header 下方。
-- 桌面布局：会话侧栏 + 主对话区；主区包含标题/会话动作、消息列表、工具状态、引用列表和固定输入区。
-- 会话侧栏（A1.6 契约）：展开态自上而下为 折叠按钮 → 搜索触发框 → 全宽"开启新对话" → 会话历史（保留非空时间分组）；可收为 56–64px 窄栏并持久化（localStorage），收起态保留 展开/搜索/新对话 三图标和 Tooltip。
-- 移动布局：单列全高页面，会话导航折叠即关闭抽屉，顶部标题与底部输入区保持可达。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 桌面布局：会话侧栏 + 主对话区；主区包含会话标题行、消息流（三层生成形态）、引用列表和固定输入区。
+- **三层生成形态（A-06 核心，DeepSeek 同构顺序）**：思考折叠区（AgentThinkingBlock，流式展开→完成自动折叠，可手动重开）→ 工具步骤区（AgentToolStatus 可折叠，流式展开→完成折叠，展示步骤数/命中数/参数摘要/耗时）→ 逐字正文（react-markdown 受控渲染 + 行内 [n] 角标）。
+- 会话侧栏：展开态自上而下为 折叠按钮 → 全宽”开启新对话” → 会话历史；**置顶分组（Pinned）在最前，其后 Today/Yesterday/Earlier 时间分组**；每项显示 title（无 title 显示「未命名」）+ 置顶图钉 + 更新时间；悬停/聚焦显示 ⋯ 菜单 = 重命名 / 置顶(取消置顶) / 删除。可收为 56px 窄栏并持久化（localStorage）。
+- 移动布局：单列全高页面，会话导航收进抽屉（Esc 关闭），顶部标题与底部输入区保持可达。
+- 图标: `<Icon className=”text-fg-muted w-4 h-4” />`
 
 **尺寸规范**
 - 页面高度：`calc(100dvh - var(--header-h))`，外壳与主列不滚动，仅对话正文区域纵向滚动。
+- 输入区自动增高：单行起步，随内容长高，约 8 行（208px）封顶转内部滚动。
 - 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- empty：展开后显示能力说明、隐私提示、建议问题和输入框。
-- streaming：回答增量渲染，显示停止按钮；可视文本持续更新，但 `aria-live="polite"` 按完整短句/节流批次播报，不能逐 token 打断读屏。
-- tool-running：显示短状态，例如“正在检索内容”，不得展示原始参数或 chain-of-thought。
-- grounded-success：回答下方展示引用列表；站内事实回答至少一个有效引用。
-- no-evidence：显示“未找到足够依据”和普通关键词搜索 CTA，不伪造回答。
-- degraded：Provider 不可用但搜索可用时，显示降级说明和搜索结果，不渲染模型总结。
-- stopped：保留已收到的内容并显示“已停止生成”；允许重新发送。
-- error：显示稳定的本地化错误与重试；保留用户输入和上一份成功回答。
+- empty：居中欢迎（图标 + 标题 + 描述）+ 推荐向建议 chips（药丸形态，点击直接发送）。
+- thinking（流式）：思考折叠区展开跟随 think_delta；完成后自动折叠为「已深度思考」行。
+- streaming：正文逐字增量渲染，显示停止按钮；`aria-live=”polite”` 按完整短句/节流批次播报，不能逐 token 打断读屏。
+- tool-running：工具步骤区展开跟随新增步骤；只展示用户向短文案、参数摘要、命中数与耗时（≥1s），不得展示原始参数 JSON 或 chain-of-thought。
+- grounded-success：回答下方展示引用列表；站内事实回答至少一个有效引用；行内 [n] 角标可点击锚定；done 事件携带 `follow_ups` 时引用列表下方渲染推荐追问药丸（`Component: AgentFollowUpChips`，SP-15 B #435：仅 grounded 轮、点击填入 composer 不自动发送、v1 不落库历史回放不渲染）。
+- no-evidence：done 终态裁决撤下已流出正文，显示「未找到足够依据」和普通关键词搜索 CTA，不伪造回答。
+- degraded：Provider 不可用但搜索可用时，撤下模型总结，显示降级说明和关键词回退结果。
+- stopped：保留已收到的内容（含思考块）并显示「已停止生成」；允许重新发送。
+- error：显示稳定的本地化错误与重试；保留用户输入和上一份成功回答；429 用专属文案且窗口内隐藏重试。
+- moderation-blocked（A-05 历史回放）：被标记回答不回传原文，渲染占位提示卡。
 - disabled：请求中仅禁用会产生冲突的动作，停止和关闭仍可用。
 
-**会话全文搜索（A1.6 契约）**
-- 搜索全部未删除会话的标题与消息正文，不受侧栏加载范围限制；每条命中独立按时间倒序显示 来源/片段/日期，点击精确定位并短暂高亮。
-- 桌面 `min(720px,92vw)`、高度 ≤ 80dvh、视口居中；移动全屏。
-- 含快捷键、键盘导航、空态（不重复提供清空按钮）与焦点恢复；浮层内 Esc 先清空查询词，再次 Esc 关闭搜索层并恢复触发焦点。
-- 生产数据来源为 owner-scoped 会话搜索 API（由 Web Agent Productization 实现）；P-01 原型仅以 mock 验证交互。
-
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行；701px 为侧栏常驻/抽屉分界。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量；代码块高亮 token 配色随 `.dark` 覆盖（globals.css hljs 段）。
 
 **关键交互**
 - Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
+- **行内引用锚定（A-06）**：正文句末 `[1][2]` 渲染为可点击 sup 角标（`markdown.citationJump` a11y 名）；点击滚动到对应引用卡片（`#agent-citation-{index}`）并短暂高亮（ring-2，约 1.8s）+ 聚焦；超出引用数或无引用时渲染为纯文本 sup。纯展示层映射，服务端复验语义零改动。
 - 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
-- 工具状态只展示名称、用户友好结果和耗时摘要；不展示 system prompt、工具 JSON 或内部推理。
-- Esc 只关闭当前打开的内容详情浮层、会话搜索层或会话抽屉，不离开 Agent 工作台。
-- “开始新对话”不删除旧会话且无需确认；“清空当前历史”使用 `ConfirmModal` 并调用 owner-scoped `DELETE /api/v1/agent/conversations/:id`。取消不发请求；成功聚焦新输入框；失败保留当前消息并把焦点返回 trigger。该删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
+- **消息操作（A-06）**：最后一条 assistant 消息悬停/聚焦显示操作行 = 复制（clipboard + toast）/ 重新生成（保留用户消息、撤下本轮 think/answer 行重发同一 query）；流式中 = 停止（composer 内切换）。
+- **侧边栏 ⋯ 菜单（A-06）**：重命名 = 内联输入（Enter 提交 PATCH title / Esc 取消，≤50 rune）；置顶切换 PATCH pinned（列表置顶分组重排）；删除 = ConfirmModal + owner-scoped `DELETE /api/v1/agent/conversations/:id`，取消不发请求。头部不再放置删除按钮（反冗余）。
+- “开始新对话”不删除旧会话且无需确认。删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
+- 会话标题：active 会话显示 title（无 title 显示「未命名 #id」）；自动标题由服务端首轮后异步生成。
 - 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
 - 所有可交互元素使用设计系统可见 focus ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
+- 代码块：rehype-highlight 高亮 + 悬停复制按钮（markdown.copyCode）；外链（http/https 绝对地址）`target=_blank rel=noopener noreferrer`，站内相对链接原样。
+- Esc 只关闭当前打开的内容详情浮层或会话抽屉，不离开 Agent 工作台。
 
 **可访问性与响应式**
 - PC：全页双栏工作区；会话栏可收起，主对话列保持可读行宽，引用卡片不挤压消息正文。
-- 移动：占满安全区域内可用宽高，顶部固定标题/会话入口，底部固定输入区。
-- 所有按钮触控目标不少于 44px；引用关系不能只靠颜色表达。
+- 移动：占满安全区内可用宽高，顶部固定标题/会话入口，底部固定输入区。
+- 所有按钮触控目标不少于 44px；引用关系不能只靠颜色表达（角标带数字、卡片带序号）。
 - 对话列表使用语义列表；流式内容不在每个 token 到达时抢焦点。
 - 在 320/375/414/768/1024/1440px 检查无横向溢出；长标题、URL 和错误码必须可换行或截断且保留可访问名称。
 
+**会话全文搜索（后续产品化，当前未实现）**
+- 跨会话全文搜索属范围外（SP-13 明确延后）；侧栏当前不提供搜索触发框。owner-scoped 会话搜索 API 由后续计划提供后按 A1.6 契约接线。
+
 **i18n key namespace**
-- `agent.chat.*`、`agent.tools.*`、`agent.citations.*`、`agent.noEvidence.*`、`agent.degraded.*`、`agent.errors.*`、`agent.a11y.*`。
+- `agent.chat.*`、`agent.workspace.*`（侧栏/菜单/复制/删除确认等）、`agent.thinking.*`、`agent.tools.*`、`agent.citations.*`、`agent.noEvidence.*`、`agent.degraded.*`、`agent.errors.*`、`agent.a11y.*`、`markdown.copyCode`/`markdown.citationJump`（共享 markdown 渲染器命名空间）。zh/en 双语同步。
 
 **Playwright 截图检查点**
 - `screenshots/web-agent-grounded-desktop.png`
@@ -3511,6 +3569,7 @@ interface AgentToolStatus {
 - `screenshots/web-agent-citation-overlay-desktop.png`
 - `screenshots/web-agent-no-evidence.png`
 - `screenshots/web-agent-degraded-search.png`
+- A-06 追加：`screenshots/a06-thinking-desktop.png`、`screenshots/a06-sidebar-menu.png`、`screenshots/a06-citation-anchor.png`、`screenshots/a06-dark-desktop.png`、`screenshots/a06-narrow-mobile.png`
 
 ## Component: UploadAssistPanel
 
@@ -3722,43 +3781,42 @@ interface GlobalSearchInputProps {
 **i18n key namespace**
 - `search.input.*`、`search.suggestions.*`、`search.history.*`、`search.a11y.*`。
 
-## Component: FollowButton
+## Component: FollowButton 关注按钮（#415 O1b 恒宽规范，2026-09-07 裁决定稿）
+
+> 覆盖文件：`frontend/components/social/FollowButton.tsx`。
+> **裁决更替记载（2026-09-07 SP-14 O1b，用户确认）**：本节取代 #64 决策 20 / 审计问题 10 的「已关注 = 克制 outline 态」旧契约——实测已关注 outline 底色与页面画布同值、辨识度不足，且按钮宽度随状态/悬停跳变。
 
 **Key Constraints**
-- FollowButton 未登录时：点击跳转 `/login`，不显示已关注状态。
-- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
-- **状态契约（#64 决策 20 / 审计问题 10 权威）**：未关注是显眼主操作（primary 实底）；已关注是克制的 outline 态；hover/focus 已关注时显示「取消关注」。实现不得与本节相反（先例：2026-08-07 审计实测 `variant={following ? "default" : "outline"}` 与本节颠倒）。
+- **宽度恒定**：以最长状态文案「取消关注」（en: Unfollow）为常驻隐藏占位（grid 同格叠放），未关注/已关注/悬停取消关注三态与任意位置宽度不变；禁止外部 `min-w-[...]` 补丁。
+- **底色一致**：已关注与未关注同为 primary 实底（`variant="default"`），不得按状态翻转 outline；勾号与加号图标一律移除（纯文字，视觉与宽度恒定）。
+- **悬停已关注**：文案变「取消关注」+ destructive 红色边框与文字（`hover:border-destructive! hover:text-destructive!`，focus-visible 同理），宽度不变。
+- 未登录点击跳转 `/login`；信誉/封禁禁用态沿用 AuthContext capabilities（`can_interact`）与 denial title 提示；busy 期间禁用。
+- 可选 `onFollowed?: () => void`：关注成功后回调（提案页一键关注原地解锁投票权等）。
 
 **Props 接口**
 ```ts
 interface FollowButtonProps {
+  targetType: "user" | "ip";
+  targetId: number;
+  initialFollowing?: boolean;
   className?: string;
-  userId: number;
-  isFollowing: boolean;
-  followerCount?: number;
-  showCount?: boolean;
-  isLoading?: boolean;
-  size?: 'sm' | 'md';
-  onToggle: (userId: number, newState: boolean) => void;
+  onFollowed?: () => void;   // 关注成功回调（#415 新增）
 }
 ```
 
 **视觉结构**
-- 按钮容器: `<button className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors">`
-- 未关注态: `bg-primary text-primary-foreground px-4 py-2 hover:opacity-90` — 显示 "+ 关注"
-- 已关注态: `border border-border-default bg-canvas-default text-foreground px-4 py-2 hover:bg-canvas-subtle hover:text-destructive hover:border-destructive` — 显示 "已关注"（hover/focus 显示 "取消关注"）
+- 恒宽占位：`<span className="grid justify-items-center">` 内三格同位叠放——常驻 `invisible` 的「取消关注」占位 + 当前态文案（已关注时再叠 hover 态「取消关注」，`group-hover:hidden/inline` 切换）。
+- 未关注态：primary 实底 + 「关注」；已关注态：primary 实底 + 「已关注」（hover → 「取消关注」+ 红边红字）。
+- 尺寸沿用 Button `size="sm"`；圆形胶囊变体（侧栏创作者卡片）由接入方传 `rounded-full` 类。
 
-**尺寸规范**
-- md: `h-9 px-4 py-2 text-sm`（默认）
-- sm: `h-7 px-3 py-1 text-xs`
+**接入位（四处交互位 + 两处收敛，全部同一组件/同一视觉）**
+- IP 详情身份区（IPHubClient，原 `min-w-[104px]` 过宽补丁已移除）/ 内容浮层作者侧栏 + 浮层竖屏作者行（ContentDetailOverlayLayer 两处）/ 用户主页（UserProfileClient）。
+- 内容侧栏静态兜底拷贝（ContentSidebar，SSR 无交互场景）与提案页一键关注引导（IPProposalsTab FollowHint，经 `onFollowed` 解锁）已收敛为同一视觉/同一组件。
 
 **状态变体**
-- default: 未关注时 primary 色按钮；已关注时 outline 按钮。
-- hover 未关注: `opacity-90` 加深。
-- hover/focus 已关注: 背景变 subtle + 边框/文字变 destructive 色（提示取消关注），文本切换为「取消关注」。
-- loading: 按钮内嵌 Spinner，文字变为处理中。
-- disabled: `opacity-50 cursor-not-allowed`（信誉分不足或未登录）。
-- 未登录: 点击跳转 `/login`，无 loading 状态。
+- default（未关注/已关注）：primary 实底；hover 微反馈沿用 Button 默认。
+- hover/focus-visible（已关注）：destructive 边框与文字 + 文案切换。
+- disabled：busy/interactionBlocked；title = denial 原因的可读文案。
 
 ## Component: NotificationDropdown
 
@@ -5101,6 +5159,65 @@ interface CollabUserPickerProps {
 - `screenshots/community-source-picker-mobile.png`：移动来源选择结果层不溢出，validation 文案不遮挡提交按钮。
 - 交互检查：IP-only、original-source-only、fanwork-source-only 均可提交；无 IP/来源禁用提交；query prefill 成功和失败状态均覆盖。
 
+## Page: /studio/publish/ip 创建 IP
+
+**Key Constraints**
+- 位于 `(protected)` 路由组内，未登录由既有 auth guard 拦截；使用 `StudioLayout`（含 `StudioSidebar`）。
+- 表单字段与后端 `CreateIPInput` 对齐：name（必填 1-255）、description（可选）、cover_url（单图，可选）、category（单选，来源 `ipCategoryOptions` 排除 `all`）、tags（chips 输入，最多 10 个，单 tag ≤50 字符，提交由后端规范化）。
+- 封面走既有 presign 链：`POST /contents/oss-token`（file_type=image）→ PUT 上传 → 以 `oss_domain + "/" + oss_key` 组装规范裸 URL 提交；后端 CreateIP 契约不变（仍接收完整 cover_url），响应侧签名由 DisplayURLSigner 出口装饰。
+- 创建成功后 IP 处于 `pending`（AI 审核 + 管理员通过后才公开），页面必须给出明确的「已提交，等待审核」反馈并提供跳转 IP 详情页入口，禁止静默成功。
+- 遵守全局 Indigo 三档层级规则：本页表面 shadow-none、1px border、语义 token；所有交互目标 ≥44px。
+- 双入口：`/studio` 侧边栏「内容发布」组「创建 IP」项 + `/ips` 浏览页工具栏「创建 IP」按钮（登录态可见；空态 EmptyState 提供同目标 CTA）。
+
+**视觉层级**
+- 页面标题 `text-xl font-bold` + 表单卡片：`rounded-xl border border-border bg-card`，字段垂直排列。
+- 分类为 rounded-full chips 单选组（选中 `border-accent-emphasis bg-accent-subtle text-accent-emphasis`）；tags 使用 `TagBadge`（removable）。
+- 成功态：内联成功面板（1px border、`bg-accent-subtle` 淡色底）显示 pending 说明与跳转按钮，不自动重定向。
+
+**核心组件清单**
+- `FileUploader`（attachment 模式，fileType=image，单图）
+- `TagBadge`
+- `Input`、`Button`、`Toast`
+- `EmptyState`（仅 /ips 页空态复用）
+
+**布局规范**
+- 表单最大宽度 672px（max-w-2xl）居中；字段顺序：name → description → cover → category → tags → 提交按钮。
+- 元素间距 16px（gap-4 / space-y-6 分区）。
+
+**状态变体**
+- default: 空表单。
+- uploading: FileUploader 内嵌进度条，提交按钮不禁用但提交校验上传未完成时 toast 阻止。
+- loading: 提交按钮 Spinner + 禁用。
+- error: API 错误 toast + 字段级红字（name 必填/超长），保留用户输入。
+- success: 内联「已提交，等待审核」面板 + 「查看 IP 详情」链接 + 「继续创建」重置按钮。
+- 特殊状态：未登录访问由 protected 组重定向登录页。
+
+**响应式规则**
+- 移动 (≤700px): 表单全宽 `p-4`，chips 换行。
+- 平板 (≤1100px): 表单 max-w 720px 居中。
+- PC (>1100px): 表单 max-w 672px 居中。
+
+**暗色模式适配**
+- 背景 token: `canvas-default`/`card` dark 变体；边框 `border` dark 变体；文字 `foreground`/`muted-foreground` dark 变体。
+
+**交互细节**
+- name 前端校验 1-255 字符，空或超长时禁用提交并红字提示；后端 400 映射为字段错误。
+- tags 输入框 Enter 添加（preventDefault）、去重、trim、上限 10 个；TagBadge X 移除。
+- 提交成功 → toast + success 面板；不自动 redirect。
+- 破坏性操作无；「继续创建」重置表单无需 ConfirmModal。
+
+**可访问性**
+- 分类 chips 使用 `aria-pressed`；tags 容器有 i18n label。
+- 上传、提交按钮触控目标 ≥44px。
+
+**i18n key namespace**
+- `studio.publishIP.*`：title/nameLabel/namePlaceholder/nameRequired/nameTooLong/descriptionLabel/descriptionPlaceholder/coverLabel/coverHint/categoryLabel/categoryPlaceholder/tagLabel/tagPlaceholder/addTag/submit/submitting/successTitle/successPending/successView/successCreateAnother/failed。
+- `studio.sidebar.createIP`、`ip.createIP`（/ips 入口）。
+- 不硬编码任何用户可见文案。
+
+**Playwright 截图检查点**
+- `screenshots/b003-b001-local-20260901/`：创建表单（含分类 chips 与 tags chips）、提交成功 pending 面板、IP 详情页 TagBadge 行。
+
 ## Page: /studio/overview 数据概览
 
 **Key Constraints**
@@ -5159,12 +5276,12 @@ interface CollabUserPickerProps {
 - PC (>1100px)：主区最大宽度 `1280px`；左侧为 series 列表栏 `320px`，右侧为详情/编辑区 `minmax(0,1fr)`；两栏同级，使用 1px border 分隔，不嵌套卡片。
 - 平板 (701-1100px)：列表栏宽 `280px`，详情区自适应；添加内容搜索结果单列。
 - 移动 (<=700px)：StudioSidebar 默认收起；本页采用列表/详情两步视图，选中 series 后详情全屏显示，顶部提供返回列表图标按钮。
-- 详情区结构：元信息表单 -> 已添加内容有序列表 -> 添加内容搜索区。
+- 详情区结构：zone 副标题 -> 元信息表单（系列名仅在 title 字段出现一次，不重复渲染只读标题）-> 保存 -> 已添加内容有序列表 -> 添加内容搜索区 -> 底部危险区（删除按钮，分隔线隔离、远离编辑区防误触）。
 
 **状态变体**
 - default：左侧列出我的系列，右侧显示选中系列详情和 items。
 - loading：列表和详情分别显示骨架，避免整页空白。
-- empty：无系列时显示 EmptyState + 创建按钮；选中系列无 items 时显示局部 EmptyState。
+- empty：无系列时显示 EmptyState + 创建按钮；空态且创建表单未开时页头创建按钮隐藏（单 CTA，T24/FIX-40②）；选中系列无 items 时显示局部 EmptyState。
 - error：Toast + 局部错误；列表加载失败不显示详情区假数据。
 - success：创建、保存、添加、移除、重排、删除成功均使用 Toast；保存后保持当前选中系列。
 - disabled：保存中禁用表单；删除默认不可用状态不适用；无权限/信誉不足时创建和管理控件 disabled 或由受保护布局拦截。

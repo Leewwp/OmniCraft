@@ -83,6 +83,10 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_FAILED", "message": "Captcha verification failed"})
 		case errors.Is(err, service.ErrFeedbackUploadGrantInvalid):
 			c.JSON(http.StatusBadRequest, gin.H{"code": "UPLOAD_GRANT_INVALID", "message": "Screenshot upload grant is invalid or has already been used"})
+		case errors.Is(err, service.ErrFeedbackAttachmentBlocked):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_BLOCKED", "message": "Attachment image was rejected by content moderation"})
+		case errors.Is(err, service.ErrFeedbackAttachmentModerationUnavailable):
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "ATTACHMENT_MODERATION_UNAVAILABLE", "message": "Attachment image moderation is temporarily unavailable, please retry without attachments"})
 		case errors.Is(err, service.ErrUploadGrantUnavailable):
 			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "UPLOAD_GRANT_UNAVAILABLE", "message": "Screenshot upload grants are temporarily unavailable"})
 		default:

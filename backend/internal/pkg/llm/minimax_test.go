@@ -32,12 +32,14 @@ func TestThinkStripper(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newThinkStripper()
+			s := newThinkSplitter()
 			var got strings.Builder
 			for _, c := range tt.chunks {
-				got.WriteString(s.next(c))
+				_, content := s.split(c)
+				got.WriteString(content)
 			}
-			got.WriteString(s.flush())
+			_, flushContent := s.splitFlush()
+			got.WriteString(flushContent)
 			if got.String() != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got.String())
 			}
@@ -101,6 +103,28 @@ func TestMiniMaxProvider_GetEmbedding_Serialization(t *testing.T) {
 	}
 }
 
+func TestMiniMaxProvider_GetEmbedding_UsesLegacyBaseAndGroupID(t *testing.T) {
+	var receivedReq *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedReq = r
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"vectors":[[0.1]],"base_resp":{"status_code":0}}`)
+	}))
+	defer server.Close()
+
+	p := NewMiniMaxProvider("test-key", "https://chat.example.test", "MiniMax-M3", "embo-01",
+		WithEmbeddingAPIBase(server.URL), WithEmbeddingGroupID("group/a"))
+	if _, err := p.GetEmbedding(context.Background(), "hello"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if receivedReq.URL.Path != "/v1/embeddings" {
+		t.Fatalf("path = %q, want /v1/embeddings", receivedReq.URL.Path)
+	}
+	if got := receivedReq.URL.Query().Get("GroupId"); got != "group/a" {
+		t.Fatalf("GroupId = %q, want group/a", got)
+	}
+}
+
 func TestMiniMaxProvider_GetEmbedding_ErrorStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := minimaxEmbeddingResponse{}
@@ -121,24 +145,9 @@ func TestMiniMaxProvider_GetEmbedding_ErrorStatus(t *testing.T) {
 func TestMiniMaxProvider_Chat_StripsThink(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := openAIResponse{
-			Choices: []struct {
-				Message struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"message"`
-				Delta struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"delta"`
-				FinishReason string `json:"finish_reason"`
-			}{
-				{
-					Message: struct {
-						Content   string     `json:"content"`
-						ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-					}{Content: "<think>internal reasoning</think>visible answer"},
-				},
-			},
+			Choices: []openAIChoice{{
+				Message: openAIMessage{Content: "<think>internal reasoning</think>visible answer"},
+			}},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)

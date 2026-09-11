@@ -49,7 +49,8 @@ func TestContentDownload_RejectsAttachmentFromOtherContent(t *testing.T) {
 }
 
 func TestContentDownload_UsesConfigurableTTL(t *testing.T) {
-	source := readHandlerSource(t, "content.go")
+	// SP-16 #451: the TTL policy moved into the service orchestration.
+	source := readHandlerSource(t, "../service/content_download.go")
 	if !strings.Contains(source, "DownloadURLTTL") && !strings.Contains(source, "download_url_ttl") {
 		t.Fatal("DownloadContent must use configurable download URL TTL from config, not hardcoded value")
 	}
@@ -268,9 +269,87 @@ func TestContentDownload_ResponseIncludesSignedURLAndExpiresIn(t *testing.T) {
 	}
 }
 
+func TestContentDownload_ArchiveGateOnlySignsCleanAttachments(t *testing.T) {
+	for _, status := range []string{model.ScanStatusPending, model.ScanStatusBlocked} {
+		router, db := setupArchiveGateDownloadRouter(t, status)
+		author := createDownloadUser(t, db, "archive-gate-"+status+"@example.com", "archive-gate-"+status, false)
+		content := createDownloadContent(t, db, author.ID, nil)
+		if err := db.Model(&model.ContentAttachment{}).Where("content_item_id = ?", content.ID).Updates(map[string]interface{}{
+			"file_type":     "mod",
+			"scan_status":   status,
+			"scan_required": true,
+		}).Error; err != nil {
+			t.Fatalf("set %s scan state: %v", status, err)
+		}
+
+		rec := requestDownload(t, router, content.ID)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status %s response code = %d, want 403; body = %s", status, rec.Code, rec.Body.String())
+		}
+		var body struct {
+			Code string `json:"code"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode %s response: %v", status, err)
+		}
+		if body.Code != "ARCHIVE_NOT_CLEAN" {
+			t.Fatalf("status %s response code = %q, want ARCHIVE_NOT_CLEAN", status, body.Code)
+		}
+	}
+
+	router, db := setupArchiveGateDownloadRouter(t, model.ScanStatusClean)
+	author := createDownloadUser(t, db, "archive-gate-clean@example.com", "archive-gate-clean", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+	if err := db.Model(&model.ContentAttachment{}).Where("content_item_id = ?", content.ID).Updates(map[string]interface{}{
+		"file_type":     "mod",
+		"scan_status":   model.ScanStatusClean,
+		"scan_required": true,
+	}).Error; err != nil {
+		t.Fatalf("set clean scan state: %v", err)
+	}
+	if rec := requestDownload(t, router, content.ID); rec.Code != http.StatusOK {
+		t.Fatalf("clean response code = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+
+	if err := db.Model(&model.ContentAttachment{}).Where("content_item_id = ?", content.ID).Updates(map[string]interface{}{
+		"file_type":     "image",
+		"scan_status":   model.ScanStatusNotRequired,
+		"scan_required": false,
+		"oss_key":       "quarantine/archive-scan/1/1/1",
+	}).Error; err != nil {
+		t.Fatalf("set quarantined non-archive attachment: %v", err)
+	}
+	quarantineRec := requestDownload(t, router, content.ID)
+	if quarantineRec.Code != http.StatusForbidden || !strings.Contains(quarantineRec.Body.String(), "ARCHIVE_NOT_CLEAN") {
+		t.Fatalf("quarantine response = %d %s, want 403 ARCHIVE_NOT_CLEAN", quarantineRec.Code, quarantineRec.Body.String())
+	}
+}
+
 func setupDownloadVisibilityRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	return setupDownloadRouter(t, 999, false)
+}
+
+func setupArchiveGateDownloadRouter(t *testing.T, _ string) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	router, db := setupDownloadRouter(t, 999, true)
+	cfg := &config.Config{
+		Features: config.FeaturesConfig{ArchiveMalwareScanEnabled: true},
+		OSS: config.OSSConfig{
+			Endpoint:        "https://oss-cn-hangzhou.aliyuncs.com",
+			AccessKeyID:     "test-access-key-id",
+			AccessKeySecret: "test-access-key-secret",
+			BucketName:      "test-bucket",
+			DownloadURLTTL:  300,
+		},
+	}
+	h := NewContentHandler(db, cfg, nil)
+	router = gin.New()
+	router.GET("/contents/:id/download", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(999))
+		h.DownloadContent(c)
+	})
+	return router, db
 }
 
 func setupDownloadRouter(t *testing.T, userID int64, withOSS bool) (*gin.Engine, *gorm.DB) {

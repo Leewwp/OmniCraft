@@ -124,20 +124,76 @@ test("normalizeAttachment drops non-positive dimensions and keeps NULL legacy ro
   assert.equal(legacy?.sort_order, undefined);
 });
 
+
+/* #398 C1：浮窗封面走 next/image 优化器变体（与卡片同管线）；断言解出原始 url 比对。 */
+function imageSource(img: HTMLImageElement | null | undefined): string | null {
+  const src = img?.getAttribute("src");
+  if (!src) return null;
+  const match = src.match(/[?&]url=([^&]+)/);
+  return match ? decodeURIComponent(match[1]) : src;
+}
+
+/* ---------- #409 F1：三处同源渲染地址 + 首帧保持 ---------- */
+
+test("#409 F1: gallery images render the canonical variant source (same URL string as card cover and prefetch)", () => {
+  const { container } = renderGallery();
+  const images = Array.from(container.querySelectorAll("img"));
+  assert.ok(images.length >= 3);
+  for (const img of images) {
+    const src = img.getAttribute("src") ?? "";
+    assert.ok(
+      src.startsWith("/_next/image?url=") && src.includes("&w=1080&q=75"),
+      `expected canonical variant src, got ${src}`,
+    );
+  }
+});
+
+test("#409 F1 / #430: firstItemHoldSrc holds the card-cover quick variant until released, canonical beneath", () => {
+  /* #430 两变体渐进：入场窗内首项 = 双层——保持层（data-slot="cover-hold"，
+     卡片快变体）在顶，规范层（w=1080）在底异步加载且不可见（零换图契约）。 */
+  const holdSrc = "/_next/image?url=%2Fseed-media%2Freal%2Fcovers%2Fcard-cover.jpg&w=420&q=75";
+  const held = renderGallery({ firstItemHoldSrc: holdSrc });
+  const activeImages = Array.from(
+    held.container.querySelectorAll<HTMLElement>('[aria-current="true"] img'),
+  );
+  const holdLayer = activeImages.find((img) => img.getAttribute("data-slot") === "cover-hold");
+  const canonical = activeImages.find((img) => img.getAttribute("data-slot") !== "cover-hold");
+  assert.equal(holdLayer?.getAttribute("src"), holdSrc, "entrance window: hold layer renders the card-cover source");
+  assert.equal(
+    canonical?.getAttribute("src"),
+    "/_next/image?url=%2Fseed-media%2Fgallery%2Fitem-1.jpg&w=1080&q=75",
+    "canonical layer preloads its own variant beneath the hold layer",
+  );
+  assert.equal(holdLayer?.style.opacity, "1", "hold layer is the only visible layer during the motion window");
+  assert.equal(canonical?.style.opacity, "0", "canonical layer stays invisible until settle + decode-ready");
+  cleanup();
+
+  /* 无 hold（无卡片锚点/已释放并完成淡出）：仅规范层。 */
+  const settled = renderGallery({ firstItemHoldSrc: null });
+  const settledImages = Array.from(
+    settled.container.querySelectorAll<HTMLElement>('[aria-current="true"] img'),
+  );
+  assert.equal(settledImages.length, 1, "no hold anchor renders a single canonical layer");
+  assert.equal(
+    settledImages[0]?.getAttribute("src"),
+    "/_next/image?url=%2Fseed-media%2Fgallery%2Fitem-1.jpg&w=1080&q=75",
+  );
+});
+
 /* ---------- 渲染顺序与稳定几何（AC1） ---------- */
 
 test("MediaGallery renders all items in server order with current item visible and others hidden", () => {
   const { container } = renderGallery();
   const images = Array.from(container.querySelectorAll("img"));
   assert.deepEqual(
-    images.map((img) => img.getAttribute("src")),
+    images.map((img) => imageSource(img)),
     ["/seed-media/gallery/item-1.jpg", "/seed-media/gallery/item-2.jpg", "/seed-media/gallery/item-3.jpg"],
   );
   const wrappers = Array.from(mediaScroller(container).children) as HTMLElement[];
   assert.equal(wrappers.length, 3);
   const current = wrappers.filter((el) => el.getAttribute("aria-current") === "true");
   assert.equal(current.length, 1);
-  assert.equal(current[0]?.querySelector("img")?.getAttribute("src"), "/seed-media/gallery/item-1.jpg");
+  assert.equal(imageSource(current[0]?.querySelector("img")), "/seed-media/gallery/item-1.jpg");
   const nonCurrent = wrappers.filter((el) => el.getAttribute("aria-current") !== "true");
   assert.equal(nonCurrent.length, 2);
   for (const el of nonCurrent) {
@@ -264,8 +320,8 @@ test("MediaGallery shows a stable error placeholder for a failed media item with
   assert.ok(container.textContent?.includes("Failed to load media"));
   const next = container.querySelector('button[aria-label="Next media"]') as HTMLButtonElement;
   fireEvent.click(next);
-  const currentImage = container.querySelector('[aria-current="true"] img');
-  assert.equal(currentImage?.getAttribute("src"), "/seed-media/gallery/item-2.jpg");
+  const currentImage = container.querySelector<HTMLImageElement>('[aria-current="true"] img');
+  assert.equal(imageSource(currentImage), "/seed-media/gallery/item-2.jpg");
 });
 
 test("MediaGallery invokes onOpenViewer on image click with the current index", () => {

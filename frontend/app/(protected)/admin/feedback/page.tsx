@@ -204,10 +204,10 @@ export default function AdminFeedbackPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className={cn("inline-flex rounded px-2 py-0.5 text-xs font-medium", STATUS_COLORS[selectedTicket.status] || STATUS_COLORS.open)}>
+              <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", STATUS_COLORS[selectedTicket.status] || STATUS_COLORS.open)}>
                 {selectedTicket.status}
               </span>
-              <span className={cn("inline-flex rounded px-2 py-0.5 text-xs font-medium", PRIORITY_COLORS[selectedTicket.priority] || PRIORITY_COLORS.normal)}>
+              <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", PRIORITY_COLORS[selectedTicket.priority] || PRIORITY_COLORS.normal)}>
                 {selectedTicket.priority}
               </span>
             </div>
@@ -293,7 +293,7 @@ export default function AdminFeedbackPage() {
                     {reply.author_admin_id ? t("admin.feedback.admin") : t("admin.feedback.user")}
                   </span>
                   {reply.is_internal_note && (
-                    <span className="inline-flex items-center gap-1 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">
                       <Lock className="h-2.5 w-2.5" />
                       {t("admin.feedback.internalNote")}
                     </span>
@@ -414,10 +414,10 @@ export default function AdminFeedbackPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <span className={cn("inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[ticket.status] || STATUS_COLORS.open)}>
+                  <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[ticket.status] || STATUS_COLORS.open)}>
                     {ticket.status}
                   </span>
-                  <span className={cn("inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium", PRIORITY_COLORS[ticket.priority] || PRIORITY_COLORS.normal)}>
+                  <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium", PRIORITY_COLORS[ticket.priority] || PRIORITY_COLORS.normal)}>
                     {ticket.priority}
                   </span>
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />

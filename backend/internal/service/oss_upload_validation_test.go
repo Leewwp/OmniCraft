@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"omnicraft/backend/config"
@@ -38,6 +39,61 @@ func TestGeneratePresignUploadURLRestrictsImageMIMEToParserSupported(t *testing.
 	}
 }
 
+// TestGeneratePresignUploadURLAvatarType proves avatars are issued through the
+// same platform presign chain as content images (#111): an avatar object only
+// exists under the /avatar/ key prefix, only for imageinfo-parsable MIME types
+// and within the image size budget. The avatar_url written back later must be
+// a platform OSS object, which the handler enforces before moderation.
+func TestGeneratePresignUploadURLAvatarType(t *testing.T) {
+	svc := newTestOSSService(t)
+
+	resp, err := svc.GeneratePresignUploadURL(t.Context(), PresignUploadRequest{
+		FileName: "face.png", FileType: "avatar", MimeType: "image/png", FileSize: 1024,
+	}, 42)
+	if err != nil {
+		t.Fatalf("avatar presign = %v, want nil", err)
+	}
+	if !strings.Contains(resp.OSSKey, "/avatar/") {
+		t.Fatalf("avatar oss_key = %q, want an /avatar/ key prefix", resp.OSSKey)
+	}
+	if resp.UploadURL == "" {
+		t.Fatal("avatar presign upload_url must not be empty")
+	}
+
+	rejected := []struct {
+		name string
+		req  PresignUploadRequest
+	}{
+		{
+			name: "parser-unsupported mime",
+			req:  PresignUploadRequest{FileName: "face.gif", FileType: "avatar", MimeType: "image/gif", FileSize: 1024},
+		},
+		{
+			name: "non-image mime",
+			req:  PresignUploadRequest{FileName: "face.bin", FileType: "avatar", MimeType: "application/octet-stream", FileSize: 1024},
+		},
+		{
+			name: "over image size budget",
+			req:  PresignUploadRequest{FileName: "face.png", FileType: "avatar", MimeType: "image/png", FileSize: 21 * 1024 * 1024},
+		},
+		{
+			name: "zero file size",
+			req:  PresignUploadRequest{FileName: "face.png", FileType: "avatar", MimeType: "image/png", FileSize: 0},
+		},
+	}
+	for _, tt := range rejected {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := svc.GeneratePresignUploadURL(t.Context(), tt.req, 42)
+			if err == nil {
+				t.Fatal("avatar presign = nil, want UploadValidationError")
+			}
+			if _, ok := err.(*UploadValidationError); !ok {
+				t.Fatalf("avatar presign err = %T, want *UploadValidationError", err)
+			}
+		})
+	}
+}
+
 // TestGeneratePresignUploadURLKeepsOtherTypesOnTheirOwnContract proves video
 // and text uploads keep their existing MIME contracts and are not caught by
 // the parser-supported image restriction.
@@ -53,6 +109,34 @@ func TestGeneratePresignUploadURLKeepsOtherTypesOnTheirOwnContract(t *testing.T)
 		FileName: "notes.pdf", FileType: "text", MimeType: "application/pdf", FileSize: 1024,
 	}, 42); err != nil {
 		t.Fatalf("application/pdf text presign = %v, want nil", err)
+	}
+}
+
+// T25（FIX-41）：超限必须带专用码 FILE_TOO_LARGE（前端按码出专属文案），
+// 其他参数类错误保持无码（handler 兜底 VALIDATION_ERROR）。
+func TestGeneratePresignUploadURLOversizeCarriesFileTooLargeCode(t *testing.T) {
+	svc := newTestOSSService(t)
+
+	_, err := svc.GeneratePresignUploadURL(t.Context(), PresignUploadRequest{
+		FileName: "huge.mp4", FileType: "video", MimeType: "video/mp4", FileSize: 301 * 1024 * 1024,
+	}, 42)
+	validation, ok := err.(*UploadValidationError)
+	if !ok {
+		t.Fatalf("oversize presign err = %T, want *UploadValidationError", err)
+	}
+	if validation.Code != "FILE_TOO_LARGE" {
+		t.Fatalf("oversize code = %q, want FILE_TOO_LARGE", validation.Code)
+	}
+
+	_, err = svc.GeneratePresignUploadURL(t.Context(), PresignUploadRequest{
+		FileName: "face.bin", FileType: "image", MimeType: "application/octet-stream", FileSize: 1024,
+	}, 42)
+	validation, ok = err.(*UploadValidationError)
+	if !ok {
+		t.Fatalf("mime presign err = %T, want *UploadValidationError", err)
+	}
+	if validation.Code != "" {
+		t.Fatalf("non-size validation code = %q, want empty (generic VALIDATION_ERROR)", validation.Code)
 	}
 }
 

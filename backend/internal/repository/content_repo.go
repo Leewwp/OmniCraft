@@ -21,20 +21,26 @@ func NewContentRepository(db *gorm.DB) *ContentRepository {
 func (r *ContentRepository) DB() *gorm.DB { return r.db }
 
 type ListContentsFilter struct {
-	Zone             string
-	IPID             *int64
-	SourceOriginalID *int64
-	SourceFanworkID  *int64
-	Category         string
-	ContentType      string
-	ContentTypes     []string
-	AuthorID         *int64
-	Status           string
-	Tags             []string
-	Sort             string
-	TimeRange        string
-	Page             int
-	PageSize         int
+	Zone string
+	// IncludeAllStatuses 用于作者自助列表（/users/me/contents）：列出全部
+	// 状态（含 banned/pending），公开浏览路径不得开启（FIX-16/T08）。
+	IncludeAllStatuses bool
+	IPID               *int64
+	SourceOriginalID   *int64
+	SourceFanworkID    *int64
+	Category           string
+	ContentType        string
+	ContentTypes       []string
+	AuthorID           *int64
+	Status             string
+	Tags               []string
+	Sort               string
+	TimeRange          string
+	// Search does a title-substring filter (IP 内搜索, #290) on the list path;
+	// full-text relevance search stays on /contents/search.
+	Search   string
+	Page     int
+	PageSize int
 	// ViewerID lets source-linkage queries reuse the centralized content
 	// visibility scope (published, non-deleted, author/IP not banned, and
 	// is_public OR author-owned) for returned children.
@@ -151,13 +157,17 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	// author-deleted and banned rules.
 	if f.SourceOriginalID != nil || f.SourceFanworkID != nil {
 		q = ApplyContentVisibilityScope(q, f.ViewerID)
-	} else {
+	} else if f.IncludeAllStatuses {
+		// 作者自助列表（/users/me/contents）：全部状态，仅自身可见。
 		q = q.Where("deleted_at IS NULL")
-		if f.Status != "" {
-			q = q.Where("status = ?", f.Status)
-		} else {
-			q = q.Where("status = ?", "published")
-		}
+	} else if f.Status != "" {
+		// 显式状态过滤（admin 终审队列等）：保留原语义。
+		q = q.Where("deleted_at IS NULL")
+		q = q.Where("status = ?", f.Status)
+	} else {
+		// 主列表统一 viewer-aware 可见性（FIX-12+43）：published + 公开 +
+		// 作者未封禁/未注销 + IP 未封禁（作者本人可见自己的私密内容）。
+		q = ApplyContentVisibilityScope(q, f.ViewerID)
 	}
 
 	if f.Zone != "" {
@@ -179,6 +189,9 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 		q = q.Where("content_type IN ?", f.ContentTypes)
 	} else if f.ContentType != "" {
 		q = q.Where("content_type = ?", f.ContentType)
+	}
+	if f.Search != "" {
+		q = q.Where("title LIKE ?", "%"+f.Search+"%")
 	}
 	if f.AuthorID != nil {
 		q = q.Where("author_id = ?", *f.AuthorID)
@@ -237,6 +250,33 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	return items, total, nil
 }
 
+// CountByTypeWithinIP returns per-content_type hit counts for the IP share
+// tab facet chips (#290). It mirrors the share-tab list semantics (public
+// fanworks of this IP, optional title search) but ignores the active type
+// filter so chip counts stay comparable across pills.
+func (r *ContentRepository) CountByTypeWithinIP(ipID int64, search string) (map[string]int64, error) {
+	var rows []struct {
+		ContentType string
+		Count       int64
+	}
+	q := ApplyContentVisibilityScope(r.db.Model(&model.ContentItem{}), 0).
+		Where("content_items.ip_id = ?", ipID).
+		Where("content_items.zone = ?", "fanwork")
+	if search != "" {
+		q = q.Where("content_items.title LIKE ?", "%"+search+"%")
+	}
+	if err := q.Select("content_type, COUNT(*) AS count").
+		Group("content_type").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		counts[row.ContentType] = row.Count
+	}
+	return counts, nil
+}
+
 func (r *ContentRepository) UpdateContent(id int64, updates map[string]interface{}) error {
 	return r.db.Model(&model.ContentItem{}).Where("id = ?", id).Updates(updates).Error
 }
@@ -271,7 +311,11 @@ func (r *ContentRepository) BatchIncrViewCounts(batch map[int64]int64) error {
 		return nil
 	}
 
-	caseStmt := "view_count = CASE id "
+	/* #400：CASE 表达式交给 UpdateColumn 的列赋值——表达式本身不得再带
+	   "view_count = " 前缀，否则生成 SET view_count = view_count = CASE ...
+	   （内层 = 是 boolean 比较），PostgreSQL 以 SQLSTATE 42804 拒绝
+	   （bigint 列收到 boolean）；sqlite 宽松类型不报错故线上才暴露。 */
+	caseStmt := "CASE id "
 	var ids []int64
 	for id, delta := range batch {
 		caseStmt += fmt.Sprintf("WHEN %d THEN view_count + %d ", id, delta)
