@@ -29,3 +29,23 @@ func TestDeployScriptHandlerRemoved(t *testing.T) {
 		t.Fatal("GenerateDeployScript handler method must be removed from agent.go")
 	}
 }
+
+func TestDeployScriptServiceChainRemoved(t *testing.T) {
+	bytes, err := os.ReadFile(filepath.Join("..", "service", "agent_service.go"))
+	if err != nil {
+		t.Fatalf("read agent_service.go: %v", err)
+	}
+	source := string(bytes)
+
+	for _, symbol := range []string{
+		"GenerateDeployScript",
+		"signHMAC",
+		"SignedDeployScript",
+		"DeployScript",
+		"DeployAction",
+	} {
+		if strings.Contains(source, symbol) {
+			t.Fatalf("dormant deploy script chain symbol %q must be removed from agent_service.go (F-07)", symbol)
+		}
+	}
+}
