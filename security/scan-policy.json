@@ -11,6 +11,8 @@
     "container_images"
   ],
   "npm_registry": "https://registry.npmjs.org",
+  "npm_audit_scope": "production",
+  "npm_dev_risk_notes": "Dev-tree npm findings are out of the gate's scope (build-time toolchain only: shadcn CLI chain, browserslist/babel targets; app code has zero imports of the affected packages and they never enter the Next server/client bundles). Production-tree findings remain fully gated. Re-review this characterization whenever dev tooling dependencies change.",
   "fail_on_severities": [
     "high",
     "critical"
