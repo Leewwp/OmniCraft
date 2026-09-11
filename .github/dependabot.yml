@@ -29,3 +29,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+
+  # Audit F-05 finding 4: docker base-image pins had no automated upgrade
+  # path (the 2026-09 stdlib CVE was closed by hand-pinning).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
