@@ -36,6 +36,22 @@ paths = [
 # (#136); its dataset case name "mix_cyberpunk_2077" trips the generic-api-key
 # entropy heuristic without being a credential. Exempting the exact literal
 # instead of the path keeps every other string in that file scanned.
+#
+# regexTarget = "line" makes the entries below match the whole line instead of
+# only the matched secret value. It is required by the field-anchored entries:
+# anchoring on the value alone would mean allowlisting the 64-hex-digit shape,
+# which is also the shape of JWT_SECRET and LLM_KEY_ENCRYPTION_SECRET in
+# .env.production.example -- i.e. it would blind this gate to real secrets.
+regexTarget = "line"
 regexes = [
   '''\bmix_cyberpunk_2077\b''',
+  # RAG eval artifacts (docs/working/2026-08-29-agent-answer-eval-real.json and
+  # backend/internal/service/rag_eval/testdata/ablation-judge-replay.jsonl) key
+  # their rows by SHA-256 content digest, so "chunk_key"/"case_key" hold 64
+  # lowercase hex chars that the generic-api-key entropy heuristic reads as a
+  # credential. Field-anchored, so every other string in those files is still
+  # scanned; verified that a planted 64-hex secret and a planted sk- key in a
+  # sibling file remain detected under this config.
+  '''"chunk_key"\s*:\s*"[0-9a-f]{8,64}"''',
+  '''"case_key"\s*:\s*"[0-9a-f]{1,64}"''',
 ]

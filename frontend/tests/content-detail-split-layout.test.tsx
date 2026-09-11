@@ -310,6 +310,10 @@ test("#88 split scroll memory routes to the layer-scroller and restores on pop",
 
   layerScroller.scrollTop = 120;
 
+  /* related 块经 DeferredMount 延后挂载，慢速 runner 上同步查询会先于提交——先等按钮出现再点击。 */
+  await waitFor(() =>
+    assert.ok(view.getByRole("button", { name: "Open content detail: Related 101" })),
+  );
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Open content detail: Related 101" }));
     await Promise.resolve();
