@@ -18,10 +18,15 @@
 # Usage:
 #   bash scripts/security/verify-security.sh [-RepoRoot <dir>] [-Gates a,b,c]
 #       [-BuildImages] [-ReportDir <dir>] [-CargoAuditDb <host-path>]
+#       [-VerdictOnly]
 #   -CargoAuditDb points at a host-cloned rustsec advisory-db checkout used
 #   with --no-fetch; without it the container fetches the DB itself (GitHub
 #   runners). If the container cannot reach github.com the script falls back
 #   to a host-side clone automatically and records the transport in the report.
+#   -VerdictOnly skips gate execution and only runs the verdict over the
+#   reports already present in -ReportDir: the contract-test hook for verdict
+#   parsing fixtures (crafted govulncheck/trivy reports) without running the
+#   real scanners.
 # =============================================================================
 set -euo pipefail
 
@@ -29,10 +34,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GATES="policy,secrets,go,npm,cargo,trivy-fs,trivy-config,trivy-image"
 BUILD_IMAGES=0
+VERDICT_ONLY=0
 REPORT_DIR=""
 CARGO_AUDIT_DB=""
 
-GITLEAKS_IMAGE="zricethezav/gitleaks:v8.18.4@sha256:75bdb2b2f4db213cde0b8295f13a88d6b333091bbfbf3012a4e083d00d31caba"
+GITLEAKS_IMAGE="zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854"
 TRIVY_IMAGE="aquasec/trivy:0.57.1@sha256:5c59e08f980b5d4d503329773480fcea2c9bdad7e381d846fbf9f2ecb8050f6b"
 RUST_IMAGE="rust:1.85.1@sha256:e51d0265072d2d9d5d320f6a44dde6b9ef13653b035098febd68cce8fa7c0bc4"
 GOVULNCHECK_VER="v1.1.4"
@@ -45,6 +51,7 @@ while [ $# -gt 0 ]; do
     -RepoRoot) REPO_ROOT="$2"; shift 2 ;;
     -Gates) GATES="$2"; shift 2 ;;
     -BuildImages) BUILD_IMAGES=1; shift ;;
+    -VerdictOnly) VERDICT_ONLY=1; shift ;;
     -ReportDir) REPORT_DIR="$2"; shift 2 ;;
     -CargoAuditDb) CARGO_AUDIT_DB="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -93,6 +100,28 @@ json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]]
 PY
 }
 
+# True if $1 is a JSON stream containing at least one document with the given
+# top-level key (govulncheck findings are {"finding": {...}} documents on a
+# multi-document stream; single-object json.load cannot read it).
+json_stream_has_key() {
+  local file="$1" key="$2"
+  python3 - "$file" "$key" <<'PY' >/dev/null 2>&1
+import json, sys
+buf, want = open(sys.argv[1], encoding="utf-8").read(), sys.argv[2]
+dec = json.JSONDecoder()
+idx, n = 0, len(buf)
+while idx < n:
+    while idx < n and buf[idx] in " \t\r\n":
+        idx += 1
+    if idx >= n:
+        break
+    obj, idx = dec.raw_decode(buf, idx)
+    if isinstance(obj, dict) and want in obj:
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
 # ---------------------------------------------------------------- policy gate
 # exceptions.schema.json is the human-readable ledger contract; the
 # authoritative implementation of the exception rules is the Python check
@@ -137,6 +166,8 @@ if policy is not None:
             errors.append("scan-policy unknown category: %s" % c)
     if not isinstance(policy.get("fail_on_severities"), list):
         errors.append("scan-policy fail_on_severities must be a list")
+    if policy.get("npm_audit_scope") not in ("production", "all"):
+        errors.append("scan-policy npm_audit_scope must be 'production' or 'all' (got %r)" % policy.get("npm_audit_scope"))
     if "secret" not in policy.get("non_waivable", []):
         errors.append("scan-policy non_waivable must include 'secret'")
     if "critical" not in policy.get("non_waivable", []):
@@ -195,6 +226,37 @@ if tools is not None:
             else:
                 if const_val.lstrip("v") != t.get("version", "").lstrip("v"):
                     errors.append("verify-security.sh %s version %s does not match pinned-tools.json (%s)" % (const_name, const_val, t.get("version")))
+
+# Cross-check scan-policy scan_triggers against the security workflow's
+# actual `on:` block: a trigger declared in policy but missing from the
+# workflow (or vice versa) is silent drift that green-lights an unscanned
+# path (audit F-05 finding 3). Only checked when the workflow file exists;
+# fixture roots that copy security/ alone exercise the other rules.
+if policy is not None:
+    workflow_path = os.path.join(root, ".github", "workflows", "security.yml")
+    if os.path.exists(workflow_path):
+        try:
+            with open(workflow_path, encoding="utf-8") as f:
+                workflow_src = f.read()
+        except OSError as e:
+            errors.append("cannot read security.yml for trigger cross-check: %s" % e)
+            workflow_src = None
+        if workflow_src is not None:
+            triggers = policy.get("scan_triggers", {})
+            has_pr = re.search(r"^\s*pull_request\s*:", workflow_src, re.M) is not None
+            if has_pr != bool(triggers.get("pull_request")):
+                errors.append("scan-policy scan_triggers.pull_request=%r but security.yml pull_request trigger is %s"
+                              % (triggers.get("pull_request"), "present" if has_pr else "absent"))
+            push_block = re.search(r"^\s*push\s*:\s*\n((?:[ \t]+.+\n?)+)", workflow_src, re.M)
+            pushes_main = bool(push_block and re.search(r"branches\s*:\s*\[[^\]]*\bmain\b", push_block.group(1)))
+            if pushes_main != bool(triggers.get("push_main")):
+                errors.append("scan-policy scan_triggers.push_main=%r but security.yml push-on-main trigger is %s"
+                              % (triggers.get("push_main"), "present" if pushes_main else "absent"))
+            workflow_crons = re.findall(r'-\s*cron\s*:\s*["\']([^"\']+)["\']', workflow_src)
+            policy_cron = triggers.get("schedule")
+            if policy_cron and workflow_crons and policy_cron not in workflow_crons:
+                errors.append("scan-policy scan_triggers.schedule=%r but security.yml cron is %r"
+                              % (policy_cron, workflow_crons))
 
 today = datetime.date.today().isoformat()
 if exceptions is not None:
@@ -266,14 +328,17 @@ run_secrets_gate() {
 }
 
 # ------------------------------------------------------------------ go gate
-# govulncheck exits 1 when it finds vulnerabilities; findings are judged by
-# the verdict so exceptions can apply. Any other failure (no JSON) is a gate
-# error.
+# govulncheck exits 1 both when it finds vulnerabilities AND when the scan
+# itself errors (package load failures). The report is a multi-document JSON
+# stream, so the acceptable-failure test is "the stream contains finding
+# documents" (the scan completed and has findings for the verdict to judge);
+# any other non-zero exit is a gate error, never silently zero findings.
 run_go_gate() {
   local rc=0
   (cd "$REPO_ROOT/backend" && go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VER" \
     -format json ./... > "$REPORT_DIR/govulncheck.json" 2>"$REPORT_DIR/govulncheck.log") || rc=1
-  if [ $rc -ne 0 ] && json_report_has_key "$REPORT_DIR/govulncheck.json" "Vulnerabilities"; then
+  if [ $rc -ne 0 ] && { json_report_has_key "$REPORT_DIR/govulncheck.json" "Vulnerabilities" \
+      || json_stream_has_key "$REPORT_DIR/govulncheck.json" "finding"; }; then
     rc=0
   fi
   return $rc
@@ -282,7 +347,10 @@ run_go_gate() {
 # ----------------------------------------------------------------- npm gate
 # npm audit exits 1 when findings exist at or above the audit level; findings
 # are judged by the verdict. A missing/error JSON (no "vulnerabilities" key)
-# is a gate error.
+# is a gate error. scan-policy npm_audit_scope=production audits only the
+# runtime dependency tree (--omit=dev): dev-tree findings are build-time
+# toolchain risk, characterized in scan-policy.json (npm_dev_risk_notes) and
+# deliberately out of the gate's scope.
 run_npm_gate() {
   local rc=0
   local registry
@@ -291,6 +359,14 @@ import json, sys
 print(json.load(open(sys.argv[1], encoding="utf-8")).get("npm_registry", "https://registry.npmjs.org"))
 PY
 )" || registry="https://registry.npmjs.org"
+  local scope
+  scope="$(python3 - "$REPO_ROOT/security/scan-policy.json" <<'PY' 2>/dev/null
+import json, sys
+print(json.load(open(sys.argv[1], encoding="utf-8")).get("npm_audit_scope", "production"))
+PY
+)" || scope="production"
+  local audit_flags=(--registry="$registry")
+  if [ "$scope" = "production" ]; then audit_flags+=(--omit=dev); fi
   for pkg in frontend tauri-client; do
     if [ ! -f "$REPO_ROOT/$pkg/package-lock.json" ]; then
       echo "{\"ok\": false, \"error\": \"missing $pkg/package-lock.json\"}" \
@@ -300,7 +376,7 @@ PY
       continue
     fi
     local sub=0
-    (cd "$REPO_ROOT/$pkg" && npm audit --registry="$registry" \
+    (cd "$REPO_ROOT/$pkg" && npm audit "${audit_flags[@]}" \
       --json > "$REPORT_DIR/npm-$pkg-audit.json" 2>"$REPORT_DIR/npm-$pkg-audit.log") || sub=1
     if ! json_report_has_key "$REPORT_DIR/npm-$pkg-audit.json" "vulnerabilities"; then
       echo "npm audit: failed for $pkg (invalid or error JSON)" >&2
@@ -370,11 +446,14 @@ run_cargo_gate() {
 
 # ------------------------------------------------------------- trivy gates
 # Findings are judged by the verdict (no --exit-code 1); only scan errors fail.
+# Scanner diagnostics go to the report dir instead of /dev/null so a failed
+# DB fetch is diagnosable; a scanner that produced no report makes the verdict
+# fail closed (see run_verdict).
 run_trivy_fs_gate() {
   need_docker
   docker run --rm -v "$REPO_ROOT:/repo:ro" -v "$REPORT_DIR:/out" -v "$TRIVY_CACHE_VOLUME:/root/.cache" \
     "$TRIVY_IMAGE" fs --scanners vuln,secret --severity HIGH,CRITICAL \
-    --format json --output /out/trivy-fs.json /repo >/dev/null 2>&1
+    --format json --output /out/trivy-fs.json /repo >"$REPORT_DIR/trivy-fs.log" 2>&1
 }
 
 run_trivy_config_gate() {
@@ -446,22 +525,75 @@ if "secrets" in active_gates:
                  "version": "N/A", "severity": "secret", "source": "gitleaks-%s" % rep,
                  "detail": f.get("Secret", "")[:24]})
 
+def iter_json_stream(path):
+    """Yield each JSON document in a multi-document stream. govulncheck
+    -format json writes config/SBOM/progress/osv/finding documents back to
+    back; single-object json.load raises "Extra data" and the historical
+    verdict swallowed the error as zero findings (audit F-05 finding 1)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            buf = f.read()
+    except OSError:
+        return
+    dec = json.JSONDecoder()
+    idx, n = 0, len(buf)
+    while idx < n:
+        while idx < n and buf[idx] in " \t\r\n":
+            idx += 1
+        if idx >= n:
+            return
+        try:
+            obj, idx = dec.raw_decode(buf, idx)
+        except ValueError:
+            return  # unparsable from here: stop, earlier documents still count
+        yield obj
+
+def osv_severity(vuln_id, default="critical"):
+    """Best-effort severity from the OSV API; unreachable API means we cannot
+    downgrade, so the default (fail-closed) applies."""
+    try:
+        with urllib.request.urlopen(
+                "https://api.osv.dev/v1/vulns/%s" % vuln_id, timeout=10) as r:
+            osv = json.load(r)
+        db = osv.get("database_specific", {})
+        return db.get("severity") or default
+    except Exception:
+        return default
+
 if "go" in active_gates:
-    gv = load(os.path.join(report_dir, "govulncheck.json"))
-    if gv and isinstance(gv, dict):
-        for v in gv.get("Vulnerabilities", []):
-            sev = "critical"
-            try:
-                with urllib.request.urlopen(
-                        "https://api.osv.dev/v1/vulns/%s" % v.get("ID"), timeout=10) as r:
-                    osv = json.load(r)
-                db = osv.get("database_specific", {})
-                sev = db.get("severity") or "critical"
-            except Exception:
-                sev = "critical"
-            add({"id": v.get("ID"), "component": v.get("Package") or v.get("Module"),
-                 "version": v.get("Version") or "unknown", "severity": sev,
-                 "source": "govulncheck", "detail": v.get("Details", "")[:80]})
+    gvc_path = os.path.join(report_dir, "govulncheck.json")
+    stream_docs = [d for d in iter_json_stream(gvc_path) if isinstance(d, dict)]
+    if not stream_docs:
+        # Scanner produced no parsable report. A failed scanner is not a
+        # zero-findings scan; recorded as non-waivable so the verdict fails.
+        add({"id": "scanner-failure:govulncheck", "component": "govulncheck.json",
+             "version": "N/A", "severity": "critical", "source": "govulncheck",
+             "detail": "report missing or invalid (scanner failure is not zero findings)"})
+    else:
+        # Legacy single-object shape ({"Vulnerabilities": [...]}) plus the
+        # real govulncheck stream shape ({"finding": {...}} documents).
+        vulns = []
+        for d in stream_docs:
+            if "Vulnerabilities" in d:
+                vulns.extend(d.get("Vulnerabilities", []))
+            if "finding" in d:
+                vulns.append(d["finding"])
+        for v in vulns:
+            if "osv" in v:
+                vid = v.get("osv")
+                trace = v.get("trace") or [{}]
+                frame = trace[0] if isinstance(trace[0], dict) else {}
+                component = frame.get("module") or frame.get("package")
+                version = frame.get("version") or "unknown"
+                detail = "fixed %s" % v.get("fixed_version", "?")
+            else:
+                vid = v.get("ID")
+                component = v.get("Package") or v.get("Module")
+                version = v.get("Version") or "unknown"
+                detail = v.get("Details", "")[:80]
+            add({"id": vid, "component": component,
+                 "version": version, "severity": osv_severity(vid),
+                 "source": "govulncheck", "detail": detail})
 
 if "npm" in active_gates:
     for pkg in ("frontend", "tauri-client"):
@@ -509,8 +641,16 @@ if "cargo" in active_gates:
                  "source": "cargo-audit", "detail": adv.get("url", "")[:80]})
 
 if "trivy-fs" in active_gates:
-    tf = load(os.path.join(report_dir, "trivy-fs.json"))
-    if tf and isinstance(tf, dict):
+    tf_path = os.path.join(report_dir, "trivy-fs.json")
+    tf = load(tf_path)
+    if not tf or not isinstance(tf, dict):
+        # A missing or unparseable report means the scanner failed (e.g. vuln
+        # DB fetch); treating it as zero findings green-lights a broken
+        # scanner (audit F-05 finding 2). Non-waivable, so the verdict fails.
+        add({"id": "scanner-failure:trivy-fs", "component": "trivy-fs.json",
+             "version": "N/A", "severity": "critical", "source": "trivy-fs",
+             "detail": "report missing or invalid (scanner failure is not zero findings)"})
+    else:
         for r in tf.get("Results", []):
             for v in r.get("Vulnerabilities", []):
                 if v.get("Severity") in ("HIGH", "CRITICAL"):
@@ -592,6 +732,10 @@ PY
 # ------------------------------------------------------------ gate dispatch
 GATE_LIST="$(echo "$GATES" | tr ',' ' ')"
 FAILED=0
+if [ "$VERDICT_ONLY" -eq 1 ]; then
+  echo "verdict-only mode: skipping gate execution, judging existing reports" >&2
+  GATE_LIST=""
+fi
 for gate in $GATE_LIST; do
   case "$gate" in
     policy)
