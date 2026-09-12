@@ -15,8 +15,21 @@ import (
 const csrfHeaderName = "X-CSRF-Token"
 const csrfTokenLength = 32
 
+// csrfCookieName returns the double-submit cookie name for the mode.
+// Release uses the __Host- prefix (Secure, Path=/, no Domain) so no sibling
+// subdomain can set or toss this cookie with Domain=.leeppp.online (audit
+// F-08). Debug keeps the plain name: __Host- requires Secure, which a local
+// http dev stack cannot honor.
+func csrfCookieName(cfg *config.Config) string {
+	if cfg.Server.Mode == "release" {
+		return "__Host-csrf"
+	}
+	return "csrf-token"
+}
+
 func CSRF(cfg *config.Config) gin.HandlerFunc {
 	isSecure := cfg.Server.Mode == "release"
+	cookieName := csrfCookieName(cfg)
 
 	return func(c *gin.Context) {
 		if isInternalPath(c.Request.URL.Path) {
@@ -37,31 +50,21 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Always read from "csrf-token" cookie.
-		// In cross-domain setups (app.xxx → api.xxx), the browser will only
-		// send back a cookie with SameSite=None; the old __Host-csrf cookie
-		// (SameSite=Lax) is never returned by the browser on cross-origin
-		// fetch requests, so we stop reading it.
-		token, _ := c.Cookie("csrf-token")
+		token, _ := c.Cookie(cookieName)
 		if token == "" {
 			token = generateCSRFToken()
 		}
 
-		// Use a single cookie name "csrf-token" for all modes.
-		// The __Host- prefix is incompatible with SameSite=None (RFC 6265bis
-		// requires __Host- cookies to have no Domain attribute and the
-		// browser semantics favour SameSite=Strict/Lax).  Since production
-		// needs SameSite=None for cross-domain credential flows, we drop
-		// the __Host- prefix entirely.
-		cookieName := "csrf-token"
-
-		if isSecure {
-			c.SetSameSite(http.SameSiteNoneMode)
-		} else {
-			c.SetSameSite(http.SameSiteLaxMode)
-		}
+		// All legitimate requests are same-site (app.leeppp.online ->
+		// api.leeppp.online share the registrable domain), so SameSite=Lax
+		// rides along on every real flow while cross-site requests stop at
+		// the browser (audit F-08: SameSite=None only widened the
+		// cookie-tossing surface without any legitimate cross-site flow
+		// needing it).
+		c.SetSameSite(http.SameSiteLaxMode)
 		c.SetCookie(cookieName, token, 0, "/", "", isSecure, false)
 		c.Set("csrfToken", token)
+		c.Set("csrfCookieName", cookieName)
 
 		if c.Request.Method == http.MethodPost ||
 			c.Request.Method == http.MethodPatch ||
@@ -118,7 +121,16 @@ func GetCSRFToken(c *gin.Context) string {
 			return s
 		}
 	}
-	token, _ := c.Cookie("csrf-token")
+	// Outside the CSRF middleware (or when it skipped cookie issuance for a
+	// machine channel), fall back to reading the cookie by the mode-aware
+	// name the middleware stashed, else the debug-mode default.
+	cookieName := "csrf-token"
+	if val, exists := c.Get("csrfCookieName"); exists {
+		if s, ok := val.(string); ok && s != "" {
+			cookieName = s
+		}
+	}
+	token, _ := c.Cookie(cookieName)
 	if token == "" {
 		token = generateCSRFToken()
 	}

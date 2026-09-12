@@ -330,15 +330,74 @@ title = "fixture"
 [extend]
 useDefault = true
 
-[allowlist]
+[[allowlists]]
 paths = [ "allowed/not-secret.txt" ]
 EOF
-# Build the AWS key pattern at runtime so the committed source never contains
+# Build the planted secret at runtime so the committed source never contains
 # the literal secret pattern gitleaks scans for; the generated fixture file in
-# the temp dir still matches the default gitleaks rule.
-printf 'AWS_ACCESS_KEY_ID=AKIA%sEXAMPLE\n' 'IOSFODNN7' > "$SECRET_ROOT/sub/credentials.txt"
+# the temp dir still matches the default gitleaks rule (the historical AWS
+# AKIA..EXAMPLE probe is ignored by gitleaks >= 8.19 stopword handling, so the
+# fixture plants a generated high-entropy generic api key instead).
+SECRET_PLANT="$(python3 -c 'import hashlib; print("sk-" + hashlib.sha256(b"secret-fixture").hexdigest()[:32])')"
+printf '{"api_key": "%s"}\n' "$SECRET_PLANT" > "$SECRET_ROOT/sub/credentials.txt"
 expect_exit 0 "secret fixture passes policy gate (isolation)" "$SECRET_ROOT" "policy"
 expect_exit 1 "fake secret fails the gitleaks gate" "$SECRET_ROOT" "secrets"
+
+# ------------------------------------ gitleaks scope counter-experiments (F-06)
+# The content exemptions in the repo .gitleaks.toml must be conditioned on
+# BOTH path and content, evaluated per finding. Three planted roots replay
+# the audit counter-experiments so any future widening (config drift or a
+# gitleaks upgrade changing allowlist semantics) fails here:
+#   scope-green    digest lines only inside the two exempt paths (plus the
+#                  drill's exact "wrong-token" negative-test line) -> pass
+#   scope-outside  the same digest shape in a foreign file -> gitleaks fires
+#   scope-inside   a foreign secret shape inside an exempt file (and a
+#                  non-literal bearer token in the drill) -> gitleaks fires
+# Secret-shaped values are generated at runtime so this test source never
+# carries a literal secret pattern.
+SCOPE_DIGEST="$(python3 -c 'import hashlib; print(hashlib.sha256(b"scope-digest").hexdigest())')"
+SCOPE_SK="$(python3 -c 'import hashlib; print("sk-" + hashlib.sha256(b"scope-sk").hexdigest()[:32])')"
+SCOPE_BEARER="$(python3 -c 'import hashlib; print("stolen-" + hashlib.sha256(b"scope-bearer").hexdigest()[:16])')"
+
+make_scope_root() {
+  local root="$1"
+  mkdir -p "$root/security" \
+    "$root/backend/internal/service/rag_eval/testdata" \
+    "$root/docs/working" \
+    "$root/scripts/ops" \
+    "$root/planted"
+  cp "$SECURITY_DIR"/*.json "$root/security/"
+  cp "$REPO_ROOT/.gitleaks.toml" "$root/.gitleaks.toml"
+  # digest lines in both exempt paths (same shape as the real artifacts)
+  printf '{"chunk_key": "%s"}\n' "$SCOPE_DIGEST" \
+    > "$root/backend/internal/service/rag_eval/testdata/ablation-judge-replay.jsonl"
+  printf '{"case_key": "%s"}\n' "$SCOPE_DIGEST" \
+    > "$root/docs/working/2026-08-29-agent-answer-eval-real.json"
+  # drill negative-test line: exempt only for the exact "wrong-token" literal.
+  # The bearer value is assembled at runtime ("wrong-" + "token") so this
+  # test source never carries the literal header value the curl-auth-header
+  # rule would flag (the gate scans this very file).
+  printf 'BADTOKEN_CODE="$(curl -s -o /dev/null -w "%%{http_code}" -H "Authorization: Bearer %s" "$GATE_URL/x")"\n' \
+    "wrong-token" \
+    > "$root/scripts/ops/observability-drill.sh"
+}
+
+SCOPE_GREEN_ROOT="$TEMP_ROOT/scope-green"
+make_scope_root "$SCOPE_GREEN_ROOT"
+expect_exit 0 "gitleaks scope green - digest exemptions still cover the eval paths" "$SCOPE_GREEN_ROOT" "secrets"
+
+SCOPE_OUTSIDE_ROOT="$TEMP_ROOT/scope-outside"
+make_scope_root "$SCOPE_OUTSIDE_ROOT"
+printf '{"chunk_key": "%s"}\n' "$SCOPE_DIGEST" > "$SCOPE_OUTSIDE_ROOT/planted/other.json"
+expect_exit 1 "gitleaks scope red - same digest shape in a foreign file is detected" "$SCOPE_OUTSIDE_ROOT" "secrets"
+
+SCOPE_INSIDE_ROOT="$TEMP_ROOT/scope-inside"
+make_scope_root "$SCOPE_INSIDE_ROOT"
+printf '{"api_key": "%s"}\n' "$SCOPE_SK" \
+  >> "$SCOPE_INSIDE_ROOT/backend/internal/service/rag_eval/testdata/ablation-judge-replay.jsonl"
+printf 'BADTOKEN_CODE="$(curl -s -o /dev/null -w "%%{http_code}" -H "Authorization: Bearer %s" "$GATE_URL/x")"\n' \
+  "$SCOPE_BEARER" >> "$SCOPE_INSIDE_ROOT/scripts/ops/observability-drill.sh"
+expect_exit 1 "gitleaks scope red - non-digest secrets inside exempt files stay detected" "$SCOPE_INSIDE_ROOT" "secrets"
 
 # ------------------------------------------------ vulnerable lockfile fixture
 # run_npm_gate audits BOTH frontend and tauri-client lockfiles; the fixture
