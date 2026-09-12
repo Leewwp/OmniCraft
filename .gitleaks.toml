@@ -1,9 +1,24 @@
 # OmniCraft gitleaks allowlist.
-# Extends the default rules with path-scoped exemptions for historical
-# test fixtures and documentation examples that match generic secret
-# patterns but contain no real credentials. Every entry is a reviewed
-# exemption equivalent to a security-policy decision: do not add new
-# paths here without review (see security/scan-policy.json).
+# Extends the default rules with reviewed, scope-narrowed exemptions. Every
+# entry is a security-policy decision: do not add new exemptions without
+# review (see security/scan-policy.json).
+#
+# Scope rules (gitleaks >= v8.25 semantics, enforced by pinned image):
+# - File-level exemptions use a global [[allowlists]] paths section. Only
+#   whole files whose every matching line is a reviewed fixture/example may
+#   land here.
+# - Content exemptions (a reviewed literal or field shape inside a file that
+#   must otherwise stay fully scanned) MUST use a per-rule
+#   [[rules.allowlists]] section with condition = "AND" so path AND content
+#   must match on the SAME finding. Global allowlist regexes with
+#   regexTarget = "line" apply to every file in the repo and are forbidden:
+#   that shape let any file hide a secret behind a field name (audit F-06).
+#   Note global condition = "AND" sections are NOT a substitute: they
+#   evaluate the regex against the whole file (one matching line exempts
+#   every finding in the file), which was verified empirically on v8.28.0.
+# - scripts/security/verify-security.tests.sh replays counter-experiments
+#   (planted secrets in non-exempt files and inside exempt files) so any
+#   widening of these exemptions fails the gate.
 title = "OmniCraft gitleaks allowlist"
 
 [extend]
@@ -19,10 +34,113 @@ description = "OmniCraft Agent access token (PAT)"
 regex = '''\boc_pat_[0-9A-Za-z]{43}\b'''
 keywords = ["oc_pat_"]
 
-[allowlist]
-# Each path below is allowlisted because matches occur only in test
-# fixtures, documentation examples or template constants. The current
-# working tree is verified clean by scripts/security/verify-security.sh.
+# Extends the default generic-api-key rule (regex/entropy/stopwords are
+# inherited, so extending it cannot blind the rule; detection inside the
+# exempt files is asserted by the scope counter-experiments in
+# verify-security.tests.sh). Each section below is a reviewed exemption.
+[[rules]]
+id = "generic-api-key"
+  # RAG eval artifacts (docs/working/2026-08-29-agent-answer-eval-real.json
+  # and backend/internal/service/rag_eval/testdata/ablation-judge-replay.jsonl)
+  # key their rows by SHA-256 content digests, so "chunk_key"/"case_key" hold
+  # 64 lowercase hex chars that the entropy heuristic reads as a credential.
+  # Path AND field-anchored line: every other line in those files and every
+  # other file in the repo stays scanned (audit F-06).
+  [[rules.allowlists]]
+  description = "RAG eval digest fields (path + field-anchored line)"
+  condition = "AND"
+  regexTarget = "line"
+  regexes = [
+    '''"chunk_key"\s*:\s*"[0-9a-f]{8,64}"''',
+    '''"case_key"\s*:\s*"[0-9a-f]{1,64}"''',
+  ]
+  paths = [
+    '''backend/internal/service/rag_eval/testdata/ablation-judge-replay\.jsonl''',
+    '''docs/working/2026-08-29-agent-answer-eval-real\.json''',
+  ]
+  # Migration replay fixture: schema_migrations rows carry per-file SHA-256
+  # checksums (deterministic digests of the migration SQL, not credentials).
+  [[rules.allowlists]]
+  description = "migration replay checksums (path + INSERT-anchored line)"
+  condition = "AND"
+  regexTarget = "line"
+  regexes = [
+    '''INSERT INTO public\.schema_migrations VALUES \(\d+, '[0-9]+_[a-z_]+\.sql', '[0-9a-f]{64}', ''',
+  ]
+  paths = [
+    '''backend/internal/migration/testdata/historical-050\.sql''',
+  ]
+  # Tests pin LLM_KEY_ENCRYPTION_SECRET to the sequential placeholder
+  # value; exact-literal anchored so any other value still fires.
+  [[rules.allowlists]]
+  description = "sequential placeholder encryption secret in tests"
+  condition = "AND"
+  regexes = [
+    '''^0123456789abcdef0123456789abcdef$''',
+  ]
+  paths = [
+    '''backend/config/relay_config_test\.go''',
+    '''backend/internal/service/review_remediation_test\.go''',
+  ]
+  # Green content-safety region names in the placeholder env template and
+  # deploy docs ("GREEN_REGION=cn-shanghai" is a region, not a secret).
+  [[rules.allowlists]]
+  description = "green region placeholder literal"
+  condition = "AND"
+  regexes = [
+    '''^GREEN_REGION=cn-shanghai$''',
+  ]
+  paths = [
+    '''\.env\.production\.example''',
+    '''docs/deploy/production-config-template\.md''',
+    '''docs/deploy/single-server-beta-runbook\.md''',
+  ]
+  # RAG eval baseline is a single-line JSON of fabricated local-eval data
+  # (#136); its dataset case name "mix_cyberpunk_2077" trips the entropy
+  # heuristic without being a credential (the name also recurs as a case_key
+  # value inside the eval artifact). Exact-literal secret match keeps every
+  # other string in those files scanned.
+  [[rules.allowlists]]
+  description = "RAG eval baseline dataset case name (exact literal)"
+  condition = "AND"
+  regexes = [
+    '''^mix_cyberpunk_2077$''',
+  ]
+  paths = [
+    '''backend/testdata/rag_eval_baseline\.json''',
+    '''docs/working/2026-08-29-agent-answer-eval-real\.json''',
+  ]
+  # SP-16 anonymous-endpoint audit test uses a marker string as a fake
+  # Authorization value; exact-literal anchored.
+  [[rules.allowlists]]
+  description = "optauth leak audit test marker"
+  condition = "AND"
+  regexes = [
+    '''^sp16aleakIPPEND$''',
+  ]
+  paths = [
+    '''backend/internal/router/optauth_leak_audit_test\.go''',
+  ]
+
+# The observability drill asserts the Loki gateway rejects bad credentials,
+# so it sends a deliberately invalid bearer token ("wrong-token").
+[[rules]]
+id = "curl-auth-header"
+  [[rules.allowlists]]
+  description = "drill negative-test bearer token (exact literal)"
+  condition = "AND"
+  regexes = [
+    '''^wrong-token$''',
+  ]
+  paths = [
+    '''scripts/ops/observability-drill\.sh''',
+  ]
+
+# File-level exemptions: every matching line in these files is a reviewed
+# fixture, documentation example or template constant. The current working
+# tree is verified clean by scripts/security/verify-security.sh.
+[[allowlists]]
+description = "reviewed file-level exemptions (fixtures, docs examples, template constants)"
 paths = [
   # backend config tests use fake hex secrets as test values
   "backend/config/config_test.go",
@@ -41,27 +159,4 @@ paths = [
   "scripts/release/deployment-contract.tests.sh",
   "scripts/release/preflight.tests.sh",
   "scripts/release/staging-drill.tests.sh",
-]
-# The RAG eval baseline is a single-line JSON of fabricated local-eval data
-# (#136); its dataset case name "mix_cyberpunk_2077" trips the generic-api-key
-# entropy heuristic without being a credential. Exempting the exact literal
-# instead of the path keeps every other string in that file scanned.
-#
-# regexTarget = "line" makes the entries below match the whole line instead of
-# only the matched secret value. It is required by the field-anchored entries:
-# anchoring on the value alone would mean allowlisting the 64-hex-digit shape,
-# which is also the shape of JWT_SECRET and LLM_KEY_ENCRYPTION_SECRET in
-# .env.production.example -- i.e. it would blind this gate to real secrets.
-regexTarget = "line"
-regexes = [
-  '''\bmix_cyberpunk_2077\b''',
-  # RAG eval artifacts (docs/working/2026-08-29-agent-answer-eval-real.json and
-  # backend/internal/service/rag_eval/testdata/ablation-judge-replay.jsonl) key
-  # their rows by SHA-256 content digest, so "chunk_key"/"case_key" hold 64
-  # lowercase hex chars that the generic-api-key entropy heuristic reads as a
-  # credential. Field-anchored, so every other string in those files is still
-  # scanned; verified that a planted 64-hex secret and a planted sk- key in a
-  # sibling file remain detected under this config.
-  '''"chunk_key"\s*:\s*"[0-9a-f]{8,64}"''',
-  '''"case_key"\s*:\s*"[0-9a-f]{1,64}"''',
 ]
