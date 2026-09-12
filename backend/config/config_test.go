@@ -501,6 +501,28 @@ func TestValidateReleaseAcceptsCompleteProductionConfig(t *testing.T) {
 	}
 }
 
+// TestValidateReleaseRejectsFactoryTemplateGreenSeed pins audit F-04: the
+// historical factory template seed literal has been public in git history, so
+// a deployment that ships it unchanged lets anyone who knows the literal (plus
+// the account UID) forge /internal/ai-callback checksums. Release validation
+// must reject the literal outright, independent of the generic placeholder
+// and format checks.
+func TestValidateReleaseRejectsFactoryTemplateGreenSeed(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Green.Seed = greenSeedFactoryTemplate
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix),
+		"error = %q, want prefix %q", err.Error(), validateReleaseErrPrefix)
+	require.Contains(t, err.Error(), "green.seed")
+
+	cfg = validReleaseConfigForTest()
+	cfg.Green.Seed = "deploytime_generated_seed_7f3a9c"
+	require.NoError(t, cfg.ValidateRelease())
+}
+
 func TestValidateReleaseRejectsIncompleteProductionConfig(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -596,6 +618,10 @@ func TestDefaultConfigHasAbuseControlLimits(t *testing.T) {
 	require.Positive(t, cfg.RateLimit.MaxJSONBodyBytes)
 	require.Positive(t, cfg.RateLimit.MaxQueryChars)
 	require.Positive(t, cfg.RateLimit.MaxSearchPage)
+	// F-04: /internal/ai-callback carries a dedicated fixed-window bucket so
+	// checksum-guessing bursts are throttled independently of the global
+	// per-IP limiter.
+	require.Equal(t, 30, cfg.RateLimit.AICallbackPerMinute)
 }
 
 func TestDefaultConfigJSONBodyLimitAllowsTextUploads(t *testing.T) {
