@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
@@ -52,6 +53,7 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
   const t = useTranslations();
   const router = useRouter();
   const { user, capabilities } = useAuth();
+  const { requireAuth } = useAuthGate();
   const [discussions, setDiscussions] = useState<DiscussionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -111,7 +113,11 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
       );
     }
     return (
-      <Button size="sm" onClick={() => router.push("/login")} title={t("discussion.loginToStart")}>
+      <Button
+        size="sm"
+        onClick={() => requireAuth(() => router.push(`/ip/${ipId}/discussions/new`))}
+        title={t("discussion.loginToStart")}
+      >
         <Plus className="mr-1 h-4 w-4" />
         {t("discussion.newPost")}
       </Button>

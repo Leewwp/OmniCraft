@@ -174,7 +174,9 @@ test.describe("Ticket 74: 收藏状态以收藏成员关系为唯一事实源 (#
 
     const action = page.getByRole("button", { name: "添加到收藏集" });
     await expect(action).toBeVisible();
-    await expect(action).toBeDisabled();
+    /* SP-17/T2：未登录可点击（开登录浮窗，成功后自动打开收藏集）；
+       「已收藏」态仍要求登录成员关系（匿名恒无）。 */
+    await expect(action).toBeEnabled();
     await expect(page.getByRole("button", { name: "已收藏" })).toHaveCount(0);
 
     await page.screenshot({ path: path.join(SCREENSHOTS, "web-t74-anonymous-not-favorited.png") });

@@ -27,7 +27,10 @@ import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
 import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
+import { FollowButton } from "@/components/social/FollowButton";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
@@ -200,7 +203,11 @@ export function ContentDetail({
   const typeLabel = getTypeLabel(t, contentType);
   const description = data.description || data.body || "";
   const { user } = useAuth();
+  const { requireAuth } = useAuthGate();
   const { toast } = useToast();
+  /* SP-17/T3：创作者区（布局A）作者身份与自视角判定（看自己不显示关注）。 */
+  const authorId = data.author?.id ?? data.author_id;
+  const isSelf = !!user && authorId != null && user.id === authorId;
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
   /* #74：收藏状态以收藏成员关系为唯一事实源 —— 初始值来自详情响应，
@@ -268,10 +275,32 @@ export function ContentDetail({
           {data.title}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>
-            {t('content.author', { name: data.author?.username ?? t('common.userLabel', { id: data.author_id ?? "-" }) })}
-          </span>
+        {/* SP-17/T3 布局A（知乎/小红书式，2026-09-12 Q1 裁决）：头像+昵称+关注
+            同排，元信息行（类型·浏览·日期）在昵称下方；头像/昵称 = 悬浮卡触发器，
+            关注按钮接 T1 的 author.is_following（修恒「未关注」缺口）。 */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <UserHoverCard
+            userId={data.author?.id ?? data.author_id}
+            username={
+              data.author?.username ?? t('common.userLabel', { id: data.author_id ?? "-" })
+            }
+            avatarUrl={data.author?.avatar_url}
+            size={40}
+            placement="detail-creator"
+          />
+          <div className="flex items-center gap-2">
+            {authorAction}
+            {!isSelf && authorId != null && (
+              <FollowButton
+                targetType="user"
+                targetId={authorId}
+                initialFollowing={data.author?.is_following ?? false}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-xs text-muted-foreground">
           {data.zone === "fanwork" && data.ip?.name && (
             <span>
               {t('content.ipLabel', { name: data.ip.name })}
@@ -290,7 +319,6 @@ export function ContentDetail({
               })}
             </span>
           )}
-          {authorAction && <span className="ml-auto">{authorAction}</span>}
         </div>
 
         {/* 来源归因（ui-spec:2635）：标题/作者元信息之后、正文之前；仅 fanwork 且存在内容级来源时渲染。 */}
@@ -483,8 +511,15 @@ export function ContentDetail({
         <Button
           variant="outline"
           size="sm"
-          disabled={!user}
-          onClick={() => setCollectionPickerOpen(true)}
+          onClick={() => {
+            // SP-17/T2：未登录可点击（开登录浮窗，成功后继续打开收藏集）；
+            // 能力拒绝由 CollectionPicker 流程外层能力门处理（与 ReactionBar 同口径）。
+            if (!user) {
+              requireAuth(() => setCollectionPickerOpen(true));
+              return;
+            }
+            setCollectionPickerOpen(true);
+          }}
           className={cn(isFavorited && "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive")}
         >
           <Bookmark className={cn("mr-1 h-3.5 w-3.5", isFavorited && "fill-current")} />

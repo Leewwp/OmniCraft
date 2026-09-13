@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { ContentSidebar } from "@/components/content/ContentSidebar";
+import { FollowButton } from "@/components/social/FollowButton";
 import { normalizeContentDetailResponse } from "@/lib/content";
 
 interface ContentResponse { content?: unknown; attachments?: unknown[]; tags?: unknown[]; }
@@ -64,10 +65,28 @@ export default async function OriginalDetailPage({ params }: { params: Promise<{
         />
       </div>
 
-      {/* Right sidebar */}
+      {/* Right sidebar — SP-17/T4 审查修复：补真 FollowButton（原为无交互静态兜底） */}
       <ContentSidebar
-        author={content.author ? { id: content.author.id, username: content.author.username } : undefined}
+        author={
+        content.author
+          ? {
+              id: content.author.id,
+              username: content.author.username,
+              avatar_url: content.author.avatar_url,
+              is_following: content.author.is_following,
+            }
+          : undefined
+      }
         zone="original"
+        followAction={
+          content.author?.id ? (
+            <FollowButton
+              targetType="user"
+              targetId={content.author.id}
+              initialFollowing={content.author.is_following ?? false}
+            />
+          ) : undefined
+        }
         originalId={content.id}
         relatedFanworksCount={relatedCount}
       />
