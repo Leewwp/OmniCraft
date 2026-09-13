@@ -11,6 +11,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
 import { api, ApiRequestError } from "@/lib/api";
 import { fetchPublicConfig, commentFoldThreshold, isHighDislikeRatio } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
@@ -404,9 +405,15 @@ function CommentItem({
         <CommentAvatar author={comment.author} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-xs font-medium">
-              {comment.author?.username || t('common.userLabel', { id: comment.author_id })}
-            </p>
+            {/* SP-17/T4：评论作者昵称 = 悬浮卡触发器（dynamic 定位）；头像维持
+                CommentAvatar 展示位，避免双重头像。 */}
+            <UserHoverCard
+              userId={comment.author?.id}
+              username={comment.author?.username || t('common.userLabel', { id: comment.author_id })}
+              avatarUrl={comment.author?.avatar_url}
+              showAvatar={false}
+              className="min-w-0 text-xs"
+            />
             <p className="shrink-0 text-[10px] text-muted-foreground">
               {new Date(comment.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN", {
                 year: "numeric",
@@ -666,10 +673,15 @@ function ReplyItem({
   return (
     <div className="rounded border border-border bg-muted/10 p-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium">
-          {reply.author?.username || t('common.userLabel', { id: reply.author_id })}
-        </p>
-        <p className="text-[10px] text-muted-foreground">
+        {/* SP-17/T4：回复作者昵称 = 悬浮卡触发器（紧凑行不带头像）。 */}
+        <UserHoverCard
+          userId={reply.author?.id}
+          username={reply.author?.username || t('common.userLabel', { id: reply.author_id })}
+          avatarUrl={reply.author?.avatar_url}
+          showAvatar={false}
+          className="min-w-0 text-xs"
+        />
+        <p className="shrink-0 text-[10px] text-muted-foreground">
           {new Date(reply.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN")}
           {reply.updated_at && reply.updated_at !== reply.created_at && (
             <span className="ml-1">· {t('social.editedMark')}</span>

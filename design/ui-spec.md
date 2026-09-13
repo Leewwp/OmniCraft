@@ -716,9 +716,9 @@ interface AgentFollowUpChipsProps {
 **i18n**
 - 全部文案走 next-intl（zh/en 同步）；新增键 `auth.loginRequiredDescription`、`auth.loginToInteract`。
 
-## Component: UserHoverCard 用户悬浮卡（SP-17/T3）
+## Component: UserHoverCard 用户悬浮卡（SP-17/T3/T4）
 
-P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCard.tsx`）；创作者区（detail-creator）/评论作者（dynamic，T4 接入）头像/昵称入口的统一资料浮层。
+P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCard.tsx`）；头像/昵称身份入口的统一资料浮层。**已接入面（T4 收口）**：完整详情页创作者区（ContentDetail 布局A 行）、浮窗 split/单列侧栏创作者卡（OverlayLayer）与独立详情页侧栏（Host，2026-09-13 起接真 FollowButton + is_following 初始态）、竖屏变体作者行（ContentDetail 创作者区自带，旧 authorAction 透传已移除防双按钮）、评论区评论与两级回复作者（昵称触发，紧凑行 showAvatar=false；头像维持 CommentAvatar 展示位防双重头像）。评论区折叠态不显示作者，无触发器。
 
 **Key Constraints**
 - 卡片 300px 宽、1px border 圆角 bg-card + shadow-md（弹层同 confirm-modal 视觉档）；头像 56px；统计三项 `内容 N · 获赞 N · 粉丝 N`（text-xs，数字 font-semibold）。
@@ -733,6 +733,7 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 - 头像（img/首字母兜底）+ 昵称（链接 /user/:id）+ bio（空省略）+ 三项统计。
 - 非本人：`FollowButton`（initialFollowing 来自浮卡数据）+ `MessageComposeButton`（复用既有私信弹窗，未登录走登录浮窗 T2）。
 - 本人：不显示关注/私信，显示「查看主页」链接（user.viewProfile）。
+- ContentSidebar 创作者卡（SP-17/T4）：居中头像布局改为此触发器行（与完整详情页创作者区一致，「仅头像、昵称、关注」）；authorStats 死 prop 按 #493 取简裁决移除（统计由本卡承载），bio 保留；Host 侧栏由静态兜底按钮升级为真 FollowButton（initialFollowing=详情 author.is_following）。
 
 **i18n**
 - `user.viewProfile` / `user.hoverCardLabel` / `user.statContents` / `user.statLikes` / `user.statFollowers`（zh/en 同步）。

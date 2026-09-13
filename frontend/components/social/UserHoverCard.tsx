@@ -45,6 +45,8 @@ interface UserHoverCardProps {
   size?: number;
   /** dynamic=评论作者（左对齐、视口钳制）；detail-creator=创作者区（下方居中、浮层可视区钳制）。 */
   placement?: "dynamic" | "detail-creator";
+  /** 触发元是否带头像（默认带）；二级回复等紧凑行可只挂昵称。 */
+  showAvatar?: boolean;
   className?: string;
 }
 
@@ -63,6 +65,7 @@ export function UserHoverCard({
   avatarUrl,
   size = 32,
   placement = "dynamic",
+  showAvatar = true,
   className,
 }: UserHoverCardProps) {
   const t = useTranslations();
@@ -210,7 +213,7 @@ export function UserHoverCard({
   if (userId == null) {
     return (
       <span className={cn("inline-flex min-w-0 items-center gap-2 text-sm text-muted-foreground", className)}>
-        {avatar(avatarUrl, size)}
+        {showAvatar && avatar(avatarUrl, size)}
         <span className="truncate">{username}</span>
       </span>
     );
@@ -219,7 +222,7 @@ export function UserHoverCard({
   return (
     <span
       ref={wrapRef}
-      className={cn("inline-flex min-w-0", className)}
+      className={cn("inline-flex min-w-0 text-sm", className)}
       onPointerEnter={hoverCapable ? scheduleOpen : undefined}
       onPointerLeave={hoverCapable ? scheduleClose : undefined}
       onFocus={(event) => {
@@ -234,13 +237,13 @@ export function UserHoverCard({
         ref={triggerRef}
         href={`/user/${userId}`}
         aria-expanded={hoverCapable ? open : undefined}
-        className="flex min-w-0 items-center gap-2 rounded-md text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 items-center gap-2 rounded-md font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={(event) => {
           event.stopPropagation();
           closeNow();
         }}
       >
-        {avatar(avatarUrl, size)}
+        {showAvatar && avatar(avatarUrl, size)}
         <span className="truncate">{username}</span>
       </Link>
       {open && hoverCapable && position && (

@@ -25,7 +25,9 @@ func (r *SocialRepository) CreateComment(c *model.Comment) error {
 
 func (r *SocialRepository) FindComment(id int64) (*model.Comment, error) {
 	var c model.Comment
-	err := r.db.First(&c, id).Error
+	// SP-17/T4 顺手项：写路径（Post/EditComment）序列化回包需要 author，
+	// 与 ListComments 同源 Preload，避免发评后新评论作者回落零值。
+	err := r.db.Preload("Author").First(&c, id).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil

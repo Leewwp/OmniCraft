@@ -66,7 +66,16 @@ export default async function OriginalDetailPage({ params }: { params: Promise<{
 
       {/* Right sidebar */}
       <ContentSidebar
-        author={content.author ? { id: content.author.id, username: content.author.username } : undefined}
+        author={
+        content.author
+          ? {
+              id: content.author.id,
+              username: content.author.username,
+              avatar_url: content.author.avatar_url,
+              is_following: content.author.is_following,
+            }
+          : undefined
+      }
         zone="original"
         originalId={content.id}
         relatedFanworksCount={relatedCount}
