@@ -25,7 +25,9 @@ func (r *SocialRepository) CreateComment(c *model.Comment) error {
 
 func (r *SocialRepository) FindComment(id int64) (*model.Comment, error) {
 	var c model.Comment
-	err := r.db.First(&c, id).Error
+	// SP-17/T4 顺手项：写路径（Post/EditComment）序列化回包需要 author，
+	// 与 ListComments 同源 Preload，避免发评后新评论作者回落零值。
+	err := r.db.Preload("Author").First(&c, id).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -170,7 +172,8 @@ func (r *SocialRepository) IncrementDiscussionReplyCount(id int64) error {
 
 func (r *SocialRepository) FindDiscussion(id int64) (*model.Discussion, error) {
 	var d model.Discussion
-	err := r.db.First(&d, id).Error
+	// SP-17/T1：作者卡需要 author（含 avatar_url），缺 Preload 会序列化为零值。
+	err := r.db.Preload("Author").First(&d, id).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -195,7 +198,8 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 	}
 	q.Count(&total)
 	offset := (page - 1) * pageSize
-	err := q.Order("last_active_at DESC").Offset(offset).Limit(pageSize).Find(&discussions).Error
+	// SP-17/T1：同 FindDiscussion——讨论列表 author 需 Preload 才有真值。
+	err := q.Order("last_active_at DESC").Preload("Author").Offset(offset).Limit(pageSize).Find(&discussions).Error
 	return discussions, total, err
 }
 

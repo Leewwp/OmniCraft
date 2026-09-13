@@ -692,6 +692,52 @@ interface AgentFollowUpChipsProps {
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
+## Component: LoginModal 登录浮窗（SP-17/T2）
+
+未登录门统一入口：全站匿名触发点（关注/私信/点赞/收藏/评论/讨论发帖等）不再跳转 /login，改弹此浮窗；登录成功关浮窗并自动续做原动作（pendingAction）。api 层 401 刷新失败同样经事件桥打开本浮窗（无 provider 时兜底带 redirect 跳 /login）。
+
+**Key Constraints**
+- 背板+焦点陷阱与 confirm-modal 同模式：`fixed inset-0 z-50` 居中、`bg-black/50 backdrop-blur-sm` 遮罩、卡片 `max-w-sm` 1px border 圆角（Indigo 扁平、shadow-md 同 confirm-modal）。
+- 表单唯一实现 = `LoginForm`（与 /login 页共享）；浮窗形态**仅登录**（无记住登录状态、无忘记密码），底部「去注册」链接跳 /register。
+
+**状态变体**
+- default: 标题（auth.welcomeBack）+ 副标题（auth.loginRequiredDescription）+ 邮箱 + 密码 + 显示密码 + 登录按钮 + 去注册链接 + 右上关闭钮。
+- CAPTCHA_REQUIRED: 邮箱连续失败超阈值后动态插入 CaptchaWidget（container/button id 实例唯一）；CAPTCHA_FAILED 重置验证码提示重试。
+- USER_BANNED: 错误行内提示 + 意见反馈申诉入口（与 /login 页同文案）。
+- loading: 登录按钮内嵌 Spinner，输入 disabled。
+
+**层级与挂载**
+- 普通页面：portal 到 body（z-50）。
+- 内容详情浮窗（原生 dialog top layer）内触发：由 AuthGateProvider 提供容器元素，浮窗渲染进该 dialog 内部（top layer 子树随绘，避免被压层）；详情浮窗 Esc 在登录浮窗打开时让位。
+
+**a11y**
+- role="dialog" aria-modal，Esc 关闭，Tab 焦点循环；关闭后焦点归还触发元素（requireAuth 触发瞬间捕获）；事件桥触发（无 UI 触发元）不归还。
+
+**i18n**
+- 全部文案走 next-intl（zh/en 同步）；新增键 `auth.loginRequiredDescription`、`auth.loginToInteract`。
+
+## Component: UserHoverCard 用户悬浮卡（SP-17/T3/T4）
+
+P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCard.tsx`）；头像/昵称身份入口的统一资料浮层。**已接入面（T4 收口）**：完整详情页创作者区（ContentDetail 布局A 行）、浮窗 split/单列侧栏创作者卡（OverlayLayer）与独立详情页侧栏（Host，2026-09-13 起接真 FollowButton + is_following 初始态）、竖屏变体作者行（ContentDetail 创作者区自带，旧 authorAction 透传已移除防双按钮）、评论区评论与两级回复作者（昵称触发，紧凑行 showAvatar=false；头像维持 CommentAvatar 展示位防双重头像）。评论区折叠态不显示作者，无触发器。**讨论区三处（#494）**：枢纽讨论列表行作者（IPDiscussionsTab，20px 头像 + 昵称，dynamic 定位；行本体 div role=button 开帖浮层，作者链接 stopPropagation 防误开）、讨论帖详情浮层楼主（DiscussionDetailOverlay 头部，24px 头像）、回帖作者（ReplyList 顶层与嵌套，20px 头像；无 avatar_url 首字母兜底）。
+
+**Key Constraints**
+- 卡片 300px 宽、1px border 圆角 bg-card + shadow-md（弹层同 confirm-modal 视觉档）；头像 56px；统计三项 `内容 N · 获赞 N · 粉丝 N`（text-xs，数字 font-semibold）。
+- 数据：`GET /users/:id`（响应形状 = user 内嵌 followers_count/is_following/stats{contents_count,likes_received}），SWR key=`/api/v1/users/:id`，revalidateOnFocus:false + dedupingInterval 60s，仅浮卡打开时取数。
+
+**触发与定位**
+- 桌面（`hover:hover and pointer:fine`）悬停 200ms 开、移开 200ms 延迟关（防抖，鼠标移入卡片保持打开）；键盘聚焦立即显示；触屏不弹卡，点击直达 `/user/:id`。
+- 定位：detail-creator = 触发元下方居中；dynamic = 触发元左对齐；均钳制视口/最近浮层滚动可视区（`[data-slot="overlay-scroller"], [data-slot="layer-scroller"]`），下方不足上翻；scroll/resize 捕获阶段跟随重定位，触发元离屏即关。
+- Esc 关闭并归还焦点触发元（preventDefault 防连带关外层 dialog）。
+
+**内容与动作**
+- 头像（img/首字母兜底）+ 昵称（链接 /user/:id）+ bio（空省略）+ 三项统计。
+- 非本人：`FollowButton`（initialFollowing 来自浮卡数据）+ `MessageComposeButton`（复用既有私信弹窗，未登录走登录浮窗 T2）。
+- 本人：不显示关注/私信，显示「查看主页」链接（user.viewProfile）。
+- ContentSidebar 创作者卡（SP-17/T4）：居中头像布局改为此触发器行（与完整详情页创作者区一致，「仅头像、昵称、关注」）；authorStats 死 prop 按 #493 取简裁决移除（统计由本卡承载），bio 保留；Host 侧栏由静态兜底按钮升级为真 FollowButton（initialFollowing=详情 author.is_following）。
+
+**i18n**
+- `user.viewProfile` / `user.hoverCardLabel` / `user.statContents` / `user.statLikes` / `user.statFollowers`（zh/en 同步）。
+
 ## Page: /register 注册页
 
 **Key Constraints**
@@ -743,7 +789,8 @@ interface AgentFollowUpChipsProps {
 - 三模块页内切换：内容分享（媒体类型 FilterPills + 四排序 newest/hot/most_views/best_rated + OverlayMasonryGrid 作品卡）/ 讨论区（四排序 latest_reply/newest_post/most_replies/hot + 置顶标识 + 「发起讨论」入口）/ 提案投票（四状态筛选 open/adopted/rejected/history + 提案卡 + 发起表单 + 未关注引导）。
 - IP 内搜索：回车或失焦提交（输入过程不即时过滤）；搜索后停留在当前三模块结构，各 tab 内过滤同关键词；tab 计数与媒体类型 chips 计数随命中数收缩，清空搜索还原全量；当前 tab 无命中 → EmptyState「未找到与「q」相关的内容」。
 - 内容分享 tab 只收该 IP 的二创（zone=fanwork）；作品卡复用内容详情浮层（`Component: ContentDetailOverlay`）。
-- 讨论帖详情为页内浮层（DiscussionDetailOverlay）：标题/正文/作者 + 回帖；Esc、浏览器后退、点遮罩或 X 关闭；加载失败呈现 role="alert" + 重试。
+- 讨论区「发起讨论」门（#494，SP-17/T2 门语义自 DiscussionBoard 移植到在役入口）：未登录点击开登录浮窗（登录成功自动续做跳发帖页，不再借受保护页 redirect 硬跳）；能力拒绝（封禁/信誉）禁用 + 服务端原因；合格用户直链发帖页。讨论列表行作者 = UserHoverCard 触发器（20px 头像 + 昵称）；行本体整行可点开帖浮层（div role=button 承载键盘可达性，button 内不允许嵌套交互元素，作者链接 stopPropagation 防误开）。
+- 讨论帖详情为页内浮层（DiscussionDetailOverlay）：标题/正文/作者 + 回帖；Esc、浏览器后退、点遮罩或 X 关闭；加载失败呈现 role="alert" + 重试。楼主（24px 头像）与回帖作者（ReplyList 顶层与嵌套，20px 头像）= UserHoverCard 触发器（#494）。
 - 共治提案卡片：字段级 diff（简介文本块 / 封面 URL / 标签 +绿 −红 chips）+ 赞成/反对双色进度条 + 门槛刻度（取自后端 config，禁止前端硬编码）+ 剩余天数 + 投票按钮；已投显示所投选择并锁按钮；未关注者投票被拒（PROPOSAL_NOT_ELIGIBLE）→ 页内「关注后可参与共治投票」面板一键关注原地解锁。
 - 头部身份区：封面/名称/类目/简介/TagBadge 标签 + 关注数/讨论数/作品数三统计 + FollowButton（#415 O1b 恒宽规范：组件内置「取消关注」隐藏占位，无外部 min-w）；统计随搜索命中收缩展示。
 - 旧子路由 301 收敛：`/ip/[ipId]/[category]` → `?tab=share&type=<category>`；`/ip/[ipId]/discussions*` → `?tab=discussions`。
@@ -866,6 +913,8 @@ interface AgentFollowUpChipsProps {
 **核心组件清单**
 - `Header`
 - `ContentDetail`
+- `UserHoverCard`（创作者区头像/昵称触发器，SP-17/T3）
+- `FollowButton`（创作者区右侧，接详情 author.is_following 初始态，SP-17/T3）
 - `SheetMusicViewer`（content_type=sheet_music 时渲染）
 - `ReactionBar`
 - `CommentSection`
@@ -878,6 +927,7 @@ interface AgentFollowUpChipsProps {
 - 详情主体 → 操作栏 → 评论区 → 版本历史，纵向排列
 - 区域间距（block）：32px (`space-y-8`)
 - 元素间距（inline）：16px (`gap-4`)
+- 创作者区（SP-17/T3 布局A，2026-09-12 Q1 裁决）：标题下第一行为「[头像40px] 昵称 …… [关注]」（头像+昵称 = UserHoverCard 触发器；看自己不显示关注）；其下元信息行「类型 · 浏览 · 日期」（fanwork 含 IP 归属），左缩进对齐昵称（pl-12）；原「作者：xxx」纯文本行移除。original 与 fanwork 详情同构。
 
 **状态变体**
 - default: 内容详情 + 点赞/点踩/收藏 + 评论区 + 版本历史。
@@ -4301,53 +4351,9 @@ interface ReputationDetailProps {
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
 - 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
 
-## Component: DiscussionCard
+## Component: DiscussionCard（已移除，#494）
 
-**Key Constraints**
-- ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
-
-**Props 接口**
-```ts
-interface DiscussionCardProps {
-  className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
-}
-```
-
-**视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
-
-**尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
-
-**状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 组件已删除：`frontend/components/social/DiscussionCard.tsx` 及其唯一消费方 `DiscussionBoard.tsx` 为 #290 枢纽重构后的未挂载死代码（全库仅单测引用；viewAll/帖卡链接依赖 next.config 301 收敛），#494 随门语义移植到 IPDiscussionsTab 一并移除。讨论区列表/卡片的规范形态 = `Page: /ip/[ipId]` 的 discussions tab；本节仅作历史索引，不再是实现依据。
 
 ## Component: ReplyList
 
@@ -4355,6 +4361,7 @@ interface DiscussionCardProps {
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 回帖作者 = UserHoverCard 触发器（#494）：20px 头像（avatar_url 真图/首字母兜底）+ 昵称链接 /user/:id；两级嵌套缩进展示。
 
 **Props 接口**
 ```ts

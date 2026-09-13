@@ -170,7 +170,7 @@ function dislikeButton(page: Page) {
 test.describe("Ticket 71: 查看者反应 API 与 UI 契约 (#71)", () => {
   test.use({ locale: "zh-CN" });
 
-  test("anonymous: sees public aggregates only, no viewer fetch, buttons disabled", async ({ page }) => {
+  test("anonymous: sees public aggregates only, no viewer fetch, gate buttons enabled (SP-17/T2)", async ({ page }) => {
     const store = createReactionStore({ likes: 5, dislikes: 2, viewer: null });
     await mockAnonymous(page);
     await store.mockReactions(page);
@@ -183,8 +183,10 @@ test.describe("Ticket 71: 查看者反应 API 与 UI 契约 (#71)", () => {
     await expect(buttons.nth(0)).toContainText("5");
     await expect(buttons.nth(1)).toContainText("2");
     await expect(buttons.nth(0)).toHaveAttribute("aria-pressed", "false");
-    await expect(buttons.nth(0)).toBeDisabled();
-    await expect(buttons.nth(1)).toBeDisabled();
+    /* SP-17/T2：未登录不再禁用——点击触发登录浮窗（登录成功自动续做），
+       能力拒绝（封禁/信誉）仍禁用；匿名视角不发 viewer 反应查询不变。 */
+    await expect(buttons.nth(0)).toBeEnabled();
+    await expect(buttons.nth(1)).toBeEnabled();
     expect(store.reactionGets.length).toBe(0);
 
     await page.screenshot({ path: path.join(SCREENSHOTS, "web-t71-reaction-anon-desktop.png") });

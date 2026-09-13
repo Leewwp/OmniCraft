@@ -31,6 +31,14 @@ function loadApi(fetchImpl) {
     module,
     exports: module.exports,
     fetch: fetchImpl,
+    // SP-17/T2：api.ts 引入 @/lib/auth-gate（401 刷新失败走事件桥）。
+    // 本沙箱只测 CSRF bootstrap 语义，桥以 no-op 替身注入。
+    require: (request) => {
+      if (request === "@/lib/auth-gate") {
+        return { emitAuthRequired: () => {} };
+      }
+      throw new Error(`unexpected sandbox require: ${request}`);
+    },
     process: {
       env: {
         NEXT_PUBLIC_API_URL: "https://api.leeppp.online",

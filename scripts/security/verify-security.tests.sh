@@ -530,6 +530,53 @@ assert not any(f["id"] == "scanner-failure:govulncheck" for f in d["findings"])
 print("verdict stream finding asserted")
 PY
 
+# An advisory with NO fixed version whose only trace frame is the module
+# (code neither imports nor calls the affected packages) cannot be cleared by
+# any dependency upgrade. govulncheck emits these for whole-module advisories
+# like the x/crypto/openpgp "unmaintained by design" notice (GO-2026-5932),
+# which any module transitively requiring x/crypto would trip forever and
+# keep the gate permanently red. The verdict records such findings as
+# informational, while the SAME OSV traced at import level, and any finding
+# carrying a fixed version, still block.
+GVC_INFO_REPORT="$TEMP_ROOT/report-govulncheck-module-unfixed"
+mkdir -p "$GVC_INFO_REPORT"
+python3 - "$GVC_INFO_REPORT/govulncheck.json" <<'PY'
+import json, sys
+docs = [
+    {"config": {"modules": ["omnicraft/backend"]}},
+    {"osv": {"id": "GO-9999-0100", "summary": "fixture: unmaintained advisory, no fixed version"}},
+    {"osv": {"id": "GO-9999-0101", "summary": "fixture: fixable module-level advisory"}},
+    {"finding": {"osv": "GO-9999-0100",
+                 "trace": [{"module": "golang.org/x/crypto", "version": "v0.57.0"}]}},
+    {"finding": {"osv": "GO-9999-0101", "fixed_version": "v9.9.9",
+                 "trace": [{"module": "example.com/fixable", "version": "v0.1.0"}]}},
+    {"finding": {"osv": "GO-9999-0100",
+                 "trace": [{"module": "golang.org/x/crypto", "version": "v0.57.0",
+                            "package": "golang.org/x/crypto/openpgp"}]}},
+]
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    for d in docs:
+        f.write(json.dumps(d) + "\n")
+PY
+expect_verdict 1 "verdict still blocks fixable and import-level findings" \
+  "$VERDICT_ROOT" "go" "$GVC_INFO_REPORT"
+python3 - "$GVC_INFO_REPORT/security-verdict.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+blocked = {(f["id"], f.get("component")) for f in d["blocked_findings"]}
+info = {(f["id"], f.get("component")) for f in d.get("informational_findings", [])}
+blocked_ids = [f["id"] for f in d["blocked_findings"]]
+# module-level unfixed GO-9999-0100 -> informational, not blocked
+assert ("GO-9999-0100", "golang.org/x/crypto") in info, (info, blocked)
+# the same OSV's import-level finding document still blocks: GO-9999-0100
+# appears in two docs, one landed in informational, so the blocked entry
+# with that id can only be the import-level one
+assert "GO-9999-0100" in blocked_ids, blocked_ids
+# a module-level finding WITH a fixed version still blocks (actionable by upgrade)
+assert ("GO-9999-0101", "example.com/fixable") in blocked, blocked
+print("verdict module-unfixed informational rule asserted")
+PY
+
 # A missing trivy-fs report must FAIL the verdict (scanner failure is not
 # zero findings; audit F-05 finding 2), and a valid empty report must pass.
 TRIVY_MISSING="$TEMP_ROOT/report-trivy-missing"
@@ -548,6 +595,14 @@ mkdir -p "$TRIVY_CLEAN"
 printf '{"SchemaVersion": 2, "Results": []}' > "$TRIVY_CLEAN/trivy-fs.json"
 expect_verdict 0 "verdict passes on a valid empty trivy-fs report" \
   "$VERDICT_ROOT" "trivy-fs" "$TRIVY_CLEAN"
+
+# PR runs skip the image gate (-BuildImages absent): the workflow contract is
+# "PRs run every gate except the container-image builds", so a skip must NOT
+# fail the run. Historical bug: the skip branch returned 1, mechanically
+# reddening every pull_request Security gate even with zero findings —
+# masked for weeks by the genuine main dependency reds (see #497/#499).
+expect_exit 0 "trivy-image skip without BuildImages does not fail the run" \
+  "$VERDICT_ROOT" "trivy-image"
 
 # A missing govulncheck report must equally fail the verdict (same scanner-
 # failure class, covering the go gate's historical zero-findings swallow).

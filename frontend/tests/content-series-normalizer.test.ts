@@ -85,3 +85,23 @@ test("normalizeContentListResponse accepts the real my-contents envelope", () =>
   assert.equal(contents[0]?.id, 9);
   assert.equal(contents[0]?.title, "Chapter");
 });
+
+test("normalizeAuthor keeps SP-17 detail author fields (avatar_url + is_following)", () => {
+  const normalized = normalizeContentDetailResponse({
+    content: {
+      id: 99,
+      title: "Hover card source",
+      zone: "original",
+      author: { id: 42, username: "creator", avatar_url: "https://signed/example.jpg", is_following: true },
+    },
+  });
+  assert.equal(normalized.content?.author?.avatar_url, "https://signed/example.jpg");
+  assert.equal(normalized.content?.author?.is_following, true);
+
+  // 列表/匿名响应缺省：字段为 undefined，不产生假值。
+  const anonymous = normalizeContentListResponse([
+    { id: 100, title: "List item", author: { id: 43, username: "other" } },
+  ]);
+  assert.equal(anonymous[0]?.author?.avatar_url, undefined);
+  assert.equal(anonymous[0]?.author?.is_following, undefined);
+});
