@@ -1228,7 +1228,12 @@
     "tabDiscussions": "Discussions",
     "noContent": "{name} hasn't published anything yet",
     "noContentOwn": "You haven't published anything yet",
-    "noContentGeneric": "No content"
+    "noContentGeneric": "No content",
+    "viewProfile": "View profile",
+    "hoverCardLabel": "{name}'s profile",
+    "statContents": "Contents",
+    "statLikes": "Likes",
+    "statFollowers": "Followers"
   },
   "settings": {
     "title": "Account Settings",

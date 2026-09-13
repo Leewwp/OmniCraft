@@ -1228,7 +1228,12 @@
     "tabDiscussions": "讨论",
     "noContent": "{name}还没有发布内容",
     "noContentOwn": "你还没有发布内容",
-    "noContentGeneric": "暂无内容"
+    "noContentGeneric": "暂无内容",
+    "viewProfile": "查看主页",
+    "hoverCardLabel": "{name} 的资料",
+    "statContents": "内容",
+    "statLikes": "获赞",
+    "statFollowers": "粉丝"
   },
   "settings": {
     "title": "账号设置",

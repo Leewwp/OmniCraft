@@ -716,6 +716,27 @@ interface AgentFollowUpChipsProps {
 **i18n**
 - 全部文案走 next-intl（zh/en 同步）；新增键 `auth.loginRequiredDescription`、`auth.loginToInteract`。
 
+## Component: UserHoverCard 用户悬浮卡（SP-17/T3）
+
+P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCard.tsx`）；创作者区（detail-creator）/评论作者（dynamic，T4 接入）头像/昵称入口的统一资料浮层。
+
+**Key Constraints**
+- 卡片 300px 宽、1px border 圆角 bg-card + shadow-md（弹层同 confirm-modal 视觉档）；头像 56px；统计三项 `内容 N · 获赞 N · 粉丝 N`（text-xs，数字 font-semibold）。
+- 数据：`GET /users/:id`（响应形状 = user 内嵌 followers_count/is_following/stats{contents_count,likes_received}），SWR key=`/api/v1/users/:id`，revalidateOnFocus:false + dedupingInterval 60s，仅浮卡打开时取数。
+
+**触发与定位**
+- 桌面（`hover:hover and pointer:fine`）悬停 200ms 开、移开 200ms 延迟关（防抖，鼠标移入卡片保持打开）；键盘聚焦立即显示；触屏不弹卡，点击直达 `/user/:id`。
+- 定位：detail-creator = 触发元下方居中；dynamic = 触发元左对齐；均钳制视口/最近浮层滚动可视区（`[data-slot="overlay-scroller"], [data-slot="layer-scroller"]`），下方不足上翻；scroll/resize 捕获阶段跟随重定位，触发元离屏即关。
+- Esc 关闭并归还焦点触发元（preventDefault 防连带关外层 dialog）。
+
+**内容与动作**
+- 头像（img/首字母兜底）+ 昵称（链接 /user/:id）+ bio（空省略）+ 三项统计。
+- 非本人：`FollowButton`（initialFollowing 来自浮卡数据）+ `MessageComposeButton`（复用既有私信弹窗，未登录走登录浮窗 T2）。
+- 本人：不显示关注/私信，显示「查看主页」链接（user.viewProfile）。
+
+**i18n**
+- `user.viewProfile` / `user.hoverCardLabel` / `user.statContents` / `user.statLikes` / `user.statFollowers`（zh/en 同步）。
+
 ## Page: /register 注册页
 
 **Key Constraints**
@@ -890,6 +911,8 @@ interface AgentFollowUpChipsProps {
 **核心组件清单**
 - `Header`
 - `ContentDetail`
+- `UserHoverCard`（创作者区头像/昵称触发器，SP-17/T3）
+- `FollowButton`（创作者区右侧，接详情 author.is_following 初始态，SP-17/T3）
 - `SheetMusicViewer`（content_type=sheet_music 时渲染）
 - `ReactionBar`
 - `CommentSection`
@@ -902,6 +925,7 @@ interface AgentFollowUpChipsProps {
 - 详情主体 → 操作栏 → 评论区 → 版本历史，纵向排列
 - 区域间距（block）：32px (`space-y-8`)
 - 元素间距（inline）：16px (`gap-4`)
+- 创作者区（SP-17/T3 布局A，2026-09-12 Q1 裁决）：标题下第一行为「[头像40px] 昵称 …… [关注]」（头像+昵称 = UserHoverCard 触发器；看自己不显示关注）；其下元信息行「类型 · 浏览 · 日期」（fanwork 含 IP 归属），左缩进对齐昵称（pl-12）；原「作者：xxx」纯文本行移除。original 与 fanwork 详情同构。
 
 **状态变体**
 - default: 内容详情 + 点赞/点踩/收藏 + 评论区 + 版本历史。
