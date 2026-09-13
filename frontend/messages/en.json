@@ -298,7 +298,6 @@
     "versionLoadFailed": "Failed to load version history",
     "versionContentLoadFailed": "Failed to load version content",
     "versionRestoreFailed": "Version restore failed",
-    "author": "Author: {name}",
     "type": "Type: {type}",
     "views": "{count} views",
     "attachments": "Attachments",
