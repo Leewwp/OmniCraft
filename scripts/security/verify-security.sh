@@ -466,9 +466,14 @@ run_trivy_config_gate() {
 run_trivy_image_gate() {
   need_docker
   if [ "$BUILD_IMAGES" -ne 1 ]; then
+    # Workflow contract: "PRs run every gate except the container-image
+    # builds (slow; scheduled and main-push runs keep them)". A skip is a
+    # neutral outcome — returning nonzero here mechanically failed every
+    # pull_request Security gate regardless of findings (masked by the
+    # genuine main dependency reds until #497/#499).
     echo "trivy-image gate skipped: pass -BuildImages to build and scan container images" >&2
-    echo "{\"ok\": false, \"skipped\": true}" > "$REPORT_DIR/trivy-image-skipped.json"
-    return 1
+    echo "{\"ok\": true, \"skipped\": true}" > "$REPORT_DIR/trivy-image-skipped.json"
+    return 0
   fi
   local build_rc=0
   docker compose build backend frontend migrate pgbouncer \
@@ -513,6 +518,7 @@ high_enabled = policy.get("high_exceptions_enabled", False)
 today = datetime.date.today().isoformat()
 
 findings = []
+informational = []
 
 def add(f):
     f["severity"] = str(f.get("severity", "")).lower()
@@ -586,6 +592,20 @@ if "go" in active_gates:
                 component = frame.get("module") or frame.get("package")
                 version = frame.get("version") or "unknown"
                 detail = "fixed %s" % v.get("fixed_version", "?")
+                # An advisory with no fixed version whose trace stops at the
+                # module frame is unreachable from this code (govulncheck
+                # emits it for whole-module advisories like the x/crypto/
+                # openpgp "unmaintained by design" notice) and cannot be
+                # cleared by any dependency upgrade, so blocking on it would
+                # keep the gate permanently red. Recorded as informational;
+                # the same OSV traced at import/call level still blocks.
+                if (v.get("fixed_version") in (None, "")) \
+                        and "package" not in frame and "function" not in frame:
+                    informational.append({
+                        "id": vid, "component": component, "version": version,
+                        "detail": "module-level unfixed advisory: no fixed version exists and the code neither imports nor calls the affected packages",
+                    })
+                    continue
             else:
                 vid = v.get("ID")
                 component = v.get("Package") or v.get("Module")
@@ -708,6 +728,7 @@ blocked = [f for f in findings if not waivable(f)]
 verdict = {
     "findings": findings,
     "blocked_findings": blocked,
+    "informational_findings": informational,
     "counts": {},
     "ok": len(blocked) == 0,
     "policy": {
@@ -725,6 +746,9 @@ with open(os.path.join(report_dir, "security-verdict.json"), "w", encoding="utf-
 for f in blocked:
     print("verdict: BLOCKED %s %s %s %s (%s)" % (
         f["source"], f["id"], f["component"], f["version"], f["severity"]), file=sys.stderr)
+for f in informational:
+    print("verdict: INFORMATIONAL govulncheck %s %s %s (%s)" % (
+        f["id"], f["component"], f["version"], f["detail"]), file=sys.stderr)
 sys.exit(0 if verdict["ok"] else 1)
 PY
 }
