@@ -457,12 +457,20 @@ test("#397 no relations → related block not rendered; comments still last", as
   installApiMock();
   const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, true);
   await openOverlay(view, "Portrait Set Work");
+
+  /* #430 挂载分帧：variantTail 的关联块与评论区同属一个 DeferredMount（双 rAF +
+     低优先级），存在性断言须等延后挂载落定（jsdom 的 rAF 由 act 异步泵送；
+     CI 慢环境曾见同步断言先于挂载执行 → Frontend gates 2026-09-13 实炸）。
+     先等评论区标题落定证明分帧已过，关联块缺席断言才有结论力。 */
+  await waitFor(() => {
+    assert.ok(
+      Array.from(document.querySelector('[data-slot="layer-scroller"]')?.querySelectorAll("h3") ?? []).some((h) =>
+        h.textContent?.includes("Comments"),
+      ),
+      "comments still render without relations",
+    );
+  });
   assert.equal(document.querySelector('[data-slot="overlay-related-block"]'), null);
-  assert.ok(
-    Array.from(document.querySelector('[data-slot="layer-scroller"]')?.querySelectorAll("h3") ?? []).some((h) =>
-      h.textContent?.includes("Comments"),
-    ),
-  );
 });
 
 test("#397 clicking the media (pane center) opens MediaViewer above the overlay", async () => {

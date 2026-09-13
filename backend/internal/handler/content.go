@@ -39,6 +39,7 @@ type ContentHandler struct {
 	archiveGate       *service.ArchiveScanGate
 	displaySigner     *service.DisplayURLSigner
 	judgeRepo         *repository.JudgeRepository
+	followRepo        *repository.FollowRepository
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -73,6 +74,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 		contentSvc:        contentSvc,
 		contentRepo:       repo,
 		judgeRepo:         repository.NewJudgeRepository(db),
+		followRepo:        repository.NewFollowRepository(db),
 		seriesSvc:         service.NewSeriesService(repository.NewSeriesRepository(db)),
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		collectionRepo:    repository.NewCollectionRepository(db),
@@ -363,6 +365,19 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	}
 	h.displaySigner.DecorateContent(content)
 	h.displaySigner.DecorateAttachments(attachments)
+
+	// SP-17/T1：作者关注态按 viewer 附加（同 is_favorited 的缓存外模式）——
+	// 详情内容行有 Redis 整行缓存，登录视角字段禁止进缓存。匿名（user_id=0）
+	// 不设置，序列化时 omit，不破坏 CacheableAnonymousGET 的匿名缓存语义。
+	if userID > 0 && content.Author.ID > 0 {
+		isFollowing, err := h.followRepo.IsFollowing(userID, "user", content.Author.ID)
+		if err != nil {
+			slog.Error("failed to check author is_following", "viewer_id", userID, "author_id", content.Author.ID, "error", err)
+		} else {
+			content.Author.IsFollowing = &isFollowing
+		}
+	}
+
 	tags, err2 := h.contentRepo.GetTags(id)
 	if err2 != nil {
 		slog.Error("failed to get tags", "content_id", id, "error", err2)

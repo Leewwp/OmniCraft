@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight, FileText, GitBranchPlus } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
 
 interface AuthorInfo {
   id?: number;
   username?: string;
   avatar_url?: string | null;
   bio?: string;
+  /** 详情响应的登录视角关注态（宿主据此构造真 FollowButton，组件自身不消费）。 */
+  is_following?: boolean;
 }
 
 export interface RelatedContentEntry {
@@ -27,12 +29,6 @@ export interface RelatedCardEntry extends RelatedContentEntry {
 
 interface ContentSidebarProps {
   author?: AuthorInfo;
-  authorStats?: {
-    contents: number;
-    followers: number;
-    likes: number;
-  };
-  isFollowing?: boolean;
   ip?: { id?: number; name?: string; slug?: string };
   ipContentCount?: number;
   sourceOriginal?: { id: number; title: string } | null;
@@ -53,8 +49,6 @@ interface ContentSidebarProps {
 
 export function ContentSidebar({
   author,
-  authorStats,
-  isFollowing,
   ip,
   ipContentCount,
   sourceOriginal,
@@ -135,63 +129,31 @@ export function ContentSidebar({
     <aside className="w-[280px] flex-shrink-0 hidden lg:block">
       <div className="sticky top-[68px] space-y-4">
 
-        {/* Author Card */}
+        {/* Author Card — SP-17/T4：头像+昵称 = UserHoverCard 触发器（与完整详情页
+            创作者区一致，ui-spec 创作者栏「仅头像、昵称、关注」）；authorStats
+            死 prop 按 #493 取简裁决移除（统计由悬浮卡承载）。 */}
         {author && (
           <div className="rounded-lg border border-border/60 bg-card p-5 shadow-[var(--elevation-1)] transition-[border-color,box-shadow] hover:border-border hover:shadow-[var(--elevation-2)]">
-            <div className="flex justify-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent-subtle)] text-lg font-bold text-[var(--accent-emphasis)]">
-                {(author.username || "?").slice(0, 2).toUpperCase()}
-              </div>
-            </div>
-            <Link
-              href={author.id ? `/user/${author.id}` : "#"}
-              className="mt-3 block text-center text-sm font-bold text-foreground transition-colors hover:text-[var(--accent-emphasis)]"
-            >
-              {author.username || t("common.unknown")}
-            </Link>
+            <UserHoverCard
+              userId={author.id}
+              username={author.username || t("common.unknown")}
+              avatarUrl={author.avatar_url ?? undefined}
+              placement="detail-creator"
+              size={40}
+            />
             {author.bio && (
-              <p className="mt-1.5 line-clamp-2 text-center text-xs leading-relaxed text-muted-foreground">
+              <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                 {author.bio}
               </p>
-            )}
-            {authorStats && (
-              <div className="mt-3 flex justify-center gap-5 border-t border-border/50 pt-3">
-                <div className="text-center">
-                  <div className="text-sm font-bold text-foreground">{authorStats.contents}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm font-bold text-foreground">{authorStats.followers.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">{t('studio.overview.followers')}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm font-bold text-foreground">{authorStats.likes}</div>
-                  <div className="text-xs text-muted-foreground">{t('studio.overview.totalLikes')}</div>
-                </div>
-              </div>
             )}
             {followAction ? (
               <div className="mt-3">{followAction}</div>
             ) : (
-              /* #415 O1b：静态兜底与 FollowButton 同视觉（实底恒定 + hover 取消关注红边；无交互） */
-              <Button
-                variant="default"
-                size="sm"
-                className={cn(
-                  "group mt-3 w-full rounded-full",
-                  isFollowing && "hover:border-destructive! hover:text-destructive!",
-                )}
-              >
+              /* #415 O1b：静态兜底与 FollowButton 同视觉（实底恒定；无交互，仅缺真按钮时的占位） */
+              <Button variant="default" size="sm" className="mt-3 w-full rounded-full">
                 <span className="grid justify-items-center">
                   <span className="invisible col-start-1 row-start-1" aria-hidden="true">{t('social.unfollow')}</span>
-                  {isFollowing ? (
-                    <>
-                      <span className="col-start-1 row-start-1 group-hover:hidden">{t('social.following')}</span>
-                      <span className="hidden col-start-1 row-start-1 group-hover:inline">{t('social.unfollow')}</span>
-                    </>
-                  ) : (
-                    <span className="col-start-1 row-start-1">{t('social.follow')}</span>
-                  )}
+                  <span className="col-start-1 row-start-1">{t('social.follow')}</span>
                 </span>
               </Button>
             )}

@@ -6,6 +6,7 @@ import { ThumbsUp, ThumbsDown, Flag, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { api, ApiRequestError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { silentError } from "@/lib/error-handler";
@@ -33,14 +34,18 @@ export function ReactionBar({
   const t = useTranslations();
   const { toast } = useToast();
   const { user, capabilities } = useAuth();
+  const { requireAuth } = useAuthGate();
   const [myReaction, setMyReaction] = useState<"like" | "dislike" | null>(null);
   const [likeCount, setLikeCount] = useState(initialLikes);
   const [dislikeCount, setDislikeCount] = useState(initialDislikes);
   const [busy, setBusy] = useState(false);
   const [reported, setReported] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const interactionBlocked = !capabilities.can_interact;
-  const disabled = !user || interactionBlocked || busy;
+  // SP-17/T2 (#491)：未登录可点击（开登录浮窗自动续做）；能力拒绝仍禁用+原因。
+  // 注意匿名视角 capabilities 恒 fail-closed（can_interact=false），必须带上
+  // !!user 才能把「未登录」从「能力拒绝」中分离出来（FollowButton 同口径）。
+  const interactionBlocked = !!user && !capabilities.can_interact;
+  const disabled = interactionBlocked || busy;
   const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
 
   const applySnapshot = useCallback((data: ReactionSnapshot) => {
@@ -66,9 +71,10 @@ export function ReactionBar({
     } catch (e) { silentError(e, { component: 'ReactionBar', action: 'fetchMyReaction' }); }
   }
 
-  const react = useCallback(
+  // SP-17/T2：门与动作分离——performReaction 不自查登录态，登录成功后由
+  // 门层重放（闭包内的 user/busy 快照均不得作为执行前提）。
+  const performReaction = useCallback(
     async (reaction: "like" | "dislike") => {
-      if (!user || interactionBlocked || busy) return;
       setBusy(true);
       const prevReaction = myReaction;
       const prevLikes = likeCount;
@@ -103,7 +109,19 @@ export function ReactionBar({
         setBusy(false);
       }
     },
-    [user, interactionBlocked, busy, myReaction, likeCount, dislikeCount, contentId, applySnapshot],
+    [myReaction, likeCount, dislikeCount, contentId, applySnapshot],
+  );
+
+  const react = useCallback(
+    (reaction: "like" | "dislike") => {
+      if (interactionBlocked || busy) return;
+      if (!user) {
+        requireAuth(() => void performReaction(reaction));
+        return;
+      }
+      void performReaction(reaction);
+    },
+    [user, interactionBlocked, busy, requireAuth, performReaction],
   );
 
   async function submitReport(reason: string) {
@@ -135,7 +153,7 @@ export function ReactionBar({
         disabled={disabled}
         aria-pressed={myReaction === "like"}
         onClick={() => react("like")}
-        title={disabled ? t(denialKey) : t('social.like')}
+        title={!user && !interactionBlocked ? t('auth.loginToInteract') : disabled ? t(denialKey) : t('social.like')}
       >
         <ThumbsUp className="mr-1 h-3.5 w-3.5" />
         {likeCount}
@@ -147,7 +165,7 @@ export function ReactionBar({
         disabled={disabled}
         aria-pressed={myReaction === "dislike"}
         onClick={() => react("dislike")}
-        title={disabled ? t(denialKey) : t('social.dislike')}
+        title={!user && !interactionBlocked ? t('auth.loginToInteract') : disabled ? t(denialKey) : t('social.dislike')}
       >
         <ThumbsDown className="mr-1 h-3.5 w-3.5" />
         {dislikeCount}
@@ -160,7 +178,7 @@ export function ReactionBar({
         size="sm"
         disabled={!user || interactionBlocked || reported}
         onClick={() => setReportOpen(true)}
-        title={reported ? t('social.reported') : disabled ? t(denialKey) : t('social.report')}
+        title={reported ? t('social.reported') : !user ? t('auth.loginToInteract') : disabled ? t(denialKey) : t('social.report')}
       >
         <Flag className="mr-1 h-3.5 w-3.5" />
         {reported ? t('social.reported') : t('social.report')}

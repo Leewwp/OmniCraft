@@ -92,6 +92,8 @@
     "hideConfirmPassword": "Hide confirm password",
     "rememberMe": "Remember me",
     "loginButton": "Log in",
+    "loginRequiredDescription": "Log in to continue where you left off",
+    "loginToInteract": "Log in to react",
     "noAccount": "Don't have an account?",
     "registerNow": "Sign up now",
     "joinTitle": "Join OmniCraft",
@@ -1226,7 +1228,12 @@
     "tabDiscussions": "Discussions",
     "noContent": "{name} hasn't published anything yet",
     "noContentOwn": "You haven't published anything yet",
-    "noContentGeneric": "No content"
+    "noContentGeneric": "No content",
+    "viewProfile": "View profile",
+    "hoverCardLabel": "{name}'s profile",
+    "statContents": "Contents",
+    "statLikes": "Likes",
+    "statFollowers": "Followers"
   },
   "settings": {
     "title": "Account Settings",

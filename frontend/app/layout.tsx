@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages, getTranslations } from 'next-intl/server';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthGateProvider } from '@/components/auth/AuthGateProvider';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
@@ -45,9 +46,11 @@ export default async function RootLayout({
           >
             <ToastProvider>
               <AuthProvider>
-                <main id="main-content" className="flex-1">
-                  {children}
-                </main>
+                <AuthGateProvider>
+                  <main id="main-content" className="flex-1">
+                    {children}
+                  </main>
+                </AuthGateProvider>
               </AuthProvider>
             </ToastProvider>
           </ThemeProvider>

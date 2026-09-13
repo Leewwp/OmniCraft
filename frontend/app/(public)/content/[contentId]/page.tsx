@@ -46,7 +46,16 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
     <ContentDetailOverlayHost
       content={{ ...content, attachments: normalized.attachments, tags }}
       zone={zone}
-      author={content.author ? { id: content.author.id, username: content.author.username } : undefined}
+      author={
+        content.author
+          ? {
+              id: content.author.id,
+              username: content.author.username,
+              avatar_url: content.author.avatar_url,
+              is_following: content.author.is_following,
+            }
+          : undefined
+      }
       ip={content.ip?.name ? content.ip : undefined}
       sourceOriginal={sourceOriginal}
       sourceFanwork={sourceFanwork}

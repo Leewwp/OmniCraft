@@ -21,6 +21,10 @@ export interface ContentCardData {
   author?: {
     id?: number;
     username?: string;
+    /** SP-17/T1：详情响应携带（OSS 签名 URL，有有效期；列表/卡片响应可不带）。 */
+    avatar_url?: string;
+    /** SP-17/T1：登录视角是否已关注（详情响应；匿名 omit）。 */
+    is_following?: boolean;
   };
   zone?: string;
   content_type?: string;

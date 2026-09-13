@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { ContentSidebar, type RelatedContentEntry } from "@/components/content/ContentSidebar";
+import { FollowButton } from "@/components/social/FollowButton";
 import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
 import { VersionHistory } from "@/components/content/VersionHistory";
 import type { SourceSummary } from "@/components/content/SourceAttribution";
@@ -20,7 +21,8 @@ interface RelatedFanworksSlot {
 interface ContentDetailOverlayHostProps {
   content: ContentDetailData & { attachments: AttachmentData[]; tags: string[] };
   zone: "original" | "fanwork";
-  author?: { id?: number; username?: string };
+  /** SP-17/T4：透传详情 author 的头像与登录视角关注态（侧栏真按钮 + 悬浮卡触发器）。 */
+  author?: { id?: number; username?: string; avatar_url?: string; is_following?: boolean };
   ip?: { id?: number; name?: string; slug?: string };
   sourceOriginal?: { id: number; title: string } | null;
   sourceFanwork?: SourceSummary | null;
@@ -79,13 +81,23 @@ export function ContentDetailOverlayHost({
         {zone === "fanwork" && <VersionHistory contentId={content.id} />}
       </div>
 
+      {/* SP-17/T4：侧栏创作者卡接真 FollowButton（原静态兜底），初始态来自
+          详情 author.is_following；authorStats 死 prop 按 #493 取简裁决移除。 */}
       <ContentSidebar
         author={author}
-        authorStats={undefined}
         zone={zone}
         ip={ip}
         sourceOriginal={sourceOriginal}
         onOpenRelated={openRelated}
+        followAction={
+          author?.id ? (
+            <FollowButton
+              targetType="user"
+              targetId={author.id}
+              initialFollowing={author.is_following ?? false}
+            />
+          ) : undefined
+        }
       />
 
       {overlayElement}
