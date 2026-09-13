@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { IntlProvider } from "use-intl";
 
+import enMessages from "@/messages/en.json";
 import { api } from "@/lib/api";
 import { cleanup, fireEvent, installDom, render, waitFor } from "./runtime-test-helpers";
 
@@ -45,11 +46,11 @@ Module._load = function loadWithSocialStubs(request, parent, isMain) {
   return originalModuleLoad.apply(this, [request, parent, isMain]);
 };
 
-type DiscussionBoardComponent = typeof import("@/components/social/DiscussionBoard")["DiscussionBoard"];
-let DiscussionBoard: DiscussionBoardComponent;
+type IPDiscussionsTabComponent = typeof import("@/components/ip/hub/IPDiscussionsTab")["IPDiscussionsTab"];
+let IPDiscussionsTab: IPDiscussionsTabComponent;
 
 test.before(async () => {
-  ({ DiscussionBoard } = await import("@/components/social/DiscussionBoard"));
+  ({ IPDiscussionsTab } = await import("@/components/ip/hub/IPDiscussionsTab"));
 });
 
 const originalGet = api.get;
@@ -71,39 +72,52 @@ test.after(() => {
   Module._load = originalModuleLoad;
 });
 
-test("compact discussion empty state sends anonymous visitors to the auth gate (SP-17/T2)", async () => {
-  mockDiscussions([]);
-  const view = renderBoard();
+/* #494：讨论区唯一在役入口 = IP 枢纽 discussions tab（DiscussionBoard 死代码
+   已删，本组断言随门语义一并移植到 IPDiscussionsTab）。 */
 
-  fireEvent.click(await view.findByRole("button", { name: "New post" }));
+test("hub discussion entry sends anonymous visitors to the auth gate (SP-17/T2, #494)", async () => {
+  const stub = stubDiscussionsFetch([{ id: 1, title: "Existing discussion" }]);
+  const view = renderTab();
+
+  fireEvent.click(await view.findByRole("button", { name: "New Post" }));
   assert.equal(authGateEmissions.length, 1, "gate bridge must receive an emission");
   assert.equal(typeof (authGateEmissions[0] as { pendingAction?: unknown })?.pendingAction, "function");
   assert.deepEqual(pushes, [], "must not navigate to /login");
+  stub.restore();
 });
 
-test("compact discussion entry links eligible users to the IP-scoped composer", async () => {
+test("hub discussion entry links eligible users to the IP-scoped composer", async () => {
   authStub.user = { id: 7 };
-  authStub.capabilities = { can_interact: true, interaction_denial_reason: "AUTH_STATUS_UNAVAILABLE" };
-  mockDiscussions([{ id: 1, title: "Existing discussion" }]);
-  const view = renderBoard();
+  authStub.capabilities = { can_interact: true, interaction_denial_reason: "" };
+  const stub = stubDiscussionsFetch([
+    { id: 1, title: "Existing discussion", author: { id: 5, username: "seed_author", avatar_url: "/avatars/5.png" } },
+  ]);
+  const view = renderTab();
 
-  const entry = await view.findByRole("link", { name: "New post" });
+  const entry = await view.findByRole("link", { name: "New Post" });
   assert.equal(entry.getAttribute("href"), "/ip/42/discussions/new");
+
+  // 作者身份入口（#494）：列表行作者 = UserHoverCard 触发器（头像 + /user/:id）
+  const authorEntry = await view.findByRole("link", { name: "seed_author" });
+  assert.equal(authorEntry.getAttribute("href"), "/user/5");
+  assert.ok(authorEntry.querySelector("img"), "avatar rendered from author.avatar_url");
+  stub.restore();
 });
 
-test("compact discussion entry fails closed with the server denial reason", async () => {
+test("hub discussion entry fails closed with the server denial reason", async () => {
   authStub.user = { id: 7 };
   authStub.capabilities = {
     can_interact: false,
     interaction_denial_reason: "INSUFFICIENT_REPUTATION",
   };
-  mockDiscussions([]);
-  const view = renderBoard();
+  const stub = stubDiscussionsFetch([]);
+  const view = renderTab();
 
-  const entry = await view.findByRole("button", { name: "New post" });
+  const entry = await view.findByRole("button", { name: "New Post" });
   assert.equal(entry.getAttribute("disabled"), "");
-  assert.equal(entry.getAttribute("title"), "Insufficient reputation");
-  assert.ok(view.getByText("Insufficient reputation"));
+  assert.equal(entry.getAttribute("title"), "Insufficient reputation to perform this action.");
+  assert.ok(view.getByText("Insufficient reputation to perform this action."));
+  stub.restore();
 });
 
 test("FollowButton keeps constant width, solid both states, destructive hover unfollow (#415 O1b)", async () => {
@@ -131,41 +145,33 @@ test("FollowButton keeps constant width, solid both states, destructive hover un
   assert.match(source, /onFollowed\?\.\(\)/);
 });
 
-function mockDiscussions(discussions: Array<{ id: number; title: string }>) {
-  api.get = (async <T,>(path: string): Promise<T> => {
-    assert.equal(path, "/api/v1/ips/42/discussions");
-    return { discussions } as T;
-  }) as typeof api.get;
+function stubDiscussionsFetch(discussions: Array<Record<string, unknown>>) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    assert.ok(
+      url.includes("/ips/42/discussions"),
+      `unexpected fetch from the hub discussions tab: ${url}`,
+    );
+    return new Response(JSON.stringify({ discussions }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+  return {
+    restore() {
+      globalThis.fetch = originalFetch;
+    },
+  };
 }
 
-function renderBoard() {
-  const view = render(
-    <IntlProvider locale="en" messages={messages}>
-      <DiscussionBoard ipId={42} compact />
+function renderTab() {
+  return render(
+    <IntlProvider locale="en" messages={enMessages}>
+      <IPDiscussionsTab ipId={42} apiBase="/api/v1" query="" sort="latest_reply" onSortChange={() => {}} />
     </IntlProvider>,
   );
-  void waitFor(() => assert.equal(view.queryByText("Loading"), null));
-  return view;
 }
-
-const messages = {
-  common: { viewAll: "View all", retry: "Retry", loadFailed: "Load failed" },
-  discussion: {
-    title: "Discussions",
-    subtitle: "Discuss this IP",
-    newPost: "New post",
-    loginToStart: "Log in to start",
-    searchPlaceholder: "Search discussions",
-    search: "Search",
-    empty: "No discussions",
-    emptyHint: "Start the conversation",
-    replyCount: "{count} replies",
-  },
-  capabilities: {
-    deniedInsufficientReputation: "Insufficient reputation",
-    deniedUnavailable: "Interaction unavailable",
-  },
-};
 
 /* ── #415 O1b：恒宽结构断言（DOM 级） ─────────────────────────────── */
 
