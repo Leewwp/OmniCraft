@@ -25,6 +25,7 @@ import {
   type OverlayEntry,
   type OverlaySource,
 } from "./ContentDetailOverlayLayer";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 
 const MAX_STACK_DEPTH = 5;
 const HISTORY_KEY = "contentOverlayDepth";
@@ -80,6 +81,7 @@ export function ContentDetailOverlay({
 }: ContentDetailOverlayProps) {
   const t = useTranslations();
   const titleId = useId();
+  const { setPortalContainer, isGateOpen } = useAuthGate();
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -229,6 +231,18 @@ export function ContentDetailOverlay({
     if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stack.length > 0]);
+
+  /* SP-17/T2：登录浮窗渲染进 dialog 内部（top layer 子树），避免被压层；
+     栈清空（浮窗关闭/卸载）时必须回收容器，防 portal 进 detached 元素。 */
+  useEffect(() => {
+    if (stack.length > 0) {
+      const dialog = dialogRef.current;
+      if (dialog) setPortalContainer(dialog);
+      return;
+    }
+    setPortalContainer(null);
+    return undefined;
+  }, [stack.length, setPortalContainer]);
 
   useEffect(() => {
     return () => {
@@ -920,6 +934,11 @@ export function ContentDetailOverlay({
       )}
       aria-labelledby={titleId}
       onCancel={(event) => {
+        // SP-17/T2：登录浮窗打开时 Esc 只关浮窗（浮窗自有关闭链路）。
+        if (isGateOpen) {
+          event.preventDefault();
+          return;
+        }
         event.preventDefault();
         handleBack();
       }}

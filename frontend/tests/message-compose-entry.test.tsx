@@ -28,6 +28,8 @@ const Module = requireForMocks("node:module") as typeof import("node:module") & 
 };
 const originalModuleLoad = Module._load;
 const routerPushes: string[] = [];
+/* SP-17/T2：未登录不再 router.push("/login")，改走 auth gate 事件桥。 */
+const authGateEmissions: unknown[] = [];
 const authStub = {
   user: null as null | { id: number; email_verified_at: string },
   capabilities: { can_interact: true, interaction_denial_reason: null as string | null },
@@ -43,6 +45,14 @@ Module._load = function loadWithT35Stubs(request, parent, isMain) {
         },
       }),
       usePathname: () => "/user/2",
+    };
+  }
+  if (request === "@/lib/auth-gate") {
+    return {
+      emitAuthRequired: (detail?: unknown) => {
+        authGateEmissions.push(detail);
+      },
+      setAuthGateActive: () => {},
     };
   }
   if (request === "@/contexts/AuthContext") {
@@ -102,14 +112,15 @@ test("source: profile wires the compose entry next to FollowButton for other use
   );
 });
 
-test("logged-out click routes to /login without opening the dialog", async () => {
+test("logged-out click opens the auth gate with a pending action (SP-17/T2)", async () => {
   installDom();
   authStub.user = null;
   const view = await mountButton();
 
   fireEvent.click(view.getByRole("button", { name: "Message" }));
-  assert.deepEqual(routerPushes, ["/login"]);
-  assert.equal(view.queryByRole("dialog"), null, "no dialog for anonymous visitors");
+  assert.equal(authGateEmissions.length, 1, "gate bridge must receive an emission");
+  assert.equal(typeof (authGateEmissions[0] as { pendingAction?: unknown })?.pendingAction, "function");
+  assert.deepEqual(routerPushes, [], "must not navigate to /login");
 });
 
 test("interaction-blocked users get a disabled entry with the denial hint", async () => {

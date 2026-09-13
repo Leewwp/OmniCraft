@@ -28,6 +28,7 @@ import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
@@ -200,6 +201,7 @@ export function ContentDetail({
   const typeLabel = getTypeLabel(t, contentType);
   const description = data.description || data.body || "";
   const { user } = useAuth();
+  const { requireAuth } = useAuthGate();
   const { toast } = useToast();
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
@@ -483,8 +485,15 @@ export function ContentDetail({
         <Button
           variant="outline"
           size="sm"
-          disabled={!user}
-          onClick={() => setCollectionPickerOpen(true)}
+          onClick={() => {
+            // SP-17/T2：未登录可点击（开登录浮窗，成功后继续打开收藏集）；
+            // 能力拒绝由 CollectionPicker 流程外层能力门处理（与 ReactionBar 同口径）。
+            if (!user) {
+              requireAuth(() => setCollectionPickerOpen(true));
+              return;
+            }
+            setCollectionPickerOpen(true);
+          }}
           className={cn(isFavorited && "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive")}
         >
           <Bookmark className={cn("mr-1 h-3.5 w-3.5", isFavorited && "fill-current")} />

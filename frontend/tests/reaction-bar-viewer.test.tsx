@@ -49,6 +49,9 @@ const intlMessages = {
     processing: "Processing",
     reason: "Reason",
   },
+  auth: {
+    loginToInteract: "Log in to react",
+  },
   capabilities: {
     deniedBanned: "Your account is banned and cannot perform interactions.",
     deniedEmailNotVerified: "Please verify your email before interacting.",
@@ -164,16 +167,18 @@ test("ReactionBar renders public aggregates only for anonymous visitors and neve
 
   const view = renderHarness(<ReactionBar contentId={47} initialLikes={2} initialDislikes={1} />);
 
+  // SP-17/T2：匿名点赞/点踩可点击（开登录浮窗续做）；举报保持禁用+原因。
   await waitFor(() => {
-    const buttons = view.container.querySelectorAll<HTMLButtonElement>(`button[title="${intlMessages.capabilities.deniedUnavailable}"]`);
-    assert.equal(buttons.length, 3, "like, dislike and report buttons are disabled for anonymous visitors");
-    for (const button of buttons) {
-      assert.ok(button.disabled, "anonymous buttons must be disabled");
-    }
-    assert.equal(buttons[0].getAttribute("aria-pressed"), "false", "anonymous must not expose a viewer pressed state");
-    assert.equal(buttons[1].getAttribute("aria-pressed"), "false", "anonymous must not expose a viewer pressed state");
-    assert.ok(buttons[0].textContent?.includes("2"), "like count should render from public aggregates");
-    assert.ok(buttons[1].textContent?.includes("1"), "dislike count should render from public aggregates");
+    const loginTitled = view.container.querySelectorAll<HTMLButtonElement>(`button[title="${intlMessages.auth.loginToInteract}"]`);
+    assert.equal(loginTitled.length, 3, "like, dislike and report all expose the login hint for anonymous visitors");
+    const [likeButton, dislikeButton, reportButton] = loginTitled;
+    assert.equal(likeButton.disabled, false, "anonymous like must be clickable");
+    assert.equal(dislikeButton.disabled, false, "anonymous dislike must be clickable");
+    assert.ok(reportButton.disabled, "report stays disabled for anonymous visitors");
+    assert.equal(likeButton.getAttribute("aria-pressed"), "false", "anonymous must not expose a viewer pressed state");
+    assert.equal(dislikeButton.getAttribute("aria-pressed"), "false", "anonymous must not expose a viewer pressed state");
+    assert.ok(likeButton.textContent?.includes("2"), "like count should render from public aggregates");
+    assert.ok(dislikeButton.textContent?.includes("1"), "dislike count should render from public aggregates");
   });
   assert.equal(calls.get.some((c) => c.path.startsWith("/api/v1/social/reactions")), false, "anonymous must not fetch viewer reaction state");
 });

@@ -88,6 +88,8 @@
     "passwordPlaceholder": "输入密码",
     "rememberMe": "记住登录状态",
     "loginButton": "登录",
+    "loginRequiredDescription": "登录后继续你刚才的操作",
+    "loginToInteract": "登录后可参与点赞",
     "noAccount": "还没有账号？",
     "registerNow": "立即注册",
     "joinTitle": "加入万象工坊",

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -23,11 +23,12 @@ interface FollowButtonProps {
      状态/悬停切换宽度不变；
    - 已关注与未关注底色一致（primary 实底），勾号图标移除（无图标）；
    - 悬停已关注 → 文案变「取消关注」+ destructive 红边红字；
-   - 未登录点击跳登录、信誉禁用等既有行为保持。 */
+   - 未登录点击打开登录浮窗（SP-17/T2，登录成功自动续做）、信誉禁用等
+     既有行为保持。 */
 export function FollowButton({ targetType, targetId, initialFollowing = false, className, onFollowed }: FollowButtonProps) {
   const t = useTranslations();
-  const router = useRouter();
   const { user, capabilities } = useAuth();
+  const { requireAuth } = useAuthGate();
   const { toast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
   const isFollowing = !!user && following;
@@ -35,16 +36,12 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
 
   const interactionBlocked = !!user && !capabilities.can_interact;
 
-  async function toggle() {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+  async function performToggle() {
     if (interactionBlocked) return;
     setBusy(true);
-    const previousState = isFollowing;
+    const wasFollowing = isFollowing;
     try {
-      if (isFollowing) {
+      if (wasFollowing) {
         await api.delete(`/api/v1/${targetType}s/${targetId}/follow`);
         setFollowing(false);
       } else {
@@ -53,11 +50,20 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
         onFollowed?.();
       }
     } catch {
-      setFollowing(previousState);
+      setFollowing(wasFollowing);
       toast("error", t("common.operationFailed"));
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggle() {
+    // SP-17/T2：门与动作分离——pendingAction 不得依赖触发时的 user state。
+    if (!user) {
+      requireAuth(() => void performToggle());
+      return;
+    }
+    void performToggle();
   }
 
   const unfollowLabel = t("social.unfollow");

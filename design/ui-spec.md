@@ -692,6 +692,30 @@ interface AgentFollowUpChipsProps {
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
+## Component: LoginModal 登录浮窗（SP-17/T2）
+
+未登录门统一入口：全站匿名触发点（关注/私信/点赞/收藏/评论/讨论发帖等）不再跳转 /login，改弹此浮窗；登录成功关浮窗并自动续做原动作（pendingAction）。api 层 401 刷新失败同样经事件桥打开本浮窗（无 provider 时兜底带 redirect 跳 /login）。
+
+**Key Constraints**
+- 背板+焦点陷阱与 confirm-modal 同模式：`fixed inset-0 z-50` 居中、`bg-black/50 backdrop-blur-sm` 遮罩、卡片 `max-w-sm` 1px border 圆角（Indigo 扁平、shadow-md 同 confirm-modal）。
+- 表单唯一实现 = `LoginForm`（与 /login 页共享）；浮窗形态**仅登录**（无记住登录状态、无忘记密码），底部「去注册」链接跳 /register。
+
+**状态变体**
+- default: 标题（auth.welcomeBack）+ 副标题（auth.loginRequiredDescription）+ 邮箱 + 密码 + 显示密码 + 登录按钮 + 去注册链接 + 右上关闭钮。
+- CAPTCHA_REQUIRED: 邮箱连续失败超阈值后动态插入 CaptchaWidget（container/button id 实例唯一）；CAPTCHA_FAILED 重置验证码提示重试。
+- USER_BANNED: 错误行内提示 + 意见反馈申诉入口（与 /login 页同文案）。
+- loading: 登录按钮内嵌 Spinner，输入 disabled。
+
+**层级与挂载**
+- 普通页面：portal 到 body（z-50）。
+- 内容详情浮窗（原生 dialog top layer）内触发：由 AuthGateProvider 提供容器元素，浮窗渲染进该 dialog 内部（top layer 子树随绘，避免被压层）；详情浮窗 Esc 在登录浮窗打开时让位。
+
+**a11y**
+- role="dialog" aria-modal，Esc 关闭，Tab 焦点循环；关闭后焦点归还触发元素（requireAuth 触发瞬间捕获）；事件桥触发（无 UI 触发元）不归还。
+
+**i18n**
+- 全部文案走 next-intl（zh/en 同步）；新增键 `auth.loginRequiredDescription`、`auth.loginToInteract`。
+
 ## Page: /register 注册页
 
 **Key Constraints**

@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { api, ApiRequestError } from "@/lib/api";
 import { fetchPublicConfig, commentFoldThreshold, isHighDislikeRatio } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
@@ -38,6 +39,7 @@ const PAGE_SIZE = 20;
 export function CommentSection({ contentId, className }: CommentSectionProps) {
   const t = useTranslations();
   const { user, capabilities } = useAuth();
+  const { requireAuth } = useAuthGate();
   const [comments, setComments] = useState<Comment[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -247,9 +249,13 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
           submitDisabled={!body.trim() || busy}
         />
       ) : (
-        <p className="rounded-md border border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
-          {t('social.loginToComment')}
-        </p>
+        <div className="flex flex-col items-center gap-2 rounded-md border border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
+          {/* SP-17/T2：静态提示升级为可点登录（浮窗，登录后 Composer 原地出现）。 */}
+          <p>{t('social.loginToComment')}</p>
+          <Button size="sm" variant="outline" onClick={() => requireAuth()}>
+            {t('auth.login')}
+          </Button>
+        </div>
       )}
 
       {error && <p className="text-xs text-destructive" role="alert">{error}</p>}

@@ -92,6 +92,8 @@
     "hideConfirmPassword": "Hide confirm password",
     "rememberMe": "Remember me",
     "loginButton": "Log in",
+    "loginRequiredDescription": "Log in to continue where you left off",
+    "loginToInteract": "Log in to react",
     "noAccount": "Don't have an account?",
     "registerNow": "Sign up now",
     "joinTitle": "Join OmniCraft",
