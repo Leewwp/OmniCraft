@@ -466,9 +466,14 @@ run_trivy_config_gate() {
 run_trivy_image_gate() {
   need_docker
   if [ "$BUILD_IMAGES" -ne 1 ]; then
+    # Workflow contract: "PRs run every gate except the container-image
+    # builds (slow; scheduled and main-push runs keep them)". A skip is a
+    # neutral outcome — returning nonzero here mechanically failed every
+    # pull_request Security gate regardless of findings (masked by the
+    # genuine main dependency reds until #497/#499).
     echo "trivy-image gate skipped: pass -BuildImages to build and scan container images" >&2
-    echo "{\"ok\": false, \"skipped\": true}" > "$REPORT_DIR/trivy-image-skipped.json"
-    return 1
+    echo "{\"ok\": true, \"skipped\": true}" > "$REPORT_DIR/trivy-image-skipped.json"
+    return 0
   fi
   local build_rc=0
   docker compose build backend frontend migrate pgbouncer \

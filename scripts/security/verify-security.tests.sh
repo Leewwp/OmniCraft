@@ -596,6 +596,14 @@ printf '{"SchemaVersion": 2, "Results": []}' > "$TRIVY_CLEAN/trivy-fs.json"
 expect_verdict 0 "verdict passes on a valid empty trivy-fs report" \
   "$VERDICT_ROOT" "trivy-fs" "$TRIVY_CLEAN"
 
+# PR runs skip the image gate (-BuildImages absent): the workflow contract is
+# "PRs run every gate except the container-image builds", so a skip must NOT
+# fail the run. Historical bug: the skip branch returned 1, mechanically
+# reddening every pull_request Security gate even with zero findings —
+# masked for weeks by the genuine main dependency reds (see #497/#499).
+expect_exit 0 "trivy-image skip without BuildImages does not fail the run" \
+  "$VERDICT_ROOT" "trivy-image"
+
 # A missing govulncheck report must equally fail the verdict (same scanner-
 # failure class, covering the go gate's historical zero-findings swallow).
 GO_MISSING="$TEMP_ROOT/report-govulncheck-missing"
