@@ -172,12 +172,13 @@ test("anonymous entry points open the login modal instead of navigating", async 
     stub.restore();
   });
 
-  await t.test("DiscussionBoard start button opens the gate", async () => {
+  await t.test("IP hub discussions entry opens the gate (#494)", async () => {
     installDom();
     const stub = stubAnonymousFetch();
-    const { DiscussionBoard } = await import("@/components/social/DiscussionBoard");
-    // startEntry 登录分支仅 compact + 有讨论时渲染（与生产渲染条件一致）。
-    const view = renderWithGate(<DiscussionBoard ipId={9} compact />);
+    const { IPDiscussionsTab } = await import("@/components/ip/hub/IPDiscussionsTab");
+    const view = renderWithGate(
+      <IPDiscussionsTab ipId={9} apiBase="/api/v1" query="" sort="latest_reply" onSortChange={() => {}} />,
+    );
 
     const startButton = await waitFor(() =>
       within(view.container).getByRole("button", { name: "New Post" }),

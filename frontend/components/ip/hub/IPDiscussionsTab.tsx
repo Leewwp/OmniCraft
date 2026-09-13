@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { MessageSquare, Pin, Plus, Search } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SortSelect as SharedSortSelect } from "@/components/ui/SortSelect";
 import { DiscussionDetailOverlay } from "@/components/ip/hub/DiscussionDetailOverlay";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
+import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 
 interface DiscussionRow {
   id: number;
@@ -42,11 +46,52 @@ interface IPDiscussionsTabProps {
 // 排序状态由 URL query 驱动（#290 单页契约）。
 export function IPDiscussionsTab({ ipId, apiBase, query, sort, onSortChange, initialDiscussionId }: IPDiscussionsTabProps) {
   const t = useTranslations();
+  const router = useRouter();
+  const { user, capabilities } = useAuth();
+  const { requireAuth } = useAuthGate();
   const [discussions, setDiscussions] = useState<DiscussionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<number | null>(initialDiscussionId ?? null);
   // 请求序号守卫：快速切换排序/搜索时丢弃过期响应
   const fetchSeqRef = useRef(0);
+
+  // SP-17/T2 门语义（#494 自 DiscussionBoard 移植，讨论区唯一在役入口）：
+  // 未登录开登录浮窗（成功后续做跳发帖页）；能力拒绝禁用+原因；合格直链。
+  const canStartDiscussion = !!user && capabilities.can_interact;
+  const interactionBlocked = !!user && !capabilities.can_interact;
+  const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
+
+  function startEntry() {
+    if (canStartDiscussion) {
+      return (
+        <Link href={`/ip/${ipId}/discussions/new`} className={buttonVariants({ size: "sm" })}>
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('discussion.newPost')}
+        </Link>
+      );
+    }
+    if (interactionBlocked) {
+      return (
+        <div className="flex flex-col items-end gap-1.5">
+          <Button size="sm" disabled title={t(denialKey)}>
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('discussion.newPost')}
+          </Button>
+          <p className="text-xs text-muted-foreground">{t(denialKey)}</p>
+        </div>
+      );
+    }
+    return (
+      <Button
+        size="sm"
+        onClick={() => requireAuth(() => router.push(`/ip/${ipId}/discussions/new`))}
+        title={t('discussion.loginToStart')}
+      >
+        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+        {t('discussion.newPost')}
+      </Button>
+    );
+  }
 
   const fetchDiscussions = useCallback(async (nextSort: string, q: string) => {
     const seq = ++fetchSeqRef.current;
@@ -76,14 +121,7 @@ export function IPDiscussionsTab({ ipId, apiBase, query, sort, onSortChange, ini
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{t('ip.hubTab_discussions')}</h2>
         <div className="flex items-center gap-2">
-          {/* 发起讨论走既有受保护页（登录由该页 redirect 兜底），沿用旧讨论区入口 */}
-          <Link
-            href={`/ip/${ipId}/discussions/new`}
-            className={buttonVariants({ size: "sm" })}
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            {t('discussion.newPost')}
-          </Link>
+          {startEntry()}
           <SharedSortSelect
             ariaLabel={t('common.sortLabel')}
             value={sort}
@@ -111,11 +149,21 @@ export function IPDiscussionsTab({ ipId, apiBase, query, sort, onSortChange, ini
       ) : (
         <div className="space-y-2">
           {discussions.map((d) => (
-            <button
+            /* 整行可点开帖浮层；行内作者身份是独立链接（UserHoverCard 触发元
+               click 自带 stopPropagation），div role=button 承载行级键盘可达性
+               （button 内不允许再嵌交互元素，故不沿用 <button>）。 */
+            <div
               key={d.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => setActiveId(d.id)}
-              className="block w-full rounded-md border border-border bg-card p-4 text-left transition-colors duration-150 hover:border-accent/20 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setActiveId(d.id);
+                }
+              }}
+              className="block w-full cursor-pointer rounded-md border border-border bg-card p-4 text-left transition-colors duration-150 hover:border-accent/20 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="flex items-center gap-2">
                 {d.is_pinned && (
@@ -127,13 +175,21 @@ export function IPDiscussionsTab({ ipId, apiBase, query, sort, onSortChange, ini
                 <h3 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{d.title}</h3>
               </div>
               <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{d.author?.username ?? ""}</span>
+                {(d.author?.username || d.author?.id) && (
+                  <UserHoverCard
+                    userId={d.author?.id}
+                    username={d.author?.username || t('common.userLabel', { id: d.author?.id ?? "-" })}
+                    avatarUrl={d.author?.avatar_url}
+                    size={20}
+                    className="text-xs"
+                  />
+                )}
                 <span className="inline-flex items-center gap-1">
                   <MessageSquare className="h-3 w-3" aria-hidden="true" />
                   {d.reply_count ?? 0}
                 </span>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}

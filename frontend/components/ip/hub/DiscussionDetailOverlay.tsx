@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { MessageSquareWarning, X } from "lucide-react";
 import { ReplyList } from "@/components/social/ReplyList";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +14,7 @@ import { api } from "@/lib/api";
 
 interface ReplyData {
   id: number;
-  author?: { id?: number; username?: string };
+  author?: { id?: number; username?: string; avatar_url?: string };
   body: string;
   parent_id?: number | null;
   created_at?: string;
@@ -23,7 +24,7 @@ interface DiscussionDetail {
   id: number;
   title: string;
   body?: string;
-  author?: { id?: number; username?: string };
+  author?: { id?: number; username?: string; avatar_url?: string };
   created_at?: string;
   reply_count?: number;
 }
@@ -102,9 +103,21 @@ export function DiscussionDetailOverlay({ discussionId, onClose }: DiscussionDet
             ) : (
               <>
                 <h2 className="text-base font-semibold leading-snug">{discussion.title}</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {discussion.author?.username ?? ""}
-                  {discussion.created_at ? ` · ${new Date(discussion.created_at).toLocaleDateString()}` : ""}
+                {/* 楼主身份 = 悬浮卡触发器（#494）：头像 + 昵称，点击进主页。 */}
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {(discussion.author?.username || discussion.author?.id) && (
+                    <UserHoverCard
+                      userId={discussion.author?.id}
+                      username={
+                        discussion.author?.username || t('common.userLabel', { id: discussion.author?.id ?? "-" })
+                      }
+                      avatarUrl={discussion.author?.avatar_url}
+                      size={24}
+                    />
+                  )}
+                  {discussion.created_at && (
+                    <span>{new Date(discussion.created_at).toLocaleDateString()}</span>
+                  )}
                 </p>
               </>
             )}
