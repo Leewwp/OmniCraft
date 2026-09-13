@@ -135,7 +135,9 @@ test("user hover card", async (t) => {
     fireEvent.pointerEnter(link.closest("span")!);
 
     const card = await waitFor(() => view.getByRole("dialog"), { timeout: 2000 });
-    assert.ok(within(card).getByText("seed author bio"), "bio must render");
+    // 卡片先开、bio 随 profile fetch 异步落——同步断言会与网络竞速（CI 四轮两炸）。
+    const bio = await waitFor(() => within(card).getByText("seed author bio"), { timeout: 2000 });
+    assert.ok(bio, "bio must render");
     assert.ok(within(card).getByText("12"), "contents count must render");
     assert.ok(within(card).getByRole("button", { name: "Follow" }), "follow action must render");
     assert.ok(within(card).getByRole("button", { name: "Message" }), "message action must render");
