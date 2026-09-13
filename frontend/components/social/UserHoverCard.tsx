@@ -150,18 +150,17 @@ export function UserHoverCard({
     setOpen(false);
   }, [clearTimers]);
 
-  /* 滚动/缩放跟随重定位；computePosition 返回 null（触发元离屏）时关闭。 */
+  /* 滚动/缩放跟随重定位；computePosition 返回 null（触发元离屏）时关闭。
+     位置计算在 updater 外执行（保持 setState updater 纯度，StrictMode 双执行安全）。 */
   useEffect(() => {
     if (!open) return;
     function onScrollOrResize() {
-      setPosition((prev) => {
-        const next = computePosition();
-        if (!next) {
-          setOpen(false);
-          return prev;
-        }
-        return next;
-      });
+      const next = computePosition();
+      if (!next) {
+        setOpen(false);
+        return;
+      }
+      setPosition(next);
     }
     window.addEventListener("scroll", onScrollOrResize, true);
     window.addEventListener("resize", onScrollOrResize);

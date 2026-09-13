@@ -116,6 +116,8 @@ func (s *SocialService) PostComment(ctx context.Context, input PostCommentInput,
 	// 响应的 author 为零值，前端本地 append 的新评论作者短暂回落「用户 #id」。
 	if reloaded, ferr := s.socialRepo.FindComment(comment.ID); ferr == nil && reloaded != nil {
 		comment = reloaded
+	} else {
+		slog.Warn("failed to reload comment with author after create", "comment_id", comment.ID, "error", ferr)
 	}
 
 	// T12（FIX-18）前提②定夺：对讨论的评论统一在此维护 reply_count 与

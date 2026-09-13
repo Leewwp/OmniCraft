@@ -110,6 +110,12 @@ function stubAnonymousFetch() {
   };
 }
 
+/* 审查修复：Module._load 补丁必须在收尾恢复——单进程串行跑全部测试文件时，
+   泄漏的 next/navigation 桩会污染后续文件（后续文件把补丁态当“原始态”保存）。 */
+test.after(() => {
+  Module._load = originalModuleLoad;
+});
+
 test.afterEach(async () => {
   cleanup();
   const { setAccessToken } = await import("@/lib/api");
@@ -135,21 +141,7 @@ test("anonymous entry points open the login modal instead of navigating", async 
     const view = renderWithGate(<MessageComposeButton userId={2} displayName="peer" />);
 
     fireEvent.click(within(view.container).getByRole("button", { name: "Message" }));
-    {
-      const d0 = document.body.querySelectorAll('[role="dialog"]');
-      console.error("[mcb] immediately after click, dialogs:", d0.length,
-        [...d0].map((d) => d.getAttribute("data-testid") ?? d.textContent?.slice(0, 20)));
-    }
-    try {
-      await assertOpensLoginModal(view);
-    } finally {
-      const dialogs = document.body.querySelectorAll('[role="dialog"]');
-      console.error("[mcb] dialogs:", dialogs.length, [...dialogs].map((d) => d.getAttribute("data-testid") ?? d.className.slice(0, 30)));
-      console.error("[mcb] dialog0 text:", dialogs[0]?.textContent?.slice(0, 120));
-      console.error("[mcb] dialog0 aria:", dialogs[0]?.getAttribute("aria-label"), dialogs[0]?.getAttribute("aria-labelledby"));
-      const gate = document.body.querySelectorAll("[data-testid='login-modal']");
-      console.error("[mcb] gate modals:", gate.length);
-    }
+    await assertOpensLoginModal(view);
     stub.restore();
   });
 
