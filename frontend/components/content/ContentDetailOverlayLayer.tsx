@@ -417,7 +417,15 @@ export function ContentDetailOverlayLayer({
   const sidebar = (
     <DeferredMount>
       <ContentSidebar
-      author={content.author?.id ? { id: content.author.id, username: content.author.username } : undefined}
+      author={
+        content.author?.id
+          ? {
+              id: content.author.id,
+              username: content.author.username,
+              avatar_url: content.author.avatar_url,
+            }
+          : undefined
+      }
       zone={isFanwork ? "fanwork" : "original"}
       ip={isFanwork && content.ip?.id && content.ip.name ? content.ip : undefined}
       sourceOriginal={isFanwork && sourceOriginal ? sourceOriginal : null}
@@ -439,7 +447,11 @@ export function ContentDetailOverlayLayer({
       onOpenRelatedItem={handleOpenEntry}
       followAction={
         content.author?.id ? (
-          <FollowButton targetType="user" targetId={content.author.id} />
+          <FollowButton
+            targetType="user"
+            targetId={content.author.id}
+            initialFollowing={content.author.is_following ?? false}
+          />
         ) : undefined
       }
       />
@@ -459,6 +471,8 @@ export function ContentDetailOverlayLayer({
         freezeGeometry={!motionSettled}
         onPaneMeasured={handlePaneMeasured}
       >
+        {/* SP-17/T4：竖屏作者行的关注由 T3 创作者区自带（含 is_following 初始
+            态），旧的 authorAction 透传会渲染第二个关注按钮，已移除。 */}
         <ContentDetail
           data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
           coverSync
@@ -467,9 +481,6 @@ export function ContentDetailOverlayLayer({
           coverHoldSrc={motionHoldSrc}
           sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
           sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
-          authorAction={
-            content.author?.id ? <FollowButton targetType="user" targetId={content.author.id} /> : undefined
-          }
           variantTail={
             /* #430 挂载分帧：关联内容块与评论区延后一拍（双 rAF + 低优先级），
                降低入场动画期主线程拥塞。 */

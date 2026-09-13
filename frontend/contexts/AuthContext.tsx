@@ -92,7 +92,7 @@ interface AuthContextValue {
   unreadCounts: UnreadCounts;
   capabilities: InteractionCapabilities;
   ipHistoryVersion: number;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean, captchaToken?: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
   refreshUser: () => Promise<void>;
@@ -212,12 +212,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     previousUserRef.current = user;
   }, [user]);
 
-  const login = useCallback(async (email: string, password: string, _rememberMe?: boolean) => {
+  const login = useCallback(async (email: string, password: string, _rememberMe?: boolean, captchaToken?: string) => {
+    // SP-17/T2：captchaToken 可选——后端 captchaRequiredForLogin 超阈值时
+    // 返回 CAPTCHA_REQUIRED，调用方收集 CaptchaWidget token 后重试携带。
     const data = await api.post<{
       user: User;
       tokens: { access_token: string };
       capabilities?: InteractionCapabilities;
-    }>("/api/v1/auth/login", { email, password });
+    }>("/api/v1/auth/login", {
+      email,
+      password,
+      ...(captchaToken ? { captcha_token: captchaToken } : {}),
+    });
     saveTokens(data.tokens.access_token);
     setAccessToken(data.tokens.access_token);
     authEpochRef.current += 1;

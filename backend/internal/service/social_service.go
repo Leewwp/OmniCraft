@@ -112,6 +112,14 @@ func (s *SocialService) PostComment(ctx context.Context, input PostCommentInput,
 		return nil, err
 	}
 
+	// SP-17/T4 顺手项：回读填充 Author（FindComment 已带 Preload），否则写路径
+	// 响应的 author 为零值，前端本地 append 的新评论作者短暂回落「用户 #id」。
+	if reloaded, ferr := s.socialRepo.FindComment(comment.ID); ferr == nil && reloaded != nil {
+		comment = reloaded
+	} else {
+		slog.Warn("failed to reload comment with author after create", "comment_id", comment.ID, "error", ferr)
+	}
+
 	// T12（FIX-18）前提②定夺：对讨论的评论统一在此维护 reply_count 与
 	// last_active_at（latest_reply 排序驱动）。讨论路由与 /social/comments
 	// 两个入口经同一分支，一条评论只递增一次——防双计；handler 不再手动

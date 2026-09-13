@@ -27,8 +27,13 @@ type User struct {
 	AcceptedPrivacyVersion string     `gorm:"size:32" json:"accepted_privacy_version,omitempty"`
 	AcceptedPrivacyAt      *time.Time `json:"accepted_privacy_at,omitempty"`
 	DeletedAt              *time.Time `gorm:"index" json:"deleted_at,omitempty"`
-	CreatedAt              time.Time  `json:"created_at"`
-	UpdatedAt              time.Time  `json:"updated_at"`
+	// IsFollowing is a viewer-scoped projection (SP-17/T1), never a DB column:
+	// handlers set it for logged-in viewers only (detail author card), so it
+	// stays nil (omitted) on anonymous/cacheable responses and on every other
+	// User serialization site.
+	IsFollowing *bool     `gorm:"-" json:"is_following,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (User) TableName() string {

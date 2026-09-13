@@ -113,6 +113,9 @@ function normalizeAuthor(value: unknown): ContentCardData["author"] {
   return {
     id: numberValue(raw.id ?? raw.ID),
     username: stringValue(raw.username ?? raw.Username),
+    // SP-17/T1：详情响应新增（签名头像 + 登录视角关注态）；列表/卡片响应缺省。
+    avatar_url: stringValue(raw.avatar_url ?? raw.AvatarURL),
+    is_following: boolValue(raw.is_following ?? raw.IsFollowing),
   };
 }
 

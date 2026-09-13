@@ -1,6 +1,8 @@
 // NEXT_PUBLIC_API_URL is intentionally host-reachable from the browser.
 // Use || so an empty Compose value does not silently turn requests into
 // same-origin /api/v1 calls when no frontend proxy is configured.
+import { emitAuthRequired } from "@/lib/auth-gate";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export interface ApiError {
@@ -137,9 +139,9 @@ export async function refreshAccessTokenHeader(
     return true;
   }
   inMemoryAccessToken = null;
-  if (typeof window !== "undefined") {
-    window.location.href = "/login";
-  }
+  // SP-17/T2：SSE 直连刷新失败不再硬跳 /login，改走 auth gate 浮窗
+  // （无 provider 时事件桥内兜底带 redirect 跳页）。
+  emitAuthRequired();
   return false;
 }
 
@@ -222,9 +224,9 @@ async function request<T>(
         }
       } else {
         inMemoryAccessToken = null;
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
-        }
+        // SP-17/T2：刷新失败不再无参数硬跳 /login，改走 auth gate 浮窗；
+        // 登录成功由浮窗续做/组件重拉恢复，页面停留原地。
+        emitAuthRequired();
         throw new ApiRequestError("TOKEN_EXPIRED", "Session expired", 401);
       }
     }

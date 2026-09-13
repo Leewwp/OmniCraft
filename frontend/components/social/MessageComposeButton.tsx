@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { api, ApiRequestError } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
@@ -17,7 +18,8 @@ import { silentError } from "@/lib/error-handler";
  * 用户主页「发私信」入口（FIX-30①/T35，纯前端）：打开撰写弹窗发送首条私信。
  * 走既有 POST /messages 冷启动 guard 语义——每个方向首条天然放行，连续第二条
  * 由后端 DM_REPLY_REQUIRED 拦截（唯一防骚扰机制，本组件只如实转达，不做任何
- * 预放宽）。未登录跳 /login；禁言用户禁用并提示原因（FollowButton 同模式）。
+ * 预放宽）。未登录打开登录浮窗（SP-17/T2，登录成功自动续做）；禁言用户禁用
+ * 并提示原因（FollowButton 同模式）。
  */
 interface MessageComposeButtonProps {
   userId: number;
@@ -28,15 +30,15 @@ const MAX_DM_LENGTH = 2000;
 
 export function MessageComposeButton({ userId, displayName }: MessageComposeButtonProps) {
   const t = useTranslations();
-  const router = useRouter();
   const { user, capabilities } = useAuth();
+  const { requireAuth } = useAuthGate();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const interactionBlocked = !!user && !capabilities.can_interact;
 
   function openCompose() {
     if (!user) {
-      router.push("/login");
+      requireAuth(() => setOpen(true));
       return;
     }
     setOpen(true);

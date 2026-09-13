@@ -14,12 +14,22 @@ const Module = requireForMocks("node:module") as typeof import("node:module") & 
 };
 const originalModuleLoad = Module._load;
 const pushes: string[] = [];
+/* SP-17/T2：未登录改走 auth gate 事件桥（不再 router.push("/login")）。 */
+const authGateEmissions: unknown[] = [];
 const authStub = {
   user: null as null | { id: number },
   capabilities: { can_interact: false, interaction_denial_reason: "AUTH_STATUS_UNAVAILABLE" },
 };
 
 Module._load = function loadWithSocialStubs(request, parent, isMain) {
+  if (request === "@/lib/auth-gate") {
+    return {
+      emitAuthRequired: (detail?: unknown) => {
+        authGateEmissions.push(detail);
+      },
+      setAuthGateActive: () => {},
+    };
+  }
   if (request === "next/navigation") {
     return { useRouter: () => ({ push: (path: string) => pushes.push(path) }) };
   }
@@ -47,6 +57,7 @@ const originalGet = api.get;
 test.beforeEach(() => {
   installDom();
   pushes.length = 0;
+  authGateEmissions.length = 0;
   authStub.user = null;
   authStub.capabilities = { can_interact: false, interaction_denial_reason: "AUTH_STATUS_UNAVAILABLE" };
 });
@@ -60,12 +71,14 @@ test.after(() => {
   Module._load = originalModuleLoad;
 });
 
-test("compact discussion empty state sends anonymous visitors to login", async () => {
+test("compact discussion empty state sends anonymous visitors to the auth gate (SP-17/T2)", async () => {
   mockDiscussions([]);
   const view = renderBoard();
 
   fireEvent.click(await view.findByRole("button", { name: "New post" }));
-  assert.deepEqual(pushes, ["/login"]);
+  assert.equal(authGateEmissions.length, 1, "gate bridge must receive an emission");
+  assert.equal(typeof (authGateEmissions[0] as { pendingAction?: unknown })?.pendingAction, "function");
+  assert.deepEqual(pushes, [], "must not navigate to /login");
 });
 
 test("compact discussion entry links eligible users to the IP-scoped composer", async () => {
@@ -109,9 +122,11 @@ test("FollowButton keeps constant width, solid both states, destructive hover un
   // 勾号与加号图标移除（无图标，宽度与视觉恒定）
   assert.doesNotMatch(source, /<Check/);
   assert.doesNotMatch(source, /<Plus/);
-  // 既有行为保持：信誉禁用、未登录跳登录
+  // 既有行为保持：信誉禁用仍禁用+原因（SP-17/T2 起未登录改走 auth gate）
   assert.match(source, /disabled=\{interactionBlocked \|\| busy\}/);
-  assert.match(source, /router\.push\("\/login"\)/);
+  assert.doesNotMatch(source, /router\.push\("\/login"\)/);
+  assert.match(source, /useAuthGate\(\)/);
+  assert.match(source, /requireAuth\(/);
   // 提案页一键关注收敛：关注成功回调
   assert.match(source, /onFollowed\?\.\(\)/);
 });
