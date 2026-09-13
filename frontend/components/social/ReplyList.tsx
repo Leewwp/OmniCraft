@@ -8,10 +8,11 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
 import { Composer } from "@/components/ui/composer";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
 
 interface Reply {
   id: number;
-  author?: { id?: number; username?: string };
+  author?: { id?: number; username?: string; avatar_url?: string };
   body: string;
   parent_id?: number | null;
   created_at?: string;
@@ -53,8 +54,17 @@ export function ReplyList({ discussionId, replies, onRefresh, className }: Reply
       .map((r) => (
         <div key={r.id} className={cn(depth > 0 && "ml-6 border-l-2 border-border pl-4")}>
           <div className="rounded-md bg-muted/20 p-3">
+            {/* 回帖作者 = 悬浮卡触发器（#494）：小头像 + 昵称，点击进主页。 */}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{r.author?.username ?? `#${r.author?.id}`}</span>
+              {(r.author?.username || r.author?.id) && (
+                <UserHoverCard
+                  userId={r.author?.id}
+                  username={r.author?.username || t('common.userLabel', { id: r.author?.id ?? "-" })}
+                  avatarUrl={r.author?.avatar_url}
+                  size={20}
+                  className="text-xs"
+                />
+              )}
               {r.created_at && <span>{new Date(r.created_at).toLocaleDateString()}</span>}
             </div>
             <p className="mt-1 text-sm">{r.body}</p>
