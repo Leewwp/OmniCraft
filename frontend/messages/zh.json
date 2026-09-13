@@ -298,7 +298,6 @@
     "versionLoadFailed": "加载版本历史失败",
     "versionContentLoadFailed": "加载版本内容失败",
     "versionRestoreFailed": "版本回退失败",
-    "author": "作者：{name}",
     "type": "类型：{type}",
     "views": "{count} 次浏览",
     "attachments": "附件",
