@@ -160,7 +160,7 @@ test("search page source: keyword-only GlobalSearchInput, no legacy agent search
 });
 
 test("/agent page source: reads ?q= for the first-turn prefill behind Suspense", async () => {
-  const page = await read("app/(protected)/agent/page.tsx");
+  const page = await read("app/(protected)/(headered)/agent/page.tsx");
   assert.match(page, /useSearchParams/, "agent page must read the q param");
   assert.match(page, /searchParams\.get\("q"\)/, "q param feeds the workspace");
   assert.match(page, /Suspense/, "useSearchParams is wrapped in a Suspense boundary");

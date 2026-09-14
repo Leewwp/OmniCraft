@@ -6,7 +6,7 @@ import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared
 
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ApiRequestError, api, setAccessToken } from "@/lib/api";
-import SettingsPage from "@/app/(protected)/settings/page";
+import SettingsPage from "@/app/(protected)/(headered)/settings/page";
 import { ToastProvider } from "@/components/ui/Toast";
 
 import { act, cleanup, fireEvent, installDom, renderWithIntl, waitFor } from "./runtime-test-helpers";

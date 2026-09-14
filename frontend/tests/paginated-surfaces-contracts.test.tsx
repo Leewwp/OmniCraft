@@ -11,13 +11,13 @@ function read(relativePath: string) {
 
 test("all U-07 list surfaces delegate list states to DataList", () => {
   const pages = [
-    "app/(protected)/history/page.tsx",
-    "app/(protected)/appeals/page.tsx",
-    "app/(protected)/rehab/page.tsx",
-    "app/(protected)/feedback/mine/page.tsx",
-    "app/(protected)/studio/overview/page.tsx",
-    "app/(protected)/studio/followers/page.tsx",
-    "app/(protected)/studio/contents/page.tsx",
+    "app/(protected)/(headered)/history/page.tsx",
+    "app/(protected)/(headered)/appeals/page.tsx",
+    "app/(protected)/(headered)/rehab/page.tsx",
+    "app/(protected)/(headered)/feedback/mine/page.tsx",
+    "app/(protected)/(headered)/studio/overview/page.tsx",
+    "app/(protected)/(headered)/studio/followers/page.tsx",
+    "app/(protected)/(headered)/studio/contents/page.tsx",
   ];
 
   for (const page of pages) {
@@ -32,11 +32,11 @@ test("all U-07 list surfaces delegate list states to DataList", () => {
 });
 
 const paginatedPageContracts = [
-  ["appeals", "app/(protected)/appeals/page.tsx", /appeals\/me\?page=\$\{nextPage\}/],
-  ["rehab courses", "app/(protected)/rehab/page.tsx", /rehab\/courses\?page=\$\{nextPage\}/],
-  ["feedback tickets", "app/(protected)/feedback/mine/page.tsx", /feedback\/me\?page=\$\{nextPage\}/],
-  ["studio contents", "app/(protected)/studio/contents/page.tsx", /users\/me\/contents\?page=\$\{nextPage\}/],
-  ["studio ranking", "app/(protected)/studio/overview/page.tsx", /users\/me\/contents\?page=\$\{nextPage\}/],
+  ["appeals", "app/(protected)/(headered)/appeals/page.tsx", /appeals\/me\?page=\$\{nextPage\}/],
+  ["rehab courses", "app/(protected)/(headered)/rehab/page.tsx", /rehab\/courses\?page=\$\{nextPage\}/],
+  ["feedback tickets", "app/(protected)/(headered)/feedback/mine/page.tsx", /feedback\/me\?page=\$\{nextPage\}/],
+  ["studio contents", "app/(protected)/(headered)/studio/contents/page.tsx", /users\/me\/contents\?page=\$\{nextPage\}/],
+  ["studio ranking", "app/(protected)/(headered)/studio/overview/page.tsx", /users\/me\/contents\?page=\$\{nextPage\}/],
 ] as const;
 
 for (const [name, file, endpoint] of paginatedPageContracts) {
@@ -51,7 +51,7 @@ for (const [name, file, endpoint] of paginatedPageContracts) {
 }
 
 test("paginated pages own cursor state and reset the first page for filters/search", () => {
-  const history = read("app/(protected)/history/page.tsx");
+  const history = read("app/(protected)/(headered)/history/page.tsx");
 
   assert.match(history, /void load\(1, false\)/);
   assert.match(history, /page_size: "20"/);
@@ -59,8 +59,8 @@ test("paginated pages own cursor state and reset the first page for filters/sear
 
 test("studio content surfaces use the authenticated backend route and real envelope", () => {
   for (const page of [
-    "app/(protected)/studio/overview/page.tsx",
-    "app/(protected)/studio/contents/page.tsx",
+    "app/(protected)/(headered)/studio/overview/page.tsx",
+    "app/(protected)/(headered)/studio/contents/page.tsx",
   ]) {
     const source = read(page);
     assert.match(source, /\/api\/v1\/users\/me\/contents/);
@@ -73,12 +73,12 @@ test("pagination retries retain the failed cursor instead of replacing prior row
   // #290 后 IP 讨论列表并入 /ip/[ipId] Hub 的 discussions tab（单页拉取，
   // 无游标分页），不再出现在该契约清单中。
   const pages = [
-    "app/(protected)/history/page.tsx",
-    "app/(protected)/appeals/page.tsx",
-    "app/(protected)/rehab/page.tsx",
-    "app/(protected)/feedback/mine/page.tsx",
-    "app/(protected)/studio/overview/page.tsx",
-    "app/(protected)/studio/contents/page.tsx",
+    "app/(protected)/(headered)/history/page.tsx",
+    "app/(protected)/(headered)/appeals/page.tsx",
+    "app/(protected)/(headered)/rehab/page.tsx",
+    "app/(protected)/(headered)/feedback/mine/page.tsx",
+    "app/(protected)/(headered)/studio/overview/page.tsx",
+    "app/(protected)/(headered)/studio/contents/page.tsx",
   ];
 
   for (const page of pages) {

@@ -265,8 +265,8 @@ test("interaction consumers use server capabilities instead of hard-coded thresh
   const audits: Array<[string, string]> = [
     ["../components/social/CommentSection.tsx", "canInteract"],
     ["../components/content/DownloadButton.tsx", "interactionBlocked"],
-    ["../app/(protected)/judge/queue/page.tsx", "capabilities"],
-    ["../app/(protected)/judge/exam/page.tsx", "capabilities"],
+    ["../app/(protected)/(headered)/judge/queue/page.tsx", "capabilities"],
+    ["../app/(protected)/(headered)/judge/exam/page.tsx", "capabilities"],
     ["../contexts/AuthContext.tsx", "interaction_denial_reason"],
     ["../components/social/ReactionBar.tsx", "capabilities"],
   ];
@@ -278,8 +278,8 @@ test("interaction consumers use server capabilities instead of hard-coded thresh
   }
 
   for (const relativePath of [
-    "../app/(protected)/judge/queue/page.tsx",
-    "../app/(protected)/judge/exam/page.tsx",
+    "../app/(protected)/(headered)/judge/queue/page.tsx",
+    "../app/(protected)/(headered)/judge/exam/page.tsx",
     "../components/social/ReactionBar.tsx",
     "../components/content/DownloadButton.tsx",
   ]) {

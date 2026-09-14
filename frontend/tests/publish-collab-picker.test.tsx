@@ -365,15 +365,15 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
   return originalModuleLoad.apply(this, [request, parent, isMain]);
 };
 
-type FanworkPageModule = typeof import("@/app/(protected)/studio/publish/fanwork/page");
-type OriginalPageModule = typeof import("@/app/(protected)/studio/publish/original/page");
+type FanworkPageModule = typeof import("@/app/(protected)/(headered)/studio/publish/fanwork/page");
+type OriginalPageModule = typeof import("@/app/(protected)/(headered)/studio/publish/original/page");
 let PublishFanworkPage: FanworkPageModule["default"];
 let PublishOriginalPage: OriginalPageModule["default"];
 
 test.before(async () => {
-  const fanwork = await import("@/app/(protected)/studio/publish/fanwork/page");
+  const fanwork = await import("@/app/(protected)/(headered)/studio/publish/fanwork/page");
   PublishFanworkPage = fanwork.default;
-  const original = await import("@/app/(protected)/studio/publish/original/page");
+  const original = await import("@/app/(protected)/(headered)/studio/publish/original/page");
   PublishOriginalPage = original.default;
 });
 

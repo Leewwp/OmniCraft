@@ -335,11 +335,11 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
   return originalModuleLoad.apply(this, [request, parent, isMain]);
 };
 
-type PublishPageModule = typeof import("@/app/(protected)/studio/publish/fanwork/page");
+type PublishPageModule = typeof import("@/app/(protected)/(headered)/studio/publish/fanwork/page");
 let PublishFanworkPage: PublishPageModule["default"];
 
 test.before(async () => {
-  const mod = await import("@/app/(protected)/studio/publish/fanwork/page");
+  const mod = await import("@/app/(protected)/(headered)/studio/publish/fanwork/page");
   PublishFanworkPage = mod.default;
 });
 

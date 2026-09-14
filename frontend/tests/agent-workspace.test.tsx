@@ -1334,13 +1334,17 @@ test("stop aborts the stream, keeps partial content and shows the stopped notice
 
 /* ---------- 页面接线契约（源码） ---------- */
 
-test("protected /agent page wires Header, feature gate and workspace", async () => {
-  const page = await read("app/(protected)/agent/page.tsx");
-  assert.match(page, /<Header \/>/);
+test("protected /agent page wires feature gate and workspace; header comes from (headered) layout", async () => {
+  const page = await read("app/(protected)/(headered)/agent/page.tsx");
+  /* SP-19 G1-1：顶栏由 (headered) 布局统一渲染，页面自身不得再挂 Header（防双渲染）。 */
+  assert.doesNotMatch(page, /import \{ Header \}/);
+  assert.doesNotMatch(page, /<Header \/>/);
   assert.match(page, /AgentFeatureGate/);
   assert.match(page, /capability="webAgent"/);
   /* A-07：工作台经 AgentWorkspacePanel 接线并携带 initialQuery（/agent?q= 预填）。 */
   assert.match(page, /<AgentWorkspace initialQuery=/);
+  const layout = await read("app/(protected)/(headered)/layout.tsx");
+  assert.match(layout, /<Header \/>/);
 });
 
 test("workspace wires citations to the shared overlay with agent source", async () => {

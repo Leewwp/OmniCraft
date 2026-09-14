@@ -71,8 +71,8 @@ test.afterEach(() => {
 });
 
 test("remaining form surfaces expose names, described errors, alerts, and mobile targets", () => {
-  const tagGroups = read("app/(protected)/settings/tag-groups/page.tsx");
-  const discussion = read("app/(protected)/ip/[ipId]/discussions/new/page.tsx");
+  const tagGroups = read("app/(protected)/(headered)/settings/tag-groups/page.tsx");
+  const discussion = read("app/(protected)/(headered)/ip/[ipId]/discussions/new/page.tsx");
   const notifications = read("app/(protected)/admin/notifications/page.tsx");
   const categories = read("app/(protected)/admin/categories/page.tsx");
   const queue = read("app/(protected)/admin/queue/page.tsx");
@@ -142,7 +142,7 @@ test("tag-group and category forms expose runtime names and first-error focus", 
   };
   try {
     const { render } = await import("@testing-library/react");
-    const TagGroupsPage = (await import("../app/(protected)/settings/tag-groups/page")).default;
+    const TagGroupsPage = (await import("../app/(protected)/(headered)/settings/tag-groups/page")).default;
     const CategoriesPage = (await import("../app/(protected)/admin/categories/page")).default;
     const tagView = render(
       <IntlProvider locale="en" messages={enMessages}>
@@ -297,7 +297,7 @@ test("system config shows retry state without form when config is incomplete", a
 
 async function renderDiscussionPage() {
   const { render } = await import("@testing-library/react");
-  const pageModule = await import("../app/(protected)/ip/[ipId]/discussions/new/page");
+  const pageModule = await import("../app/(protected)/(headered)/ip/[ipId]/discussions/new/page");
   const NewDiscussionPage = pageModule.default;
   const originalConsoleError = console.error;
   console.error = (...args: unknown[]) => {
