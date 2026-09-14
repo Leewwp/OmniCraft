@@ -147,7 +147,7 @@ export function Header() {
         <div className="flex flex-1 items-center gap-2">
           {/* Desktop keyword search (no Agent mode switch) */}
           <GlobalSearchInput
-            size="sm"
+            size="lg"
             className="hidden max-w-[480px] flex-1 items-center min-[701px]:flex"
           />
           {/* Mobile search toggle */}
@@ -309,7 +309,7 @@ export function Header() {
         {/* Mobile expandable keyword search */}
         {mobileSearchOpen && (
           <GlobalSearchInput
-            size="lg"
+            size="sm"
             autoFocus
             className="absolute inset-x-0 top-full border-b border-border bg-canvas-default px-4 py-2 min-[701px]:hidden"
           />
@@ -351,7 +351,7 @@ export function Header() {
               </button>
             </div>
 
-            <GlobalSearchInput size="lg" className="mt-4" />
+            <GlobalSearchInput size="sm" className="mt-4" />
 
             <nav className="mt-4 flex flex-col gap-1">
               <Link

@@ -24,6 +24,10 @@ type IPHandler struct {
 	contentRepo    *repository.ContentRepository
 	discussionRepo *repository.DiscussionRepository
 	displaySigner  *service.DisplayURLSigner
+	// ipCategories is the config allowlist (SP-19 G1-3); IP creation rejects
+	// categories outside it. Empty slice (legacy constructors/tests) skips the
+	// check rather than blocking every creation.
+	ipCategories   []string
 }
 
 func NewIPHandler(db *gorm.DB) *IPHandler {
@@ -42,7 +46,21 @@ func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *
 		contentRepo:    repository.NewContentRepository(db),
 		discussionRepo: repository.NewDiscussionRepository(db),
 		displaySigner:  service.NewDisplayURLSigner(cfg),
+		ipCategories:   cfg.IPCategories,
 	}
+}
+
+// ipCategoryAllowed enforces the config allowlist for a non-empty category.
+func (h *IPHandler) ipCategoryAllowed(category string) bool {
+	if category == "" || len(h.ipCategories) == 0 {
+		return true
+	}
+	for _, c := range h.ipCategories {
+		if c == category {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *IPHandler) ListIPs(c *gin.Context) {
@@ -109,6 +127,12 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 	var input service.CreateIPInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, "invalid request parameters")
+		return
+	}
+
+	// SP-19 G1-3：分类必须在 config allowlist 内（空 = 不分类，允许）。
+	if !h.ipCategoryAllowed(input.Category) {
+		response.ValidationError(c, "invalid ip category")
 		return
 	}
 

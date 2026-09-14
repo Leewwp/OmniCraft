@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { recordIpVisit } from "@/lib/ip-visit-history";
+import { ipCategoryLabelKey } from "@/lib/ip-categories";
 
 interface IPCardData {
   id: number;
@@ -60,7 +61,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
           </div>
           <div className="flex min-w-0 items-end justify-between gap-1 text-xs text-muted-foreground">
             <span className="min-w-0 truncate">
-              {[data.category, data.content_count !== undefined ? t('ip.contentCount', { count: data.content_count }) : ""]
+              {[data.category ? t(ipCategoryLabelKey(data.category)) : "", data.content_count !== undefined ? t('ip.contentCount', { count: data.content_count }) : ""]
                 .filter(Boolean)
                 .join(" · ")}
             </span>
@@ -96,7 +97,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
         </div>
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-foreground">{data.name}</h3>
-          <p className="text-xs text-muted-foreground">{data.category || t('ip.uncategorized')}</p>
+          <p className="text-xs text-muted-foreground">{data.category ? t(ipCategoryLabelKey(data.category)) : t('ip.uncategorized')}</p>
         </div>
       </div>
       {(data.description || data.content_count) && (

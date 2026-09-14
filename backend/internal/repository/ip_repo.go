@@ -121,6 +121,9 @@ func (r *IPRepository) ListIPs(f ListIPsFilter) ([]model.IP, int64, error) {
 	case "most_content", "most_contents":
 		q = q.Select("ips.*, (SELECT COUNT(*) FROM content_items WHERE ip_id = ips.id AND status = 'published') AS content_count").
 			Order("content_count DESC")
+	case "name":
+		// SP-19 G1-3（Q15-A）：名称排序；中文按 PG 默认排序规则，演示可接受。
+		q = q.Order("ips.name ASC")
 	default:
 		q = q.Order("ips.created_at DESC")
 	}
