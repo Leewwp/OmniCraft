@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { MilkdownEditor } from "@/components/markdown/MilkdownEditor";
 
 // T48 (FIX-22b): the contributor-facing PR creation panel. Opened from the
 // content page entry (?content_id&create=1): pick a base version, describe
@@ -146,13 +147,16 @@ export function CreatePRPanel({ contentId }: CreatePRPanelProps) {
             <label htmlFor="pr-message" className="mb-1.5 block text-sm font-medium text-foreground">
               {t("studio.pr.create.messageLabel")}
             </label>
-            <textarea
+            {/* SP-19 G3-4：PR message 换 Milkdown（禁图）；下方 new_text 是
+                diff 语义编辑器，保持纯文本（Q10）。 */}
+            <MilkdownEditor
               id="pr-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              aria-label={t("studio.pr.create.messageLabel")}
+              defaultValue={message}
+              onChange={setMessage}
               placeholder={t("studio.pr.create.messagePlaceholder")}
-              rows={3}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              draftKey={`pr-message-${contentId ?? ""}`}
+              minHeight={140}
             />
           </div>
 

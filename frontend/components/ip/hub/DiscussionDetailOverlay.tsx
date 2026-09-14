@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { api } from "@/lib/api";
+import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 
 interface ReplyData {
   id: number;
@@ -155,7 +156,10 @@ export function DiscussionDetailOverlay({ discussionId, onClose }: DiscussionDet
           ) : (
             <>
               {discussion.body && (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{discussion.body}</p>
+                <div className="text-sm leading-relaxed text-foreground/90">
+                  {/* SP-19 G3-4：话题正文 Markdown 渲染（旧纯文本按 Q17 接受）。 */}
+                  <MarkdownRenderer content={discussion.body} />
+                </div>
               )}
               <div className="mt-6 border-t border-border pt-4">
                 <ReplyList discussionId={discussion.id} replies={replies} onRefresh={() => void load()} />

@@ -20,35 +20,24 @@ const Module = requireForMocks("node:module") as typeof import("node:module") & 
 const originalModuleLoad = Module._load;
 
 Module._load = function loadWithMarkdownStubs(request, parent, isMain) {
-  if (request === "@/components/content/MarkdownEditor") {
+  /* SP-19 G3-4：广播正文换 MilkdownEditor（mock 为受控 textarea）。 */
+  if (request === "@/components/markdown/MilkdownEditor") {
     return {
-      MarkdownEditor({
-        id,
-        value,
+      MilkdownEditor({
+        defaultValue,
         onChange,
         disabled,
-        ariaLabel,
-        ariaDescribedBy,
-        ariaInvalid,
       }: {
-        id?: string;
-        value: string;
-        onChange: (value: string) => void;
+        defaultValue?: string;
+        onChange?: (value: string) => void;
         disabled?: boolean;
-        ariaLabel?: string;
-        ariaDescribedBy?: string;
-        ariaInvalid?: boolean;
       }) {
         return (
           <textarea
-            id={id}
-            aria-label={ariaLabel}
-            aria-describedby={ariaDescribedBy}
-            aria-invalid={ariaInvalid}
             data-testid="markdown-editor"
             disabled={disabled}
-            value={value}
-            onChange={(event) => onChange(event.currentTarget.value)}
+            value={defaultValue ?? ""}
+            onChange={(event) => onChange?.(event.currentTarget.value)}
           />
         );
       },
@@ -159,7 +148,8 @@ test("renders the live preview through MarkdownRenderer", async () => {
   fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.titleLabel), {
     target: { value: "Preview title" },
   });
-  fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.bodyLabel), {
+  /* SP-19 G3-4：body 编辑器经封装渲染（role=textbox 组合体），测试经 testid 定位 mock。 */
+  fireEvent.change(view.getByTestId("markdown-editor"), {
     target: { value: "Body with **Markdown**" },
   });
 
@@ -264,7 +254,7 @@ test("shows a localized failure toast when the broadcast API fails", async () =>
       "Maintenance",
     );
     assert.equal(
-      (view.getByLabelText(intlMessages.adminNotifications.form.bodyLabel) as HTMLTextAreaElement).value,
+      (view.getByTestId("markdown-editor") as HTMLTextAreaElement).value,
       "Maintenance starts at 02:00.",
     );
   });
@@ -350,7 +340,7 @@ async function renderValidPage() {
   fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.titleLabel), {
     target: { value: "Maintenance" },
   });
-  fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.bodyLabel), {
+  fireEvent.change(view.getByTestId("markdown-editor"), {
     target: { value: "Maintenance starts at 02:00." },
   });
   await waitFor(() => {
