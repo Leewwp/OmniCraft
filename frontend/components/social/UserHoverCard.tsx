@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import useSWR from "swr";
@@ -15,8 +15,9 @@ import { cn } from "@/lib/utils";
    触发：桌面悬停 200ms 开/移开延迟关；键盘聚焦立即；点击头像/昵称始终进
    /user/:id；触屏（hover:none）不弹卡直接导航。
    定位：触发元下方居中（detail-creator）或左对齐（dynamic，评论作者），
-   视口/浮层可视区钳制 + 下方不足上翻；scroll/resize 跟随重定位，触发元
-   离屏即关。数据：GET /users/:id（SWR 缓存去重，仅浮卡打开时取数）。 */
+   视口/浮层可视区钳制 + 下方不足上翻（上翻按实测卡高锚定底边，#506）；
+   scroll/resize 跟随重定位，触发元离屏即关。数据：GET /users/:id（SWR
+   缓存去重，仅浮卡打开时取数）。 */
 
 const HOVER_DELAY_MS = 200;
 const CARD_WIDTH = 300;
@@ -75,6 +76,7 @@ export function UserHoverCard({
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLAnchorElement>(null);
+  const cardRef = useRef<HTMLSpanElement>(null);
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -121,13 +123,29 @@ export function UserHoverCard({
         ? rect.left + rect.width / 2 - CARD_WIDTH / 2
         : rect.left;
     const left = Math.min(Math.max(visibleLeft, anchoredLeft), Math.max(visibleLeft, visibleRight - CARD_WIDTH));
+    // 上翻锚定卡底边贴触发元上缘：卡高优先用已渲染卡片的实测值（首开尚无
+    // 卡可测时退回估算），估算偏高会让卡片整体上浮出空隙（#506）。
+    const cardHeight = cardRef.current?.offsetHeight || CARD_EST_HEIGHT;
     const belowTop = rect.bottom + VIEWPORT_MARGIN;
     const top =
-      belowTop + CARD_EST_HEIGHT <= visibleBottom
+      belowTop + cardHeight <= visibleBottom
         ? belowTop
-        : Math.max(visibleTop, rect.top - CARD_EST_HEIGHT - VIEWPORT_MARGIN);
+        : Math.max(visibleTop, rect.top - cardHeight - VIEWPORT_MARGIN);
     return { left, top };
   }, [placement]);
+
+  /* 打开后按实测卡高在绘制前二次校正（首开 computePosition 用估算高度占位）；
+     profile 异步落卡改变卡高时同样重校。位置计算在 updater 外执行（保持
+     setState updater 纯度，StrictMode 双执行安全）。 */
+  useLayoutEffect(() => {
+    if (!open) return;
+    const next = computePosition();
+    if (!next) {
+      setOpen(false);
+      return;
+    }
+    setPosition(next);
+  }, [open, computePosition, profile]);
 
   const showNow = useCallback(() => {
     clearTimers();
@@ -247,6 +265,7 @@ export function UserHoverCard({
       </Link>
       {open && hoverCapable && position && (
         <span
+          ref={cardRef}
           role="dialog"
           aria-label={t("user.hoverCardLabel", { name: username })}
           className="fixed z-50 block w-[300px] rounded-lg border border-border bg-card p-4 shadow-md"
@@ -272,7 +291,7 @@ export function UserHoverCard({
               ) : null}
             </span>
           </span>
-          <span className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="mt-3 flex items-center justify-center gap-4 text-xs text-muted-foreground">
             <span>
               <strong className="font-semibold text-foreground">{profile?.stats?.contents_count ?? 0}</strong>{" "}
               {t("user.statContents")}
@@ -286,7 +305,7 @@ export function UserHoverCard({
               {t("user.statFollowers")}
             </span>
           </span>
-          <span className="mt-3 flex items-center justify-end gap-2">
+          <span className="mt-3 flex items-center justify-center gap-2">
             {isSelf ? (
               <Link
                 href={`/user/${userId}`}
