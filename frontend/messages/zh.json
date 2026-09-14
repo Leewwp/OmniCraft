@@ -2730,5 +2730,14 @@
     "short_drama": "短剧",
     "vtuber": "虚拟主播",
     "other": "其他"
+  },
+  "editor": {
+    "wordCount": "{count} 字",
+    "draftFound": "检测到未提交的草稿",
+    "restoreDraft": "恢复草稿",
+    "discardDraft": "丢弃",
+    "imageUploading": "图片上传中…",
+    "imageUploadFailed": "图片上传失败，请重试",
+    "imageDisabled": "当前场景不支持插入图片"
   }
 }
