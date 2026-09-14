@@ -11,6 +11,8 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { FileUploader, toUploadedAsset, type UploadItem } from "@/components/content/FileUploader";
 import { MilkdownEditor, type MilkdownEditorHandle } from "@/components/markdown/MilkdownEditor";
+import { PublishPhonePreview } from "@/components/studio/PublishPhonePreview";
+import { useAuth } from "@/contexts/AuthContext";
 import { FilterPills } from "@/components/ui/filter-pills";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
@@ -240,6 +242,9 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   /* SP-19 G3-2：正文编辑器实例句柄——AI 填充/撤销恢复走 setMarkdown
    * （replaceAll 三场景），提交取值 getMarkdown 兜底，成功后清草稿。 */
   const milkdownRef = useRef<MilkdownEditorHandle>(null);
+  /* SP-19 G3-3：<1280px 降级「编辑/预览」tab；≥1280px 双栏 sticky 手机预览。 */
+  const [previewTab, setPreviewTab] = useState<"edit" | "preview">("edit");
+  const { user } = useAuth();
   const [briefDesc, setBriefDesc] = useState("");
   /* T25：公开配置（上传上限动态消费） */
   const [publicConfig, setPublicConfig] = useState<PublicConfig | null>(null);
@@ -461,8 +466,42 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
 
   const maxMB = uploadMaxMBForType(publicConfig, fileType);
 
+  const previewNode = (
+    <PublishPhonePreview
+      title={title}
+      markdown={isFilePrimary ? undefined : body}
+      plainText={isFilePrimary ? briefDesc : undefined}
+      authorName={user?.username ?? t('studio.publish.previewAuthorFallback')}
+    />
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
+    <div>
+      {/* <1280px 降级：编辑/预览 tab（简单可靠）。 */}
+      <div className="mb-4 flex gap-2 xl:hidden" role="tablist" aria-label={t("studio.preview.cardTitle")}>
+        {(["edit", "preview"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            role="tab"
+            aria-selected={previewTab === mode}
+            onClick={() => setPreviewTab(mode)}
+            className={cn(
+              "rounded-full border px-4 py-1.5 text-xs font-medium transition-colors",
+              previewTab === mode
+                ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t(mode === "edit" ? "studio.preview.tabEdit" : "studio.preview.tabPreview")}
+          </button>
+        ))}
+      </div>
+      {previewTab === "preview" && (
+        <div className="xl:hidden">{previewNode}</div>
+      )}
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start xl:gap-6">
+    <form onSubmit={handleSubmit} className={cn("max-w-2xl space-y-6", previewTab === "preview" && "hidden xl:block")}>
       {/* Back */}
       <button type="button" onClick={onBack}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -858,5 +897,11 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
         <Button type="button" variant="ghost" onClick={onBack}>{t('studio.publish.cancel')}</Button>
       </div>
     </form>
+      <aside className="hidden xl:block" aria-label={t("studio.preview.cardTitle")}>
+        <div className="sticky top-[calc(var(--header-h)+16px)]">{previewNode}</div>
+      </aside>
+      </div>
+    </div>
+
   );
 }
