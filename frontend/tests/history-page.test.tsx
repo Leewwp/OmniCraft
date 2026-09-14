@@ -276,7 +276,7 @@ test("history page keeps last successful data when refresh fails", async () => {
 
 async function renderHistoryPage() {
   const { render } = await import("@testing-library/react");
-  const pageModule = await import("../app/(protected)/history/page");
+  const pageModule = await import("../app/(protected)/(headered)/history/page");
   const HistoryPage = pageModule.default;
   return render(
     <IntlProvider locale="en" messages={messages}>
