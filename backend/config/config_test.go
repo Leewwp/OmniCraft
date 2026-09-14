@@ -630,6 +630,12 @@ func TestDefaultConfigJSONBodyLimitAllowsTextUploads(t *testing.T) {
 	require.GreaterOrEqual(t, cfg.RateLimit.MaxJSONBodyBytes, minBodyBytes)
 }
 
+func TestDefaultConfigDMMaxLength(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+	// SP-19 G1-5：私信长度上限出厂值与前端 MAX_DM_LENGTH（2000）对齐。
+	require.Equal(t, 2000, cfg.Limits.DMMaxLength)
+}
+
 func TestBrowseHistoryConfig(t *testing.T) {
 	cfg := loadDefaultConfigForTest(t)
 

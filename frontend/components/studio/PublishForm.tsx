@@ -388,7 +388,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
     try {
       const payload: Record<string, unknown> = {
         title: title.trim(), zone, content_type: contentType,
-        body: description, tags, is_public: isPublic,
+        description, tags, is_public: isPublic,
         allow_copy: allowCopy, agent_enabled: agentEnabled,
         allow_comments: allowComments,
       };
