@@ -721,7 +721,7 @@ interface AgentFollowUpChipsProps {
 P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCard.tsx`）；头像/昵称身份入口的统一资料浮层。**已接入面（T4 收口）**：完整详情页创作者区（ContentDetail 布局A 行）、浮窗 split/单列侧栏创作者卡（OverlayLayer）与独立详情页侧栏（Host，2026-09-13 起接真 FollowButton + is_following 初始态）、竖屏变体作者行（ContentDetail 创作者区自带，旧 authorAction 透传已移除防双按钮）、评论区评论与两级回复作者（昵称触发，紧凑行 showAvatar=false；头像维持 CommentAvatar 展示位防双重头像）。评论区折叠态不显示作者，无触发器。**讨论区三处（#494）**：枢纽讨论列表行作者（IPDiscussionsTab，20px 头像 + 昵称，dynamic 定位；行本体 div role=button 开帖浮层，作者链接 stopPropagation 防误开）、讨论帖详情浮层楼主（DiscussionDetailOverlay 头部，24px 头像）、回帖作者（ReplyList 顶层与嵌套，20px 头像；无 avatar_url 首字母兜底）。
 
 **Key Constraints**
-- 卡片 300px 宽、1px border 圆角 bg-card + shadow-md（弹层同 confirm-modal 视觉档）；头像 56px；统计三项 `内容 N · 获赞 N · 粉丝 N`（text-xs，数字 font-semibold）。
+- 卡片 300px 宽、1px border 圆角 bg-card + shadow-md（弹层同 confirm-modal 视觉档）；头像 56px；统计三项 `内容 N · 获赞 N · 粉丝 N`（text-xs，数字 font-semibold）。统计行与操作行（发私信/关注、本人视角「查看主页」）在卡内**水平居中**（justify-center，SP-18 #507）；头部行（头像+昵称+bio）保持既有左对齐布局。
 - 数据：`GET /users/:id`（响应形状 = user 内嵌 followers_count/is_following/stats{contents_count,likes_received}），SWR key=`/api/v1/users/:id`，revalidateOnFocus:false + dedupingInterval 60s，仅浮卡打开时取数。
 
 **触发与定位**

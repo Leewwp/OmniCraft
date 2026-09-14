@@ -291,7 +291,7 @@ export function UserHoverCard({
               ) : null}
             </span>
           </span>
-          <span className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="mt-3 flex items-center justify-center gap-4 text-xs text-muted-foreground">
             <span>
               <strong className="font-semibold text-foreground">{profile?.stats?.contents_count ?? 0}</strong>{" "}
               {t("user.statContents")}
@@ -305,7 +305,7 @@ export function UserHoverCard({
               {t("user.statFollowers")}
             </span>
           </span>
-          <span className="mt-3 flex items-center justify-end gap-2">
+          <span className="mt-3 flex items-center justify-center gap-2">
             {isSelf ? (
               <Link
                 href={`/user/${userId}`}

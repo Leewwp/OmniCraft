@@ -21,8 +21,8 @@ const { within } = require("@testing-library/react") as typeof import("@testing-
 // SP-17/T3 (#492)：UserHoverCard——P-01 UserIdentity 生产版。
 // 覆盖：触发元链接 / 悬停 200ms 开卡（SWR 取数）/ Esc 关闭归还焦点 /
 // 自视角不显示关注私信（查看主页）/ 无 userId 退化纯展示。
-// SP-18 修复轮（#506）：上翻按实测卡高锚定底边（间距 = margin 量级）、
-// 打开后 scroll 跟随重定位。
+// SP-18 修复轮（#506/#507）：上翻按实测卡高锚定底边（间距 = margin 量级）、
+// 打开后 scroll 跟随重定位、统计行与操作行卡内水平居中。
 
 {
   const globalStore = globalThis as unknown as { localStorage?: Storage; window: typeof window };
@@ -143,6 +143,11 @@ test("user hover card", async (t) => {
     assert.ok(within(card).getByText("12"), "contents count must render");
     assert.ok(within(card).getByRole("button", { name: "Follow" }), "follow action must render");
     assert.ok(within(card).getByRole("button", { name: "Message" }), "message action must render");
+    // #507：统计行与操作行在卡内水平居中（头部行保持既有布局）。
+    const statsRow = (within(card).getByText("12").parentElement as HTMLElement).parentElement as HTMLElement;
+    assert.ok(statsRow.className.includes("justify-center"), "stats row must be centered in the card");
+    const actionsRow = (within(card).getByRole("button", { name: "Follow" }).parentElement ?? card) as HTMLElement;
+    assert.ok(actionsRow.className.includes("justify-center"), "actions row must be centered in the card");
 
     restoreGet();
     restoreMedia();
