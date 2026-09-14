@@ -8,7 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { FileUploader, type UploadedAsset } from "@/components/content/FileUploader";
-import { ipCategoryOptions } from "@/components/ip/ipCategory";
+import { IP_CATEGORIES } from "@/lib/ip-categories";
 import { FilterPills } from "@/components/ui/filter-pills";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 const NAME_MAX_LENGTH = 255;
 const MAX_TAGS = 10;
 
-const CATEGORY_OPTIONS = ipCategoryOptions.filter((option) => option.key !== "all");
+/* SP-19 G1-3：IP 发布表单改用 IP 分类词表（原误用内容类型词表 text/image/…）。 */
+const CATEGORY_OPTIONS = IP_CATEGORIES;
 
 interface IPPublishFormProps {
   onBack: () => void;
@@ -234,7 +235,7 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
           wrap
           clearable
           ariaLabel={t("categoryLabel")}
-          options={CATEGORY_OPTIONS.map((option) => ({ value: option.key, label: tRoot(option.label) }))}
+          options={CATEGORY_OPTIONS.map((option) => ({ value: option.slug, label: tRoot(option.labelKey) }))}
           value={category}
           onChange={setCategory}
         />

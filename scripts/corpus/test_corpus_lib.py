@@ -62,7 +62,7 @@ class TagTests(unittest.TestCase):
 
 class CategoryTests(unittest.TestCase):
     def test_known_ip_slugs(self):
-        self.assertEqual(lib.ip_category_slug("原神"), "gaming")
+        self.assertEqual(lib.ip_category_slug("原神"), "game")
         self.assertEqual(lib.ip_category_slug("哈利·波特"), "film_tv")
         self.assertEqual(lib.ip_category_slug("全职高手"), "literature")
 

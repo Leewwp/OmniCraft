@@ -4,12 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Plus, Search, SearchX } from "lucide-react";
+import { AlertCircle, Plus, SearchX } from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
-import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPills } from "@/components/ui/filter-pills";
+import { SearchInput } from "@/components/ui/search-input";
+import { IP_CATEGORY_FILTERS } from "@/lib/ip-categories";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SortSelect } from "@/components/ui/SortSelect";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,24 +45,11 @@ interface IPBrowseClientProps {
   initialTotal: number;
 }
 
-const IP_CATEGORIES = [
-  { slug: "", labelKey: "home.allIps" },
-  { slug: "game", labelKey: "home.categoryGaming" },
-  { slug: "film_tv", labelKey: "home.categoryFilmTv" },
-  { slug: "anime", labelKey: "home.animeCategory" },
-  { slug: "manga", labelKey: "home.mangaCategory" },
-  { slug: "novel", labelKey: "home.novelCategory" },
-  { slug: "music", labelKey: "home.audio" },
-  { slug: "variety", labelKey: "home.varietyShowCategory" },
-  { slug: "short_drama", labelKey: "home.shortDramaCategory" },
-  { slug: "vtuber", labelKey: "home.other" },
-  { slug: "other", labelKey: "home.other" },
-];
-
+/* SP-19 G1-3：分类词表单一事实源（lib/ip-categories）；hot 排序后端从未
+ * 实现过，撤选项（Q15-A），默认 newest。 */
 const SORT_OPTIONS = [
-  { value: "hot", labelKey: "ip.sortHot" },
-  { value: "most_contents", labelKey: "ip.sortMostContents" },
   { value: "newest", labelKey: "ip.sortNewest" },
+  { value: "most_contents", labelKey: "ip.sortMostContents" },
   { value: "name", labelKey: "ip.sortByName" },
 ];
 
@@ -74,7 +62,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
   const [ips, setIPs] = useState<IPItem[]>(initialIPs);
   const [total, setTotal] = useState(initialTotal);
   const [category, setCategory] = useState(searchParams.get("category") || "");
-  const [sort, setSort] = useState(searchParams.get("sort") || "hot");
+  const [sort, setSort] = useState(searchParams.get("sort") || "newest");
   const [search, setSearch] = useState(searchParams.get("q") || "");
   const [searchInput, setSearchInput] = useState(searchParams.get("q") || "");
   const [loading, setLoading] = useState(false);
@@ -120,7 +108,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
   useEffect(() => {
     const params = new URLSearchParams();
     if (category) params.set("category", category);
-    if (sort !== "hot") params.set("sort", sort);
+    if (sort !== "newest") params.set("sort", sort);
     if (search.trim()) params.set("q", search.trim());
     const qs = params.toString();
     router.replace(qs ? `/ips?${qs}` : "/ips", { scroll: false });
@@ -170,15 +158,13 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
 
       {/* Search + Sort row */}
       <div className="mb-4 grid max-w-[560px] grid-cols-[minmax(0,1fr)_auto] gap-2">
-        <form role="search" onSubmit={handleSearchSubmit} className="relative min-w-0">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+        <form role="search" onSubmit={handleSearchSubmit} className="min-w-0">
+          <SearchInput
             value={searchInput}
-            type="search"
-            onChange={(e) => setSearchInput(e.target.value)}
+            onValueChange={setSearchInput}
+            size="lg"
             placeholder={t('ip.searchPlaceholder')}
             aria-label={t('ip.searchPlaceholder')}
-            className="min-h-11 w-full rounded-full border border-border bg-muted pl-9 pr-4 text-sm placeholder:text-muted-foreground/60 focus:bg-background"
           />
         </form>
         <div className="shrink-0">
@@ -196,7 +182,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
       <FilterPills
         ariaLabel={t('home.ipClassification')}
         className="mb-6"
-        options={IP_CATEGORIES.map((cat) => ({ value: cat.slug, label: t(cat.labelKey) }))}
+        options={IP_CATEGORY_FILTERS.map((cat) => ({ value: cat.slug, label: t(cat.labelKey) }))}
         value={category}
         onChange={setCategory}
       />

@@ -22,6 +22,7 @@
     "next": "Next page",
     "previous": "Previous page",
     "search": "Search IPs, content, creators...",
+    "clearSearch": "Clear search",
     "noData": "No data",
     "close": "Close",
     "removeTag": "Remove {tag}",
@@ -233,11 +234,6 @@
     "categoryProductivity": "Productivity",
     "ipClassification": "IP Categories",
     "allIps": "All IPs",
-    "animeCategory": "Anime",
-    "mangaCategory": "Manga",
-    "novelCategory": "Novel",
-    "varietyShowCategory": "Variety Show",
-    "shortDramaCategory": "Short Drama",
     "management": "Manage",
     "myFavorites": "My Favorites",
     "myCreations": "My Creations",
@@ -1206,7 +1202,6 @@
     "clearAllFilters": "Clear All Filters",
     "loadMore": "Load More",
     "sortByName": "Name",
-    "sortHot": "Hottest",
     "sortMostContents": "Most Content",
     "sortNewest": "Newest",
     "sortLabel": "Sort IPs",
@@ -2722,5 +2717,18 @@
       "title": "Capability boundary",
       "body": "The anonymous surface only returns published, public content (drafts / private / in-review / banned content never appears in any anonymous response); usage-guide safety notes always come from the platform template."
     }
+  },
+  "ipCategory": {
+    "game": "Games",
+    "film_tv": "Film & TV",
+    "anime": "Anime",
+    "manga": "Manga",
+    "novel": "Novel",
+    "literature": "Literature",
+    "music": "Music",
+    "variety": "Variety",
+    "short_drama": "Short Drama",
+    "vtuber": "VTuber",
+    "other": "Other"
   }
 }

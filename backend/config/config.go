@@ -68,7 +68,12 @@ type Config struct {
 	Reputation     ReputationConfig     `mapstructure:"reputation" json:"reputation"`
 	Judge          JudgeConfig          `mapstructure:"judge" json:"judge"`
 	IPProposal     IPProposalConfig     `mapstructure:"ip_proposal" json:"ip_proposal"`
-	Discussion     DiscussionConfig     `mapstructure:"discussion" json:"discussion"`
+	// IPCategories is the IP category allowlist (SP-19 G1-3). Kept in sync
+	// with the frontend single source frontend/lib/ip-categories.ts; IP
+	// creation validates category against it. Extending = frontend constant +
+	// this list + ipCategory.* i18n keys in one small PR (GLOSSARY "IP 分类").
+	IPCategories  []string             `mapstructure:"ip_categories" json:"ip_categories"`
+	Discussion    DiscussionConfig     `mapstructure:"discussion" json:"discussion"`
 	Social         SocialConfig         `mapstructure:"social" json:"social"`
 	Collaboration  CollaborationConfig  `mapstructure:"collaboration" json:"collaboration"`
 	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history" json:"browse_history"`

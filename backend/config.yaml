@@ -223,6 +223,21 @@ ip_proposal:
   pass_threshold: 0.60
   deadline_days: 7
 
+# SP-19 G1-3：IP 分类 allowlist（与前端 lib/ip-categories.ts 单源同步；词表
+# 不定稿，拓展 = 前端常量 + 本表 + i18n 键三处同步小 PR）。
+ip_categories:
+  - game
+  - film_tv
+  - anime
+  - manga
+  - novel
+  - literature
+  - music
+  - variety
+  - short_drama
+  - vtuber
+  - other
+
 discussion:
   hot_decay_hours: 72
 

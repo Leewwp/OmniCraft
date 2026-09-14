@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { MessageSquare, Search } from "lucide-react";
+import { MessageSquare } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserHoverCard } from "@/components/social/UserHoverCard";
@@ -86,15 +87,13 @@ export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountCha
 
   return (
     <div className="flex h-full min-w-0 flex-col" aria-label={t("messages.a11y.conversationList")}>
-      <div className="relative border-b border-border-default px-3 py-3">
-        <Search className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" aria-hidden="true" />
-        <input
-          type="search"
+      <div className="border-b border-border-default px-3 py-3">
+        <SearchInput
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onValueChange={setSearch}
+          size="sm"
           aria-label={t("messages.conversations.searchLabel")}
           placeholder={t("messages.conversations.searchLabel")}
-          className="min-h-11 w-full rounded-md border border-border-default bg-canvas-default py-1.5 pl-8 pr-2 text-sm text-fg-default focus:outline-none focus:ring-2 focus:ring-accent-emphasis"
         />
       </div>
       <div className="flex-1 overflow-y-auto">
