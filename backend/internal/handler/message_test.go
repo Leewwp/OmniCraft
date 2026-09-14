@@ -271,6 +271,44 @@ func TestSendMessageAllowsPassAndReviewText(t *testing.T) {
 	}
 }
 
+func TestSendMessageRejectsOverlongText(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Mode: "debug"}}
+	cfg.Limits.DMMaxLength = 2000
+	reviewer := &fakeTextReviewer{result: "pass"}
+	router, db := setupMessageRouterWithOptions(t, cfg, reviewer, true)
+
+	rec := postMessageForColdStart(t, router, 1, 2, strings.Repeat("超", 2001))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode error response: %v; body = %s", err, rec.Body.String())
+	}
+	if payload.Code != "VALIDATION_ERROR" {
+		t.Fatalf("response code = %q, want VALIDATION_ERROR; body = %s", payload.Code, rec.Body.String())
+	}
+	if got := countMessages(t, db); got != 0 {
+		t.Fatalf("message count = %d, want 0 (overlong dm must not be persisted)", got)
+	}
+	if len(reviewer.calls) != 0 {
+		t.Fatalf("moderation calls = %d, want 0 (length gate runs before moderation)", len(reviewer.calls))
+	}
+
+	// 长度按 rune 计：1500 个汉字（4500 字节）在上限内必须照常发送，
+	// 与前端 MAX_DM_LENGTH（按字符计数）对齐。
+	rec = postMessageForColdStart(t, router, 1, 2, strings.Repeat("好", 1500))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 (runes within limit); body = %s", rec.Code, rec.Body.String())
+	}
+	if got := countMessages(t, db); got != 1 {
+		t.Fatalf("message count = %d, want 1", got)
+	}
+}
+
 func TestSendMessageFailClosedWhenModerationFailsInReleaseMode(t *testing.T) {
 	cfg := &config.Config{Server: config.ServerConfig{Mode: "release"}}
 	reviewer := &fakeTextReviewer{err: errors.New("green api error")}
