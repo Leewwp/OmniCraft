@@ -113,7 +113,7 @@
 - Component: GlobalSearchInput
 - Component: FollowButton 关注按钮（#415 O1b 恒宽规范，取代「已关注=outline」旧契约）
 - Component: NotificationDropdown
-- Component: NotificationList
+- Component: MessageCategoryNav / NotificationDetailItem（SP-18 #509）
 - Component: ConversationList
 - Component: ChatWindow
 - Component: CollabInviteCard 联合创作邀请卡片
@@ -1627,65 +1627,59 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 ## Page: /messages 消息中心
 
 **Key Constraints**
-- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border；Modal/Popover 遵守全局例外。
-- 本轮 scope：通知列表、私信会话列表、`ChatWindow`、广播通知视觉标记、5 分钟未读数轮询兜底。
-- Future/out-of-scope：`/api/v1/notifications/stream` 和 `/api/v1/messages/stream` SSE 实时推送；本轮不得为了 SSE 新增 provider、路由或浏览器验证。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation 的表面保持 shadow-none，颜色引用预定义 token；**例外**：顶栏通知下拉面板 `shadow-md`（SP-18 #509 §4.3 明确）。
+- 主体使用 1px border；Modal/Popover 遵守全局例外。
+- **SP-18 #509（2026-09-14，B 站式改造）**：左栏分类导航 + 内容区双栏；路由 `?channel=all|reply|like|follow|pr|system|broadcast|dm`（默认 all；`?channel=dm&c=<会话>` 深链）；旧 `?tab=notifications|messages` 客户端重定向兼容（→all/dm）。
+- 本轮 scope：分类详情列表、私信会话+聊天、顶栏下拉分类直达、未读徽标三处联动；后端唯一改动 = `GET /notifications` 装饰 sender + target_summary（只增不改）。
+- Future/out-of-scope：`/api/v1/notifications/stream` 和 `/api/v1/messages/stream` SSE 实时推送；对话聚合页（「查看对话」跳评论锚点）；完整移动端 B 站复刻。
 
 **目标与放置**
-- 目标：把通知和私信收敛到同一个双栏消息中心，保留通知时间线、私信会话、未读状态和系统广播的可扫描差异。
+- 目标：B 站式「左栏分类导航 + 右侧类型详情/对话」；分类选中态明确可辨（bg-canvas-subtle 圆角块 + accent 着色，消除「融入背景」痛点）；条目 = 触发者 + 动作 + 原内容引用块结构。
 - 放置：`frontend/app/(protected)/messages/page.tsx`；未登录访问由 protected layout 重定向。
-- Header 通知铃铛继续轮询 `GET /api/v1/notifications/unread-count`，点击跳转 `/messages?tab=notifications`。
+- Header 通知铃铛 = 分类直达下拉（见 `Component: NotificationDropdown`），点击分类项跳 `/messages?channel=<c>`。
 
 **核心组件清单**
 - `Header`
-- `NotificationList`
-- `ConversationList`
-- `ChatWindow`
-- `CollabInviteCard`（后续 collaboration-invites 计划扩展 typed message）
-- `MarkdownRenderer`（广播正文）
-- `EmptyState`
-- `LoadingSpinner`
-- `Toast`
+- `MessageCategoryNav`（左栏分类导航：通知七分类 + 分隔线 + 私信；图标+文案+未读 pill；移动 = 水平滚动 chips）
+- `NotificationDetailList`（分类详情列表：头行 = 分类标题 + 全部已读；滚动触底加载；骨架/空/错误态）
+- `NotificationDetailItem`（条目：UserHoverCard 触发者 + 动作词 + 相对时间 / 载荷安全 Markdown / 原内容引用块 / 分类操作行）
+- `ConversationList` + `ChatWindow`（私信分类内双栏；头像/昵称接 UserHoverCard；`?c=` 深链自动选中）
+- `CollabInviteCard`（typed message）
+- `MarkdownRenderer`（正文/广播）
+- `EmptyState`、`Toast`
 
 **布局规范**
-- PC (>1100px)：页面最大宽度 `1180px`，主内容为 `grid-cols-[320px_minmax(0,1fr)]`；左栏为通知/私信 segmented tabs + 对应列表，右栏为通知详情或 `ChatWindow`。
-- 平板 (701-1100px)：左栏 `280px`，右栏自适应；列表项 unread badge 不得改变行高。
-- 移动 (<=700px)：单栏 list/detail drill-in；顶部保留通知/私信 segmented tabs；进入聊天后提供返回列表按钮。
-- 列表项高度稳定：通知项最小 `72px`，会话项最小 `64px`；头像、红点、badge 使用固定尺寸。
-- 禁止页面 section 再包卡片；列表项可使用 1px border 分隔。
+- PC (≥768px)：页面最大宽度 `1180px`，`grid-cols-[216px_minmax(0,1fr)]`；左栏 = 页标题「消息中心」+ CategoryNav；内容区依分类二选一（通知详情列表 / 私信 `grid-cols-[280px_minmax(0,1fr)]` 会话+聊天）。
+- 移动 (<768px)：左栏折叠为顶部水平滚动 chips（同款选中态语义）；私信降级为会话列表 → 聊天两屏推拉（返回按钮保留）。
+- 通知条目：未读 = 左 3px accent 竖条 + `bg-accent-subtle/40` 底 + 用户名/标题 semibold；引用块 = 灰底圆角（kind 徽标 + 标题，hover accent 边）。
+- 会话项高度稳定：最小 `64px`；头像、badge 固定尺寸；unread badge 不改变行高。
+- 禁止页面 section 再包卡片；列表容器 1px border 圆角，条目 border-b 分隔。
 
 **状态变体**
-- default：通知 Tab 显示混合时间线；私信 Tab 显示左侧会话列表和右侧聊天窗口。
-- loading：列表 skeleton x6；右侧 detail skeleton 保持宽高，不跳动。
-- empty：通知为空和私信为空分别使用 localized EmptyState。
-- error：Toast + 局部重试按钮；保留上一份成功数据。
-- unread：通知和会话列表项显示红点/数字 badge；已读项降低辅助文字对比但仍满足可读性。
-- broadcast：`channel === "broadcast"` 的系统通知使用蓝色左边框、system icon 和 Markdown 摘要；不可只靠颜色区分，需有广播文本/aria-label。
-- direct-message：`ChatWindow` 中本人消息靠右，对方消息靠左，输入框固定在窗口底部。
-- typed-message：非 `text` 类型消息由 `ChatWindow` 分支渲染；未知 `msg_type` 显示安全 fallback 文本，不渲染原始 metadata。
+- default：分类详情列表（sender 装饰缺失时头像占位圆）/ 私信双栏。
+- loading：列表骨架 x2（头像圆 + 双行）；会话骨架沿 ConversationList 现状。
+- empty：分类空态 EmptyState（`messages.noMessages` + hint）；私信空态引导「选择一个会话开始聊天」。
+- error：EmptyState + 重试按钮；保留上一份成功数据。
+- unread：手动已读语义——条目 hover「标记已读」小按钮 + 头行「全部已读」（作用于当前分类）；私信打开会话即已读（现状）。
+- 徽标联动：读/全部已读/进会话后本地乐观更新 + 静默重拉 unread-count 校准（左栏 / 下拉 / 顶栏总徽标三处一致）。
 
 **响应式规则**
-- 移动 (<=700px)：列表和聊天/通知详情互斥显示；所有可点击项触控目标不小于 44px。
-- 平板 (<=1100px)：左栏固定 280px，右栏 min-width 0，长标题 line-clamp。
-- PC (>1100px)：左栏 320px，右栏自适应；消息气泡最大宽度 `min(70%, 620px)`。
+- 移动 (<768px)：chips 触控目标不小于 44px；列表和聊天互斥显示。
+- PC (≥768px)：右栏自适应 min-width 0，长标题 line-clamp；消息气泡最大宽度 `min(70%, 620px)`。
 
 **可访问性**
-- 通知/私信切换使用 `role="tablist"` 或语义按钮组；当前项使用 `aria-current` 或 `aria-selected`。
-- 会话列表项和通知列表项可键盘聚焦；Enter/Space 打开。
-- `ChatWindow` 消息列表使用 `aria-live="polite"`，发送失败 Toast 不抢焦点。
-- 删除/清空类动作必须使用 `ConfirmModal`，打开时焦点锁定，Esc 关闭。
-- Markdown 链接可聚焦；广播图片有安全 fallback alt。
+- 分类导航语义按钮组，当前项 `aria-current="page"`；菜单项键盘可达。
+- 会话列表项 `role="button"` + tabIndex（div 承载，内含 UserHoverCard 链接）；Enter/Space 打开。
+- `ChatWindow` 消息列表 `aria-live="polite"`；发送失败 Toast 不抢焦点。
+- 删除/清空类动作必须 `ConfirmModal`；Markdown 链接可聚焦。
 
 **i18n key namespace**
-- 建议 namespace：`messages.*`。
-- 覆盖：`messages.tabs.*`、`messages.notifications.*`、`messages.conversations.*`、`messages.chat.*`、`messages.broadcast.*`、`messages.empty.*`、`messages.error.*`、`messages.a11y.*`。
-- 不在 TSX 中硬编码“通知/私信/暂无消息/系统广播/发送失败”等文案。
+- namespace：`messages.*`（新增 `messages.detail.*` 动作词/操作/种类徽标、`messages.dropdown.viewAll`；频道文案复用 `notification.*`）。
+- 不在 TSX 中硬编码「回复了你/查看对话/标记已读/已经到底了」等文案。
 
 **Playwright 截图检查点**
-- `screenshots/community-messages-notifications-desktop.png`：PC 双栏，通知 Tab 选中，含 broadcast 蓝色标记和 unread 状态。
-- `screenshots/community-messages-notifications-mobile.png`：移动单栏，私信列表进入 `ChatWindow` 后可返回。
-- 交互检查：tab 切换、通知标记已读、DM 冷启动错误 Toast、输入发送、未知 typed message fallback。
+- 桌面：分类左栏 + 回复类详情（含引用块与未读竖条）；私信三栏；顶栏下拉开合。
+- 交互检查：分类切换 URL 同步、标记已读徽标联动、?tab= 旧链重定向、DM 收发不回归。
 
 ## Page: /rehab 素质建设课程
 
@@ -2020,7 +2014,7 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 
 **与现有组件关系**
 - 复用 `MarkdownRenderer` 的安全渲染规则；若存在 `MarkdownEditor`，沿用发布页编辑器交互，不新增第二套 Markdown 工具。
-- 成功发送后的用户侧展示由 `NotificationList` 负责，本页只显示发送结果，不渲染用户通知列表。
+- 成功发送后的用户侧展示由消息中心分类详情列表（`NotificationDetailList`，SP-18 #509 起替代旧 NotificationList）负责，本页只显示发送结果，不渲染用户通知列表。
 - 使用 AdminLayout/AdminNav 的现有导航密度和 1px 边框语言，不创建独立后台设计系统。
 
 **Playwright 截图检查点**
@@ -3869,125 +3863,86 @@ interface FollowButtonProps {
 - hover/focus-visible（已关注）：destructive 边框与文字 + 文案切换。
 - disabled：busy/interactionBlocked；title = denial 原因的可读文案。
 
-## Component: NotificationDropdown
+## Component: NotificationDropdown 顶栏通知下拉（SP-18 #509 分类直达菜单）
 
 **Key Constraints**
-- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- B 站式分类直达菜单（参考图 4）：职责收敛为导航——图标 + 文案 + 未读徽标（七通知分类 + 私信占位）+ 底部通栏「查看全部 → /messages」；**不再展示最近通知条目**（行为变更，spec 默认接受）。
+- 面板 `shadow-md` + 8px 圆角（rounded-lg）为本节明确 elevation（SP-18 #509 §4.3，覆盖全局扁平默认）。
+- 徽标数据复用 AuthContext unread-count 拉取节奏（进入页面/展开时刷新），不新增轮询。
 
-**Props 接口**
+**Props/内部状态**
 ```ts
-interface NotificationDropdownProps {
-  className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
-}
+// 无外部 props；数据 = useAuth().unreadCounts
+// 状态：open、focusIndex（键盘菜单项游标）、开/关防抖计时器
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
-
-**尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 面板宽 288px（w-72），紧贴 Header 下缘与铃铛右对齐（absolute right-0 top-full mt-1）。
+- 头行 = 「消息通知」标题（border-b）；菜单区 `role="menu"`，每项 = 频道图标 16px + 文案 14px + 未读 pill（`bg-accent-emphasis text-white`，0 不渲染，>99 显示 99+）；底部通栏 = 「查看全部 →」accent 文字按钮（border-t）。
+- 与 `MessageCategoryNav` 共用频道定义与图标（components/messages/MessageCategoryNav.tsx 的 MESSAGE_CHANNELS/DM_CHANNEL）。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default：分类菜单；触屏点击切换开合（遮罩层仅移动端渲染）。
+- hover：进入触发器/面板 150ms 展开，移出 250ms 收起（移入面板取消收起计时）。
+- keyboard：按钮 focus + Enter/↓ 展开；↑↓ 在菜单项与触发器间移动（focus 高亮 bg-canvas-subtle）；Enter 选中跳 `/messages?channel=<c>`；Esc 收起并归还焦点。
+- badge：各频道 unread_counts；顶栏总徽标 = total（destructive 底，>99 显示 99+）。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
+- 移动：点击切换（hover 不可用）；面板宽 `min(20rem, calc(100vw-2rem))` 语义。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 菜单项 = 真链接 `<a>`（可 tab、中键新开），点击 preventDefault 走 router.push 并收起。
+- 「查看全部」→ `/messages`（默认 all 分类）。
 
-## Component: NotificationList
+## Component: MessageCategoryNav 消息分类导航（SP-18 #509）
 
 **Key Constraints**
-- 用于 `/messages` 左栏通知时间线；不是 Header 下拉通知组件。
-- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，列表容器和列表项均使用 1px border / divider，不使用 shadow。
-- `channel === "broadcast"` 的系统广播必须同时使用文本、图标或 aria-label 与普通通知区分，不得只靠蓝色边框。
-- Markdown 正文摘要必须走安全 Markdown 渲染/摘要链路，不渲染原始 HTML。
+- 消息中心左栏（B 站式）：通知七分类（全部/回复我的/收到的赞/关注/PR/系统消息/广播）+ 分隔线 + 私信；每项 = 频道图标 + 文案 + 未读 pill 徽标。
+- 选中态 = `bg-canvas-subtle` 圆角块（8px）+ `text-accent-emphasis` + 图标着色——与背景明确区分（本组件即「融入背景」痛点的解面）。
+- 频道定义与图标单一来源：`MESSAGE_CHANNELS` / `DM_CHANNEL`（顶栏下拉共用）。
 
 **Props 接口**
 ```ts
-type NotificationChannel = 'reply' | 'like' | 'system' | 'pr' | 'follow' | 'broadcast';
-
-interface NotificationListItem {
-  id: number;
-  type: string;
-  channel: NotificationChannel;
-  title: string;
-  body?: string;
-  is_read: boolean;
-  target_type?: string;
-  target_id?: number;
-  created_at: string;
-  sender?: {
-    id: number;
-    username: string;
-    avatar_url?: string;
-  };
-}
-
-interface NotificationListProps {
-  className?: string;
-  notifications: NotificationListItem[];
-  selectedId?: number;
-  isLoading?: boolean;
-  error?: string;
-  onSelect?: (notification: NotificationListItem) => void;
-  onMarkRead?: (notificationId: number) => void;
-  onRetry?: () => void;
+interface MessageCategoryNavProps {
+  active: MessageChannel;                 // 'all'|'reply'|'like'|'follow'|'pr'|'system'|'broadcast'|'dm'
+  unreadCounts: UnreadCounts;             // 通知各频道（含 total）
+  dmUnread: number;                       // 私信会话未读聚合（页面上抛）
+  onSelect: (channel: MessageChannel) => void;
+  orientation?: 'vertical' | 'horizontal'; // 桌面侧栏 / 移动水平 chips
 }
 ```
 
-**视觉结构**
-- 外层容器是纵向列表，不包二层卡片；列表项之间使用 `border-b border-border-default` 或 `divide-y`。
-- 每项结构：左侧 channel icon / broadcast marker，中央标题、摘要、时间，右侧 unread dot 或 mark-read icon button。
-- 广播项：左边框 `border-l-2 border-accent-emphasis`，标题前显示 localized `messages.broadcast.label`，摘要最多两行。
-- 普通通知：无左强调边框；未读项使用更高字重和 unread dot。
+**视觉结构/状态**
+- 垂直形态：`flex flex-col gap-1`，项 `px-3 py-2 rounded-lg text-sm`；水平形态：`flex-row overflow-x-auto` + compact 间距。
+- 未读 pill：`bg-accent-emphasis text-white h-5 min-w-5 rounded-full text-[10px]`，ml-auto，>99 显示 99+；0 不渲染。
+- 当前项 `aria-current="page"`；全部项键盘可聚焦（focus ring）。
 
-**尺寸规范**
-- 列表项最小高度 `72px`，`px-3 py-3`，触控目标不小于 44px。
-- 标题 `text-sm font-medium`，摘要和时间 `text-xs text-fg-muted`。
-- unread dot 固定 `w-2 h-2`，不得改变行高。
+## Component: NotificationDetailItem 通知详情条目（SP-18 #509 §4.1）
+
+**Key Constraints**
+- B 站式三行结构：触发者（UserHoverCard 头像 32px + 用户名，#505 吸收）+ 动作词 + 相对时间 / 动作载荷摘录（安全 Markdown）/ 原内容引用块（target_summary：kind 徽标 + 标题，点击跳原内容）/ 分类操作行。
+- 未读 = 左侧 3px accent 竖条 + `bg-accent-subtle/40` + 用户名/标题 semibold；已读手动（hover「标记已读」，§5.3）。
+- 系统/广播 = 图标圆（Info/Megaphone + 灰底）非头像；正文最多 3 行安全 Markdown。
+
+**分类操作行（§4.1 表）**
+- 回复我的：回复 / 查看对话 → 原内容评论锚点（kind=content 带 `?comments_focus=1#comments` 聚焦输入框，Q2 裁决 A；kind=discussion 落 IP Hub 讨论浮层）。
+- 收到的赞：查看作品（target url）；关注：关注 TA（真 FollowButton）；PR：查看 PR（/studio/pr-requests）。
+- 相对时间：Intl.RelativeTimeFormat（分钟/小时/天，≥30 天回退日期）。
+
+**数据形状（后端装饰，响应只增不改）**
+```ts
+interface DecoratedNotification {
+  /* …原 Notification 字段原样… */
+  sender?: { id: number; username: string; avatar_url: string; bio?: string } | null;
+  target_summary?: { kind: string; title?: string; url?: string } | null;
+}
+```
 
 **状态变体**
-- default: 按 `created_at` 倒序展示通知。
-- unread: 标题加粗，显示 unread dot；已读项不降低到不可读对比度。
-- selected: 当前详情在右栏展示时，列表项使用 tokenized accent border 或背景。
-- broadcast: 见视觉结构；广播摘要可展开到右栏详情，但列表内仍保持两行。
-- loading: skeleton 列表 x6，保持列表宽度不变。
-- empty: `EmptyState`，文案来自 `messages.notifications.empty.*`。
-- error: 局部错误 + retry button；若父页面已有旧数据，保留旧数据并在顶部显示轻量错误提示。
-
-**响应式行为**
-- PC/平板：在 `/messages` 左栏内占满宽度。
-- 移动：作为单栏列表显示；点击通知进入详情视图并提供返回。
+- unread/read 如上；sender 缺失（装饰查询无此用户）= 头像占位圆 + 退化首行标题；target_summary 缺失 = 无引用块无操作行跳转。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击/Enter/Space 打开详情或跳转目标；缺少有效 target 的通知只打开详情，不创建断链。
-- 标记已读 icon button 必须有 `aria-label`，不能吞掉列表项点击事件。
-- 所有可见文案走 `messages.notifications.*` / `messages.broadcast.*`。
+- 全局切换暗色类后自动映射 token 变量。
 
 ## Component: ConversationList
 

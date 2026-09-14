@@ -1886,7 +1886,20 @@
       "kindAppeal": "申诉",
       "kindReport": "举报",
       "kindFeedback": "反馈",
-      "kindMessage": "私信"
+      "kindMessage": "私信",
+      "repliedYou": "回复了你",
+      "likedYourWork": "赞了你的作品",
+      "followedYou": "关注了你",
+      "sentYouPR": "向你发起了 PR",
+      "replyAction": "回复",
+      "viewConversation": "查看对话",
+      "viewWork": "查看作品",
+      "viewPR": "查看 PR",
+      "followUser": "关注 TA",
+      "markRead": "标记已读",
+      "endOfList": "已经到底了",
+      "loadMore": "加载更多",
+      "categoryTitle": "消息中心"
     },
     "dropdown": {
       "viewAll": "查看全部"
