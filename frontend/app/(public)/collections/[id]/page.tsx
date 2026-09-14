@@ -97,7 +97,8 @@ export default function CollectionDetailPage({ params, searchParams }: Collectio
   async function handleDelete() {
     if (state.status !== "ready" || state.collection.is_default) return;
     await deleteCollection(state.collection.id);
-    router.push(`/user/${state.collection.user_id ?? ""}/collections`);
+    // #508：收藏集列表已收敛为个人主页页内 tab，删除后回主页对应 tab（免 301 跳一跳）。
+    router.push(`/user/${state.collection.user_id ?? ""}?tab=collections`);
   }
 
   if (state.status === "loading") {
