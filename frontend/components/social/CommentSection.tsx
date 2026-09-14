@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { MessageCircle, ThumbsUp, ThumbsDown, Reply, Pencil, Trash2, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,24 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
 
   const canComment = !!user && capabilities.can_interact;
   const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
+
+  /* SP-18 #509（Q2 裁决 A）：消息中心「回复」深链带 ?comments_focus=1#comments
+     ——滚到评论区并聚焦输入框；一次性消费后清参，避免刷新重复聚焦。 */
+  const sectionRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("comments_focus") !== "1") return;
+    params.delete("comments_focus");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}#comments`);
+    const section = sectionRef.current;
+    if (!section) return;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      section.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+    }, 400);
+  }, [loading]);
 
   useEffect(() => {
     void loadComments();
@@ -227,7 +245,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div ref={sectionRef} id="comments" className={cn("scroll-mt-20 space-y-4", className)}>
       <div className="flex items-center gap-2">
         <MessageCircle className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-sm font-semibold">

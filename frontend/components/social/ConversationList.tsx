@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { MessageSquare, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
 
 export interface Conversation {
   id: number;
@@ -22,9 +23,11 @@ interface ConversationListProps {
   onRetry?: () => void;
   // 会话未读总数上抛（FIX-31b/F-093）：消息页会话 Tab 计数改真实聚合。
   onUnreadCountChange?: (count: number) => void;
+  /** ?channel=dm&c=<id> 深链：列表加载后自动选中该会话（SP-18 #509 §4.2）。 */
+  initialSelectedId?: number;
 }
 
-export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountChange }: ConversationListProps) {
+export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountChange, initialSelectedId }: ConversationListProps) {
   const t = useTranslations();
   const locale = useLocale();
   const { user } = useAuth();
@@ -32,6 +35,8 @@ export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountCha
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
+  // 深链自动选中只做一次（会话加载完成时上抛 onSelect），用户手动切换后不再抢选。
+  const initialSelectDoneRef = useRef(false);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -40,12 +45,17 @@ export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountCha
       const next = data.conversations || [];
       setConversations(next);
       onUnreadCountChange?.(next.reduce((sum, c) => sum + (c.unread_count ?? (c.unread ? 1 : 0)), 0));
+      if (!initialSelectDoneRef.current && initialSelectedId) {
+        const matched = next.find((c) => c.id === initialSelectedId);
+        initialSelectDoneRef.current = true;
+        if (matched) onSelect(matched);
+      }
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [onUnreadCountChange]);
+  }, [onUnreadCountChange, initialSelectedId, onSelect]);
 
   useEffect(() => {
     if (user) void loadConversations();
@@ -109,18 +119,38 @@ export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountCha
             const lastMessage = conversation.last_message?.msg_type === "collab_invite"
               ? t("messages.conversations.collabInviteSummary")
               : conversation.last_message?.text ?? conversation.last_message?.body ?? t("messages.conversations.startConversation");
+            /* 行本体 div role=button 承载选择（SP-18 #509：头像/昵称接
+               UserHoverCard，button 内不允许嵌套交互元素，沿 IPDiscussionsTab 先例）。 */
             return (
-              <button
+              <div
                 key={conversation.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelect(conversation)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(conversation);
+                  }
+                }}
                 aria-current={activeId === conversation.id ? "true" : undefined}
-                className={`flex min-h-16 w-full items-center border-b border-border-default border-l-2 px-3 py-3 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-emphasis ${activeId === conversation.id ? "border-l-accent-emphasis bg-canvas-subtle" : "border-l-transparent"}`}
+                className={`flex min-h-16 w-full cursor-pointer items-center border-b border-border-default border-l-2 px-3 py-3 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-emphasis ${activeId === conversation.id ? "border-l-accent-emphasis bg-canvas-subtle" : "border-l-transparent"}`}
               >
                 <div className="flex min-w-0 w-full items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-sm font-semibold text-accent-emphasis">
-                    {(other?.username ?? "?").slice(0, 1).toUpperCase()}
-                  </div>
+                  {other?.id ? (
+                    <UserHoverCard
+                      userId={other.id}
+                      username={other?.username ?? "?"}
+                      avatarUrl={other?.avatar_url || undefined}
+                      size={40}
+                      placement="dynamic"
+                      showAvatar={true}
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-sm font-semibold text-accent-emphasis">
+                      ?
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className={`truncate text-sm ${unreadCount > 0 ? "font-semibold text-fg-default" : "font-medium text-fg-default"}`}>
@@ -138,7 +168,7 @@ export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountCha
                     </time>
                   </div>
                 </div>
-              </button>
+              </div>
             );
           })
         )}
