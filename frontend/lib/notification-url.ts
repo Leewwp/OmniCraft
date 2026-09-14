@@ -31,7 +31,8 @@ export function getNotificationUrl(n: NotificationTarget): string {
       case "feedback_ticket":
         return "/feedback/mine";
       case "message":
-        return "/messages?tab=messages";
+        // SP-18 #509：消息中心 ?channel= 路由模型（旧 ?tab= 由页面重定向兜底）。
+        return "/messages?channel=dm";
       default:
         return "/messages";
     }
