@@ -26,7 +26,7 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	notifications, total, err := h.notifRepo.List(callerID, channel, page, pageSize)
+	notifications, total, err := h.notifRepo.ListDecorated(callerID, channel, page, pageSize)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return

@@ -20,12 +20,14 @@ test("communication layouts localize visible guard and skip-link copy", async ()
   assert.match(protectedLayout, /t\("suspendedTitle"\)/);
 });
 
-test("message center uses semantic tabs and the approved responsive columns", async () => {
+test("message center uses the channel nav layout and the approved responsive columns", async () => {
   const page = await source("app/(protected)/messages/page.tsx");
-  assert.match(page, /role="tablist"/);
-  assert.match(page, /aria-selected=\{tab === tKey\}/);
-  assert.match(page, /min-\[701px\]:grid-cols-\[280px_minmax\(0,1fr\)\]/);
-  assert.match(page, /min-\[1101px\]:grid-cols-\[320px_minmax\(0,1fr\)\]/);
+  // SP-18 #509：B 站式双栏（左栏分类导航 ?channel= + 内容区）；旧 ?tab= 客户端重定向兼容。
+  assert.match(page, /MessageCategoryNav/);
+  assert.match(page, /min-\[768px\]:grid-cols-\[216px_minmax\(0,1fr\)\]/);
+  assert.match(page, /NotificationDetailList/);
+  assert.match(page, /channel=dm&c=/);
+  assert.match(page, /tab === "messages"|tab === "notifications"/);
   assert.doesNotMatch(page, /style=\{\{/);
 });
 
@@ -48,11 +50,15 @@ test("conversation and chat surfaces preserve endpoints and expose stable states
   assert.doesNotMatch(chat, /err\.message|error\.message/);
 });
 
-test("notification dropdown uses semantic Indigo contrast and labeled status", async () => {
+test("notification dropdown is the category menu with labeled status and badges", async () => {
   const dropdown = await source("components/social/NotificationDropdown.tsx");
-  assert.match(dropdown, /bg-accent-subtle/);
-  assert.match(dropdown, /text-accent-emphasis/);
-  assert.match(dropdown, /messages\.broadcast\.label/);
+  // SP-18 #509 §4.3：分类直达菜单（图标+文案+未读徽标+查看全部），面板
+  // shadow-md + 8px 圆角为 spec 明确要求（替代旧 shadow-none 扁平规则）。
+  assert.match(dropdown, /MESSAGE_CHANNELS/);
+  assert.match(dropdown, /messages\.dropdown\.viewAll/);
   assert.match(dropdown, /aria-expanded=\{open\}/);
-  assert.doesNotMatch(dropdown, /shadow-md|bg-accent\/5|text-accent\s/);
+  assert.match(dropdown, /role="menuitem"/);
+  assert.match(dropdown, /bg-accent-emphasis/);
+  assert.match(dropdown, /shadow-md/);
+  assert.doesNotMatch(dropdown, /bg-accent\/5|text-accent\s/);
 });
