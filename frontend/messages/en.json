@@ -1876,6 +1876,20 @@
       "messageList": "Conversation messages",
       "unread": "Unread notification",
       "broadcast": "System broadcast"
+    },
+    "detail": {
+      "kindContent": "Work",
+      "kindDiscussion": "Discussion",
+      "kindIP": "IP",
+      "kindPR": "PR",
+      "kindUser": "User",
+      "kindAppeal": "Appeal",
+      "kindReport": "Report",
+      "kindFeedback": "Feedback",
+      "kindMessage": "DM"
+    },
+    "dropdown": {
+      "viewAll": "View all"
     }
   },
   "collabInviteCard": {

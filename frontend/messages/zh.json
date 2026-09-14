@@ -1876,6 +1876,20 @@
       "messageList": "对话消息",
       "unread": "未读通知",
       "broadcast": "系统广播"
+    },
+    "detail": {
+      "kindContent": "作品",
+      "kindDiscussion": "讨论",
+      "kindIP": "IP",
+      "kindPR": "PR",
+      "kindUser": "用户",
+      "kindAppeal": "申诉",
+      "kindReport": "举报",
+      "kindFeedback": "反馈",
+      "kindMessage": "私信"
+    },
+    "dropdown": {
+      "viewAll": "查看全部"
     }
   },
   "collabInviteCard": {
