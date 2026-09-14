@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { FileUploader, toUploadedAsset, type UploadItem } from "@/components/content/FileUploader";
-import { MarkdownEditor } from "@/components/content/MarkdownEditor";
+import { MilkdownEditor, type MilkdownEditorHandle } from "@/components/markdown/MilkdownEditor";
 import { FilterPills } from "@/components/ui/filter-pills";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
@@ -237,6 +237,9 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   // Core fields
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  /* SP-19 G3-2：正文编辑器实例句柄——AI 填充/撤销恢复走 setMarkdown
+   * （replaceAll 三场景），提交取值 getMarkdown 兜底，成功后清草稿。 */
+  const milkdownRef = useRef<MilkdownEditorHandle>(null);
   const [briefDesc, setBriefDesc] = useState("");
   /* T25：公开配置（上传上限动态消费） */
   const [publicConfig, setPublicConfig] = useState<PublicConfig | null>(null);
@@ -319,7 +322,10 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
     if (data.suggested_description) {
       const suggestedDescription = data.suggested_description.slice(0, MAX_SUGGESTED_DESCRIPTION_LENGTH);
       if (isFilePrimary) setBriefDesc(suggestedDescription);
-      else setBody(suggestedDescription);
+      else {
+        setBody(suggestedDescription);
+        milkdownRef.current?.setMarkdown(suggestedDescription);
+      }
     }
     if (data.suggested_tags && data.suggested_tags.length > 0) {
       setTags((prev) => {
@@ -341,6 +347,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
     setTitle(snap.title);
     setBriefDesc(snap.briefDesc);
     setBody(snap.body);
+    milkdownRef.current?.setMarkdown(snap.body);
     setTags(snap.tags);
     setCategory(snap.category);
     undoSnapshot.current = null;
@@ -388,7 +395,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
     try {
       const payload: Record<string, unknown> = {
         title: title.trim(), zone, content_type: contentType,
-        description, tags, is_public: isPublic,
+        description: isFilePrimary ? description : (milkdownRef.current?.getMarkdown() ?? description), tags, is_public: isPublic,
         allow_copy: allowCopy, agent_enabled: agentEnabled,
         allow_comments: allowComments,
       };
@@ -435,6 +442,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
           }));
         }
       }
+      milkdownRef.current?.clearDraft();
       toast("success", t('studio.publish.success'));
       router.push("/studio/contents");
     } catch (error) {
@@ -565,7 +573,15 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       {TEXT_PRIMARY_TYPES.includes(contentType) && (
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.bodyLabel')}</label>
-          <MarkdownEditor value={body} onChange={(val) => setBody(val)} />
+          <MilkdownEditor
+            ref={milkdownRef}
+            defaultValue={body}
+            onChange={setBody}
+            allowImages
+            placeholder={t('studio.publish.bodyPlaceholder')}
+            draftKey={`publish-${zone}-${contentType}`}
+            minHeight={320}
+          />
         </div>
       )}
 
