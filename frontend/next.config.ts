@@ -32,6 +32,13 @@ const nextConfig: NextConfig = {
         destination: '/ip/:ipId?tab=share&type=:category',
         permanent: true,
       },
+      // 用户收藏集旧路由收敛为个人主页页内 tab（#508，SP-18 修复轮）。
+      // statusCode 301（permanent:true 是 308，票面要求 301）。
+      {
+        source: '/user/:userId/collections',
+        destination: '/user/:userId?tab=collections',
+        statusCode: 301,
+      },
     ];
   },
   images: {
