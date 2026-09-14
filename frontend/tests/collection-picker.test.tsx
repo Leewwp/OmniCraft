@@ -466,7 +466,7 @@ test("#74 normalizer carries top-level is_favorited into the detail payload", ()
 });
 
 test("Studio favorites page uses CollectionCard and collection APIs instead of the legacy favorites list", () => {
-  const source = fs.readFileSync(new URL("../app/(protected)/studio/favorites/page.tsx", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../app/(protected)/(headered)/studio/favorites/page.tsx", import.meta.url), "utf8");
 
   assert.match(source, /CollectionCard/);
   assert.match(source, /listCollections/);
@@ -497,7 +497,7 @@ test("new Task 7 code does not import the legacy add-to-collection modal", () =>
     "../components/content/CollectionCard.tsx",
     "../components/content/ContentDetail.tsx",
     "../components/content/ContentDetailClient.tsx",
-    "../app/(protected)/studio/favorites/page.tsx",
+    "../app/(protected)/(headered)/studio/favorites/page.tsx",
   ];
 
   for (const file of ownedFiles) {

@@ -33,7 +33,7 @@ test.afterEach(() => {
 });
 
 test("studio series page exposes create, edit, item, reorder, and delete actions", () => {
-  const source = fs.readFileSync(new URL("../app/(protected)/studio/series/page.tsx", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../app/(protected)/(headered)/studio/series/page.tsx", import.meta.url), "utf8");
   for (const contract of [
     "listOwnedSeries",
     "createSeries",
@@ -114,7 +114,7 @@ async function renderStudioSeriesPage() {
   Object.defineProperty(globalThis, "requestAnimationFrame", { configurable: true, value: window.requestAnimationFrame.bind(window) });
   Object.defineProperty(globalThis, "cancelAnimationFrame", { configurable: true, value: window.cancelAnimationFrame.bind(window) });
   const { render } = await import("@testing-library/react");
-  const { default: StudioSeriesPage } = await import("../app/(protected)/studio/series/page");
+  const { default: StudioSeriesPage } = await import("../app/(protected)/(headered)/studio/series/page");
   let view: ReturnType<typeof render> | undefined;
   await act(async () => {
     view = render(

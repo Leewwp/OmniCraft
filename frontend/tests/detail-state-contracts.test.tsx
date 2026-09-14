@@ -16,7 +16,7 @@ function read(relativePath: string) {
 }
 
 test("detail pages use stable skeletons, empty states, retry actions, and live status", () => {
-  const feedback = read("app/(protected)/feedback/[feedbackId]/page.tsx");
+  const feedback = read("app/(protected)/(headered)/feedback/[feedbackId]/page.tsx");
   // #290：讨论帖详情由 /ip/[ipId] Hub 的浮层承载（旧 [discussionId] 页已删）
   const discussion = read("components/ip/hub/DiscussionDetailOverlay.tsx");
 
