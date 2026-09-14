@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
 import {
   DM_CHANNEL,
@@ -27,6 +29,8 @@ export function NotificationDropdown() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(-1);
+  // 私信未读不在 unread-count 管线内（会话聚合）——面板展开时拉一次，不轮询。
+  const [dmUnread, setDmUnread] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openTimerRef = useRef<number | null>(null);
@@ -38,8 +42,27 @@ export function NotificationDropdown() {
       label: t(def.labelKey),
       badge: def.key === "all" ? unreadCounts.total ?? 0 : (unreadCounts[def.key as keyof typeof unreadCounts] ?? 0),
     })),
-    { key: "dm", label: t(DM_CHANNEL.labelKey), badge: 0 },
+    { key: "dm", label: t(DM_CHANNEL.labelKey), badge: dmUnread },
   ];
+
+  useEffect(() => {
+    if (!user || !open) return;
+    let cancelled = false;
+    api
+      .get<{ conversations?: { unread_count?: number; unread?: boolean }[] }>("/api/v1/messages")
+      .then((data) => {
+        if (cancelled) return;
+        setDmUnread(
+          (data.conversations ?? []).reduce((sum, c) => sum + (c.unread_count ?? (c.unread ? 1 : 0)), 0),
+        );
+      })
+      .catch((e) => {
+        silentError(e, { component: "NotificationDropdown", action: "dmUnread" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, open]);
 
   function clearTimers() {
     if (openTimerRef.current !== null) window.clearTimeout(openTimerRef.current);

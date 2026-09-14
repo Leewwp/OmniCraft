@@ -37,7 +37,7 @@ function MessagesPageContent() {
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, unreadCounts, refresh } = useAuth();
+  const { user, unreadCounts, refreshUser } = useAuth();
   const [dmUnread, setDmUnread] = useState(0);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
 
@@ -69,10 +69,11 @@ function MessagesPageContent() {
     return t(def?.labelKey ?? "notification.all");
   }, [channel, t]);
 
-  /* 徽标联动（§5.4）：读/全部已读后静默重拉 unread-count 校准左栏与顶栏。 */
+  /* 徽标联动（§5.4）：读/全部已读后静默校准左栏/下拉/顶栏——refreshUser
+     换 user 对象身份触发 AuthContext 的 unread-count 重拉管线。 */
   const refreshNotificationCounts = useCallback(() => {
-    void refresh();
-  }, [refresh]);
+    void refreshUser();
+  }, [refreshUser]);
 
   /* 未登录保护：(protected) 布局已挡；此处防御式早退。 */
   if (!user) return null;
