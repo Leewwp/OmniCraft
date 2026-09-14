@@ -1083,7 +1083,8 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 
 **核心组件清单**
 - `Header`
-- `UserProfileCard`
+- `ProfileSummaryCard`（SP-18 #508：真实头像 `avatar_url`（img，缺省首字母兜底圆）+ 用户名 + 信誉/加入日期 + bio + **三项统计行** `内容 N · 获赞 N · 粉丝 N`（text-xs 数字 font-semibold，与 UserHoverCard 同源同形——数据 `GET /users/:id` 的 `stats{contents_count,likes_received}` + `followers_count`，SSR revalidate 30s））
+- `UserProfileClient`（三 tab 页内切换；`?tab=contents|discussions|collections` 初始态，切换经 `window.history.replaceState` 静默同步 URL 可分享，不触发服务端往返；收藏集 tab 渲染 `UserCollectionsPanel`，见 `/user/[userId]/collections` 节）
 - `FollowButton`
 - `FollowerListModal`
 - `JudgeQualBadge`
@@ -5653,22 +5654,20 @@ interface CollabUserPickerProps {
 - `screenshots/community-collections-owner-mobile.png`：owner 移动端，编辑/移除控件可见且 44px。
 - 交互检查：公开未登录可访问、私有非 owner 显示 EmptyState、筛选更新 query、owner 移除内容、默认收藏集删除 disabled。
 
-## Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
+## Page: /user/[userId]/collections 用户收藏集列表（Task 122-123；SP-18 #508 起为 301 重定向）
 
 **Key Constraints**
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见。
-- 页面位于 `(public)` route group；未登录访问他人页面可浏览公开收藏集，自己的页面由登录状态决定 owner controls。
-- 可见性过滤必须由后端 `GET /api/v1/collections?owner_id=:userId` 兜底，前端不得通过拿到全量后自行隐藏私有收藏集。
+- **SP-18 #508（2026-09-14）**：独立路由收敛为个人主页页内 tab——`next.config.ts` redirects 将 `/user/:userId/collections` **301** 至 `/user/:userId?tab=collections`（路由层重定向，先于文件系统路由）；原 332 行页面 UI 整体迁移为 `UserCollectionsPanel`（见 `Page: /user/[userId]` 节），本节以下规格由该面板在主页 tab 内继续承载，文件系统路由已删除。
 
 **目标与放置**
-- 目标：在用户主页外提供可分享的收藏集列表页，让访客浏览公开收藏集，owner 管理自己的公开/私有收藏集。
-- 放置：`frontend/app/(public)/user/[userId]/collections/page.tsx`；从用户主页「收藏集」Tab、收藏集详情 owner 链接和公开分享入口进入。
-- 页面是公共浏览页，不使用 Studio/Admin 布局。
+- 目标：收藏集列表作为个人主页「收藏集」页内 tab，让访客浏览公开收藏集，owner 管理自己的公开/私有收藏集；旧深链 301 收敛不失效。
+- 放置：`frontend/app/(public)/user/[userId]/UserCollectionsPanel.tsx`（由 `UserProfileClient` 在 `?tab=collections` 时渲染）；从用户主页 tab、收藏集详情 owner 链接和公开分享入口进入。
+- 可见性过滤必须由后端 `GET /api/v1/collections?owner_id=:userId` 兜底，前端不得通过拿到全量后自行隐藏私有收藏集。
 
 **核心组件清单**
-- `Header`
 - `CollectionCard`（封面缩略图 + 标题 + 内容数 + 可见性 Badge）
 - `EmptyState`
 - `SkeletonCard`
@@ -5676,10 +5675,8 @@ interface CollabUserPickerProps {
 - `Toast`
 
 **布局规范**
-- PC (>1100px)：页面最大宽度 `960px`，`px-6 py-6`；顶部为用户摘要行（头像、用户名、公开收藏集数），右侧 owner 新建按钮；下方 `grid grid-cols-3 gap-4`。
-- 平板 (701-1100px)：最大宽度 `840px`，网格 3 列；顶部操作可换行。
-- 移动 (<=700px)：主体 `px-4 py-4`，顶部摘要单列，网格 2 列；新建按钮全宽但不浮动。
-- 区域间距 `space-y-6`；不要把整个页面包进大卡片。
+- tab 内顶部工具行：左侧可见收藏集计数文案，右侧刷新 + owner 新建按钮；下方 `grid grid-cols-2 gap-4 md:grid-cols-3`。
+- 区域间距 `space-y-4`；不要把整个 tab 包进大卡片（页面级头部由个人主页承载）。
 
 **状态变体**
 - default：收藏集网格列表；owner 看到公开与私有收藏集，非 owner/匿名只看到公开收藏集。

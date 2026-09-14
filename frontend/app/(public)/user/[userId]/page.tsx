@@ -1,7 +1,9 @@
 import { getServerApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import { getTranslations, getLocale } from 'next-intl/server';
+import { ProfileSummaryCard } from "./ProfileSummaryCard";
 import { UserProfileClient } from "./UserProfileClient";
+import { normalizeProfileTab } from "./profile-tab";
 
 interface UserData {
   id?: number;
@@ -10,6 +12,8 @@ interface UserData {
   bio?: string;
   reputation?: number;
   created_at?: string;
+  followers_count?: number;
+  stats?: { contents_count?: number; likes_received?: number };
 }
 
 
@@ -26,12 +30,15 @@ async function fetchUser(apiBase: string, userId: string): Promise<UserData | nu
 
 export default async function UserProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ userId: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const t = await getTranslations();
   const locale = await getLocale();
   const { userId } = await params;
+  const { tab } = await searchParams;
   const apiBase = getServerApiBase();
   const user = await fetchUser(apiBase, userId);
 
@@ -41,31 +48,30 @@ export default async function UserProfilePage({
 
   const userIdNum = user.id ?? 0;
   const displayName = user.username ?? t('common.userLabel', { id: userId });
-  const bio = user.bio ?? "";
-  const reputation = user.reputation ?? 0;
-  const createdAt = user.created_at;
+  const stats = {
+    contents: user.stats?.contents_count ?? 0,
+    likes: user.stats?.likes_received ?? 0,
+    followers: user.followers_count ?? 0,
+  };
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-6 ">
-        <div className="flex items-start gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted text-xl font-bold text-muted-foreground">
-            {displayName.slice(0, 1)}
-          </div>
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
-            <p className="text-sm text-muted-foreground">
-              {t('user.reputation', { reputation })}{" "}
-              {createdAt
-                ? new Date(createdAt).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN")
-                : "-"}
-            </p>
-            {bio && <p className="text-sm text-foreground/80">{bio}</p>}
-          </div>
-        </div>
-      </div>
+      <ProfileSummaryCard
+        displayName={displayName}
+        avatarUrl={user.avatar_url}
+        bio={user.bio ?? ""}
+        meta={
+          <span>
+            {t('user.reputation', { reputation: user.reputation ?? 0 })}{" "}
+            {user.created_at
+              ? new Date(user.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN")
+              : "-"}
+          </span>
+        }
+        stats={stats}
+      />
 
-      <UserProfileClient userId={userIdNum} displayName={displayName} />
+      <UserProfileClient userId={userIdNum} displayName={displayName} initialTab={normalizeProfileTab(tab)} />
     </div>
   );
 }

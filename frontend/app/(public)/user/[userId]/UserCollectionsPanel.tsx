@@ -1,8 +1,7 @@
 "use client";
 
-import React, { use, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FolderOpen, FolderPlus, Loader2, RefreshCw } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CollectionCard } from "@/components/content/CollectionCard";
 import { Button } from "@/components/ui/button";
@@ -23,12 +22,12 @@ import {
 } from "@/lib/collections";
 import { silentError } from "@/lib/error-handler";
 
-type PageParams = Promise<{ userId: string }>;
-type CollectionZone = "original" | "fanwork";
+/* 个人主页「收藏集」页内 tab（#508，SP-18 修复轮）：自旧独立路由
+   /user/:userId/collections（332 行页面）整体迁移，页面级头部（头像/标题）
+   由个人主页承载，本面板保留工具栏 + 网格 + 建/编/删流程；旧路由 301 到
+   /user/:userId?tab=collections（next.config redirects）。 */
 
-interface UserCollectionsPageProps {
-  params: PageParams;
-}
+type CollectionZone = "original" | "fanwork";
 
 type LoadState =
   | { status: "loading" }
@@ -44,19 +43,22 @@ type FormState = {
   isPublic: boolean;
 };
 
-export default function UserCollectionsPage({ params }: UserCollectionsPageProps) {
+function sortCollections(collections: CollectionSummary[]) {
+  return [...collections].sort((left, right) => {
+    if (left.is_default !== right.is_default) return left.is_default ? -1 : 1;
+    return (left.sort_order ?? 0) - (right.sort_order ?? 0) || left.id - right.id;
+  });
+}
+
+export function UserCollectionsPanel({ ownerId }: { ownerId: number }) {
   const t = useTranslations();
-  const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const resolvedParams = unwrapMaybePromise(params);
-  const ownerId = Number(resolvedParams.userId);
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CollectionSummary | null>(null);
   const isOwner = user?.id === ownerId;
-  const ownerName = isOwner && user?.username ? user.username : t("common.userLabel", { id: ownerId || "-" });
 
   const load = useCallback(async () => {
     if (!Number.isFinite(ownerId) || ownerId <= 0) {
@@ -73,18 +75,21 @@ export default function UserCollectionsPage({ params }: UserCollectionsPageProps
         total: response.total ?? response.collections.length,
       });
     } catch (error) {
-      silentError(error, { component: "UserCollectionsPage", action: "load" });
+      silentError(error, { component: "UserCollectionsPanel", action: "load" });
       toast("error", t("collections.userList.toast.loadFailed"));
       setState({ status: "error" });
     }
   }, [ownerId, t, toast]);
 
+  /* 直达深链（旧路由 301 → ?tab=collections 整页加载）时，挂载即拉可能跑在
+     登录 bootstrap 完成前——匿名视角看不到自己的私有收藏集。等登录身份落定
+     （pending → 具体身份）再拉；客户端切换进来时已落定则挂载即拉。 */
+  const settledOwnerId = authLoading ? "pending" : (user?.id ?? "anon");
   useEffect(() => {
+    if (settledOwnerId === "pending") return;
     void load();
-  }, [load]);
+  }, [settledOwnerId, load]);
 
-  const visibleCount = state.status === "ready" ? state.collections.length : 0;
-  const headerCount = state.status === "ready" ? state.total : visibleCount;
   const grouped = useMemo(() => {
     if (state.status !== "ready") return [];
     return state.collections;
@@ -135,7 +140,7 @@ export default function UserCollectionsPage({ params }: UserCollectionsPageProps
       setForm(null);
       void load();
     } catch (error) {
-      silentError(error, { component: "UserCollectionsPage", action: "save" });
+      silentError(error, { component: "UserCollectionsPanel", action: "save" });
       toast("error", t("collections.userList.toast.saveFailed"));
     } finally {
       setSaving(false);
@@ -151,40 +156,32 @@ export default function UserCollectionsPage({ params }: UserCollectionsPageProps
       setDeleteTarget(null);
       void load();
     } catch (error) {
-      silentError(error, { component: "UserCollectionsPage", action: "delete" });
+      silentError(error, { component: "UserCollectionsPanel", action: "delete" });
       toast("error", t("collections.userList.toast.deleteFailed"));
     }
   }
 
   return (
-    <main className="mx-auto w-full max-w-[960px] space-y-6 px-4 py-4 md:max-w-[840px] md:px-6 md:py-6 xl:max-w-[960px]">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-base font-semibold text-muted-foreground">
-            {ownerName.slice(0, 1).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold text-foreground">
-              {t("collections.userList.header.title", { name: ownerName })}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t("collections.userList.header.subtitle", { count: headerCount })}
-            </p>
-          </div>
-        </div>
-        <div className="flex w-full gap-2 md:w-auto">
-          <Button type="button" variant="outline" className="flex-1 md:flex-none" onClick={() => void load()}>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {state.status === "ready"
+            ? t("collections.userList.header.subtitle", { count: state.total })
+            : ""}
+        </p>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={() => void load()}>
             <RefreshCw className="h-4 w-4" />
             {t("collections.userList.actions.refresh")}
           </Button>
           {isOwner && (
-            <Button type="button" className="flex-1 md:flex-none" onClick={openCreate}>
+            <Button type="button" onClick={openCreate}>
               <FolderPlus className="h-4 w-4" />
               {t("collections.userList.actions.create")}
             </Button>
           )}
         </div>
-      </header>
+      </div>
 
       {state.status === "loading" && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -313,20 +310,6 @@ export default function UserCollectionsPage({ params }: UserCollectionsPageProps
         confirmLabel={t("collections.userList.delete.confirm")}
         onConfirm={handleDelete}
       />
-    </main>
+    </div>
   );
-}
-
-function unwrapMaybePromise<T>(value: T | Promise<T>): T {
-  if (value && typeof value === "object" && "then" in value && typeof value.then === "function") {
-    return use(value as Promise<T>);
-  }
-  return value as T;
-}
-
-function sortCollections(collections: CollectionSummary[]) {
-  return [...collections].sort((left, right) => {
-    if (left.is_default !== right.is_default) return left.is_default ? -1 : 1;
-    return (left.sort_order ?? 0) - (right.sort_order ?? 0) || left.id - right.id;
-  });
 }

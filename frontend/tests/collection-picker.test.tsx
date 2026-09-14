@@ -476,14 +476,17 @@ test("Studio favorites page uses CollectionCard and collection APIs instead of t
   assert.doesNotMatch(source, /\/api\/v1\/users\/\$\{user\.id\}\/favorites/);
 });
 
-test("User profile exposes collection folders as a semantic link without loading the legacy favorites API", () => {
+test("User profile exposes collection folders as an in-page tab without loading the legacy favorites API", () => {
   const source = fs.readFileSync(
     new URL("../app/(public)/user/[userId]/UserProfileClient.tsx", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /<Link[\s\S]*href=\{`\/user\/\$\{userId\}\/collections`\}/);
-  assert.doesNotMatch(source, /router\.push\(`\/user\/\$\{userId\}\/collections`\)/);
+  // #508：收藏集收敛为页内 tab（role=tab 按钮切换 + ?tab= URL 同步），
+  // 不再外跳 /user/:id/collections（旧路由由 next.config 301 兜底）。
+  assert.match(source, /role="tab"/);
+  assert.match(source, /UserCollectionsPanel/);
+  assert.doesNotMatch(source, /\/user\/\$\{userId\}\/collections/);
   assert.match(source, /user\.tabCollections/);
   assert.doesNotMatch(source, /\/api\/v1\/users\/\$\{userId\}\/favorites/);
 });

@@ -1,13 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import React, { Suspense } from "react";
+import React from "react";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { IntlProvider } from "use-intl";
 
+import enMessages from "@/messages/en.json";
 import { api, ApiRequestError, setAccessToken } from "@/lib/api";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { act, cleanup, installDom, waitFor } from "./runtime-test-helpers";
+import { ProfileSummaryCard } from "../app/(public)/user/[userId]/ProfileSummaryCard";
+import { UserProfileClient } from "../app/(public)/user/[userId]/UserProfileClient";
+import { normalizeProfileTab } from "../app/(public)/user/[userId]/profile-tab";
+
+let rtl: typeof import("@testing-library/react") | null = null;
+
+test.beforeEach(async () => {
+  rtl = await import("@testing-library/react");
+});
+
+// SP-18 #508：收藏集独立路由收敛为个人主页页内 tab（旧路由 next.config 301）。
+// 覆盖：tab 内 owner/访客/匿名可见性、空态 CTA、卡片详情链接、tab 切换 URL 同步、
+// 主页头部三项统计 + 真实头像、?tab= 归一化。
+// （原独立页面用例迁移：行为断言不变，渲染入口改为 UserProfileClient initialTab。）
 
 type ApiCall = {
   path: string;
@@ -55,131 +70,218 @@ test.afterEach(() => {
   console.warn = originalConsoleWarn;
 });
 
-test("own user collections page shows private and public collections", async () => {
-  installUserCollectionsDom("/user/7/collections");
-  setAccessToken(validAccessToken());
-  const calls = installUserCollectionsApiMocks({
-    authUser: { id: 7, username: "Ada" },
-    collections: [
-      collectionSummary({ id: 1, title: "Private research", is_public: false }),
-      collectionSummary({ id: 2, title: "Public shelf", is_public: true }),
-    ],
+test("profile collections tab", async (t) => {
+  await t.test("own collections tab shows private and public collections", async () => {
+    installProfileDom("/user/7?tab=collections");
+    setAccessToken(validAccessToken());
+    const calls = installProfileApiMocks({
+      authUser: { id: 7, username: "Ada" },
+      collections: [
+        collectionSummary({ id: 1, title: "Private research", is_public: false }),
+        collectionSummary({ id: 2, title: "Public shelf", is_public: true }),
+      ],
+    });
+
+    const view = renderProfileClient(7, "Ada", "collections");
+
+    await waitFor(() => {
+      assert.ok(view.getByText("Private research"));
+      assert.ok(view.getByText("Public shelf"));
+      assert.ok(view.getByRole("button", { name: "New collection" }));
+      assert.ok(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"));
+    });
   });
 
-  const view = await renderUserCollectionsPage("7");
+  await t.test("another user's collections tab shows public collections only", async () => {
+    installProfileDom("/user/7?tab=collections");
+    setAccessToken(validAccessToken());
+    installProfileApiMocks({
+      authUser: { id: 42, username: "Visitor" },
+      collections: [collectionSummary({ id: 2, title: "Public shelf", is_public: true })],
+    });
 
-  await waitFor(() => {
-    assert.ok(view.getByText("Private research"));
-    assert.ok(view.getByText("Public shelf"));
-    assert.ok(view.getByRole("button", { name: "New collection" }));
-    assert.ok(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"));
+    const view = renderProfileClient(7, "Ada", "collections");
+
+    await waitFor(() => {
+      assert.ok(view.getByText("Public shelf"));
+      assert.equal(view.queryByText("Private research"), null);
+      assert.equal(view.queryByRole("button", { name: "New collection" }), null);
+    });
+  });
+
+  await t.test("logged-out collections tab shows public collections only", async () => {
+    installProfileDom("/user/7?tab=collections");
+    const calls = installProfileApiMocks({
+      collections: [collectionSummary({ id: 2, title: "Public shelf", is_public: true })],
+    });
+
+    const view = renderProfileClient(7, "Ada", "collections");
+
+    await waitFor(() => {
+      assert.ok(view.getByText("Public shelf"));
+      assert.equal(view.queryByRole("button", { name: "New collection" }), null);
+      assert.ok(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"));
+    });
+  });
+
+  await t.test("empty own tab shows create CTA", async () => {
+    installProfileDom("/user/7?tab=collections");
+    setAccessToken(validAccessToken());
+    installProfileApiMocks({
+      authUser: { id: 7, username: "Ada" },
+      collections: [],
+    });
+
+    const view = renderProfileClient(7, "Ada", "collections");
+
+    await waitFor(() => {
+      assert.ok(view.getByText("No collections yet"));
+      assert.ok(view.getAllByRole("button", { name: "New collection" }).length >= 1);
+    });
+  });
+
+  await t.test("empty visitor tab shows read-only EmptyState", async () => {
+    installProfileDom("/user/7?tab=collections");
+    installProfileApiMocks({ collections: [] });
+
+    const view = renderProfileClient(7, "Ada", "collections");
+
+    await waitFor(() => {
+      assert.ok(view.getByText("No public collections"));
+      assert.equal(view.queryByRole("button", { name: "New collection" }), null);
+    });
+  });
+
+  await t.test("collection cards link to collection detail pages", async () => {
+    installProfileDom("/user/7?tab=collections");
+    installProfileApiMocks({
+      collections: [collectionSummary({ id: 123, title: "Public shelf", is_public: true })],
+    });
+
+    const view = renderProfileClient(7, "Ada", "collections");
+
+    await waitFor(() => {
+      const cardLink = view.getByRole("link", { name: /Public shelf/ });
+      assert.equal(cardLink.getAttribute("href"), "/collections/123");
+    });
+  });
+
+  await t.test("switching tabs keeps everything in-page and syncs the URL", async () => {
+    installProfileDom("/user/7");
+    installProfileApiMocks({
+      collections: [collectionSummary({ id: 2, title: "Public shelf", is_public: true })],
+      contents: [{ id: 9, title: "Piano score", zone: "original" }],
+    });
+
+    const view = renderProfileClient(7, "Ada", "contents");
+
+    await waitFor(() => {
+      assert.ok(view.getByText("Piano score"));
+    });
+
+    const collectionsTab = view.getByRole("tab", { name: "Collections" });
+    await act(async () => {
+      collectionsTab.click();
+    });
+    await waitFor(() => {
+      assert.ok(view.getByText("Public shelf"), "collections grid must render in-page after tab switch");
+    });
+    assert.equal(
+      window.location.search,
+      "?tab=collections",
+      "tab switch must sync ?tab= for shareable deep links",
+    );
+
+    const discussionsTab = view.getByRole("tab", { name: "Discussions" });
+    await act(async () => {
+      discussionsTab.click();
+    });
+    await waitFor(() => {
+      assert.equal(window.location.search, "?tab=discussions");
+    });
   });
 });
 
-test("another user's collections page shows public collections only", async () => {
-  installUserCollectionsDom("/user/7/collections");
-  setAccessToken(validAccessToken());
-  installUserCollectionsApiMocks({
-    authUser: { id: 42, username: "Visitor" },
-    collections: [collectionSummary({ id: 2, title: "Public shelf", is_public: true })],
+test("profile summary card", async (t) => {
+  await t.test("renders real avatar plus the three hovercard-synced stats", async () => {
+    installDom();
+
+    let view: ReturnType<NonNullable<typeof rtl>["render"]> | undefined;
+    await act(async () => {
+      view = requireRtl().render(
+        <IntlProvider locale="en" messages={enMessages}>
+          <ProfileSummaryCard
+            displayName="Ada"
+            avatarUrl="https://example.com/a.png"
+            bio="creator bio"
+            meta={<span>Reputation: 60</span>}
+            stats={{ contents: 12, likes: 34, followers: 7 }}
+          />
+        </IntlProvider>,
+      );
+    });
+    assert.ok(view);
+    const img = view.container.querySelector("img");
+    assert.ok(img, "real avatar must render when avatar_url exists");
+    assert.equal(img?.getAttribute("src"), "https://example.com/a.png");
+    assert.ok(view.getByText("12"));
+    assert.ok(view.getByText("Contents"));
+    assert.ok(view.getByText("34"));
+    assert.ok(view.getByText("Likes"));
+    assert.ok(view.getByText("7"));
+    assert.ok(view.getByText("Followers"));
   });
 
-  const view = await renderUserCollectionsPage("7");
+  await t.test("falls back to the initial letter without avatar_url", async () => {
+    installDom();
 
-  await waitFor(() => {
-    assert.ok(view.getByText("Public shelf"));
-    assert.equal(view.queryByText("Private research"), null);
-    assert.equal(view.queryByRole("button", { name: "New collection" }), null);
-  });
-});
-
-test("logged-out user collections page shows public collections only", async () => {
-  installUserCollectionsDom("/user/7/collections");
-  const calls = installUserCollectionsApiMocks({
-    collections: [collectionSummary({ id: 2, title: "Public shelf", is_public: true })],
-  });
-
-  const view = await renderUserCollectionsPage("7");
-
-  await waitFor(() => {
-    assert.ok(view.getByText("Public shelf"));
-    assert.equal(view.queryByRole("button", { name: "New collection" }), null);
-    assert.ok(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"));
-  });
-});
-
-test("empty own page shows create CTA", async () => {
-  installUserCollectionsDom("/user/7/collections");
-  setAccessToken(validAccessToken());
-  installUserCollectionsApiMocks({
-    authUser: { id: 7, username: "Ada" },
-    collections: [],
-  });
-
-  const view = await renderUserCollectionsPage("7");
-
-  await waitFor(() => {
-    assert.ok(view.getByText("No collections yet"));
-    assert.ok(view.getByText("Create a collection to organize saved content."));
-    assert.ok(view.getAllByRole("button", { name: "New collection" }).length >= 1);
+    let view: ReturnType<NonNullable<typeof rtl>["render"]> | undefined;
+    await act(async () => {
+      view = requireRtl().render(
+        <IntlProvider locale="en" messages={enMessages}>
+          <ProfileSummaryCard displayName="Ada" bio="" meta={<span>meta</span>} stats={{ contents: 0, likes: 0, followers: 0 }} />
+        </IntlProvider>,
+      );
+    });
+    assert.ok(view);
+    assert.equal(view.container.querySelector("img"), null);
+    assert.ok(view.getByText("A"), "initial-letter avatar fallback");
   });
 });
 
-test("empty visitor page shows read-only EmptyState", async () => {
-  installUserCollectionsDom("/user/7/collections");
-  installUserCollectionsApiMocks({ collections: [] });
-
-  const view = await renderUserCollectionsPage("7");
-
-  await waitFor(() => {
-    assert.ok(view.getByText("No public collections"));
-    assert.ok(view.getByText("This user has not shared any collections yet."));
-    assert.equal(view.queryByRole("button", { name: "New collection" }), null);
-  });
+test("normalizeProfileTab maps URL tab values", () => {
+  assert.equal(normalizeProfileTab(undefined), "contents");
+  assert.equal(normalizeProfileTab("contents"), "contents");
+  assert.equal(normalizeProfileTab("discussions"), "discussions");
+  assert.equal(normalizeProfileTab("collections"), "collections");
+  assert.equal(normalizeProfileTab("nonsense"), "contents");
 });
 
-test("collection cards link to collection detail pages", async () => {
-  installUserCollectionsDom("/user/7/collections");
-  installUserCollectionsApiMocks({
-    collections: [collectionSummary({ id: 123, title: "Public shelf", is_public: true })],
-  });
+function requireRtl() {
+  assert.ok(rtl, "rtl must be loaded in beforeEach");
+  return rtl;
+}
 
-  const view = await renderUserCollectionsPage("7");
-
-  await waitFor(() => {
-    const cardLink = view.getByRole("link", { name: /Public shelf/ });
-    assert.equal(cardLink.getAttribute("href"), "/collections/123");
-  });
-});
-
-async function renderUserCollectionsPage(userId: string) {
-  const { render } = await import("@testing-library/react");
-  const pageModule = await import("../app/(public)/user/[userId]/collections/page");
-  const UserCollectionsPage = pageModule.default;
-
-  let view: ReturnType<typeof render> | undefined;
-  await act(async () => {
-    view = render(
-      <IntlProvider locale="en" messages={messages}>
+function renderProfileClient(userId: number, displayName: string, initialTab: "contents" | "discussions" | "collections") {
+  let view: ReturnType<NonNullable<typeof rtl>["render"]> | undefined;
+  void act(() => {
+    view = requireRtl().render(
+      <IntlProvider locale="en" messages={enMessages}>
         <AppRouterContext.Provider value={testRouter}>
           <ToastProvider>
             <AuthProvider>
-              <Suspense fallback={<div>Loading suspense</div>}>
-                <UserCollectionsPage params={Promise.resolve({ userId })} />
-              </Suspense>
+              <UserProfileClient userId={userId} displayName={displayName} initialTab={initialTab} />
             </AuthProvider>
           </ToastProvider>
         </AppRouterContext.Provider>
       </IntlProvider>,
     );
-    await Promise.resolve();
   });
-
   assert.ok(view);
   return view;
 }
 
-function installUserCollectionsDom(path: string) {
+function installProfileDom(path: string) {
   const dom = installDom();
   dom.window.history.replaceState({}, "", path);
   Object.defineProperty(globalThis, "localStorage", {
@@ -190,9 +292,10 @@ function installUserCollectionsDom(path: string) {
   return dom;
 }
 
-function installUserCollectionsApiMocks(options: {
+function installProfileApiMocks(options: {
   authUser?: { id: number; username: string };
   collections?: unknown[];
+  contents?: unknown[];
 }) {
   const calls: { get: ApiCall[]; post: ApiCall[]; put: ApiCall[]; delete: ApiCall[] } = {
     get: [],
@@ -227,6 +330,12 @@ function installUserCollectionsApiMocks(options: {
     }
     if (path.startsWith("/api/v1/collections?owner_id=")) {
       return { items: options.collections ?? [], total: options.collections?.length ?? 0 } as T;
+    }
+    if (path.startsWith("/api/v1/users/") && path.includes("/contents?")) {
+      return { contents: options.contents ?? [] } as T;
+    }
+    if (path.startsWith("/api/v1/users/") && path.includes("/discussions?")) {
+      return { discussions: [] } as T;
     }
     return {} as T;
   }) as typeof api.get;
@@ -285,72 +394,3 @@ function validAccessToken() {
   const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }));
   return `header.${payload}.signature`;
 }
-
-const messages = {
-  common: {
-    close: "Close",
-    cancel: "Cancel",
-    confirm: "Confirm",
-    processing: "Processing",
-    retry: "Retry",
-    edit: "Edit",
-    delete: "Delete",
-    save: "Save",
-    reason: "Reason",
-    userLabel: "User #{id}",
-  },
-  collections: {
-    card: {
-      public: "Public",
-      private: "Private",
-      default: "Default",
-      itemCount: "{count} items",
-      edit: "Edit {title}",
-      delete: "Delete {title}",
-      deleteDisabled: "Default collections cannot be deleted",
-    },
-    userList: {
-      header: {
-        title: "{name}'s collections",
-        subtitle: "{count} visible collections",
-      },
-      actions: {
-        create: "New collection",
-        refresh: "Refresh",
-      },
-      form: {
-        createTitle: "Create collection",
-        editTitle: "Edit collection",
-        title: "Title",
-        description: "Description",
-        isPublic: "Public collection",
-      },
-      empty: {
-        ownerTitle: "No collections yet",
-        ownerDescription: "Create a collection to organize saved content.",
-        visitorTitle: "No public collections",
-        visitorDescription: "This user has not shared any collections yet.",
-      },
-      error: {
-        title: "Collections unavailable",
-        description: "Please try again later.",
-      },
-      delete: {
-        title: "Delete collection?",
-        description: "{title} will be removed.",
-        confirm: "Delete",
-      },
-      toast: {
-        loadFailed: "Failed to load collections",
-        created: "Collection created",
-        updated: "Collection updated",
-        deleted: "Collection deleted",
-        saveFailed: "Failed to save collection",
-        deleteFailed: "Failed to delete collection",
-      },
-      a11y: {
-        grid: "User collections",
-      },
-    },
-  },
-};
