@@ -5,7 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Layers, MessageSquareText, Search, Users, X } from "lucide-react";
+import { Layers, MessageSquareText, Users } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
+import { ipCategoryLabelKey } from "@/lib/ip-categories";
 import { FollowButton } from "@/components/social/FollowButton";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { RecordBrowseHistory } from "@/components/tracking/RecordBrowseHistory";
@@ -54,20 +56,8 @@ function sortForTab(target: IPHubTab, current: string): string {
 
 const TAG_COLOR_CYCLE = ["blue", "green", "purple", "orange", "rose", "sky"] as const;
 
-function categoryLabelKey(category?: string): string {
-  switch (category) {
-    case "game": return "home.categoryGaming";
-    case "film_tv": return "home.categoryFilmTv";
-    case "anime": return "home.animeCategory";
-    case "manga": return "home.mangaCategory";
-    case "novel": return "home.novelCategory";
-    case "music": return "home.audio";
-    case "variety": return "home.varietyShowCategory";
-    case "short_drama": return "home.shortDramaCategory";
-    case "vtuber": return "home.other";
-    default: return "home.other";
-  }
-}
+/* SP-19 G1-3：分类标签走单一事实源（lib/ip-categories，11 类）。 */
+const categoryLabelKey = ipCategoryLabelKey;
 
 interface IPHubClientProps {
   ip: IPHubData;
@@ -249,29 +239,19 @@ export function IPHubClient({ ip, stats, apiBase }: IPHubClientProps) {
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <form
             role="search"
-            className="relative min-w-0 flex-1"
+            className="min-w-0 flex-1"
             onSubmit={(e) => { e.preventDefault(); submitSearch(); }}
             onBlur={() => submitSearch()}
           >
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <input
+            <SearchInput
               ref={searchInputRef}
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onValueChange={setSearchInput}
+              onClear={clearSearch}
+              size="sm"
               placeholder={t('ip.hubSearchPlaceholder')}
               aria-label={t('ip.hubSearchPlaceholder')}
-              className="min-h-9 w-full rounded-full border border-border bg-muted pl-9 pr-9 text-sm placeholder:text-muted-foreground/60 focus:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            {searchInput && (
-              <button
-                type="button"
-                aria-label={t('ip.hubClearSearch')}
-                onClick={clearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
           </form>
           <nav aria-label={t('ip.hubModules')} className="flex items-center gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
             {TAB_KEYS.map((key) => {

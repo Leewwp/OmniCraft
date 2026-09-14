@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
@@ -291,7 +292,7 @@ export default function StudioSeriesPage() {
                   {detail.items.map((item, index) => <li key={item.id} className="flex min-h-14 items-center gap-2 px-3 py-2"><span className="w-7 text-xs text-fg-muted">{index + 1}</span><span className="min-w-0 flex-1 truncate text-sm text-fg-default">{item.content.title}</span><Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label={t("studio.series.a11y.moveUp", { title: item.content.title })} disabled={Boolean(busyAction) || index === 0} onClick={() => void moveItem(index, -1)}><ArrowUp className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label={t("studio.series.a11y.moveDown", { title: item.content.title })} disabled={Boolean(busyAction) || index === detail.items.length - 1} onClick={() => void moveItem(index, 1)}><ArrowDown className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label={t("studio.series.a11y.removeItem", { title: item.content.title })} disabled={Boolean(busyAction)} onClick={() => void handleRemove(item.id)}><X className="h-4 w-4" /></Button></li>)}
                 </ol>}</div>
 
-                <div className="mt-6"><h3 className="mb-2 text-sm font-semibold text-fg-default">{t("studio.series.search.title")}</h3><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("studio.series.search.placeholder")} aria-label={t("studio.series.search.label")} />{contentsLoading ? <Skeleton className="mt-3 h-12 w-full" /> : <div className="mt-2 space-y-1">{searchResults.map((item) => <div key={item.id} className="flex min-h-11 items-center gap-2 rounded-md border border-border-default px-3"><span className="min-w-0 flex-1 truncate text-sm">{item.title}</span><Button type="button" size="sm" className="min-h-11" disabled={Boolean(busyAction)} onClick={() => void handleAdd(item.id)}>{t("studio.series.items.add")}</Button></div>)}</div>}</div>
+                <div className="mt-6"><h3 className="mb-2 text-sm font-semibold text-fg-default">{t("studio.series.search.title")}</h3><SearchInput value={search} onValueChange={setSearch} size="sm" placeholder={t("studio.series.search.placeholder")} aria-label={t("studio.series.search.label")} />{contentsLoading ? <Skeleton className="mt-3 h-12 w-full" /> : <div className="mt-2 space-y-1">{searchResults.map((item) => <div key={item.id} className="flex min-h-11 items-center gap-2 rounded-md border border-border-default px-3"><span className="min-w-0 flex-1 truncate text-sm">{item.title}</span><Button type="button" size="sm" className="min-h-11" disabled={Boolean(busyAction)} onClick={() => void handleAdd(item.id)}>{t("studio.series.items.add")}</Button></div>)}</div>}</div>
               </>
             )}
           </section>

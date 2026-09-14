@@ -1,7 +1,7 @@
 # OmniCraft 项目术语表
 
 > **权威等级**: authoritative（术语定义的唯一来源）
-> **最后更新**: 2026-08-07
+> **最后更新**: 2026-09-14
 
 ## 核心概念
 
@@ -40,6 +40,7 @@
 | IP 库 | IP Library | 展示全部 IP 的可检索浏览界面，卡片承载封面、简介、分类与创作数据；由二创分区页进入 | `/ips`；禁止用"IP 列表页""IP 索引"指代 |
 | IP 详情页 | IP Detail Page | 单个 IP 的贴吧式社区枢纽页：头部为 IP 身份区（封面/名称/类目/简介/标签 + 关注数/讨论数/作品数），主体为单页三模块浏览区（内容分享/讨论区/提案投票），全流程页内切换不跳页，辅以 IP 内搜索；内容卡片与其他内容卡片一样打开内容详情浮层，讨论帖详情为页内浮层 | `/ip/[ipId]?tab=&type=&sort=&q=`；禁止用"IP 主页""IP 空间"指代 |
 | 共治提案 | IP Proposal | 关注者投票决定 IP 资料（简介/封面/标签）改动的协作治理机制：达标登录用户发起字段级提案，该 IP 关注者投赞成/反对票，达标即通过并自动生效（写版本快照+失效缓存），或到截止日未达标自动否决 | IP 详情页提案投票 tab（`/ip/[ipId]?tab=proposals`）；禁止与"众裁/判决/判官"混用——判官是内容违规众裁，共治提案是资料协作编辑，两者概念相反 |
+| IP 分类 | IP Category | IP 实体的领域分类体系，现行 11 类：游戏/影视/动漫/漫画/小说/文学/音乐/综艺/短剧/虚拟主播/其他（slug: game/film_tv/anime/manga/novel/literature/music/variety/short_drama/vtuber/other）。词表**不定稿**、允许拓展；拓展机制 = 前端单源常量（`frontend/lib/ip-categories.ts`）+ 后端 config.yaml allowlist 校验 + i18n 键，三处同步一个小 PR | IP 发布表单、IP 库筛选 pills、首页 IP chips、IP 详情页类目标签；禁止与"内容类型"（Content Type）"内容分类"（Category）混用——后两者描述内容，IP 分类描述 IP 实体本身 |
 | Agent 工作台 | Agent Workspace | 由顶部导航进入、承载站内检索问答和受控任务协助的独立全页智能助手空间；普通写操作必须逐项确认，敏感账号操作不属于能力范围 | 受保护路由 `/agent`；禁止用"Agent 频道""全局聊天挂件"指代 |
 | Agent 会话全文搜索 | Agent Session Full-text Search | 在当前账号全部仍保留的 Agent 会话标题与消息正文中查找文本，不受分页或已加载范围限制；命中消息单独列出并按时间倒序 | Web Agent Productization 承接；禁止退化为客户端过滤已加载标题 |
 | Agent 引用卡片 | Agent Citation Card | Agent 回答中指向经服务端重新校验的站内公开内容的可聚焦入口；打开后进入内容详情浮层，关闭时恢复原对话上下文 | Agent 回答渲染层；禁止用"外链引用""模型链接"指代 |

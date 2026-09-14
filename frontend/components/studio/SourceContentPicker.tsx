@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -150,16 +150,17 @@ export function SourceContentPicker({
       <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-foreground">
         {t(`${sourceKind}.label`)}
       </label>
-      <Input
+      <SearchInput
         id={inputId}
         role="combobox"
         aria-expanded={showResults}
         aria-controls={listboxId}
         aria-activedescendant={highlighted !== null && showResults ? `${listboxId}-option-${highlighted}` : undefined}
         value={query}
-        onChange={(event) => handleQueryChange(event.target.value)}
+        onValueChange={handleQueryChange}
         onKeyDown={handleKeyDown}
         disabled={disabled}
+        size="sm"
         placeholder={t(`${sourceKind}.placeholder`)}
       />
       {loading && (

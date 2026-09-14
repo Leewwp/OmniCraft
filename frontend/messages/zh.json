@@ -20,6 +20,7 @@
     "next": "下一页",
     "previous": "上一页",
     "search": "搜索 IP、内容、创作者...",
+    "clearSearch": "清空搜索",
     "noData": "暂无数据",
     "close": "关闭",
     "removeTag": "移除{tag}",
@@ -231,11 +232,6 @@
     "categoryProductivity": "效率",
     "ipClassification": "IP 分类",
     "allIps": "全部 IP",
-    "animeCategory": "动画",
-    "mangaCategory": "漫画",
-    "novelCategory": "小说",
-    "varietyShowCategory": "综艺",
-    "shortDramaCategory": "短剧",
     "management": "管理",
     "myFavorites": "我的收藏",
     "myCreations": "我的创作",
@@ -1206,7 +1202,6 @@
     "clearAllFilters": "清除所有筛选",
     "loadMore": "加载更多",
     "sortByName": "名称排序",
-    "sortHot": "最热门",
     "sortMostContents": "最多内容",
     "sortNewest": "最新",
     "sortLabel": "IP 排序方式",
@@ -2722,5 +2717,18 @@
       "title": "能力边界",
       "body": "匿名面只返回已发布且公开的内容（草稿/私密/审核中/封禁内容绝不出现在任何匿名响应中）；使用指导的安全提示恒来自平台模板。"
     }
+  },
+  "ipCategory": {
+    "game": "游戏",
+    "film_tv": "影视",
+    "anime": "动漫",
+    "manga": "漫画",
+    "novel": "小说",
+    "literature": "文学",
+    "music": "音乐",
+    "variety": "综艺",
+    "short_drama": "短剧",
+    "vtuber": "虚拟主播",
+    "other": "其他"
   }
 }

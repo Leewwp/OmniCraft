@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 
 export interface IPPickerValue {
@@ -81,10 +81,11 @@ export function IPPicker({ value, onChange, placeholder, searchLabel, loadingLab
 
   return (
     <div className="space-y-2">
-      <Input
+      <SearchInput
         aria-label={searchLabel}
         value={query}
-        onChange={(event) => handleQueryChange(event.target.value)}
+        onValueChange={handleQueryChange}
+        size="sm"
         placeholder={placeholder}
       />
       {loading && <p className="text-xs text-muted-foreground">{loadingLabel}</p>}

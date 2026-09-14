@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
@@ -150,14 +151,12 @@ export function GlobalSearchInput({
     <div ref={rootRef} className={cn("relative", className)}>
       <form role="search" onSubmit={handleSubmit} className={cn(submitLabel && "flex items-center gap-2")}>
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
+          <SearchInput
             aria-label={placeholder ?? t("common.search")}
             autoFocus={autoFocus}
             placeholder={placeholder ?? t("common.search")}
             value={query}
-            onChange={(event) => setQueryState(event.target.value)}
+            onValueChange={setQueryState}
             onKeyDown={handleKeyDown}
             role="combobox"
             aria-expanded={open && suggestions.length > 0}
@@ -165,12 +164,11 @@ export function GlobalSearchInput({
             aria-controls={listboxId}
             aria-busy={isLoading || undefined}
             disabled={disabled || undefined}
-            className={cn(
-              "w-full rounded-md border pl-9 pr-3 focus:outline-none",
-              size === "sm"
-                ? "h-8 border-transparent bg-canvas-subtle text-sm placeholder:text-muted-foreground/60 transition-[color,background-color,border-color,box-shadow] duration-150 hover:border-border-strong focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
-                : "h-11 border-input bg-background text-base placeholder:text-muted-foreground/60 focus:border-ring focus:ring-2 focus:ring-ring focus:ring-offset-2",
-            )}
+            /* SP-19 G1-2：输入壳统一为共享 SearchInput（IP 库基准公式）；
+             * Header 桌面 44（lg）/ 移动两处 36（sm）。 */
+            size={size === "lg" ? "lg" : "sm"}
+            clearable={!disabled}
+            className={size === "sm" ? "" : undefined}
           />
         </div>
         {submitLabel && (

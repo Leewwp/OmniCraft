@@ -5,13 +5,14 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   LayoutGrid, Gamepad2, Tv, BookOpen, Globe, Music, Clock, Film,
-  Heart, Settings, FileText, ChevronRight,
+  Heart, Settings, FileText, ChevronRight, Feather, BookMarked, Mic2, Tag,
 } from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
 import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
+import { IP_CATEGORY_FILTERS } from "@/lib/ip-categories";
 import { SortSelect } from "@/components/ui/SortSelect";
 import { FilterPills } from "@/components/ui/filter-pills";
 import { SkeletonCard } from "@/components/ui/skeleton";
@@ -37,6 +38,23 @@ interface HomePageClientProps {
 interface IPResponse { ips: IPItem[] }
 
 const ALL_KEY = "__all__";
+
+
+/* SP-19 G1-3：11 类 chips 图标（slug → lucide 元素；novel/literature 修正
+ * 历史错配——原 novel 用 Music 图标）。 */
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  game: <Gamepad2 className="h-4 w-4" />,
+  film_tv: <Tv className="h-4 w-4" />,
+  anime: <BookOpen className="h-4 w-4" />,
+  manga: <Globe className="h-4 w-4" />,
+  novel: <Feather className="h-4 w-4" />,
+  literature: <BookMarked className="h-4 w-4" />,
+  music: <Music className="h-4 w-4" />,
+  variety: <Film className="h-4 w-4" />,
+  short_drama: <Tv className="h-4 w-4" />,
+  vtuber: <Mic2 className="h-4 w-4" />,
+  other: <Tag className="h-4 w-4" />,
+};
 
 export function HomePageClient({ apiBase, initialIPs, initialContents, initialContentTotal }: HomePageClientProps) {
   const t = useTranslations();
@@ -123,14 +141,15 @@ export function HomePageClient({ apiBase, initialIPs, initialContents, initialCo
     {
       label: t('home.ipClassification'),
       items: [
+        /* SP-19 G1-3：分类 chips 与 IP 库 pills 同源（lib/ip-categories，11 类）。 */
         { icon: <LayoutGrid className="h-4 w-4" />, label: t('home.allIps'), count: formatCount(Object.values(categoryCounts).reduce((a: number, v: string) => a + parseInt(v, 10), 0).toString()), active: ipCategory === "", onClick: () => setIPCategory("") },
-        { icon: <Gamepad2 className="h-4 w-4" />, label: t('home.categoryGaming'), count: formatCount(categoryCounts.game), active: ipCategory === "game", onClick: () => setIPCategory("game") },
-        { icon: <Tv className="h-4 w-4" />, label: t('home.categoryFilmTv'), count: formatCount(categoryCounts.film_tv), active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
-        { icon: <BookOpen className="h-4 w-4" />, label: t('home.animeCategory'), count: formatCount(categoryCounts.anime), active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
-        { icon: <Globe className="h-4 w-4" />, label: t('home.mangaCategory'), count: formatCount(categoryCounts.manga), active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
-        { icon: <Music className="h-4 w-4" />, label: t('home.novelCategory'), count: formatCount(categoryCounts.novel), active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
-        { icon: <Film className="h-4 w-4" />, label: t('home.varietyShowCategory'), count: formatCount(categoryCounts.variety), active: ipCategory === "variety", onClick: () => setIPCategory("variety") },
-        { icon: <Tv className="h-4 w-4" />, label: t('home.shortDramaCategory'), count: formatCount(categoryCounts.short_drama), active: ipCategory === "short_drama", onClick: () => setIPCategory("short_drama") },
+        ...IP_CATEGORY_FILTERS.slice(1).map(({ slug, labelKey }) => ({
+          icon: <span className="flex h-4 w-4 items-center justify-center">{CATEGORY_ICONS[slug]}</span>,
+          label: t(labelKey),
+          count: formatCount(categoryCounts[slug]),
+          active: ipCategory === slug,
+          onClick: () => setIPCategory(slug),
+        })),
       ] as SidebarItem[],
     },
     {

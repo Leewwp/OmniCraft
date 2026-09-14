@@ -636,6 +636,15 @@ func TestDefaultConfigDMMaxLength(t *testing.T) {
 	require.Equal(t, 2000, cfg.Limits.DMMaxLength)
 }
 
+func TestDefaultConfigIPCategories(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+	// SP-19 G1-3：11 类 allowlist 出厂值与前端 lib/ip-categories.ts 单源对齐。
+	require.Equal(t, []string{
+		"game", "film_tv", "anime", "manga", "novel", "literature",
+		"music", "variety", "short_drama", "vtuber", "other",
+	}, cfg.IPCategories)
+}
+
 func TestBrowseHistoryConfig(t *testing.T) {
 	cfg := loadDefaultConfigForTest(t)
 

@@ -44,12 +44,13 @@ FIXTURE_PASSWORD_HASH = "$2b$12$ZHaA7d8luEG3uvw6BQG.QeANbHfylOi62E2VlBV9fmqJFtnu
 FIXTURE_PASSWORD = "CorpusV2#2026"
 FIXTURE_REPUTATION = 80
 
-# fanwork zone category domain comes from the categories table
-# (zone=fanwork, level=ip_category): gaming/anime/music/film_tv/literature/other.
+# SP-19 G1-3: IP category slugs must match the 11-category single source
+# (frontend/lib/ip-categories.ts + backend config ip_categories): gaming was
+# backfilled to game (migration 080); literature/film_tv/anime/music/other unchanged.
 IP_CATEGORY: Dict[str, str] = {
-    "原神": "gaming",
-    "崩坏：星穹铁道": "gaming",
-    "王者荣耀": "gaming",
+    "原神": "game",
+    "崩坏：星穹铁道": "game",
+    "王者荣耀": "game",
     "西游记（孙悟空）": "anime",
     "哪吒/封神宇宙": "anime",
     "全职高手": "literature",
@@ -62,7 +63,7 @@ IP_CATEGORY: Dict[str, str] = {
     "双城之战": "anime",
     "火影忍者": "anime",
     "海贼王": "anime",
-    "宝可梦": "gaming",
+    "宝可梦": "game",
 }
 
 # Corpus category -> human tag (kept in content tags; the DB category column

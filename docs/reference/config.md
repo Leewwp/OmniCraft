@@ -103,6 +103,7 @@ upgrades; defaults stay off until A-04 ablation... |
 | `ip_proposal.deadline_days` | `int` | DeadlineDays |
 | `ip_proposal.min_votes` | `int` | MinVotes |
 | `ip_proposal.pass_threshold` | `float64` | PassThreshold |
+| `ip_categories` | `[]string` | IPCategories is the IP category allowlist; kept in sync with frontend/lib/ip-categories.ts |
 | `judge.error_rate_revoke` | `float64` | ErrorRateRevoke |
 | `judge.error_rate_window` | `int` | ErrorRateWindow |
 | `judge.exam_pass_rate` | `float64` | ExamPassRate |
