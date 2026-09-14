@@ -1,0 +1,29 @@
+/* SP-19 G3-1：Crepe 主题 token 桥接——把 crepe 调色板变量映射到
+ * design-system 主 token（暗色随 token 自动翻转，无需 frame-dark.css 双主题
+ * 切换），并约束编辑区排版贴合站点正文样式。 */
+
+.milkdown {
+  --crepe-color-primary: var(--accent-emphasis, var(--primary));
+  --crepe-color-on-primary: var(--primary-foreground, #fff);
+  --crepe-color-background: var(--background);
+  --crepe-color-on-background: var(--foreground);
+  --crepe-color-surface: var(--card);
+  --crepe-color-surface-low: var(--muted);
+  --crepe-color-on-surface: var(--foreground);
+  --crepe-color-on-surface-variant: var(--muted-foreground);
+  --crepe-color-outline: var(--border);
+  --crepe-color-error: var(--destructive);
+  --crepe-color-inline-code: var(--accent-emphasis, var(--primary));
+  --crepe-font-default: inherit;
+  --crepe-base-font-size: 15px;
+  color: var(--foreground);
+  font-family: inherit;
+}
+
+.milkdown-editor-root .milkdown {
+  min-height: inherit;
+}
+
+.milkdown .editor-wrapper {
+  padding-bottom: 1.5rem;
+}

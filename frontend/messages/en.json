@@ -2730,5 +2730,14 @@
     "short_drama": "Short Drama",
     "vtuber": "VTuber",
     "other": "Other"
+  },
+  "editor": {
+    "wordCount": "{count} characters",
+    "draftFound": "Unsubmitted draft found",
+    "restoreDraft": "Restore draft",
+    "discardDraft": "Discard",
+    "imageUploading": "Uploading image…",
+    "imageUploadFailed": "Image upload failed, please retry",
+    "imageDisabled": "Images are not supported here"
   }
 }
