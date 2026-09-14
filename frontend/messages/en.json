@@ -1876,6 +1876,33 @@
       "messageList": "Conversation messages",
       "unread": "Unread notification",
       "broadcast": "System broadcast"
+    },
+    "detail": {
+      "kindContent": "Work",
+      "kindDiscussion": "Discussion",
+      "kindIP": "IP",
+      "kindPR": "PR",
+      "kindUser": "User",
+      "kindAppeal": "Appeal",
+      "kindReport": "Report",
+      "kindFeedback": "Feedback",
+      "kindMessage": "DM",
+      "repliedYou": "replied to you",
+      "likedYourWork": "liked your work",
+      "followedYou": "followed you",
+      "sentYouPR": "sent you a PR",
+      "replyAction": "Reply",
+      "viewConversation": "View conversation",
+      "viewWork": "View work",
+      "viewPR": "View PR",
+      "followUser": "Follow",
+      "markRead": "Mark as read",
+      "endOfList": "You have reached the end",
+      "loadMore": "Load more",
+      "categoryTitle": "Messages"
+    },
+    "dropdown": {
+      "viewAll": "View all"
     }
   },
   "collabInviteCard": {

@@ -8,7 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ApiRequestError, api, setAccessToken } from "@/lib/api";
 import { ChatWindow } from "@/components/social/ChatWindow";
 import { ConversationList } from "@/components/social/ConversationList";
-import { NotificationList } from "@/components/social/NotificationList";
+import { NotificationDetailList } from "@/components/messages/NotificationDetailList";
 import { ToastProvider } from "@/components/ui/Toast";
 
 import { act, cleanup, fireEvent, installDom, renderWithIntl, waitFor } from "./runtime-test-helpers";
@@ -52,6 +52,19 @@ const intlMessages = {
     close: "Close",
     back: "Back",
     loading: "Loading...",
+    retry: "Retry",
+    save: "Save",
+    cancel: "Cancel",
+    userLabel: "User #{id}",
+  },
+  user: {
+    hoverCardLabel: "{name} profile card",
+    statContents: "Contents",
+    statLikes: "Likes",
+    statFollowers: "Followers",
+    viewProfile: "View profile",
+    follow: "Follow",
+    following: "Following",
   },
   discussion: {
     search: "Search conversations",
@@ -70,6 +83,35 @@ const intlMessages = {
   messages: {
     noConversations: "No conversations",
     noMessages: "No messages",
+    noNotificationsHint: "Notifications will appear here.",
+    error: {
+      conversations: "Could not load conversations.",
+      chat: "Could not load this conversation.",
+      send: "Could not send the message.",
+      notifications: "Could not load notifications.",
+    },
+    detail: {
+      repliedYou: "replied to you",
+      likedYourWork: "liked your work",
+      followedYou: "followed you",
+      sentYouPR: "sent you a PR",
+      replyAction: "Reply",
+      viewConversation: "View conversation",
+      viewWork: "View work",
+      viewPR: "View PR",
+      followUser: "Follow",
+      markRead: "Mark as read",
+      endOfList: "You have reached the end",
+      kindContent: "Work",
+      kindDiscussion: "Discussion",
+      kindIP: "IP",
+      kindPR: "PR",
+      kindUser: "User",
+      kindAppeal: "Appeal",
+      kindReport: "Report",
+      kindFeedback: "Feedback",
+      kindMessage: "DM",
+    },
     markAllRead: "Mark all read",
     read: "Read",
     selectConversation: "Select a conversation",
@@ -112,11 +154,6 @@ const intlMessages = {
       selectConversation: "Select a conversation",
       collabInviteSummary: "Collaboration invitation",
     },
-    error: {
-      conversations: "Could not load conversations.",
-      chat: "Could not load this conversation.",
-      send: "Could not send the message.",
-    },
   },
 };
 
@@ -137,6 +174,8 @@ type MockOptions = {
     target_type?: string;
     target_id?: number;
     created_at: string;
+    sender?: { id: number; username: string; avatar_url: string; bio?: string } | null;
+    target_summary?: { kind: string; title?: string; url?: string } | null;
   }>;
   postPromise?: Promise<unknown>;
   postError?: Error;
@@ -304,7 +343,7 @@ test("ChatWindow mobile back control uses only localized text", async () => {
   assert.equal(view.container.textContent?.includes("鈫"), false);
 });
 
-test("NotificationList renders broadcast notifications with accent marker, title, and safe Markdown", async () => {
+test("NotificationDetailList renders broadcast title, safe Markdown body, and unread styling", async () => {
   installMessagesDom();
   installApiMocks({
     notifications: [
@@ -320,21 +359,21 @@ test("NotificationList renders broadcast notifications with accent marker, title
     ],
   });
 
-  const view = renderMessagesComponent(<NotificationList />);
+  const view = renderMessagesComponent(<NotificationDetailList channel="broadcast" title="Broadcast" />);
 
   const item = await waitFor(() => {
-    const element = view.getByLabelText(/Broadcast.*No related item/);
-    assert.ok(element.className.includes("border-l-blue") || element.className.includes("border-l-accent"));
+    const element = view.getByLabelText("Maintenance window");
+    assert.ok(element.className.includes("bg-accent-subtle"), "unread items must carry the unread tint");
     return element;
   });
 
   assert.ok(view.getByText("Maintenance window"));
   assert.ok(view.container.querySelector("strong")?.textContent?.includes("Downtime"));
   assert.equal(view.container.querySelector("script"), null);
-  assert.ok(item.className.includes("cursor-default"), "broadcast without a target should not look like a link");
+  assert.equal(item.querySelector("a[href^=\"/content/\"]"), null, "broadcast without target_summary must not offer navigation");
 });
 
-test("NotificationList keeps only valid notification targets navigation-clickable", async () => {
+test("NotificationDetailList renders the target reference block as the only navigation", async () => {
   installMessagesDom();
   installApiMocks({
     notifications: [
@@ -348,17 +387,23 @@ test("NotificationList keeps only valid notification targets navigation-clickabl
         target_type: "content",
         target_id: 100,
         created_at: "2026-06-30T12:06:00Z",
+        target_summary: { kind: "content", title: "Release notes target", url: "/content/100" },
       },
     ],
   });
 
-  const view = renderMessagesComponent(<NotificationList />);
+  const view = renderMessagesComponent(<NotificationDetailList channel="broadcast" title="Broadcast" />);
 
-  const item = await waitFor(() => view.getByLabelText(/Broadcast.*Opens related item/));
-  assert.ok(item.className.includes("cursor-pointer"), "broadcast with a valid target should stay clickable");
+  const ref = await waitFor(() => {
+    const link = view.container.querySelector("a[href=\"/content/100\"]") as HTMLAnchorElement;
+    assert.ok(link, "reference block link must render for decorated targets");
+    return link;
+  });
+  assert.ok(ref.textContent?.includes("Release notes target"));
+  assert.ok(ref.textContent?.includes("Work"), "kind badge must render next to the title");
 });
 
-test("NotificationList treats invalid target ids as non-clickable", async () => {
+test("NotificationDetailList offers no navigation when the backend sends no target_summary", async () => {
   installMessagesDom();
   installApiMocks({
     notifications: [
@@ -376,13 +421,13 @@ test("NotificationList treats invalid target ids as non-clickable", async () => 
     ],
   });
 
-  const view = renderMessagesComponent(<NotificationList />);
+  const view = renderMessagesComponent(<NotificationDetailList channel="broadcast" title="Broadcast" />);
 
-  const item = await waitFor(() => view.getByLabelText(/Broadcast.*No related item/));
-  assert.ok(item.className.includes("cursor-default"), "negative target ids should not create navigation");
+  await waitFor(() => assert.ok(view.getByText("Broken target")));
+  assert.equal(view.container.querySelector("a[href^=\"/content/\"]"), null, "no summary must mean no navigation surface");
 });
 
-test("NotificationList updates unread count callback after marking a notification read", async () => {
+test("NotificationDetailList marks items read on demand and recalibrates badges", async () => {
   installMessagesDom();
   installApiMocks({
     notifications: [
@@ -397,23 +442,34 @@ test("NotificationList updates unread count callback after marking a notificatio
       },
     ],
   });
-  const unreadCounts: number[] = [];
+  const countsChanged: number[] = [];
+  let readCalls = 0;
+  api.patch = (async <T,>(path: string): Promise<T> => {
+    if (path === "/api/v1/notifications/80/read") {
+      readCalls += 1;
+      return { message: "marked read" } as T;
+    }
+    return ({} as T) as T;
+  }) as typeof api.patch;
 
   const view = renderMessagesComponent(
-    <NotificationList onUnreadCountChange={(count) => unreadCounts.push(count)} />,
+    <NotificationDetailList channel="broadcast" title="Broadcast" onCountsChanged={() => countsChanged.push(readCalls)} />,
   );
 
   await waitFor(() => {
-    assert.equal(unreadCounts.at(-1), 1);
+    assert.ok(view.getByText("Unread broadcast"));
+    assert.ok(view.container.textContent?.includes(intlMessages.messages.markAllRead), "unread items must surface mark-all-read");
   });
-  fireEvent.click(view.getByRole("button", { name: intlMessages.messages.read }));
+  fireEvent.click(view.getByRole("button", { name: intlMessages.messages.detail.markRead }));
 
   await waitFor(() => {
-    assert.equal(unreadCounts.at(-1), 0);
+    assert.ok(readCalls === 1, "PATCH read endpoint must be called exactly once");
+    assert.equal(countsChanged.at(-1), 1, "onCountsChanged must fire after the read settles");
+    assert.equal(view.container.textContent?.includes(intlMessages.messages.markAllRead), false, "no unread left must hide mark-all-read");
   });
 });
 
-test("NotificationList ignores stale responses from earlier channel loads", async () => {
+test("NotificationDetailList ignores stale responses from earlier channel loads", async () => {
   installMessagesDom();
   let resolveAllNotifications: (value: unknown) => void = () => undefined;
   const allNotifications = new Promise((resolve) => {
@@ -427,10 +483,10 @@ test("NotificationList ignores stale responses from earlier channel loads", asyn
     if (path === "/api/v1/notifications/unread-count") {
       return { unread_counts: { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 } } as T;
     }
-    if (path === "/api/v1/notifications") {
+    if (path === "/api/v1/notifications?page=1&page_size=20") {
       return (await allNotifications) as T;
     }
-    if (path === "/api/v1/notifications?channel=broadcast") {
+    if (path.startsWith("/api/v1/notifications") && path.includes("channel=broadcast")) {
       return {
         notifications: [
           {
@@ -443,15 +499,27 @@ test("NotificationList ignores stale responses from earlier channel loads", asyn
             created_at: "2026-06-30T12:09:00Z",
           },
         ],
+        total: 1,
       } as T;
     }
     throw new Error(`unexpected api.get path ${path}`);
   }) as typeof api.get;
   api.patch = (async <T,>(): Promise<T> => ({} as T)) as typeof api.patch;
 
-  const view = renderMessagesComponent(<NotificationList />);
+  const baseNode = (channel: string) => (
+    <NotificationDetailList channel={channel} title={channel === "broadcast" ? "Broadcast" : "All"} />
+  );
+  const view = renderMessagesComponent(baseNode("all"));
 
-  fireEvent.click(view.getByRole("button", { name: intlMessages.notification.channelBroadcast }));
+  view.rerender(
+    <IntlProvider locale="en" messages={intlMessages}>
+      <AppRouterContext.Provider value={testRouter}>
+        <ToastProvider>
+          <AuthProvider>{baseNode("broadcast")}</AuthProvider>
+        </ToastProvider>
+      </AppRouterContext.Provider>
+    </IntlProvider>,
+  );
   await waitFor(() => {
     assert.ok(view.getByText("Fresh broadcast"));
   });
@@ -469,6 +537,7 @@ test("NotificationList ignores stale responses from earlier channel loads", asyn
           created_at: "2026-06-30T12:01:00Z",
         },
       ],
+      total: 1,
     });
     await allNotifications;
   });
@@ -527,8 +596,8 @@ function installApiMocks(options: MockOptions = {}) {
     if (path === "/api/v1/notifications/unread-count") {
       return { unread_counts: { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 } } as T;
     }
-    if (path === "/api/v1/notifications") {
-      return { notifications: options.notifications ?? [] } as T;
+    if (path === "/api/v1/notifications" || path.startsWith("/api/v1/notifications?")) {
+      return { notifications: options.notifications ?? [], total: (options.notifications ?? []).length } as T;
     }
     if (path === "/api/v1/messages") {
       return { conversations: [conversation], page: 1, page_size: 20 } as T;

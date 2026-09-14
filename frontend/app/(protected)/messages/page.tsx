@@ -1,14 +1,29 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { NotificationList } from "@/components/social/NotificationList";
 import { ConversationList, type Conversation } from "@/components/social/ConversationList";
 import { ChatWindow } from "@/components/social/ChatWindow";
-import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
-import type { Notification } from "@/components/social/NotificationList";
+import {
+  MESSAGE_CHANNELS,
+  MessageCategoryNav,
+  type MessageChannel,
+} from "@/components/messages/MessageCategoryNav";
+import { NotificationDetailList } from "@/components/messages/NotificationDetailList";
+
+/* 消息中心（SP-18 #509，B 站式双栏）：
+   左栏 = 分类导航（通知七分类 + 私信，未读 pill 徽标，选中态高亮可辨）；
+   内容区 = 分类标题 + 全部已读 + 通知详情列表（§4.1）或私信三栏之会话+聊天
+   （§4.2，复用 ConversationList/ChatWindow 换肤）。
+   路由 = ?channel=（默认 all，?channel=dm&c=<会话> 深链）；旧 ?tab= 客户端
+   重定向兼容（tab=messages→dm、tab=notifications→all）。 */
+
+function normalizeChannel(raw: string | null): MessageChannel {
+  const allowed: MessageChannel[] = ["all", "reply", "like", "follow", "pr", "system", "broadcast", "dm"];
+  return allowed.includes(raw as MessageChannel) ? (raw as MessageChannel) : "all";
+}
 
 export default function MessagesPage() {
   return (
@@ -20,116 +35,114 @@ export default function MessagesPage() {
 
 function MessagesPageContent() {
   const t = useTranslations();
-  const { user } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<"notifications" | "messages">(
-    searchParams.get("tab") === "messages" ? "messages" : "notifications"
-  );
+  const { user, unreadCounts, refreshUser } = useAuth();
+  const [dmUnread, setDmUnread] = useState(0);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
-  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-  // 会话 Tab 未读真实聚合（FIX-31b/F-093）：由 ConversationList 上抛。
-  const [convUnreadCount, setConvUnreadCount] = useState(0);
 
-  // ?tab=messages 深链（FIX-31b：私信通知归位到会话 Tab）。
+  const channel = normalizeChannel(searchParams.get("channel"));
+  const conversationIdParam = searchParams.get("c");
+
+  /* 旧参兼容（§3.2）：?tab=messages → ?channel=dm、?tab=notifications → ?channel=all。 */
   useEffect(() => {
-    if (searchParams.get("tab") === "messages") setTab("messages");
-  }, [searchParams]);
+    const tab = searchParams.get("tab");
+    if (tab === "messages" || tab === "notifications") {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("tab");
+      if (tab === "messages" && !next.get("channel")) next.set("channel", "dm");
+      router.replace(`/messages${next.toString() ? `?${next.toString()}` : ""}`);
+    }
+  }, [searchParams, router]);
+
+  const selectChannel = useCallback(
+    (next: MessageChannel) => {
+      setActiveConv(null);
+      router.push(next === "all" ? "/messages" : `/messages?channel=${next}`);
+    },
+    [router],
+  );
+
+  const channelTitle = useMemo(() => {
+    if (channel === "dm") return t("messages.tabs.conversations");
+    const def = MESSAGE_CHANNELS.find((c) => c.key === channel);
+    return t(def?.labelKey ?? "notification.all");
+  }, [channel, t]);
+
+  /* 徽标联动（§5.4）：读/全部已读后静默校准左栏/下拉/顶栏——refreshUser
+     换 user 对象身份触发 AuthContext 的 unread-count 重拉管线。 */
+  const refreshNotificationCounts = useCallback(() => {
+    void refreshUser();
+  }, [refreshUser]);
+
+  /* 未登录保护：(protected) 布局已挡；此处防御式早退。 */
+  if (!user) return null;
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 py-6 md:px-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-fg-default">{t("messages.title")}</h1>
-          <p className="mt-1 text-sm text-fg-muted" aria-live="polite">
-            {tab === "notifications"
-              ? t("messages.tabs.notificationsCount", { count: unreadCount })
-              : t("messages.tabs.conversationsCount", { count: convUnreadCount })}
-          </p>
-        </div>
+    <div className="mx-auto w-full max-w-[1180px] px-4 py-6 md:px-6">
+      {/* 移动端：分类折叠为顶部水平滚动 chips（§3.1 响应式）。 */}
+      <div className="min-[768px]:hidden">
+        <MessageCategoryNav
+          active={channel}
+          unreadCounts={unreadCounts}
+          dmUnread={dmUnread}
+          onSelect={selectChannel}
+          orientation="horizontal"
+        />
       </div>
 
-      <div role="tablist" aria-label={t("messages.a11y.tabs")} className="flex gap-1 border-b border-border-default">
-        {(["notifications", "messages"] as const).map((tKey) => (
-          <button
-            key={tKey}
-            type="button"
-            role="tab"
-            id={`messages-tab-${tKey}`}
-            aria-controls={`messages-panel-${tKey}`}
-            aria-selected={tab === tKey}
-            onClick={() => { setTab(tKey); setActiveConv(null); setSelectedNotification(null); }}
-            className={`min-h-11 border-b-2 px-4 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-accent-emphasis ${
-              tab === tKey
-                ? "border-accent-emphasis font-medium text-accent-emphasis"
-                : "border-transparent text-fg-muted hover:bg-canvas-subtle hover:text-fg-default"
-            }`}
-          >
-            {tKey === "notifications"
-              ? t("messages.tabs.notifications")
-              : t("messages.tabs.conversations")}
-          </button>
-        ))}
-      </div>
+      <div className="grid gap-6 min-[768px]:grid-cols-[216px_minmax(0,1fr)]">
+        {/* 左栏：页标题 + 分类导航（216px）。 */}
+        <aside className="hidden min-[768px]:block">
+          <h1 className="mb-3 px-3 text-lg font-bold tracking-tight text-fg-default">{t("messages.detail.categoryTitle")}</h1>
+          <MessageCategoryNav active={channel} unreadCounts={unreadCounts} dmUnread={dmUnread} onSelect={selectChannel} />
+        </aside>
 
-      {tab === "notifications" && (
-        <section id="messages-panel-notifications" role="tabpanel" aria-labelledby="messages-tab-notifications" className="min-h-[420px]">
-          <div className="hidden min-[701px]:grid min-[701px]:grid-cols-[280px_minmax(0,1fr)] min-[1101px]:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="min-w-0 border-r border-border-default pr-4">
-              <NotificationList onUnreadCountChange={setUnreadCount} onSelect={setSelectedNotification} />
-            </div>
-            <div className="flex min-h-[420px] min-w-0 items-center justify-center px-8 text-center">
-              {selectedNotification ? (
-                <article className="w-full max-w-2xl text-left">
-                  <h2 className="text-lg font-semibold text-fg-default">{selectedNotification.title ?? t("messages.notifications.detailTitle")}</h2>
-                  <time className="mt-2 block text-xs text-fg-muted" dateTime={selectedNotification.created_at}>{new Date(selectedNotification.created_at).toLocaleString()}</time>
-                  <MarkdownRenderer content={selectedNotification.body} className="mt-4 text-sm text-fg-default" />
-                </article>
-              ) : (
-                <div>
-                  <h2 className="text-sm font-medium text-fg-default">{t("messages.notifications.selectTitle")}</h2>
-                  <p className="mt-1 text-xs text-fg-muted">{t("messages.notifications.selectDescription")}</p>
+        {/* 内容区。 */}
+        <main className="min-w-0">
+          {channel === "dm" ? (
+            <section aria-label={channelTitle} className="min-h-[560px]">
+              <div className="hidden min-[768px]:grid min-[768px]:grid-cols-[280px_minmax(0,1fr)]">
+                <div className="min-w-0 overflow-hidden rounded-l-md border border-r-0 border-border-default bg-card">
+                  <ConversationList
+                    onSelect={(c) => {
+                      setActiveConv(c);
+                      router.replace(`/messages?channel=dm&c=${c.id}`);
+                    }}
+                    activeId={activeConv?.id}
+                    onUnreadCountChange={setDmUnread}
+                    initialSelectedId={conversationIdParam ? Number(conversationIdParam) : undefined}
+                  />
                 </div>
-              )}
-            </div>
-          </div>
-          <div className="min-[701px]:hidden">
-            <NotificationList onUnreadCountChange={setUnreadCount} onSelect={setSelectedNotification} />
-          </div>
-        </section>
-      )}
-
-      {tab === "messages" && (
-        <section id="messages-panel-messages" role="tabpanel" aria-labelledby="messages-tab-messages" className="min-h-[420px]">
-          <div className="hidden min-[701px]:grid min-[701px]:grid-cols-[280px_minmax(0,1fr)] min-[1101px]:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="min-w-0 overflow-hidden rounded-l-md border border-r-0 border-border-default bg-card">
-              <ConversationList
-                onSelect={(c) => setActiveConv(c)}
-                activeId={activeConv?.id}
-                onUnreadCountChange={setConvUnreadCount}
-              />
-            </div>
-            <div className="min-w-0">
-              <ChatWindow conversation={activeConv} />
-            </div>
-          </div>
-
-          <div className="min-[701px]:hidden">
-            {activeConv ? (
-              <ChatWindow
-                conversation={activeConv}
-                onBack={() => setActiveConv(null)}
-              />
-            ) : (
-              <ConversationList
-                onSelect={(c) => setActiveConv(c)}
-                activeId={undefined}
-                onUnreadCountChange={setConvUnreadCount}
-              />
-            )}
-          </div>
-        </section>
-      )}
+                <div className="min-w-0">
+                  <ChatWindow conversation={activeConv} />
+                </div>
+              </div>
+              <div className="min-[768px]:hidden">
+                {activeConv ? (
+                  <ChatWindow conversation={activeConv} onBack={() => setActiveConv(null)} />
+                ) : (
+                  <ConversationList
+                    onSelect={(c) => {
+                      setActiveConv(c);
+                      router.replace(`/messages?channel=dm&c=${c.id}`);
+                    }}
+                    activeId={undefined}
+                    onUnreadCountChange={setDmUnread}
+                    initialSelectedId={conversationIdParam ? Number(conversationIdParam) : undefined}
+                  />
+                )}
+              </div>
+            </section>
+          ) : (
+            <NotificationDetailList
+              channel={channel}
+              title={channelTitle}
+              onCountsChanged={refreshNotificationCounts}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

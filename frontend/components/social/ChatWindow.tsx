@@ -7,6 +7,7 @@ import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { CollabInviteCard, type CollabInviteStatus } from "@/components/social/CollabInviteCard";
+import { UserHoverCard } from "@/components/social/UserHoverCard";
 import type { Conversation } from "@/components/social/ConversationList";
 import { Composer } from "@/components/ui/composer";
 
@@ -124,9 +125,20 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
             {t("common.back")}
           </button>
         )}
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-subtle text-sm font-semibold text-accent-emphasis">
-          {(otherUser?.username ?? "?").slice(0, 1).toUpperCase()}
-        </div>
+        {/* SP-18 #509（吸收 #505）：聊天窗头部头像/昵称接 UserHoverCard。 */}
+        {otherUser?.id ? (
+          <UserHoverCard
+            userId={otherUser.id}
+            username={otherUser.username ?? "?"}
+            avatarUrl={otherUser.avatar_url || undefined}
+            size={40}
+            placement="dynamic"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-subtle text-sm font-semibold text-accent-emphasis">
+            ?
+          </div>
+        )}
         <span className="truncate text-sm font-medium text-fg-default">
           {otherUser?.username ?? t("messages.chat.recipientUnavailable")}
         </span>
