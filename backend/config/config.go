@@ -310,6 +310,9 @@ type LimitsConfig struct {
 	TextMaxMB       int `mapstructure:"text_max_mb" json:"text_max_mb"`
 	ModMaxMB        int `mapstructure:"mod_max_mb" json:"mod_max_mb"`
 	SheetMusicMaxMB int `mapstructure:"sheet_music_max_mb" json:"sheet_music_max_mb"`
+	// DMMaxLength caps a direct-message text in runes; must stay aligned with
+	// the frontend MAX_DM_LENGTH (2000) so the UI constraint is server-enforced.
+	DMMaxLength int `mapstructure:"dm_max_length" json:"dm_max_length"`
 }
 
 type ReputationConfig struct {

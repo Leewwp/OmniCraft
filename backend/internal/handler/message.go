@@ -99,6 +99,12 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
+	// B4（SP-19 G1-5）：私信长度上限与前端 MAX_DM_LENGTH 对齐，API 直发超长文本被拒。
+	if h.cfg != nil && h.cfg.Limits.DMMaxLength > 0 && len([]rune(body.Text)) > h.cfg.Limits.DMMaxLength {
+		response.ValidationError(c, "dm text exceeds maximum length")
+		return
+	}
+
 	if err := h.moderateText(c.Request.Context(), "dm", body.Text); err != nil {
 		if errors.Is(err, service.ErrTextBlocked) {
 			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "内容包含违规内容，无法发送")

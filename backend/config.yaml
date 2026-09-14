@@ -188,6 +188,7 @@ limits:
   text_max_mb: 10
   mod_max_mb: 500
   sheet_music_max_mb: 50
+  dm_max_length: 2000
 
 reputation:
   min_score_for_interaction: 3

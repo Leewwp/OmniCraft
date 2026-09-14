@@ -114,6 +114,7 @@ upgrades; defaults stay off until A-04 ablation... |
 | `legal.current_privacy_version` | `string` | CurrentPrivacyVersion |
 | `legal.current_terms_version` | `string` | CurrentTermsVersion |
 | `limits.image_max_mb` | `int` | ImageMaxMB |
+| `limits.dm_max_length` | `int` | DMMaxLength |
 | `limits.mod_max_mb` | `int` | ModMaxMB |
 | `limits.sheet_music_max_mb` | `int` | SheetMusicMaxMB |
 | `limits.text_max_mb` | `int` | TextMaxMB |
