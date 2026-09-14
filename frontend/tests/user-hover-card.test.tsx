@@ -21,6 +21,8 @@ const { within } = require("@testing-library/react") as typeof import("@testing-
 // SP-17/T3 (#492)：UserHoverCard——P-01 UserIdentity 生产版。
 // 覆盖：触发元链接 / 悬停 200ms 开卡（SWR 取数）/ Esc 关闭归还焦点 /
 // 自视角不显示关注私信（查看主页）/ 无 userId 退化纯展示。
+// SP-18 修复轮（#506）：上翻按实测卡高锚定底边（间距 = margin 量级）、
+// 打开后 scroll 跟随重定位。
 
 {
   const globalStore = globalThis as unknown as { localStorage?: Storage; window: typeof window };
@@ -141,6 +143,45 @@ test("user hover card", async (t) => {
     assert.ok(within(card).getByText("12"), "contents count must render");
     assert.ok(within(card).getByRole("button", { name: "Follow" }), "follow action must render");
     assert.ok(within(card).getByRole("button", { name: "Message" }), "message action must render");
+
+    restoreGet();
+    restoreMedia();
+  });
+
+  await t.test("flip anchors the measured card bottom to the trigger top and follows scroll (#506)", async () => {
+    installDom();
+    const restoreMedia = installHoverMatchMedia(true);
+    usersResponse = profileResponse({ bio: "" });
+    const restoreGet = stubApiGet();
+
+    const view = renderCard({ placement: "dynamic" });
+    const link = view.getByRole("link", { name: /sp16a_author/ });
+    // 触发元位于视口下部（jsdom 视口高 768）：下方空间不足，必须上翻。
+    let rect = { top: 600, bottom: 620, left: 40, right: 200, width: 160, height: 20 };
+    link.getBoundingClientRect = () => rect as unknown as DOMRect;
+
+    fireEvent.pointerEnter(link.closest("span")!);
+    const card = await waitFor(() => view.getByRole("dialog"), { timeout: 2000 });
+    // jsdom 无布局引擎，钉实测卡高（无 bio 短卡 ~150px）驱动重算。
+    Object.defineProperty(card, "offsetHeight", { value: 150, configurable: true });
+
+    fireEvent.scroll(window);
+    // 上翻 = 卡底边贴触发元上缘 - VIEWPORT_MARGIN：top = 600 - 150 - 8。
+    await waitFor(() => assert.equal(card.style.top, "442px"), { timeout: 2000 });
+    assert.equal(600 - (Number.parseFloat(card.style.top) + 150), 8, "gap must equal the viewport margin");
+
+    // 打开后滚动：触发元仍处下部（下方不足维持上翻），卡片跟随重定位（含左对齐横向跟随）。
+    rect = { top: 590, bottom: 610, left: 60, right: 220, width: 160, height: 20 };
+    fireEvent.scroll(window);
+    await waitFor(() => {
+      assert.equal(card.style.top, "432px", "card must follow the trigger on scroll");
+      assert.equal(card.style.left, "60px", "card must keep left alignment with the trigger");
+    }, { timeout: 2000 });
+
+    // 上部触发元维持下方展开（实测高度参与下方判定，不再只按估算上翻）。
+    rect = { top: 100, bottom: 120, left: 60, right: 220, width: 160, height: 20 };
+    fireEvent.scroll(window);
+    await waitFor(() => assert.equal(card.style.top, "128px"), { timeout: 2000 });
 
     restoreGet();
     restoreMedia();

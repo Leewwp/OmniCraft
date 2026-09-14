@@ -726,7 +726,7 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 
 **触发与定位**
 - 桌面（`hover:hover and pointer:fine`）悬停 200ms 开、移开 200ms 延迟关（防抖，鼠标移入卡片保持打开）；键盘聚焦立即显示；触屏不弹卡，点击直达 `/user/:id`。
-- 定位：detail-creator = 触发元下方居中；dynamic = 触发元左对齐；均钳制视口/最近浮层滚动可视区（`[data-slot="overlay-scroller"], [data-slot="layer-scroller"]`），下方不足上翻；scroll/resize 捕获阶段跟随重定位，触发元离屏即关。
+- 定位：detail-creator = 触发元下方居中；dynamic = 触发元左对齐；均钳制视口/最近浮层滚动可视区（`[data-slot="overlay-scroller"], [data-slot="layer-scroller"]`），下方不足上翻——上翻按**实测卡高**锚定卡底边贴触发元上缘（间距 = 8px viewport margin；首开估算高度占位、挂载后绘制前二次校正、profile 落卡改变卡高时重校，SP-18 #506）；scroll/resize 捕获阶段跟随重定位，触发元离屏即关。
 - Esc 关闭并归还焦点触发元（preventDefault 防连带关外层 dialog）。
 
 **内容与动作**
