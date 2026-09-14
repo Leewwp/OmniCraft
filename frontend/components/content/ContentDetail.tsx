@@ -97,6 +97,10 @@ interface ContentDetailProps {
   deferTail?: boolean;
 }
 
+/* SP-19 G3-2：正文走 Markdown 渲染的内容类型（与发布侧 TEXT_PRIMARY_TYPES
+ * 对齐：article/prompt/other）；文件类简述保持纯文本。 */
+const MARKDOWN_BODY_TYPES = ["article", "prompt", "other"];
+
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
   switch (contentType) {
     case "article": return t('home.text');
@@ -375,13 +379,16 @@ export function ContentDetail({
         data-slot="detail-body"
         className={cn("space-y-6", bodyVisible ? undefined : "invisible")}
       >
-        {description && contentType === "article" && (
+        {/* SP-19 G3-2（Q7/Q17）：article/prompt/other 正文经 Milkdown 写作，
+            走 MarkdownRenderer；文件类简述保持纯文本（防换行被 markdown 合并）。
+            旧存量文本按 Q17 接受 Markdown 渲染形态，不做兼容处理。 */}
+        {description && MARKDOWN_BODY_TYPES.includes(contentType) && (
           <section className="rounded-md border border-border bg-card p-4 ">
             <MarkdownRenderer content={description} />
           </section>
         )}
 
-      {description && contentType !== "article" && contentType !== "sheet_music" && (
+      {description && !MARKDOWN_BODY_TYPES.includes(contentType) && contentType !== "sheet_music" && (
         <section className="rounded-md border border-border bg-card p-4 ">
           <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
             {description}

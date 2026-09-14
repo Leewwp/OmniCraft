@@ -339,15 +339,17 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
       }),
     };
   }
-  if (request === "@/components/content/MarkdownEditor") {
+  /* SP-19 G3-2：发布正文换 MilkdownEditor 封装（mock 为受控 textarea）；
+   * ref 句柄走可选链（getMarkdown/setMarkdown/clearDraft 缺省回退表单态）。 */
+  if (request === "@/components/markdown/MilkdownEditor") {
     return {
-      MarkdownEditor({
-        value,
+      MilkdownEditor({
+        defaultValue,
         onChange,
         disabled,
       }: {
-        value: string;
-        onChange: (value: string) => void;
+        defaultValue?: string;
+        onChange?: (value: string) => void;
         disabled?: boolean;
       }) {
         return (
@@ -355,8 +357,8 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
             aria-label="content"
             data-testid="markdown-editor"
             disabled={disabled}
-            value={value}
-            onChange={(event) => onChange(event.currentTarget.value)}
+            value={defaultValue ?? ""}
+            onChange={(event) => onChange?.(event.currentTarget.value)}
           />
         );
       },
