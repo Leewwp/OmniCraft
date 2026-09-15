@@ -67,7 +67,7 @@ scrape_configs:
     params:
       module: [http_2xx]
     static_configs:
-      - targets: ["https://api.leeppp.online"]
+      - targets: ["https://api.example.com"]
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

@@ -9,7 +9,7 @@ on:
       api_url:
         description: "Frontend NEXT_PUBLIC_API_URL build value"
         required: false
-        default: "https://api.leeppp.online"
+        default: "https://api.example.com"
 
 concurrency:
   group: release-${{ github.workflow }}
@@ -54,7 +54,7 @@ jobs:
             --tag "$backend_ref" ./backend
           docker buildx build --push --iidfile artifacts/frontend.iid \
             --build-arg NEXT_PUBLIC_API_URL="${{ inputs.api_url }}" \
-            --build-arg NEXT_PUBLIC_SITE_URL="https://app.leeppp.online" \
+            --build-arg NEXT_PUBLIC_SITE_URL="https://app.example.com" \
             --tag "$frontend_ref" ./frontend
           backend_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$backend_ref" | tail -n 1)"
           frontend_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$frontend_ref" | tail -n 1)"

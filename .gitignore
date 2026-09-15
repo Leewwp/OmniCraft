@@ -86,6 +86,8 @@ backend/config.override.local.yaml
 # （历史提交中的旧版本仍在 git 历史里；本地文件不受影响）
 /AGENTS.md
 /progress.txt
+/CLAUDE.md
+/frontend/CLAUDE.md
 /headings.txt
 /headings.json
 /OmniCraft（万象工坊）V0.3*.md

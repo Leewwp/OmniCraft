@@ -80,7 +80,7 @@ func setupVerificationTest(t *testing.T) (*VerificationService, *fakeMailSender,
 	userRepo := repository.NewUserRepository(db)
 	fakeMail := newFakeMailSender()
 	cfg := &config.Config{
-		Web: config.WebConfig{PublicBaseURL: "https://app.leeppp.online"},
+		Web: config.WebConfig{PublicBaseURL: "https://app.example.com"},
 		Verification: config.VerificationConfig{
 			EmailTTLSec:           3600,
 			ResetTTLSec:           3600,

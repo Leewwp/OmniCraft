@@ -16,7 +16,7 @@ func TestCORSReleaseModeDoesNotAutoAllowLocalhost(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{Mode: "release"},
 		Security: config.SecurityConfig{
-			AllowedOrigins: []string{"https://app.leeppp.online"},
+			AllowedOrigins: []string{"https://app.example.com"},
 		},
 	}
 
@@ -27,10 +27,10 @@ func TestCORSReleaseModeDoesNotAutoAllowLocalhost(t *testing.T) {
 	})
 
 	allowedReq := httptest.NewRequest(http.MethodGet, "/test", nil)
-	allowedReq.Header.Set("Origin", "https://app.leeppp.online")
+	allowedReq.Header.Set("Origin", "https://app.example.com")
 	allowedRec := httptest.NewRecorder()
 	r.ServeHTTP(allowedRec, allowedReq)
-	require.Equal(t, "https://app.leeppp.online", allowedRec.Header().Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "https://app.example.com", allowedRec.Header().Get("Access-Control-Allow-Origin"))
 
 	localReq := httptest.NewRequest(http.MethodGet, "/test", nil)
 	localReq.Header.Set("Origin", "http://localhost:3000")

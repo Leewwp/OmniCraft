@@ -8,11 +8,11 @@
 
 2026-07-24 在单服务器 Web 部署（`docs/deploy/nginx.omnicraft.single-server.conf`）为 App vhost 启用 CSP 时发现：Next.js App Router（生产构建）会为每个页面注入内联 bootstrap payload（RSC flight data、hydration script），这些内联脚本没有 `nonce`/`hash` 属性。若 `script-src` 严格为 `'self'`，生产页面将全部白屏。
 
-同时存在一个反例可对照：`api.leeppp.online` vhost 不承载 Next.js 页面，其 CSP 保持严格 `script-src 'self'`。
+同时存在一个反例可对照：`api.example.com` vhost 不承载 Next.js 页面，其 CSP 保持严格 `script-src 'self'`。
 
 ## 决策
 
-App vhost 的 `script-src` 采用 `'self' 'unsafe-inline'`；`style-src` 同样保留 `'unsafe-inline'`（Tailwind/样式内联属 App Router 既有行为）。其余指令保持严格：`default-src 'self'`、`img-src 'self' data: https:`、`connect-src 'self' https://api.leeppp.online`、`font-src 'self'`、无 `object-src` 兜底于 default。
+App vhost 的 `script-src` 采用 `'self' 'unsafe-inline'`；`style-src` 同样保留 `'unsafe-inline'`（Tailwind/样式内联属 App Router 既有行为）。其余指令保持严格：`default-src 'self'`、`img-src 'self' data: https:`、`connect-src 'self' https://api.example.com`、`font-src 'self'`、无 `object-src` 兜底于 default。
 
 不采用 nonce 方案的代价：nonce 需由应用在每次响应中生成并与 Nginx 静态头协作，当前单服务器静态配置无法下发动态 nonce；改为让 Next.js 完全接管 CSP 头会导致与 Nginx `add_header` 双头并存（浏览器取交集，实际效果更严而不可控）。为内联引导脚本引入 hash 清单则需要随每个部署构建产物动态更新 nginx 配置，运维代价与出错面不成比例。
 

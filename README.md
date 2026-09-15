@@ -1,14 +1,13 @@
 # OmniCraft 万象工坊
 
-![Go](https://img.shields.io/badge/Go-1.25-00ADD8)
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-336791)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D)
-![Verify Gate](https://img.shields.io/badge/verify--project-73%2F73%20mocked%20contracts-success)
 
 全民创意分享平台——以 IP 二创内容聚合为核心流量底座，Agent 自动化为增值能力，GitHub 式 PR 协同为社区护城河。
 
-这是一个**Web-only、本地可运行、本地可测试、具备 Live Demo 的工程化项目**：在模块化单体后端（Go/Gin）上实现了带权限过滤、服务端引用复核、可降级检索和可靠异步处理的单 Agent RAG 工作台。技术栈：Next.js + Go/Gin + PostgreSQL(pgvector) + Redis + 阿里云 OSS/Green。
+这是一个**Web-only、本地可运行、本地可测试的工程化开源项目**：在模块化单体后端（Go/Gin）上实现了带权限过滤、服务端引用复核、可降级检索和可靠异步处理的单 Agent RAG 工作台。技术栈：Next.js + Go/Gin + PostgreSQL(pgvector) + Redis + 阿里云 OSS/Green。
 
 ---
 
@@ -91,7 +90,7 @@ Agent 答案实测（同冻结语料，2026-08-29，63 case 真实工具循环�
 当前为本地开发与验证阶段（非生产上线系统）：
 
 - 默认读路径为 PostgreSQL keyword/pgvector + RRF；`features.rag_hybrid_enabled=false`——OpenSearch 投影契约与降级路径就绪，最终投影是显式的 **Phase 2 决策**（隔离实验：新世代 + 小语料 + 不切基线 alias + 记录回滚点）；
-- `observability.tracing.enabled=false`（演示时经环境变量开启）；`archive_malware_scan_enabled` / `desktop_deploy_enabled` 默认关闭；
+- `observability.tracing.enabled=false`（可经环境变量按需开启）；`archive_malware_scan_enabled` / `desktop_deploy_enabled` 默认关闭；
 - 真实 MiniMax Chat/Embedding provider 已接入并有本地链路证据；ClamAV 当前主要为 fake scanner 与协议级测试；无生产用户量/QPS/SLA 数据；
 - Tauri 桌面客户端仅完成不安全原型关闭（见文末）。
 
@@ -103,7 +102,7 @@ Agent 答案实测（同冻结语料，2026-08-29，63 case 真实工具循环�
 
 | 工具 | 版本要求 | 说明 |
 |------|---------|------|
-| Go | 1.22+ | 后端 API 服务（CI 精确固定 1.25.13，见 `.github/workflows/ci.yml`） |
+| Go | 1.26+ | 后端 API 服务（CI 精确固定 1.26.8，见 `.github/workflows/ci.yml`） |
 | Node.js | 20+ | 前端 Next.js（CI 固定 Node 20；`engines` 声明最低版本策略） |
 | pnpm | 9+ (或 npm 10+) | 前端包管理 |
 | PostgreSQL | 16+ | 需 pgvector ≥ 0.7 |
@@ -262,7 +261,7 @@ docker compose logs -f
 配置。
 
 该档保留结构化日志、Docker 日志轮转、健康/就绪检查、指标接口与备份恢复
-能力，但暂缓 Loki/Alloy/loki-gate 和完整告警链。它是 Web-only 演示展示
+能力，但暂缓 Loki/Alloy/loki-gate 和完整告警链。它是 Web-only 轻量部署
 档，不等同于完整生产观测档；完整服务清单、资源条件和切换前置门见单服务器
 运行手册。
 
@@ -326,7 +325,7 @@ docker compose up -d
 
 ## 环境变量说明
 
-所有环境变量定义在 `.env.example`（本地开发）和 `.env.production`（生产部署）中。
+所有环境变量定义在 `.env.example`（本地开发）和 `.env.production.example`（生产部署模板，占位符被 preflight 拒绝）中。
 
 ### 必需变量
 
@@ -477,8 +476,9 @@ bash scripts/release/staging-drill.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_F
 ```
 OmniCraft/
 ├── README.md                # 本文件
+├── CONTRIBUTING.md          # 贡献指南
+├── SECURITY.md              # 安全策略与漏洞报告
 ├── architecture.md          # 技术架构设计
-├── CLAUDE.md                # Agent 工作指南
 ├── .env.example             # 环境变量模板（开发）
 ├── .env.production.example  # 环境变量模板（生产，占位符被 preflight 拒绝）
 ├── docker-compose.yml       # Docker Compose 编排
@@ -506,15 +506,12 @@ OmniCraft/
 │   ├── lib/
 │   │   └── api.ts           # API 请求封装
 │   └── Dockerfile
+├── agent-access/            # 外部 Agent 接入（Skill 包：搜索/下载/发布）
 ├── tauri-client/            # Tauri PC 客户端
-│   ├── src-tauri/
-│   └── src/
 ├── k8s/                     # K8s 配置（P2 预留）
 └── design/
     ├── design-system.md     # 设计系统（色彩/字体/间距，唯一设计权威）
-    ├── ui-spec.md           # UI 规格书（页面和组件规格）
-    ├── ui-design-prompt.md  # UI 设计生成提示词
-    └── doc-review-prompt.md # 文档校验提示词
+    └── ui-spec.md           # UI 规格书（页面和组件规格）
 ```
 
 ---

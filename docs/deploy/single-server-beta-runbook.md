@@ -17,8 +17,8 @@
 Target server:
 
 - Ubuntu Server 24.04 LTS
-- Public IP: `43.139.183.130`
-- Domains: `app.leeppp.online`, `api.leeppp.online`
+- Public IP: `<server-public-ip>`(替换为目标服务器公网 IP)
+- Domains: `app.example.com`, `api.example.com`
 
 ## 1. Directory Layout
 
@@ -54,7 +54,7 @@ REDIS_DB=0
 JWT_SECRET=<openssl-rand-base64-64>
 LLM_KEY_ENCRYPTION_SECRET=<openssl-rand-base64-64>
 
-ALLOWED_ORIGINS=https://app.leeppp.online
+ALLOWED_ORIGINS=https://app.example.com
 
 OSS_ENDPOINT=https://oss-<region>.aliyuncs.com
 OSS_ACCESS_KEY_ID=<oss-access-key-id>
@@ -65,7 +65,7 @@ OSS_DOMAIN=https://<bucket-name>.oss-<region>.aliyuncs.com
 GREEN_ACCESS_KEY_ID=<green-access-key-id>
 GREEN_ACCESS_KEY_SECRET=<green-access-key-secret>
 GREEN_REGION=cn-shanghai
-GREEN_CALLBACK_URL=https://api.leeppp.online/api/v1/internal/ai-callback
+GREEN_CALLBACK_URL=https://api.example.com/api/v1/internal/ai-callback
 # Callback signature seed ([A-Za-z0-9_], max 64 chars). MUST be generated at
 # deploy time (e.g. `openssl rand -hex 24`) before first launch: it is the
 # only credential behind /internal/ai-callback signature verification, and
@@ -114,11 +114,11 @@ server:
   shutdown_timeout: 15
 
 web:
-  public_base_url: "https://app.leeppp.online"
+  public_base_url: "https://app.example.com"
 
 security:
   allowed_origins:
-    - "https://app.leeppp.online"
+    - "https://app.example.com"
 
 features:
   payment_enabled: false
@@ -177,16 +177,16 @@ Before starting the production nginx container, issue a certificate on the host:
 sudo apt update
 sudo apt -y install certbot
 sudo certbot certonly --standalone \
-  -d app.leeppp.online \
-  -d api.leeppp.online
+  -d app.example.com \
+  -d api.example.com
 ```
 
 The compose nginx template expects:
 
 ```text
-/etc/letsencrypt/live/app.leeppp.online/fullchain.pem
-/etc/letsencrypt/live/app.leeppp.online/privkey.pem
-/etc/letsencrypt/live/app.leeppp.online/chain.pem
+/etc/letsencrypt/live/app.example.com/fullchain.pem
+/etc/letsencrypt/live/app.example.com/privkey.pem
+/etc/letsencrypt/live/app.example.com/chain.pem
 ```
 
 If Certbot creates a different live directory, update
@@ -230,7 +230,7 @@ The Web-only lean host uses this explicit service boundary:
   `redis-exporter`, `cadvisor`, `blackbox`, `node-exporter`, `loki`, `alloy`
   and `loki-gate`.
 
-This profile is a deliberate demo capacity trade-off, not evidence
+This profile is a deliberate light-capacity trade-off, not evidence
 that the full production observability gate is running. It must preserve all
 current release and security contracts: immutable image references, Redis
 authentication, PgBouncer SCRAM, external secret/config override files,
@@ -256,7 +256,7 @@ deployment (`docker compose ... config`):
   256m, plus the one-shot `migrate` at 256m). Caps are sized from measured
   idle RSS on this host (2026-08-31: redis 6 MiB, backend 7 MiB, postgres
   39 MiB, pgbouncer 5 MiB, nginx 17 MiB, frontend 90 MiB) with headroom for
-  demo traffic.
+  light traffic.
 - `ops/observability/prometheus.lean.yml` — backend-only
   Prometheus config (single scrape job, no rule_files, no Alertmanager)
   mounted over the full config by the same override.
@@ -289,9 +289,9 @@ migration set and `migration-summary.json` in the container.
 ## 7. Verify
 
 ```bash
-curl -I https://app.leeppp.online
-curl https://api.leeppp.online/healthz
-curl https://api.leeppp.online/api/v1/config/public
+curl -I https://app.example.com
+curl https://api.example.com/healthz
+curl https://api.example.com/api/v1/config/public
 docker compose --env-file .env -f docker-compose.single-server.yml logs --tail=100 backend
 ```
 
@@ -480,7 +480,7 @@ chmod 600 /opt/omnicraft/alertmanager.yml
 
 ### Alerting: API
 - `ApiUnavailable` / `ApiHigh5xxRate` / `ApiHighLatency`: blackbox probe of
-  `https://api.leeppp.online` plus backend `omnicraft_http_requests_total`.
+  `https://api.example.com` plus backend `omnicraft_http_requests_total`.
   First step: nginx/backend logs, upstream health, DB/Redis pool saturation.
 - Owner: platform. Severity: critical (unavailable/5xx), warning (latency).
 

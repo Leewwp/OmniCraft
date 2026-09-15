@@ -25,7 +25,7 @@ func setupCSRFProbe(t *testing.T, mode string) *gin.Engine {
 // F-08 regression: in release mode the double-submit cookie must carry the
 // __Host- prefix with its mandatory attributes (Secure, Path=/, no Domain)
 // and SameSite=Lax. The regression shipped SameSite=None on a prefix-less
-// cookie settable with Domain=.leeppp.online, so any sibling subdomain
+// cookie settable with Domain=.example.com, so any sibling subdomain
 // could cookie-toss a known CSRF pair.
 func TestCSRFCookieAttributesReleaseMode(t *testing.T) {
 	r := setupCSRFProbe(t, "release")

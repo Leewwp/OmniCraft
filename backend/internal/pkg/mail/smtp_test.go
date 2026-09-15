@@ -27,7 +27,7 @@ func TestSMTPSenderUsesImplicitTLSForPort465(t *testing.T) {
 		if serverName != "smtpdm-shenzhen.aliyuncs.com" {
 			t.Fatalf("serverName = %q", serverName)
 		}
-		if from != "leeppp@leeppp.online" {
+		if from != "noreply@example.com" {
 			t.Fatalf("from = %q", from)
 		}
 		if len(to) != 1 || to[0] != "user@example.com" {
@@ -45,9 +45,9 @@ func TestSMTPSenderUsesImplicitTLSForPort465(t *testing.T) {
 	sender := &SMTPSender{
 		host:     "smtpdm-shenzhen.aliyuncs.com",
 		port:     465,
-		user:     "leeppp@leeppp.online",
+		user:     "noreply@example.com",
 		password: "secret",
-		from:     "leeppp@leeppp.online",
+		from:     "noreply@example.com",
 	}
 
 	if err := sender.sendMail("user@example.com", "Verify", "body"); err != nil {

@@ -17,7 +17,7 @@ const csrfTokenLength = 32
 
 // csrfCookieName returns the double-submit cookie name for the mode.
 // Release uses the __Host- prefix (Secure, Path=/, no Domain) so no sibling
-// subdomain can set or toss this cookie with Domain=.leeppp.online (audit
+// subdomain can set or toss this cookie with Domain=.example.com (audit
 // F-08). Debug keeps the plain name: __Host- requires Secure, which a local
 // http dev stack cannot honor.
 func csrfCookieName(cfg *config.Config) string {
@@ -55,8 +55,8 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 			token = generateCSRFToken()
 		}
 
-		// All legitimate requests are same-site (app.leeppp.online ->
-		// api.leeppp.online share the registrable domain), so SameSite=Lax
+		// All legitimate requests are same-site (app.example.com ->
+		// api.example.com share the registrable domain), so SameSite=Lax
 		// rides along on every real flow while cross-site requests stop at
 		// the browser (audit F-08: SameSite=None only widened the
 		// cookie-tossing surface without any legitimate cross-site flow

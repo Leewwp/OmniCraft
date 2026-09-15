@@ -6,7 +6,7 @@ const IP_VISIT_PATH = "/api/v1/users/me/ip-visits";
 
 function installDom() {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: "https://app.leeppp.online/",
+    url: "https://app.example.com/",
   });
 
   for (const [key, value] of Object.entries({
