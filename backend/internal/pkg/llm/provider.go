@@ -49,12 +49,29 @@ type ToolCall struct {
 	Index *int `json:"index,omitempty"`
 }
 
+// ThinkingMode pins a provider reasoning mode on a chat request. The zero
+// value means "provider default" and maps to no wire field at all (other
+// providers' request bodies stay byte-identical).
+type ThinkingMode string
+
+const (
+	// ThinkingAdaptive asks the provider to decide per request whether to
+	// reason (MiniMax M3 default when the field is omitted).
+	ThinkingAdaptive ThinkingMode = "adaptive"
+	// ThinkingDisabled turns reasoning off for a faster first delta (MiniMax
+	// M3 supports this; M2.x ignores it server-side).
+	ThinkingDisabled ThinkingMode = "disabled"
+)
+
 type ChatRequest struct {
 	Messages    []ChatMessage    `json:"messages"`
 	Tools       []ToolDefinition `json:"tools,omitempty"`
 	MaxTokens   int              `json:"max_tokens,omitempty"`
 	Temperature float64          `json:"temperature,omitempty"`
 	Stream      bool             `json:"stream,omitempty"`
+	// Thinking is honored only by providers wired with WithThinkingWire
+	// (#539 deep-think toggle); every other provider ignores it.
+	Thinking ThinkingMode `json:"thinking,omitempty"`
 }
 
 type ChatResponse struct {
@@ -96,6 +113,7 @@ type providerConfig struct {
 	embeddingGroupID    string
 	embeddingAPIKey     string
 	embeddingDimensions int
+	thinkingWire        bool
 }
 
 // ProviderOption configures timeout and retry behavior of a concrete provider.

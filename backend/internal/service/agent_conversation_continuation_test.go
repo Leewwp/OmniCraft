@@ -107,7 +107,7 @@ func TestChatStreamContinuesConversationWithServerAssembledHistory(t *testing.T)
 
 	var stored []model.AgentMessage
 	require.NoError(t, db.Order("id ASC").Find(&stored).Error)
-	require.Len(t, stored, 4, "stored messages = %#v, want user/assistant/user/assistant", stored)
+	require.Len(t, stored, 6, "stored messages = %#v, want user/tools/assistant per turn (#538)", stored)
 }
 
 // A-01: a foreign or missing conversation id is rejected before any provider

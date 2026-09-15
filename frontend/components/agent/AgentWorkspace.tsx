@@ -4,7 +4,8 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { AlertCircle, ArrowDown, BookOpen, Copy, Loader2, Menu, RotateCw } from "lucide-react";
+import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Loader2, Menu, RotateCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/ui/composer";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -22,6 +23,11 @@ import {
 } from "@/lib/agent-stream";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { normalizeAgentCitation, toAgentCitation, type AgentCitation } from "@/lib/agent";
+import {
+  mapAgentHistoryMessages,
+  type AgentHistoryMessageDTO,
+  type AgentHistoryWorkspaceMessage,
+} from "@/lib/agent-history";
 import { AgentCitationList } from "@/components/agent/AgentCitationList";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
@@ -31,6 +37,8 @@ import {
 } from "@/components/agent/AgentConversationSidebar";
 import { AgentFollowUpChips } from "@/components/agent/AgentFollowUpChips";
 const SIDEBAR_STORAGE_KEY = "agentSidebarCollapsed";
+/** #539：深度思考开关持久化（localStorage，随会话恢复用户偏好）。 */
+const DEEP_THINK_STORAGE_KEY = "agentDeepThink";
 const STICKY_BOTTOM_THRESHOLD = 80;
 /** 输入自动增高上限：约 8 行（leading-6 = 24px × 8 + 上下 padding）后转内部滚动。 */
 
@@ -41,27 +49,11 @@ export interface AgentWorkspaceProps {
   onCitationOpen?: (citation: AgentCitation) => void;
 }
 
-interface WorkspaceMessage {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  /** A-02：think 行独立成消息（流式与历史回放同构），仅展示层。 */
-  phase?: "think";
-  moderationBlocked?: boolean;
-  /** 2026-09-06 实测修复：引用随答案消息持久化。原先引用只存轮内临时态，
-     下一轮开始后上一轮的跳转入口整体消失（用户实测发现的「没有入口」）。 */
-  citations?: AgentStreamCitation[];
-}
+/* 消息行类型收敛到 lib/agent-history（#538 后历史映射为纯函数，供测试复用）：
+   WorkspaceMessage 兼容流式轮内行；phase 新增 "tools" 回放工具步骤条。 */
+type WorkspaceMessage = AgentHistoryWorkspaceMessage;
 
-interface AgentMessageDTO {
-  id: number;
-  role: string;
-  content?: string | null;
-  phase?: string;
-  moderation?: string;
-  /** N4：历史端点随答案行回放落库引用（完整形态；畸形项由 normalizer 剔除）。 */
-  citations?: AgentStreamCitation[];
-}
+type AgentMessageDTO = AgentHistoryMessageDTO;
 
 let nextMessageId = 1;
 
@@ -157,6 +149,34 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "collapsed");
   }, []);
 
+  /* #539：深度思考开关——默认关（快、省 token），开启后请求带 deep_think，
+     由后端映射到 provider 的思考控制（MiniMax M3 thinking.type）。 */
+  const [deepThink, setDeepThink] = useState(false);
+  useEffect(() => {
+    setDeepThink(window.localStorage.getItem(DEEP_THINK_STORAGE_KEY) === "on");
+  }, []);
+  function toggleDeepThink() {
+    const next = !deepThink;
+    window.localStorage.setItem(DEEP_THINK_STORAGE_KEY, next ? "on" : "off");
+    setDeepThink(next);
+  }
+  const deepThinkToggle = (
+    <button
+      type="button"
+      aria-pressed={deepThink}
+      aria-label={t("agent.workspace.deepThink")}
+      title={t("agent.workspace.deepThinkHint")}
+      onClick={toggleDeepThink}
+      className={cn(
+        "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        deepThink ? "bg-primary/10 text-primary" : "text-fg-subtle hover:text-fg-default",
+      )}
+    >
+      <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+      <span>{t("agent.workspace.deepThink")}</span>
+    </button>
+  );
+
   /* 选中会话时加载服务端历史；新对话清空本地消息。think 行（phase="think"）
      以思考折叠块回放；A-05 blocked 行渲染占位提示。注意：done 事件会把新会话
      id 写入 activeId，此处不得重置轮内状态（citations/tools 属于刚完成的轮）。 */
@@ -177,44 +197,11 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         /* 服务端 think 行接管历史回放：清掉轮内思考态，避免与流式思考块双渲染。
            N4 落地后引用由历史端点随答案行返回（迁移 077 落库 + 读路径直出），
            前端会话内回填合并临时方案随之删除——历史回放的跳转入口来自服务端。 */
+        /* 服务端 think/tools 行接管历史回放：清掉轮内思考与工具态，避免与
+           流式块双渲染（#538 落库后工具步骤同样由服务端行回放）。 */
         setTurnThinking("");
-        setMessages(
-          (data.messages ?? [])
-            .filter(
-              (message) =>
-                message.role === "user" ||
-                message.phase === "think" ||
-                message.moderation === "blocked" ||
-                (message.content ?? "").trim() !== "",
-            )
-            .map((message): WorkspaceMessage => {
-              if (message.moderation === "blocked") {
-                return {
-                  id: message.id,
-                  role: "assistant",
-                  content: t("agent.workspace.messageHiddenByModeration"),
-                  moderationBlocked: true,
-                };
-              }
-              if (message.phase === "think") {
-                return {
-                  id: message.id,
-                  role: "assistant",
-                  content: message.content ?? "",
-                  phase: "think",
-                };
-              }
-              const validCitations = (message.citations ?? []).filter(
-                (citation): citation is AgentStreamCitation => normalizeAgentCitation(citation) !== null,
-              );
-              return {
-                id: message.id,
-                role: message.role === "user" ? "user" : "assistant",
-                content: message.content ?? "",
-                ...(validCitations.length > 0 ? { citations: validCitations } : {}),
-              };
-            }),
-        );
+        setTurnTools([]);
+        setMessages(mapAgentHistoryMessages(data.messages ?? [], t("agent.workspace.messageHiddenByModeration")));
       })
       .catch((error) => {
         if (!cancelled) {
@@ -477,7 +464,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           setMessages((previous) => {
             const next = [...previous];
             const last = next[next.length - 1];
-            if (last && last.role === "assistant" && last.phase !== "think") {
+            if (last && last.role === "assistant" && !last.phase) {
               next[next.length - 1] = { ...last, content: last.content + delta };
             } else {
               const id = nextMessageId++;
@@ -517,7 +504,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             setMessages((previous) => {
               const next = [...previous];
               const last = next[next.length - 1];
-              if (last && last.role === "assistant" && last.phase !== "think") next.splice(next.length - 1, 1);
+              if (last && last.role === "assistant" && !last.phase) next.splice(next.length - 1, 1);
               return next;
             });
           } else if (typeof event.answer === "string") {
@@ -526,7 +513,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             setMessages((previous) => {
               const next = [...previous];
               const last = next[next.length - 1];
-              if (last && last.role === "assistant" && last.phase !== "think") {
+              if (last && last.role === "assistant" && !last.phase) {
                 if (finalAnswer === "") {
                   next.splice(next.length - 1, 1);
                 } else {
@@ -561,7 +548,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             setMessages((previous) => {
               const next = [...previous];
               const last = next[next.length - 1];
-              if (last && last.role === "assistant" && last.phase !== "think") next.splice(next.length - 1, 1);
+              if (last && last.role === "assistant" && !last.phase) next.splice(next.length - 1, 1);
               return next;
             });
             void loadKeywordFallback(activeQueryRef.current, fallbackRequestRef.current);
@@ -588,6 +575,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     const body: Record<string, unknown> = {
       message: query,
       context: { surface: "global" },
+      deep_think: deepThink,
     };
     if (activeId !== null) body.conversation_id = activeId;
     activeQueryRef.current = query;
@@ -705,7 +693,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       index === lastAnswerIndex &&
       !streaming &&
       message.role === "assistant" &&
-      message.phase !== "think" &&
+      !message.phase &&
       !message.moderationBlocked;
     if (!isTurnAnswer && !isOrphanAnchor) return null;
     return (
@@ -738,6 +726,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         disabled={streaming}
         stopLabel={streaming ? t("agent.workspace.stopGenerating") : undefined}
         onStop={streaming ? handleStop : undefined}
+        leading={deepThinkToggle}
       />
       <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
     </div>
@@ -910,6 +899,9 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   {renderTurnExtrasBefore(message, index)}
                   {message.phase === "think" ? (
                     <AgentThinkingBlock content={message.content} streaming={false} />
+                  ) : message.phase === "tools" ? (
+                    /* #538：持久化工具步骤行按流式同构回放（非 live，无运行态）。 */
+                    <AgentToolStatus tools={message.tools ?? []} live={false} />
                   ) : message.role === "user" ? (
                     <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
                       {message.content}

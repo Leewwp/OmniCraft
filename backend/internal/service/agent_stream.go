@@ -250,6 +250,12 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		MaxTokens: policy.MaxOutputTokens,
 		Stream:    true,
 	}
+	// #539: 深度思考开关——默认关（快、省 token：MiniMax M3 thinking.type=
+	// disabled，首字更快）；开启时不带该字段，保留 provider 默认 adaptive
+	// 思考。不支持该参数的 provider 按各自约定忽略。
+	if !turn.DeepThink {
+		req.Thinking = llm.ThinkingDisabled
+	}
 
 	var answerBuf strings.Builder
 	var thinkingBuf strings.Builder
@@ -549,6 +555,24 @@ loop:
 			}).Error; err != nil {
 				cancel()
 				slog.Error("failed to persist agent thinking message", "error", err)
+				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+			}
+		}
+		if len(executedTools) > 0 {
+			// #538: the turn's tool-step summary persists as its own phase row
+			// (tool_calls = {"phase":"tools","steps":[...]}) between the think
+			// row and the answer row, so history replay shows the same tool
+			// steps the live stream emitted. Steps carry only the server-derived
+			// summary shape (name/args_summary/hits/status/duration_ms) — raw
+			// tool arguments never reach storage.
+			if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
+				ConversationID: conv.ID,
+				Role:           "assistant",
+				ToolCalls:      model.JSONMap{"phase": "tools", "steps": executedTools},
+				CreatedAt:      time.Now(),
+			}).Error; err != nil {
+				cancel()
+				slog.Error("failed to persist agent tool steps message", "error", err)
 				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 			}
 		}

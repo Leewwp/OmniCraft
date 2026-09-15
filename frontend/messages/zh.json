@@ -1452,6 +1452,8 @@
       "errorTitle": "本次请求未完成",
       "errorRetry": "重新发送",
       "conversationLoadFailed": "会话加载失败",
+"deepThink": "深度思考",
+      "deepThinkHint": "开启后模型先推理再作答，质量更高但更慢；默认关闭以获得更快首字响应",
       "composerHint": "Enter 发送 · Shift+Enter 换行",
       "stoppedNotice": "已停止生成",
       "suggestionLayout": "想找「无人站台」主题的视觉参考，最好能同时看到氛围图和文字叙事。",

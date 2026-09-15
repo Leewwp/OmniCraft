@@ -245,8 +245,21 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	if err := svc.db.Where("role = ?", "assistant").Find(&messages).Error; err != nil {
 		t.Fatalf("load persisted assistant messages: %v", err)
 	}
-	if len(messages) != 1 || messages[0].Content == nil || *messages[0].Content != "" {
-		t.Fatalf("persisted assistant messages = %#v, want one empty no-evidence message", messages)
+	// #538: the turn's tool-step summary persists as its own phase row ahead of
+	// the (empty) no-evidence answer row.
+	var toolsRows, answerRows []model.AgentMessage
+	for _, m := range messages {
+		if m.ToolCalls != nil && m.ToolCalls["phase"] == "tools" {
+			toolsRows = append(toolsRows, m)
+		} else {
+			answerRows = append(answerRows, m)
+		}
+	}
+	if len(toolsRows) != 1 {
+		t.Fatalf("persisted tools rows = %#v, want one", toolsRows)
+	}
+	if len(answerRows) != 1 || answerRows[0].Content == nil || *answerRows[0].Content != "" {
+		t.Fatalf("persisted answer messages = %#v, want one empty no-evidence message", answerRows)
 	}
 }
 

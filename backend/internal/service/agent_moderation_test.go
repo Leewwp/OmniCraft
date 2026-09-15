@@ -140,7 +140,7 @@ func TestChatStreamFlagsBlockedAnswerAsynchronously(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond, "blocked answer must be flagged asynchronously")
 
 	var flagged model.AgentMessage
-	require.NoError(t, db.Where("role = ? AND tool_calls IS NOT NULL", "assistant").First(&flagged).Error)
+	require.NoError(t, db.Where("role = ? AND tool_calls ->> 'moderation' = 'blocked'", "assistant").First(&flagged).Error)
 	require.NotNil(t, flagged.Content, "raw answer stays stored for audit")
 	require.Contains(t, *flagged.Content, "Grounded answer")
 }

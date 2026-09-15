@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useRef } from "react";
+import { type ReactNode, forwardRef, useEffect, useRef } from "react";
 import { ArrowUp, LoaderCircle, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +41,8 @@ interface ComposerProps {
   /** #417 F6b：流式停止——两值齐备时内嵌位渲染停止按钮（Agent 工作台语义）。 */
   stopLabel?: string;
   onStop?: () => void;
+  /** 左下角控件插槽（#539 深度思考开关等）；渲染于底部预留区，不与文本重叠。 */
+  leading?: ReactNode;
   rows?: number;
   maxHeight?: number;
   maxLength?: number;
@@ -64,6 +66,7 @@ export const Composer = forwardRef(function Composer({
   className,
   stopLabel,
   onStop,
+  leading,
 }: ComposerProps,
 ref: React.ForwardedRef<HTMLTextAreaElement>,
 ) {
@@ -118,6 +121,10 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
         className="block w-full resize-none overflow-y-auto bg-transparent px-3 pb-11 pt-2 pr-11 text-sm text-fg-default placeholder:text-fg-subtle focus:outline-none disabled:cursor-not-allowed"
         style={{ maxHeight }}
       />
+      {/* #539：左下角控件区（与内嵌动作钮同一底部预留带，8px 内边距）。 */}
+      {leading ? (
+        <div className="absolute bottom-2 left-2 flex items-center">{leading}</div>
+      ) : null}
       {/* 内嵌动作按钮：右下角 8px、36px 实底圆钮两态（见文件头契约）。
           #417：流式期渲染停止按钮（同一内嵌位，Square 图标 + stopLabel）。 */}
       {stopLabel && onStop ? (
