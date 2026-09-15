@@ -1512,7 +1512,11 @@
       "unknownSkipped": "已跳过",
       "duration": "{seconds}s",
       "stepsSummary": "{count} 个工具步骤",
-      "hits": "{count} 条命中"
+      "hits": "{count} 条命中",
+      "searchIpsRunning": "正在搜索 IP 库",
+      "searchIpsSuccess": "搜索 IP 库完成",
+      "searchIpsFailed": "搜索 IP 库失败",
+      "searchIpsSkipped": "已跳过 IP 搜索"
     },
     "citations": {
       "title": "站内依据",
@@ -1520,6 +1524,7 @@
       "invalid": "该引用不可用",
       "zoneOriginal": "原文",
       "zoneFanwork": "同人",
+      "zoneIP": "IP",
       "collapse": "收起引用",
       "expand": "展开引用（{count} 条）"
     },

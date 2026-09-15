@@ -386,6 +386,16 @@ func (s *AgentService) toolSearchIPs(ctx context.Context, rawArgs json.RawMessag
 	if err != nil {
 		return nil, err
 	}
+	// 分类推荐场景（「推荐几个游戏类的 IP」）模型自然给 query=「游戏」这类
+	// 泛词，而全文检索只匹配具体 IP 名/简介，会空手而归。命中 0 且带分类
+	// 过滤时回退为纯分类浏览（与 REST GET /ips 的空 q + category 形态一致），
+	// 只重试一次、不吞错误。
+	if len(ips) == 0 && category != "" {
+		ips, err = s.ipSearch(ctx, "", category, limit)
+		if err != nil {
+			return nil, err
+		}
+	}
 	summaries := make([]AgentIPSummary, 0, len(ips))
 	for _, ip := range ips {
 		summaries = append(summaries, AgentIPSummary{

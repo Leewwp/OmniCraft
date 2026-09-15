@@ -1512,7 +1512,11 @@
       "unknownSkipped": "Tool skipped",
       "duration": "{seconds}s",
       "stepsSummary": "{count} tool steps",
-      "hits": "{count} hits"
+      "hits": "{count} hits",
+      "searchIpsRunning": "Searching the IP library",
+      "searchIpsSuccess": "IP library search done",
+      "searchIpsFailed": "IP library search failed",
+      "searchIpsSkipped": "IP search skipped"
     },
     "citations": {
       "title": "Site references",
@@ -1520,6 +1524,7 @@
       "invalid": "Reference unavailable",
       "zoneOriginal": "Original",
       "zoneFanwork": "Fanwork",
+      "zoneIP": "IP",
       "collapse": "Collapse citations",
       "expand": "Show citations ({count})"
     },

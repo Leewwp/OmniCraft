@@ -236,6 +236,46 @@ func TestDeriveToolArgsSummarySearchIPs(t *testing.T) {
 	}
 }
 
+func TestSearchIPsCategoryBrowseFallback(t *testing.T) {
+	db := seedAgentGroundingDB(t)
+	svc := searchIPsFixture(t, db, []model.IP{
+		{ID: 7, Name: "苍穹档案", Category: "game"},
+	}, []string{"game"})
+	// 泛词 query（如「游戏」）在具体 IP 名/简介全文匹配不到 → 空结果；
+	// 带 category 时应回退为纯分类浏览（空 query），拿到分类清单。
+	var calls [][2]string
+	svc.ipSearch = func(_ context.Context, query, category string, limit int) ([]model.IP, error) {
+		calls = append(calls, [2]string{query, category})
+		if query != "" {
+			return nil, nil
+		}
+		return []model.IP{{ID: 7, Name: "苍穹档案", Category: "game"}}, nil
+	}
+	outcome, err := svc.ExecuteTool(context.Background(), ToolSearchIPs, json.RawMessage(`{"query":"游戏","category":"game"}`), 1, nil)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(outcome.IPs) != 1 || outcome.IPs[0].ID != 7 {
+		t.Fatalf("fallback must surface category browse results, got %+v", outcome.IPs)
+	}
+	if len(calls) != 2 || calls[0][0] != "游戏" || calls[1][0] != "" {
+		t.Fatalf("expected keyword attempt then empty-query browse retry, got %v", calls)
+	}
+	// 无 category 时不回退：一次调用、空结果照实返回。
+	calls = nil
+	svc.ipSearch = func(_ context.Context, query, category string, limit int) ([]model.IP, error) {
+		calls = append(calls, [2]string{query, category})
+		return nil, nil
+	}
+	outcome, err = svc.ExecuteTool(context.Background(), ToolSearchIPs, json.RawMessage(`{"query":"游戏"}`), 1, nil)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if len(outcome.IPs) != 0 || len(calls) != 1 {
+		t.Fatalf("no category = no retry, got ips=%d calls=%v", len(outcome.IPs), calls)
+	}
+}
+
 func contains(list []string, want string) bool {
 	for _, item := range list {
 		if item == want {

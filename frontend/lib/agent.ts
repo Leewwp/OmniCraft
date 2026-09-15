@@ -12,17 +12,20 @@ import type {
 export interface AgentCitation {
   contentId: number;
   title: string;
-  zone: "original" | "fanwork";
+  zone: "original" | "fanwork" | "ip";
   excerpt?: string;
   contentVersion?: number;
   chunkKey?: string;
   chunkIndex?: number;
   route?: string;
   source?: "bm25" | "vector" | "hybrid_rrf";
+  /** zone="ip" 时的分类 slug（11 类词表单源），卡片渲染分类徽标。 */
+  category?: string;
 }
 
 export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
-  const zone: AgentCitation["zone"] = citation.zone === "original" ? "original" : "fanwork";
+  const zone: AgentCitation["zone"] =
+    citation.zone === "original" ? "original" : citation.zone === "ip" ? "ip" : "fanwork";
   const normalized: AgentCitation = { contentId: citation.content_id, title: citation.title, zone };
   if (citation.excerpt !== undefined) normalized.excerpt = citation.excerpt;
   if (citation.content_version !== undefined) normalized.contentVersion = citation.content_version;
@@ -30,12 +33,16 @@ export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
   if (citation.chunk_index !== undefined) normalized.chunkIndex = citation.chunk_index;
   if (citation.route !== undefined) normalized.route = citation.route;
   if (citation.source !== undefined) normalized.source = citation.source;
+  if (citation.category !== undefined) normalized.category = citation.category;
   return normalized;
 }
 
 /**
  * 拒绝畸形 citation：content_id 必须为正整数，title 非空，zone 仅接受
- * original/fanwork。返回 null 时调用方必须丢弃该对象（不得渲染为可交互元素）。
+ * original/fanwork/ip。zone="ip"（SP-19 G2-1）要求 route=/ip/{id} 且不得
+ * 携带 chunk 溯源字段（content_version/chunk_key/chunk_index/source），
+ * category 为可选非空字符串；内容引用的既有校验照旧。返回 null 时调用方
+ * 必须丢弃该对象（不得渲染为可交互元素）。
  */
 export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null {
   if (typeof raw !== "object" || raw === null) return null;
@@ -50,9 +57,36 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
     typeof title !== "string" ||
     title.trim() === "" ||
     typeof zone !== "string" ||
-    (zone !== "original" && zone !== "fanwork")
+    (zone !== "original" && zone !== "fanwork" && zone !== "ip")
   ) {
     return null;
+  }
+  if (zone === "ip") {
+    /* IP 引用无 chunk 溯源语义：出现有实值的溯源字段即拒绝（防形状混淆）。
+       历史重放（model.AgentCitation 无 omitempty）会把缺席字段序列化为
+       0/""/0 零值——零值视同缺席放行。 */
+    const meaningfulProvenance = [candidate.content_version, candidate.chunk_key, candidate.chunk_index, candidate.source]
+      .some((field) => field !== undefined && field !== 0 && field !== "");
+    if (meaningfulProvenance) {
+      return null;
+    }
+    const normalized: AgentStreamCitation = { content_id: contentId, title: title.trim(), zone };
+    const route = candidate.route;
+    if (route !== undefined) {
+      if (typeof route !== "string" || route !== `/ip/${contentId}`) return null;
+      normalized.route = route;
+    }
+    const excerpt = candidate.excerpt;
+    if (excerpt !== undefined) {
+      if (typeof excerpt !== "string") return null;
+      if (excerpt.trim() !== "") normalized.excerpt = excerpt;
+    }
+    const category = candidate.category;
+    if (category !== undefined) {
+      if (typeof category !== "string") return null;
+      if (category.trim() !== "") normalized.category = category;
+    }
+    return normalized;
   }
   const normalized: AgentStreamCitation = {
     content_id: contentId,

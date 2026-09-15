@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import type { AgentCitation } from "@/lib/agent";
+import { ipCategoryLabelKey } from "@/lib/ip-categories";
 import { cn } from "@/lib/utils";
 
 interface AgentCitationCardProps {
@@ -15,6 +16,8 @@ interface AgentCitationCardProps {
 /**
  * 站内有效引用卡片（ui-spec `## Page: /agent` 关键交互）：展示序号、标题、
  * 所属分区（原文/同人）与摘录；可聚焦按钮打开共享 ContentDetailOverlay。
+ * zone="ip"（SP-19 G2-1，Q16）：「IP」徽标 + 11 类分类徽标（G1-3 词表单源）
+ * + 简介摘录，无统计字段；点击跳 /ip/[id] 详情页（Q5，分流在 Workspace）。
  * id=agent-citation-{index} 供行内 [n] 角标滚动定位与高亮。
  * 输入必须来自 lib/agent.ts normalizer，畸形引用在边界被拒绝，本组件不做兜底渲染。
  */
@@ -34,11 +37,24 @@ export function AgentCitationCard({ citation, index, onOpen, highlighted = false
       <span className="flex w-full items-center gap-2 text-sm font-medium text-accent-emphasis">
         <span className="text-xs text-fg-muted">{String(index + 1).padStart(2, "0")}</span>
         <span className="truncate">{citation.title}</span>
-        <span className="ml-auto shrink-0 rounded border border-border-default px-1.5 py-0.5 text-xs font-normal text-fg-muted">
-          {citation.zone === "original"
-            ? t("agent.citations.zoneOriginal")
-            : t("agent.citations.zoneFanwork")}
-        </span>
+        {citation.zone === "ip" ? (
+          <>
+            <span className="ml-auto shrink-0 rounded border border-border-default px-1.5 py-0.5 text-xs font-normal text-fg-muted">
+              {t("agent.citations.zoneIP")}
+            </span>
+            {citation.category && (
+              <span className="shrink-0 rounded border border-border-default px-1.5 py-0.5 text-xs font-normal text-fg-muted">
+                {t(ipCategoryLabelKey(citation.category))}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="ml-auto shrink-0 rounded border border-border-default px-1.5 py-0.5 text-xs font-normal text-fg-muted">
+            {citation.zone === "original"
+              ? t("agent.citations.zoneOriginal")
+              : t("agent.citations.zoneFanwork")}
+          </span>
+        )}
       </span>
       {citation.excerpt && (
         <span className="line-clamp-2 w-full pl-6 text-xs text-fg-muted">{citation.excerpt}</span>

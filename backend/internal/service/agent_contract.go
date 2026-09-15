@@ -174,6 +174,7 @@ func citationsToModel(citations []AgentCitation) []model.AgentCitation {
 			Route:          citations[i].Route,
 			Excerpt:        citations[i].Excerpt,
 			Source:         citations[i].Source,
+			Category:       citations[i].Category,
 		}
 	}
 	return out
