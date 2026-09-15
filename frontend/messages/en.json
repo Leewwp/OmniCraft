@@ -2205,6 +2205,7 @@
       },
       "bodyLabel": "Content",
       "bodyPlaceholder": "Briefly describe your work...",
+      "previewAuthorFallback": "Anonymous creator",
       "coverLabel": "Cover Image",
       "coverDescription": "When no custom cover is uploaded, the first video frame is used",
       "attachmentsLabel": "Attachments",
@@ -2514,6 +2515,17 @@
       "resubmit": "Resubmit",
       "view": "View",
       "loadFailed": "Failed to load IP list"
+    },
+    "preview": {
+      "cardTitle": "Phone preview",
+      "darkOn": "Dark",
+      "darkOff": "Light",
+      "titlePlaceholder": "(No title yet)",
+      "bodyPlaceholder": "Body renders here in real time…",
+      "staticHint": "mock",
+      "footnote": "Preview for reference only",
+      "tabEdit": "Edit",
+      "tabPreview": "Preview"
     }
   },
   "adminNotifications": {

@@ -2205,6 +2205,7 @@
       },
       "bodyLabel": "正文",
       "bodyPlaceholder": "简单描述一下你的作品...",
+      "previewAuthorFallback": "匿名创作者",
       "coverLabel": "封面图片",
       "coverDescription": "未上传自定义封面时使用第一个视频的首帧",
       "attachmentsLabel": "附件",
@@ -2514,6 +2515,17 @@
       "resubmit": "重新提交",
       "view": "查看",
       "loadFailed": "加载 IP 列表失败"
+    },
+    "preview": {
+      "cardTitle": "手机预览",
+      "darkOn": "夜间",
+      "darkOff": "日间",
+      "titlePlaceholder": "（未填写标题）",
+      "bodyPlaceholder": "正文将实时显示在这里……",
+      "staticHint": "示意",
+      "footnote": "预览效果仅供参考",
+      "tabEdit": "编辑",
+      "tabPreview": "预览"
     }
   },
   "adminNotifications": {
