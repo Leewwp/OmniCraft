@@ -15,6 +15,7 @@ import { IPShareTab } from "@/components/ip/hub/IPShareTab";
 import { IPDiscussionsTab } from "@/components/ip/hub/IPDiscussionsTab";
 import { IPProposalsTab } from "@/components/ip/hub/IPProposalsTab";
 import { useAuth } from "@/contexts/AuthContext";
+import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 
 export interface IPHubData {
   id: number;
@@ -197,7 +198,10 @@ export function IPHubClient({ ip, stats, apiBase }: IPHubClientProps) {
             {ip.category && (
               <p className="text-sm text-muted-foreground">{t('ip.category', { category: t(categoryLabelKey(ip.category)) })}</p>
             )}
-            <p className="text-sm leading-relaxed text-foreground/90">{ip.description || t('ip.noDescription')}</p>
+            {/* SP-19 G3-4：IP 描述 Markdown 渲染（旧纯文本按 Q17 接受）。 */}
+            <div className="text-sm leading-relaxed text-foreground/90">
+              <MarkdownRenderer content={ip.description || t('ip.noDescription')} />
+            </div>
             {ip.tags && ip.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5" aria-label={t('ip.tagsLabel')}>
                 {ip.tags.map((tag, index) => (

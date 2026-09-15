@@ -36,6 +36,17 @@ function getStatusTone(status: string): "default" | "secondary" | "destructive" 
   }
 }
 
+/* 摘要场景 strip 格式：去常见 markdown 记号取纯文本（不追求完备）。 */
+function stripMarkdown(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[#>*_~`|-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function PRCard({ data, active, disabled, onSelect, onAccept, onReject }: PRCardProps) {
   const t = useTranslations();
   return (
@@ -58,7 +69,8 @@ export function PRCard({ data, active, disabled, onSelect, onAccept, onReject }:
       </div>
 
       {data.message ? (
-        <p className="mt-3 line-clamp-2 text-xs text-foreground/90">{data.message}</p>
+        /* SP-19 G3-4：卡片摘要 strip markdown 格式取纯文本（输入输出配对原则）。 */
+        <p className="mt-3 line-clamp-2 text-xs text-foreground/90">{stripMarkdown(data.message)}</p>
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">

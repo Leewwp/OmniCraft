@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
-import { MarkdownEditor } from "@/components/content/MarkdownEditor";
+import { MilkdownEditor, type MilkdownEditorHandle } from "@/components/markdown/MilkdownEditor";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -36,6 +36,7 @@ export default function AdminNotificationsPage() {
   const titleInputRef = useRef<HTMLInputElement>(null);
   // Idempotency key bound to the draft; rotated after success or when it changes.
   const idempotencyRef = useRef<{ key: string; title: string; body: string } | null>(null);
+  const broadcastEditorRef = useRef<MilkdownEditorHandle>(null);
 
   const validation = useMemo(() => {
     const next: { title?: string; body?: string } = {};
@@ -69,7 +70,7 @@ export default function AdminNotificationsPage() {
       if (validation.title) {
         titleInputRef.current?.focus();
       } else if (validation.body) {
-        document.getElementById("broadcast-body")?.focus();
+        document.getElementById("broadcast-body")?.querySelector<HTMLElement>(".ProseMirror")?.focus();
       }
       return;
     }
@@ -154,24 +155,32 @@ export default function AdminNotificationsPage() {
 
           <div className="space-y-2">
             <div className="flex items-end justify-between gap-3">
-              <label htmlFor="broadcast-body" className="text-sm font-medium text-foreground">
+              <span id="broadcast-body-label" className="text-sm font-medium text-foreground">
                 {t("form.bodyLabel")}
-              </label>
+              </span>
               <span className="text-xs text-muted-foreground">
                 {t("form.bodyCount", { count: body.length })}
               </span>
             </div>
             <div
+              id="broadcast-body"
+              role="textbox"
+              aria-multiline="true"
+              aria-labelledby="broadcast-body-label"
+              aria-describedby={bodyError ? "broadcast-body-error" : "broadcast-body-hint"}
+              aria-invalid={bodyError ? "true" : undefined}
               onBlur={() => setBodyTouched(true)}
               className={bodyError ? "rounded-md ring-2 ring-destructive/20 [&>div]:border-destructive" : undefined}
             >
-              <MarkdownEditor
-                id="broadcast-body"
-                value={body}
+              {/* SP-19 G3-4：广播正文换 Milkdown（@uiw 退役）；必填/超长
+                  校验沿用 body state，右侧 MarkdownRenderer 预览保留。 */}
+              <MilkdownEditor
+                ref={broadcastEditorRef}
+                defaultValue={body}
                 onChange={setBody}
                 disabled={sending}
-                ariaDescribedBy={bodyError ? "broadcast-body-error" : "broadcast-body-hint"}
-                ariaInvalid={Boolean(bodyError)}
+                draftKey="admin-broadcast"
+                minHeight={220}
               />
             </div>
             <div className="min-h-5">

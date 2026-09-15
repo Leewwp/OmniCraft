@@ -39,6 +39,32 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
       useAuth: () => authStub,
     };
   }
+  /* SP-19 G3-4：话题正文经 MilkdownEditor 封装（mock 为受控 textarea，
+   * 避免 node 端加载 @milkdown/* ESM 链）。 */
+  if (request === "@/components/markdown/MilkdownEditor") {
+    return {
+      MilkdownEditor({
+        defaultValue,
+        onChange,
+        placeholder,
+        "aria-label": ariaLabel,
+      }: {
+        defaultValue?: string;
+        onChange?: (value: string) => void;
+        placeholder?: string;
+        "aria-label"?: string;
+      }) {
+        return (
+          <textarea
+            aria-label={ariaLabel ?? placeholder ?? "content"}
+            data-testid="markdown-editor"
+            value={defaultValue ?? ""}
+            onChange={(event) => onChange?.(event.currentTarget.value)}
+          />
+        );
+      },
+    };
+  }
   return originalModuleLoad.apply(this, [request, parent, isMain]);
 };
 

@@ -60,10 +60,15 @@ export interface MilkdownEditorProps {
   allowImages?: boolean;
   /** 自定义上传实现（默认复用 /contents/oss-token presign 直传）。 */
   onUpload?: (file: File) => Promise<string>;
-  /** 草稿键（场景 + 表单标识）；提供即启用自动草稿与恢复提示。 */
+  /** 草稿键（场景 + 表单标识）；提供即启用自动草册与恢复提示。 */
   draftKey?: string;
   disabled?: boolean;
   className?: string;
+  /** 无障碍：容器为 role="textbox"（编辑区为 contenteditable 组合体），
+   * 供页面 <label htmlFor> 或 aria-labelledby 关联。 */
+  id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
 }
 
 const DRAFT_PREFIX = "milkdown-draft:";
@@ -209,6 +214,9 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
       draftKey,
       disabled = false,
       className,
+      id,
+      "aria-label": ariaLabel,
+      "aria-labelledby": ariaLabelledBy,
     },
     ref,
   ) {
@@ -363,6 +371,11 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
 
     return (
       <div
+      role="textbox"
+      aria-multiline="true"
+      id={id}
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
       className={cn("flex flex-col rounded-lg border border-border bg-background", className)}
       style={{ minHeight: `${minHeight}px` }}
     >

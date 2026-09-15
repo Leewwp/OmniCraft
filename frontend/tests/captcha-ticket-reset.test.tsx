@@ -12,6 +12,39 @@ import {
   typeInto,
   waitFor,
 } from "./runtime-test-helpers";
+import { createRequire } from "node:module";
+
+/* SP-19 G3-4：反馈描述经 MilkdownEditor 封装——拦截避免 node 端加载
+   @milkdown/* 的 ESM-only 依赖链（受控 textarea mock）。 */
+const requireForStubs = createRequire(import.meta.url) as NodeRequire;
+const ModuleForStubs = requireForStubs("node:module") as typeof import("node:module") & {
+  _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+};
+const originalLoadForStubs = ModuleForStubs._load;
+ModuleForStubs._load = function loadWithEditorStub(request, parent, isMain) {
+  if (request === "@/components/markdown/MilkdownEditor") {
+    return {
+      MilkdownEditor({
+        defaultValue,
+        onChange,
+        "aria-label": ariaLabel,
+      }: {
+        defaultValue?: string;
+        onChange?: (value: string) => void;
+        "aria-label"?: string;
+      }) {
+        return React.createElement("textarea", {
+          "aria-label": ariaLabel ?? "content",
+          "data-testid": "markdown-editor",
+          value: defaultValue ?? "",
+          onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => onChange?.(event.currentTarget.value),
+        });
+      },
+    };
+  }
+  return originalLoadForStubs.apply(this, [request, parent, isMain]);
+};
+
 
 test.afterEach(() => {
   cleanup();
