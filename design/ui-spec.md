@@ -3536,12 +3536,14 @@ interface AgentWorkspaceProps {
 interface AgentCitation {
   contentId: number;
   title: string;
-  zone: 'original' | 'fanwork';
+  zone: 'original' | 'fanwork' | 'ip';
   excerpt?: string;
+  /** zone='ip' 时的分类 slug（11 类词表单源）；内容引用不带。 */
+  category?: string;
 }
 
 interface AgentToolStatus {
-  name: 'search_content' | 'get_content_detail' | 'get_usage_guide' | 'suggest_publish_metadata';
+  name: 'search_content' | 'search_ips' | 'get_content_detail' | 'get_usage_guide' | 'suggest_publish_metadata';
   status: 'running' | 'success' | 'failed' | 'error' | 'skipped';
   args_summary?: string;   // 服务端派生的参数摘要（检索词/查询扩展词），不含原始 JSON
   hits?: number;           // 检索命中数
@@ -3586,6 +3588,7 @@ interface AgentToolStatus {
 - Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
 - **行内引用锚定（A-06）**：正文句末 `[1][2]` 渲染为可点击 sup 角标（`markdown.citationJump` a11y 名）；点击滚动到对应引用卡片（`#agent-citation-{index}`）并短暂高亮（ring-2，约 1.8s）+ 聚焦；超出引用数或无引用时渲染为纯文本 sup。纯展示层映射，服务端复验语义零改动。
 - 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
+- **IP 引用卡（SP-19 G2-1，Q16/Q5）**：`zone='ip'` 引用卡 = 标题 +「IP」徽标 + 分类徽标（`ipCategory.*` 11 类词表）+ 简介摘录，无统计字段；与内容卡混排同一「站内依据」区（折叠阈值照旧）。点击与行内 `[n]` 角标均不走 `ContentDetailOverlay`，直接 `router.push('/ip/[id]')` 落 IP 详情页。
 - **消息操作（A-06）**：最后一条 assistant 消息悬停/聚焦显示操作行 = 复制（clipboard + toast）/ 重新生成（保留用户消息、撤下本轮 think/answer 行重发同一 query）；流式中 = 停止（composer 内切换）。
 - **侧边栏 ⋯ 菜单（A-06）**：重命名 = 内联输入（Enter 提交 PATCH title / Esc 取消，≤50 rune）；置顶切换 PATCH pinned（列表置顶分组重排）；删除 = ConfirmModal + owner-scoped `DELETE /api/v1/agent/conversations/:id`，取消不发请求。头部不再放置删除按钮（反冗余）。
 - “开始新对话”不删除旧会话且无需确认。删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。

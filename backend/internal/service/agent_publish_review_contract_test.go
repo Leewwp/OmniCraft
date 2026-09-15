@@ -121,7 +121,7 @@ func TestAgentToolsetHasNoDirectPublishPath(t *testing.T) {
 	)
 
 	require.ElementsMatch(t,
-		[]string{ToolSearchContent, ToolGetContentDetail, ToolGetUsageGuide, ToolSuggestPublishMetadata},
+		[]string{ToolSearchContent, ToolSearchIPs, ToolGetContentDetail, ToolGetUsageGuide, ToolSuggestPublishMetadata},
 		svc.RegisteredToolNames(),
 		"the Agent tool set must stay read-only; content may only be published through ContentService")
 
@@ -129,10 +129,10 @@ func TestAgentToolsetHasNoDirectPublishPath(t *testing.T) {
 	for _, def := range svc.ToolDefinitions() {
 		names[def.Name] = true
 	}
-	for _, want := range []string{ToolSearchContent, ToolGetContentDetail, ToolGetUsageGuide, ToolSuggestPublishMetadata} {
+	for _, want := range []string{ToolSearchContent, ToolSearchIPs, ToolGetContentDetail, ToolGetUsageGuide, ToolSuggestPublishMetadata} {
 		require.True(t, names[want], "ToolDefinitions must advertise %q", want)
 	}
-	require.Equal(t, 4, len(names), "no additional (write) tools may be advertised")
+	require.Equal(t, 5, len(names), "no additional (write) tools may be advertised")
 }
 
 func reviewRecordsOf(t *testing.T, svc *ContentService, contentID int64) []model.AIReviewRecord {

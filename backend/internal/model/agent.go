@@ -39,6 +39,9 @@ type AgentCitation struct {
 	Route          string `json:"route"`
 	Excerpt        string `json:"excerpt"`
 	Source         string `json:"source"`
+	// Category carries the IP category slug for zone="ip" citations
+	// (SP-19 G2-1); content citations leave it empty.
+	Category string `json:"category,omitempty"`
 }
 
 // AgentChatSurface is a server-owned enum describing where a chat request was

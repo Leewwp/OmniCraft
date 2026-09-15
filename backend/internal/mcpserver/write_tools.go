@@ -114,6 +114,7 @@ func (c *serverCache) get(download, upload bool) *sdkmcp.Server {
 	}
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "omnicraft", Version: "v1"}, nil)
 	addSearchTool(server, c.deps)
+	addSearchIPsTool(server, c.deps)
 	addGetContentTool(server, c.deps)
 	addGetUsageGuideTool(server, c.deps)
 	addListCategoriesTool(server, c.deps)

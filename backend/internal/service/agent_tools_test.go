@@ -142,7 +142,7 @@ func TestAgentToolPolicy(t *testing.T) {
 
 	t.Run("registered tool names are server-owned constants", func(t *testing.T) {
 		names := svc.RegisteredToolNames()
-		want := map[string]bool{"search_content": true, "get_content_detail": true, "get_usage_guide": true, "suggest_publish_metadata": true}
+		want := map[string]bool{"search_content": true, "search_ips": true, "get_content_detail": true, "get_usage_guide": true, "suggest_publish_metadata": true}
 		if len(names) != len(want) {
 			t.Fatalf("registered tools = %v, want exactly %d", names, len(want))
 		}
