@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { silentError } from "@/lib/error-handler";
+import { MilkdownEditor } from "@/components/markdown/MilkdownEditor";
 
 export default function NewDiscussionPage() {
   const t = useTranslations();
@@ -79,13 +80,15 @@ export default function NewDiscussionPage() {
           <label htmlFor="discussion-body" className="text-xs font-medium text-muted-foreground">
             {t("discussion.bodyLabel")}
           </label>
-          <textarea
+          {/* SP-19 G3-4：话题正文换 Milkdown（禁图）；草稿/字数由封装内置。 */}
+          <MilkdownEditor
             id="discussion-body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={8}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            aria-label={t("discussion.bodyLabel")}
+            defaultValue={body}
+            onChange={setBody}
             placeholder={t("discussion.bodyPlaceholder")}
+            draftKey="discussion-new"
+            minHeight={200}
           />
         </div>
         <Button type="submit" size="sm" className="[@media(pointer:coarse)]:min-h-11" disabled={busy}>

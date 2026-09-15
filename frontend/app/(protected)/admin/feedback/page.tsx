@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Eye, ArrowLeft, Lock } from "lucide-react";
+import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 
 interface FeedbackTicket {
   id: number;
@@ -214,7 +215,10 @@ export default function AdminFeedbackPage() {
           </div>
 
           <div className="mt-4 rounded-md border border-border bg-background p-3">
-            <p className="whitespace-pre-wrap text-sm">{selectedTicket.description}</p>
+            {/* SP-19 G3-4：反馈描述 Markdown 渲染。 */}
+            <div className="text-sm">
+              <MarkdownRenderer content={selectedTicket.description} />
+            </div>
           </div>
 
           {selectedTicket.contact_email && (

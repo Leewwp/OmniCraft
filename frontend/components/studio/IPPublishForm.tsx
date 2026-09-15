@@ -16,6 +16,7 @@ import { fetchPublicConfig, uploadMaxMBForType } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
+import { MilkdownEditor } from "@/components/markdown/MilkdownEditor";
 
 // Matches CreateIPInput (backend): name 1-255; single tag column is
 // VARCHAR(50), backend normalizeIPTags enforces the same cap.
@@ -205,13 +206,15 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
         <label htmlFor="ip-description" className="mb-1.5 block text-sm font-medium text-foreground">
           {t("descriptionLabel")}
         </label>
-        <textarea
+        {/* SP-19 G3-4：IP 描述换 Milkdown（禁图）；id 由容器 aria 承担。 */}
+        <MilkdownEditor
           id="ip-description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
+          aria-label={t("descriptionLabel")}
+          defaultValue={description}
+          onChange={setDescription}
           placeholder={t("descriptionPlaceholder")}
-          className="min-h-11 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none"
+          draftKey="ip-description"
+          minHeight={160}
         />
       </div>
 

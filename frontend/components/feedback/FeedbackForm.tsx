@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CaptchaWidget, type CaptchaWidgetProps } from "@/components/verification/CaptchaWidget";
 import { Check, Upload, X, Loader2 } from "lucide-react";
+import { MilkdownEditor } from "@/components/markdown/MilkdownEditor";
 
 const CATEGORIES = [
   "web_bug",
@@ -201,11 +202,13 @@ export function FeedbackFormInner({
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">{t("feedback.description")}</label>
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={5}
-          required
+        {/* SP-19 G3-4：反馈描述换 Milkdown（禁图）；必填校验由提交检查承担。 */}
+        <MilkdownEditor
+          aria-label={t("feedback.description")}
+          defaultValue={description}
+          onChange={setDescription}
+          draftKey="feedback-description"
+          minHeight={180}
         />
       </div>
 

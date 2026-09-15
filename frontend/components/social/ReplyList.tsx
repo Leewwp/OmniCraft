@@ -67,7 +67,7 @@ export function ReplyList({ discussionId, replies, onRefresh, className }: Reply
               )}
               {r.created_at && <span>{new Date(r.created_at).toLocaleDateString()}</span>}
             </div>
-            <p className="mt-1 text-sm">{r.body}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm">{r.body}</p>
           </div>
           {depth < 2 && renderReplies(r.id, depth + 1)}
         </div>

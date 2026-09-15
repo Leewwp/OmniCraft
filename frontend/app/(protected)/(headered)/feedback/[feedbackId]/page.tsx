@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, MessageSquare, Paperclip } from "lucide-react";
+import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 
 interface FeedbackReply {
   id: number;
@@ -146,7 +147,10 @@ export default function FeedbackDetailPage() {
         </div>
 
         <h1 className="text-lg font-semibold">{ticket.title}</h1>
-        <p className="whitespace-pre-wrap text-sm text-muted-foreground">{ticket.description}</p>
+        {/* SP-19 G3-4：反馈描述 Markdown 渲染（Q17 接受旧文本形态变化）。 */}
+        <div className="text-sm text-muted-foreground">
+          <MarkdownRenderer content={ticket.description} />
+        </div>
 
         {ticket.diagnostic_summary && Object.keys(ticket.diagnostic_summary).length > 0 && (
           <div className="rounded border border-border bg-canvas-subtle p-2">

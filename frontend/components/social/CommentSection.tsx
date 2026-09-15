@@ -476,7 +476,7 @@ function CommentItem({
               </div>
             </div>
           ) : (
-            <p className="mt-1 text-sm leading-relaxed text-foreground/90">{comment.body}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{comment.body}</p>
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -735,7 +735,7 @@ function ReplyItem({
           </div>
         </div>
       ) : (
-        <p className="mt-0.5 text-xs text-foreground/80">{reply.body}</p>
+        <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground/80">{reply.body}</p>
       )}
 
       <div className="mt-1.5 flex items-center gap-1">
