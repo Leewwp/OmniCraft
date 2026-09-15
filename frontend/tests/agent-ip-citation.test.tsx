@@ -154,20 +154,20 @@ test("content citation cards keep the original/fanwork zone badge", () => {
 
 test("ip citation card click reaches onOpen with the ip citation", () => {
   installDom();
-  let opened: { zone: string; contentId: number } | null = null;
+  const opened: { zone: string; contentId: number }[] = [];
   const view = render(
     <IntlProvider locale="zh" messages={zhMessages}>
       <AgentCitationCard
         index={0}
         citation={{ contentId: 248, title: "宝可梦", zone: "ip", category: "game" }}
         onOpen={(citation) => {
-          opened = { zone: citation.zone, contentId: citation.contentId };
+          opened.push({ zone: citation.zone, contentId: citation.contentId });
         }}
       />
     </IntlProvider>,
   );
   fireEvent.click(view.getByRole("button"));
-  assert.ok(opened);
-  assert.equal(opened!.zone, "ip");
-  assert.equal(opened!.contentId, 248);
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0]!.zone, "ip");
+  assert.equal(opened[0]!.contentId, 248);
 });
