@@ -41,7 +41,7 @@ function loadApi(fetchImpl) {
     },
     process: {
       env: {
-        NEXT_PUBLIC_API_URL: "https://api.leeppp.online",
+        NEXT_PUBLIC_API_URL: "https://api.example.com",
       },
     },
   });
@@ -67,12 +67,12 @@ async function testBootstrapsBeforeFirstUnsafeRequest() {
   assert.equal(calls.length, 2);
   assert.equal(
     calls[0].url,
-    "https://api.leeppp.online/api/v1/auth/csrf"
+    "https://api.example.com/api/v1/auth/csrf"
   );
   assert.equal(calls[0].init.credentials, "include");
   assert.equal(
     calls[1].url,
-    "https://api.leeppp.online/api/v1/auth/register"
+    "https://api.example.com/api/v1/auth/register"
   );
   assert.equal(calls[1].init.credentials, "include");
   assert.equal(calls[1].init.headers["X-CSRF-Token"], "fresh-token");
@@ -98,9 +98,9 @@ async function testRefreshesAndRetriesOnceAfterInvalidCsrf() {
   await api.post("/api/v1/auth/register", { email: "new@example.com" });
 
   assert.equal(calls.length, 4);
-  assert.equal(calls[0].url, "https://api.leeppp.online/api/v1/auth/csrf");
+  assert.equal(calls[0].url, "https://api.example.com/api/v1/auth/csrf");
   assert.equal(calls[1].init.headers["X-CSRF-Token"], "stale-token");
-  assert.equal(calls[2].url, "https://api.leeppp.online/api/v1/auth/csrf");
+  assert.equal(calls[2].url, "https://api.example.com/api/v1/auth/csrf");
   assert.equal(calls[3].init.headers["X-CSRF-Token"], "rotated-token");
 }
 
