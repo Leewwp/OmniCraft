@@ -47,7 +47,8 @@
     },
     "insufficientReputation": "Your reputation score is too low for this action",
     "blocked": "You are blocked from this action",
-    "alreadyReported": "You have already reported this content"
+    "alreadyReported": "You have already reported this content",
+    "backToTop": "Back to top"
   },
   "nav": {
     "siteName": "OmniCraft",

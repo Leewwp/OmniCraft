@@ -29,7 +29,7 @@ export function AgentCitationList({ citations, onOpen, highlightedIndex }: Agent
   if (citations.length === 0) return null;
 
   return (
-    <section aria-label={t("agent.citations.title")} className="mt-1">
+    <section aria-label={t("agent.citations.title")} className="mt-1 max-w-[85%]">
       <div className="flex items-baseline gap-2">
         <h3 className="text-sm font-medium text-fg-default">{t("agent.citations.title")}</h3>
         <span className="text-xs text-fg-muted">
