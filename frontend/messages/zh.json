@@ -47,7 +47,8 @@
     "endReached": "已经到底了",
     "insufficientReputation": "信誉分不足，暂时无法执行该操作",
     "blocked": "你已被限制执行该操作",
-    "alreadyReported": "你已举报过该内容"
+    "alreadyReported": "你已举报过该内容",
+    "backToTop": "回到顶部"
   },
   "nav": {
     "siteName": "万象工坊",

@@ -101,7 +101,7 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
               type="button"
               aria-label={t("markdown.citationJump", { index })}
               onClick={() => onCitationRef?.(index - 1)}
-              className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-sm bg-accent-subtle px-1 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:bg-accent-emphasis hover:text-accent-emphasis-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {index}
             </button>

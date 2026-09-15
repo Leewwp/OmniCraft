@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { AlertCircle, BookOpen, Copy, Loader2, Menu, RotateCw, X } from "lucide-react";
+import { AlertCircle, ArrowDown, BookOpen, Copy, Loader2, Menu, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/ui/composer";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -1004,7 +1004,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               )}
 
               {lastAnswerKind === "no_evidence" && (
-                <div className="flex items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
+                <div className="flex max-w-[85%] items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" aria-hidden="true" />
                   <div>
                     <p className="font-medium">{t("agent.noEvidence.title")}</p>
@@ -1022,7 +1022,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               )}
 
               {turnDegraded && (
-                <div className="flex items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
+                <div className="flex max-w-[85%] items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" aria-hidden="true" />
                   <div>
                     <p className="font-medium">{t("agent.degraded.title")}</p>
@@ -1079,14 +1079,14 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             </div>
 
             {showJumpToLatest && !streaming && (
-              <div className="pointer-events-none absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
+              <div className="pointer-events-none absolute bottom-32 left-1/2 z-10 -translate-x-1/2">
                 <Button
                   variant="outline"
                   size="sm"
                   className="pointer-events-auto h-9"
                   onClick={scrollToLatest}
                 >
-                  <X className="mr-1.5 h-3.5 w-3.5 rotate-45" aria-hidden="true" />
+                  <ArrowDown className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                   {t("agent.workspace.jumpToLatest")}
                 </Button>
               </div>

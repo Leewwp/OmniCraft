@@ -5,6 +5,7 @@ import { OriginalFeedClient } from "@/components/original/OriginalFeedClient";
 import { SidebarWrapper } from "@/components/original/OriginalSidebar";
 import { normalizeContentList } from "@/lib/content";
 import { resolveDefaultSort } from "@/lib/search-filters";
+import { BackToTopButton } from "@/components/shared/BackToTopButton";
 
 interface CategoryItem {
   id: number; slug: string; name_i18n?: Record<string, string>;
@@ -112,6 +113,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
           initialSort={current.sort}
         />
       </div>
+      <BackToTopButton />
     </div>
   );
 }

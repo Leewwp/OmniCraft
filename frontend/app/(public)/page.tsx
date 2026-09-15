@@ -2,6 +2,7 @@ import { getBrowserApiBase, getServerApiBase } from "@/lib/server-api";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
 import { HomePageClient } from "@/components/home/HomePageClient";
+import { BackToTopButton } from "@/components/shared/BackToTopButton";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { normalizeContentList } from "@/lib/content";
 
@@ -88,11 +89,14 @@ export default async function HomePage() {
   ]);
 
   return (
+    <>
     <HomePageClient
       apiBase={browserApiBase}
       initialIPs={initialIPs}
       initialContents={firstPage.items}
       initialContentTotal={firstPage.total}
     />
+      <BackToTopButton />
+    </>
   );
 }
