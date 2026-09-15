@@ -189,8 +189,26 @@ func (p *MiniMaxProvider) GetEmbedding(ctx context.Context, text string) (embedd
 	return result.Vectors[0], nil
 }
 
-const thinkOpen = "<think>"
-const thinkClose = "</think>"
+// MiniMax emits reasoning blocks tagged either <think>…</think> or
+// <mm:think>…</mm:think>; both families have been observed within a single
+// conversation (2026-09-15 live trace), so the splitter recognizes both.
+// Open/close tags are paired best-effort by depth regardless of family.
+var thinkOpenTags = []string{"<think>", "<mm:think>"}
+var thinkCloseTags = []string{"</think>", "</mm:think>"}
+
+const maxThinkTagLen = len("</mm:think>")
+
+// earliestTag returns the lowest index of any of tags in s (-1 when absent).
+func earliestTag(s string, tags []string) (int, string) {
+	idx := -1
+	found := ""
+	for _, tag := range tags {
+		if i := strings.Index(s, tag); i >= 0 && (idx < 0 || i < idx) {
+			idx, found = i, tag
+		}
+	}
+	return idx, found
+}
 
 // thinkSplitter routes MiniMax reasoning blocks into a separate display-only
 // channel instead of discarding them. Blocks may span stream chunks, so a
@@ -217,8 +235,8 @@ func (s *thinkSplitter) split(in string) (thinking, content string) {
 	var think strings.Builder
 	var body strings.Builder
 	for len(s.buf) > 0 {
-		openIdx := strings.Index(s.buf, thinkOpen)
-		closeIdx := strings.Index(s.buf, thinkClose)
+		openIdx, openTag := earliestTag(s.buf, thinkOpenTags)
+		closeIdx, closeTag := earliestTag(s.buf, thinkCloseTags)
 		if openIdx < 0 && closeIdx < 0 {
 			// No complete tag: route everything except a trailing fragment
 			// that could begin a tag in a later chunk.
@@ -234,10 +252,12 @@ func (s *thinkSplitter) split(in string) (thinking, content string) {
 		}
 
 		nextIdx := openIdx
-		nextTag := thinkOpen
+		nextTag := openTag
+		isOpen := true
 		if nextIdx < 0 || (closeIdx >= 0 && closeIdx < nextIdx) {
 			nextIdx = closeIdx
-			nextTag = thinkClose
+			nextTag = closeTag
+			isOpen = false
 		}
 		if s.depth == 0 {
 			body.WriteString(s.buf[:nextIdx])
@@ -245,7 +265,7 @@ func (s *thinkSplitter) split(in string) (thinking, content string) {
 			think.WriteString(s.buf[:nextIdx])
 		}
 		s.buf = s.buf[nextIdx+len(nextTag):]
-		if nextTag == thinkOpen {
+		if isOpen {
 			s.depth++
 		} else if s.depth > 0 {
 			s.depth--
@@ -276,16 +296,23 @@ func (s *thinkSplitter) splitFlush() (thinking, content string) {
 }
 
 // trailingTagPrefix returns the length of the longest suffix of s that is a
-// prefix of "<think>" or "</think>" (a tag fragment split across chunks).
+// prefix of any recognized think tag (a tag fragment split across chunks).
 func trailingTagPrefix(s string) int {
 	max := len(s)
-	if max > len(thinkClose) {
-		max = len(thinkClose)
+	if max > maxThinkTagLen {
+		max = maxThinkTagLen
 	}
 	for k := max; k >= 1; k-- {
 		suffix := s[len(s)-k:]
-		if strings.HasPrefix(thinkOpen, suffix) || strings.HasPrefix(thinkClose, suffix) {
-			return k
+		for _, tag := range thinkOpenTags {
+			if strings.HasPrefix(tag, suffix) {
+				return k
+			}
+		}
+		for _, tag := range thinkCloseTags {
+			if strings.HasPrefix(tag, suffix) {
+				return k
+			}
 		}
 	}
 	return 0

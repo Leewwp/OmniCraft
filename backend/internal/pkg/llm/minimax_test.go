@@ -29,6 +29,19 @@ func TestThinkStripper(t *testing.T) {
 		{name: "partial open tag at end dropped on flush", chunks: []string{"text<thi"}, expected: "text"},
 		{name: "closing tag split across chunks", chunks: []string{"<think>a</th", "ink>b"}, expected: "b"},
 		{name: "block spanning many chunks", chunks: []string{"<th", "ink>", "secret", "</", "think>", "done"}, expected: "done"},
+		// #535: MiniMax also emits the <mm:think> family, observed mixed with
+		// <think> within one conversation; both must route to the thinking
+		// channel and never leak into content.
+		{name: "mm think block stripped", chunks: []string{"before<mm:think>hidden</mm:think>after"}, expected: "beforeafter"},
+		{name: "mm block at start", chunks: []string{"<mm:think>hidden</mm:think>shown"}, expected: "shown"},
+		{name: "mm block split across chunks", chunks: []string{"<mm:th", "ink>hidden</mm:thi", "nk>tail"}, expected: "tail"},
+		{name: "mm partial open tag buffered across chunks", chunks: []string{"text<mm", ":think>secret</mm:think>done"}, expected: "textdone"},
+		{name: "mm unclosed block dropped on flush", chunks: []string{"pre<mm:think>hidden"}, expected: "pre"},
+		{name: "mm stray closing tag dropped", chunks: []string{"a</mm:think>b"}, expected: "ab"},
+		{name: "mm nested blocks", chunks: []string{"a<mm:think>x<mm:think>y</mm:think>z</mm:think>b"}, expected: "ab"},
+		{name: "mixed families in one stream", chunks: []string{"a<think>x</think>b<mm:think>y</mm:think>c"}, expected: "abc"},
+		{name: "mixed families across chunks", chunks: []string{"a<think>x</th", "ink>b<mm:thi", "nk>y</mm:think>c"}, expected: "abc"},
+		{name: "mm think tag fragment vs body text", chunks: []string{"5 < 6 and 7 > 2 ok"}, expected: "5 < 6 and 7 > 2 ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -42,6 +55,36 @@ func TestThinkStripper(t *testing.T) {
 			got.WriteString(flushContent)
 			if got.String() != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got.String())
+			}
+		})
+	}
+}
+
+func TestThinkSplitterRoutesThinking(t *testing.T) {
+	// #535: reasoning must land in the thinking channel (the SSE think
+	// delta + persisted think row), for both tag families.
+	tests := []struct {
+		name             string
+		chunks           []string
+		expectedThinking string
+	}{
+		{name: "think family", chunks: []string{"<think>why</think>body"}, expectedThinking: "why"},
+		{name: "mm think family", chunks: []string{"<mm:think>reasoning here</mm:think>body"}, expectedThinking: "reasoning here"},
+		{name: "mm family across chunks", chunks: []string{"<mm:th", "ink>deep thought</mm", ":think>answer"}, expectedThinking: "deep thought"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newThinkSplitter()
+			var thinking strings.Builder
+			for _, c := range tt.chunks {
+				th, _ := s.split(c)
+				thinking.WriteString(th)
+			}
+			th, _ := s.splitFlush()
+			thinking.WriteString(th)
+			got := thinking.String()
+			if got != tt.expectedThinking {
+				t.Errorf("expected thinking %q, got %q", tt.expectedThinking, got)
 			}
 		})
 	}
