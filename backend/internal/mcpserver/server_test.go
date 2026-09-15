@@ -130,13 +130,13 @@ func TestMCPServerFourReadOnlyTools(t *testing.T) {
 	for _, tl := range tools.Tools {
 		names[tl.Name] = true
 	}
-	for _, want := range []string{"omnicraft_search", "omnicraft_get_content", "omnicraft_get_usage_guide", "omnicraft_list_categories"} {
+	for _, want := range []string{"omnicraft_search", "omnicraft_search_ips", "omnicraft_get_content", "omnicraft_get_usage_guide", "omnicraft_list_categories"} {
 		if !names[want] {
 			t.Errorf("tool %s missing from tools/list", want)
 		}
 	}
-	if len(tools.Tools) != 4 {
-		t.Errorf("tools/list returned %d tools, want exactly the four anonymous read-only tools", len(tools.Tools))
+	if len(tools.Tools) != 5 {
+		t.Errorf("tools/list returned %d tools, want exactly the five anonymous read-only tools", len(tools.Tools))
 	}
 
 	t.Run("search finds the public fixture only", func(t *testing.T) {
