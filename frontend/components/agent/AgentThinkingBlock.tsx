@@ -31,7 +31,7 @@ export function AgentThinkingBlock({ content, streaming }: AgentThinkingBlockPro
   if (content.trim() === "") return null;
 
   return (
-    <div className="rounded-md border border-border-default bg-card">
+    <div className="max-w-[85%] rounded-md border border-border-default bg-card">
       <button
         type="button"
         aria-expanded={open}

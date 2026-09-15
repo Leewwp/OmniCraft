@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getBrowserApiBase, getServerApiBase } from "@/lib/server-api";
 import { normalizeContentList, type ContentDetailData } from "@/lib/content";
 import { RecommendFeedClient } from "@/components/recommend/RecommendFeedClient";
+import { BackToTopButton } from "@/components/shared/BackToTopButton";
 
 interface ContentResponse {
   contents?: unknown[];
@@ -55,6 +56,7 @@ export default async function RecommendPage() {
           initialError={error}
         />
       </div>
+      <BackToTopButton />
     </div>
   );
 }
