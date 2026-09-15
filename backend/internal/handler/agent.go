@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -228,6 +229,9 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		ConversationID *int64          `json:"conversation_id,omitempty"`
 		Message        string          `json:"message"`
 		Context        *ChatContextDTO `json:"context,omitempty"`
+		// DeepThink is the #539 per-turn reasoning toggle; omitted/false keeps
+		// the fast no-thinking default, true enables provider reasoning.
+		DeepThink bool `json:"deep_think,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.Message) == "" {
 		response.ValidationError(c, "invalid request parameters")
@@ -325,6 +329,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	if err := h.agentSvc.ChatStream(c.Request.Context(), userID, service.ChatTurnInput{
 		ConversationID: conversationID,
 		Message:        message,
+		DeepThink:      body.DeepThink,
 	}, resolved, func(ev service.AgentStreamEvent) error {
 		return writer.emit(ev)
 	}); err != nil {
@@ -496,16 +501,20 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 // GetConversationMessages (A-05): answer rows flagged by the post-turn output
 // audit (tool_calls.moderation = "blocked") are redacted — content omitted,
 // moderation marker exposed so clients render a placeholder instead of the
-// stored text. Think rows surface their phase marker for replay clients.
+// stored text. Think rows surface their phase marker for replay clients;
+// #538 tools rows also surface their persisted step summaries.
 type agentConversationMessageDTO struct {
-	ID      int64                `json:"id"`
-	Role    string               `json:"role"`
-	Content *string              `json:"content,omitempty"`
+	ID      int64   `json:"id"`
+	Role    string  `json:"role"`
+	Content *string `json:"content,omitempty"`
 	// N4：答案行落库的引用随历史回放（完整形态；前端 toAgentCitation 兼容）。
 	Citations  []model.AgentCitation `json:"citations,omitempty"`
 	Phase      string                `json:"phase,omitempty"`
 	Moderation string                `json:"moderation,omitempty"`
-	CreatedAt  time.Time             `json:"created_at"`
+	// Tools carries the persisted tool-step summaries of a phase="tools" row
+	// (#538) so history replay renders the same steps the live stream showed.
+	Tools     []service.AgentToolExecution `json:"tools,omitempty"`
+	CreatedAt time.Time                     `json:"created_at"`
 }
 
 func agentMessageHistoryDTO(m model.AgentMessage) agentConversationMessageDTO {
@@ -515,8 +524,12 @@ func agentMessageHistoryDTO(m model.AgentMessage) agentConversationMessageDTO {
 		return dto
 	}
 	dto.Citations = m.Citations
-	if phase, _ := m.ToolCalls["phase"].(string); phase != "" {
+	phase, _ := m.ToolCalls["phase"].(string)
+	if phase != "" {
 		dto.Phase = phase
+	}
+	if phase == "tools" {
+		dto.Tools = agentToolsFromStoredSteps(m.ToolCalls["steps"])
 	}
 	if moderation, _ := m.ToolCalls["moderation"].(string); moderation == "blocked" {
 		dto.Moderation = "blocked"
@@ -527,6 +540,25 @@ func agentMessageHistoryDTO(m model.AgentMessage) agentConversationMessageDTO {
 		dto.Citations = nil
 	}
 	return dto
+}
+
+// agentToolsFromStoredSteps decodes the JSONB round-trip of a persisted
+// AgentToolExecution slice (JSONMap reads hand back []any of maps). A decode
+// failure degrades to no steps — the row still replays as an empty tools row
+// instead of failing the whole history response.
+func agentToolsFromStoredSteps(raw any) []service.AgentToolExecution {
+	if raw == nil {
+		return nil
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var steps []service.AgentToolExecution
+	if err := json.Unmarshal(b, &steps); err != nil || len(steps) == 0 {
+		return nil
+	}
+	return steps
 }
 
 // DeleteConversation deletes only the current user's conversation and its

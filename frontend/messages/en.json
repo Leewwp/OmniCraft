@@ -1452,6 +1452,8 @@
       "errorTitle": "This request was not completed",
       "errorRetry": "Resend",
       "conversationLoadFailed": "Failed to load conversation",
+"deepThink": "Deep think",
+      "deepThinkHint": "Reason before answering: higher quality but slower; off by default for a faster first response",
       "composerHint": "Enter to send · Shift+Enter for newline",
       "stoppedNotice": "Stopped generating",
       "suggestionLayout": "Looking for “Empty Platform” themed visual references, ideally with both atmosphere images and text narration.",

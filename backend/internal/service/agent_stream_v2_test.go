@@ -77,14 +77,16 @@ func TestAgentStreamV2ForwardsThinkDeltasSeparately(t *testing.T) {
 	require.Equal(t, "Grounded answer about Published Test Content", answerText)
 	require.NotContains(t, answerText, "让我", "think text must never leak into the answer channel")
 
-	// Persisted rows: think phase row + answer row, think never merged in.
+	// Persisted rows: think phase row + tools phase row + answer row, think never merged in.
 	var rows []model.AgentMessage
 	require.NoError(t, db.Where("role = ?", "assistant").Order("id ASC").Find(&rows).Error)
 	require.GreaterOrEqual(t, len(rows), 1, "the answer must persist")
-	var thinkRows, answerRows []model.AgentMessage
+	var thinkRows, toolsRows, answerRows []model.AgentMessage
 	for _, row := range rows {
 		if row.ToolCalls != nil && row.ToolCalls["phase"] == "think" {
 			thinkRows = append(thinkRows, row)
+		} else if row.ToolCalls != nil && row.ToolCalls["phase"] == "tools" {
+			toolsRows = append(toolsRows, row)
 		} else {
 			answerRows = append(answerRows, row)
 		}
@@ -92,6 +94,7 @@ func TestAgentStreamV2ForwardsThinkDeltasSeparately(t *testing.T) {
 	require.Len(t, thinkRows, 1, "non-empty think must persist as its own phase-marked row")
 	require.NotNil(t, thinkRows[0].Content)
 	require.Contains(t, *thinkRows[0].Content, "让我想想")
+	require.Len(t, toolsRows, 1, "#538: executed tool steps persist as their own phase row")
 	require.Len(t, answerRows, 1)
 	require.Equal(t, "Grounded answer about Published Test Content", *answerRows[0].Content)
 

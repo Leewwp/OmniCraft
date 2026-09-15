@@ -17,6 +17,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/service"
 )
 
 // fakeHandlerGreen stands in for the Green text scan seam at the handler
@@ -133,4 +134,54 @@ func TestConversationMessagesRedactFlaggedAnswers(t *testing.T) {
 	require.NotContains(t, byID[53], "moderation")
 	require.Equal(t, "think", byID[54]["phase"], "think rows keep their phase marker")
 	require.NotContains(t, rec.Body.String(), "被屏蔽的回答", "raw flagged text must not appear anywhere in the response")
+}
+
+// #538: phase="tools" rows replay their persisted step summaries through the
+// history endpoint; malformed step payloads degrade to an empty tools row
+// instead of failing the whole response.
+func TestConversationMessagesReplayToolStepsRow(t *testing.T) {
+	handler, _, db := newAgentStreamTestHandler(t, nil, nil)
+
+	now := time.Now().UTC()
+	require.NoError(t, db.Create(&model.AgentConversation{ID: 6, UserID: 1, ContextType: "general", CreatedAt: now, UpdatedAt: now}).Error)
+	question := "问题"
+	rows := []model.AgentMessage{
+		{ID: 61, ConversationID: 6, Role: "user", Content: &question, CreatedAt: now.Add(1 * time.Second)},
+		{ID: 62, ConversationID: 6, Role: "assistant", ToolCalls: model.JSONMap{
+			"phase": "tools",
+			"steps": []any{
+				map[string]any{"name": "get_content_detail", "args_summary": "content_id=88", "hits": 1, "status": "success", "duration_ms": 12},
+				map[string]any{"name": "search_ips", "args_summary": "钢琴 · music", "hits": 3, "status": "error", "duration_ms": 45},
+			},
+		}, CreatedAt: now.Add(2 * time.Second)},
+		{ID: 63, ConversationID: 6, Role: "assistant", ToolCalls: model.JSONMap{"phase": "tools", "steps": "garbage"}, CreatedAt: now.Add(3 * time.Second)},
+	}
+	for i := range rows {
+		require.NoError(t, db.Create(&rows[i]).Error)
+	}
+
+	router := gin.New()
+	router.GET("/agent/conversations/:id", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(1))
+		handler.GetConversationMessages(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/agent/conversations/6", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+	var payload struct {
+		Messages []struct {
+			ID    int64                        `json:"id"`
+			Phase string                       `json:"phase"`
+			Tools []service.AgentToolExecution `json:"tools"`
+		} `json:"messages"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	require.Len(t, payload.Messages, 3)
+	require.Equal(t, "tools", payload.Messages[1].Phase)
+	require.Len(t, payload.Messages[1].Tools, 2)
+	require.Equal(t, "get_content_detail", payload.Messages[1].Tools[0].Name)
+	require.Equal(t, int64(12), payload.Messages[1].Tools[0].DurationMs)
+	require.Equal(t, "error", payload.Messages[1].Tools[1].Status)
+	require.Empty(t, payload.Messages[2].Tools, "malformed steps degrade to no steps, not an error")
 }
