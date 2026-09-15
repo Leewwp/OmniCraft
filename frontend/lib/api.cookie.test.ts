@@ -6,7 +6,7 @@ import { JSDOM } from "jsdom";
 
 function installDom() {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: "https://app.leeppp.online/",
+    url: "https://app.example.com/",
   });
 
   for (const [key, value] of Object.entries({
@@ -28,7 +28,7 @@ function installDom() {
 }
 
 async function loadFreshApiModule() {
-  process.env.NEXT_PUBLIC_API_URL = "https://api.leeppp.online";
+  process.env.NEXT_PUBLIC_API_URL = "https://api.example.com";
   const url = pathToFileURL(path.join(process.cwd(), "lib", "api.ts")).href;
   return import(`${url}?t=${Date.now()}-${Math.random()}`);
 }
@@ -58,7 +58,7 @@ test("api.post uses csrf-token cookie without bootstrapping a csrf fetch first",
   await api.post("/api/v1/auth/register", { email: "new@example.com" });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0]?.url, "https://api.leeppp.online/api/v1/auth/register");
+  assert.equal(calls[0]?.url, "https://api.example.com/api/v1/auth/register");
   assert.equal((calls[0]?.headers as Record<string, string>)["X-CSRF-Token"], "cookie-token");
   assert.equal(calls[0]?.credentials, "include");
 

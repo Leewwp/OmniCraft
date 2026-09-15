@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testCallbackURL = "https://api.leeppp.online/api/v1/internal/ai-callback"
+const testCallbackURL = "https://api.example.com/api/v1/internal/ai-callback"
 
 func decodeServiceParams(t *testing.T, raw string) map[string]interface{} {
 	t.Helper()

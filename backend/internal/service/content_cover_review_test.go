@@ -57,7 +57,7 @@ func newContentCoverReviewService(t *testing.T) (*ContentService, *UploadGrantSe
 		OSS: config.OSSConfig{Domain: "https://cdn.example.test"},
 		Green: config.GreenConfig{
 			Seed:        "seed_test_value",
-			CallbackURL: "https://api.leeppp.online/api/v1/internal/ai-callback",
+			CallbackURL: "https://api.example.com/api/v1/internal/ai-callback",
 		},
 		Reputation: config.ReputationConfig{
 			RepeatViolationWindowDays: 7, RepeatViolationThreshold: 1, RepeatViolationExtraPenalty: -1,

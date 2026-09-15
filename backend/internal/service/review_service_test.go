@@ -48,7 +48,7 @@ func setupReviewServiceTest(t *testing.T) (*ReviewService, *gorm.DB, *miniredis.
 		OSS:   config.OSSConfig{Domain: "https://cdn.example.test"},
 		Green: config.GreenConfig{
 			Seed:        "seed_test_value",
-			CallbackURL: "https://api.leeppp.online/api/v1/internal/ai-callback",
+			CallbackURL: "https://api.example.com/api/v1/internal/ai-callback",
 		},
 	}
 	svc := NewReviewService(db, rdb, cfg, NewReputationService(db))
@@ -665,7 +665,7 @@ func TestSubmitForAIReviewVideoScanCarriesSeedAndDataID(t *testing.T) {
 	require.Len(t, green.videoCalls, 1)
 	require.Equal(t, "seed_test_value", green.videoCalls[0].Seed, "seed must come from green.seed")
 	require.Equal(t, fmt.Sprintf("content:%d", contentID), green.videoCalls[0].DataID, "dataId must match the callback parser format")
-	require.Equal(t, "https://api.leeppp.online/api/v1/internal/ai-callback", green.videoCalls[0].CallbackURL)
+	require.Equal(t, "https://api.example.com/api/v1/internal/ai-callback", green.videoCalls[0].CallbackURL)
 	require.Equal(t, "https://cdn.example.test/uploads/42/video/v.mp4", green.videoCalls[0].VideoURL)
 }
 
@@ -687,7 +687,7 @@ func TestSubmitForAIReviewVideoScanErrorPropagatesWithoutSideEffects(t *testing.
 		},
 		Judge: config.JudgeConfig{MinVotesRequired: 3},
 		OSS:   config.OSSConfig{Domain: "https://cdn.example.test"},
-		Green: config.GreenConfig{CallbackURL: "https://api.leeppp.online/api/v1/internal/ai-callback"},
+		Green: config.GreenConfig{CallbackURL: "https://api.example.com/api/v1/internal/ai-callback"},
 	}, NewReputationService(db))
 	svc.green = &fakeGreenScanner{videoErr: aliyun.ErrGreenSeedRequired}
 

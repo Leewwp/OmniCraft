@@ -48,7 +48,7 @@ func setupAuthCookieTestRouter(t *testing.T) (*gin.Engine, *config.Config, *gorm
 		},
 		Security: config.SecurityConfig{
 			AllowedOrigins: []string{
-				"https://app.leeppp.online",
+				"https://app.example.com",
 				"http://localhost:3000",
 			},
 		},
@@ -601,8 +601,8 @@ func TestCredentialedCORSAllowsConfiguredProductionOriginOnly(t *testing.T) {
 	}{
 		{
 			name:        "production web origin allowed",
-			origin:      "https://app.leeppp.online",
-			expectACAO:  "https://app.leeppp.online",
+			origin:      "https://app.example.com",
+			expectACAO:  "https://app.example.com",
 			expectCreds: "true",
 		},
 		{
