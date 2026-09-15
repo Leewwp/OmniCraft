@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { AlertCircle, BookOpen, Copy, Loader2, Menu, RotateCw, X } from "lucide-react";
@@ -128,6 +129,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const { open: openCitationOverlay, overlayElement } = useContentDetailOverlay({
     source: "agent-citation",
   });
+  /* SP-19 G2-1（Q5）：IP 引用不走内容浮层，router.push 落 /ip/[id] 详情页。 */
+  const router = useRouter();
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
@@ -304,24 +307,33 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
   const handleCitationOpen = useCallback(
     (citation: AgentCitation, trigger: HTMLElement) => {
-      openCitationOverlay(
-        { contentId: citation.contentId, zone: citation.zone },
-        trigger,
-      );
+      /* SP-19 G2-1（Q5）：IP 引用卡点击分流到 IP 详情页，不开内容浮层。 */
+      if (citation.zone === "ip") {
+        router.push(`/ip/${citation.contentId}`);
+      } else {
+        openCitationOverlay(
+          { contentId: citation.contentId, zone: citation.zone },
+          trigger,
+        );
+      }
       onCitationOpen?.(citation);
     },
-    [onCitationOpen, openCitationOverlay],
+    [onCitationOpen, openCitationOverlay, router],
   );
 
   /* 行内 [n] 角标 → 直接打开共享内容浮层（2026-09-06 实测修复：原先只高亮
      滚动到底部引用卡片，与其它页面「点链接开浮窗」的契约不一致）。index 为
      0 基；citations 缺省回落到当前轮的流式引用（仅进行中的回答消息），历史
-     消息传空数组即不响应。 */
+     消息传空数组即不响应。zone="ip" 的角标与卡片同分流（Q5）。 */
   const handleCitationRef = useCallback(
     (index: number, citations?: AgentStreamCitation[]) => {
       const list = citations ?? turnCitationsRef.current;
       const citation = list[index];
       if (!citation || citation.content_id <= 0) return;
+      if (citation.zone === "ip") {
+        router.push(`/ip/${citation.content_id}`);
+        return;
+      }
       openCitationOverlay(
         {
           contentId: citation.content_id,
@@ -330,7 +342,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         null,
       );
     },
-    [openCitationOverlay],
+    [openCitationOverlay, router],
   );
 
   const handleRename = useCallback(

@@ -322,6 +322,23 @@ func deriveToolArgsSummary(name string, rawArgs json.RawMessage) (string, error)
 			return "", nil
 		}
 		return truncateChatRunes(query, 40), nil
+	case ToolSearchIPs:
+		var args struct {
+			Query    string `json:"query"`
+			Category string `json:"category"`
+		}
+		if err := json.Unmarshal(rawArgs, &args); err != nil {
+			return "", err
+		}
+		query := strings.TrimSpace(args.Query)
+		if query == "" {
+			return "", nil
+		}
+		summary := truncateChatRunes(query, 40)
+		if category := strings.TrimSpace(args.Category); category != "" {
+			summary += " · " + category
+		}
+		return summary, nil
 	default:
 		var args struct {
 			ContentID int64 `json:"content_id"`
@@ -342,6 +359,8 @@ func agentToolHitCount(outcome *AgentToolOutcome) int {
 	switch {
 	case len(outcome.Search) > 0:
 		return len(outcome.Search)
+	case len(outcome.IPs) > 0:
+		return len(outcome.IPs)
 	case outcome.Detail != nil:
 		return 1
 	case outcome.Guide != nil:

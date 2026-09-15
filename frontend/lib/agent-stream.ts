@@ -9,6 +9,7 @@ import { normalizeAgentEvent } from "@/lib/agent";
 export interface AgentStreamCitation {
   content_id: number;
   title: string;
+  /** "original" | "fanwork" 内容引用；"ip" 为 IP 引用（SP-19 G2-1）。 */
   zone: string;
   excerpt?: string;
   content_version?: number;
@@ -16,6 +17,8 @@ export interface AgentStreamCitation {
   chunk_index?: number;
   route?: string;
   source?: "bm25" | "vector" | "hybrid_rrf";
+  /** zone="ip" 时的分类 slug（11 类词表）；内容引用不带。 */
+  category?: string;
 }
 
 export interface AgentStreamTool {

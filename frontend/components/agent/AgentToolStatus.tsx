@@ -20,6 +20,13 @@ const TOOL_RESULT_KEYS: Record<string, Partial<Record<AgentStreamTool["status"],
     error: "agent.tools.searchContentFailed",
     skipped: "agent.tools.searchContentSkipped",
   },
+  search_ips: {
+    running: "agent.tools.searchIpsRunning",
+    success: "agent.tools.searchIpsSuccess",
+    failed: "agent.tools.searchIpsFailed",
+    error: "agent.tools.searchIpsFailed",
+    skipped: "agent.tools.searchIpsSkipped",
+  },
   get_content_detail: {
     running: "agent.tools.getContentDetailRunning",
     success: "agent.tools.getContentDetailSuccess",

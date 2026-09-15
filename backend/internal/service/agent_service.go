@@ -37,6 +37,10 @@ type AgentService struct {
 	cfg             *config.Config
 	queueProducer   queue.Producer
 	vectorSearch    func(embedding []float32, topK int) ([]repository.EmbeddingSearchResult, error)
+	// ipSearch is the IP keyword-search seam consumed by search_ips (SP-19
+	// G2-1): production wiring closes over SearchRepository.SearchIPs; tests
+	// inject a fake because the tsvector SQL is PostgreSQL-only.
+	ipSearch func(ctx context.Context, query, category string, limit int) ([]model.IP, error)
 }
 
 // agentChatStreamer is the narrow Provider capability consumed by the Agent
@@ -569,9 +573,16 @@ func (s *AgentService) SetQueueProducer(p queue.Producer) {
 }
 
 // SetSearchRepository wires the keyword search fallback used when
-// conversational search is unavailable (degraded mode).
+// conversational search is unavailable (degraded mode), and the search_ips
+// tool's IP keyword seam (SP-19 G2-1).
 func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
 	s.searchRepo = repo
+	if repo != nil {
+		s.ipSearch = func(ctx context.Context, query, category string, limit int) ([]model.IP, error) {
+			ips, _, err := repo.SearchIPs(query, category, 1, limit)
+			return ips, err
+		}
+	}
 }
 
 // SetUsageGuideService wires the merged guide view the in-site agent reads
@@ -716,6 +727,12 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	// 上方 must-search 与 A2 会话车道指令原文不动，本组指令追加其后。
 	parts = append(parts, "every search_content query must be fully self-contained: resolve all pronouns, ellipsis and context references into the concrete entities they point to (exact titles, author or character names, topics), so each query is understandable with zero prior conversation context; for example, when the user asks 「第二个的作者还有什么作品」 after earlier results, the query must be rewritten like 「《迟到的邮差》的作者的其他作品」 with the resolved title, never a bare reference such as 「第二个」 or 「它的作者」; a message that is just a bare title or quote is itself the self-contained query for its first search")
 	parts = append(parts, "when one message combines several independent sub-questions, decompose it into multiple search_content calls — one call per sub-question, each with its own self-contained query — instead of merging them into a single vague query; the per-turn tool budget is sized for this")
+	// SP-19 G2-1（2026-09-15）：IP 检索指引——找/推荐/按类目浏览 IP 时调
+	// search_ips；category 枚举直接来自 config 11 类 allowlist（防模型猜
+	// 「gaming」等已回填废值空手而归）；IP 引用角标与内容引用同格式。
+	if s.cfg != nil && len(s.cfg.IPCategories) > 0 {
+		parts = append(parts, fmt.Sprintf("when the user asks to find, recommend, or browse IPs (original settings/worlds), call the search_ips tool with a self-contained keyword query; when the user names a genre, pass category with one of these slugs only: %s; cite the IPs you used with the same [n] marks as content results", strings.Join(s.cfg.IPCategories, ", ")))
+	}
 	return llm.ChatMessage{
 		Role:    "system",
 		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),
