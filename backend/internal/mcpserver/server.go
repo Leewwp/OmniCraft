@@ -125,6 +125,74 @@ func addSearchTool(server *sdkmcp.Server, deps Deps) {
 	})
 }
 
+// --- omnicraft_search_ips ---------------------------------------------------
+
+type SearchIPsInput struct {
+	Query    string `json:"query" jsonschema:"keyword query matched against IP name and description"`
+	Category string `json:"category,omitempty" jsonschema:"optional IP category slug: game, film_tv, anime, manga, novel, literature, music, variety, short_drama, vtuber, other"`
+	Page     int    `json:"page,omitempty" jsonschema:"result page, 1-based"`
+	PageSize int    `json:"page_size,omitempty" jsonschema:"results per page, 1-20"`
+}
+
+func addSearchIPsTool(server *sdkmcp.Server, deps Deps) {
+	sdkmcp.AddTool(server, &sdkmcp.Tool{
+		Name: "omnicraft_search_ips",
+		Description: "Search OmniCraft's IP library (original settings/worlds). " +
+			"Only approved, public IPs are ever returned. Keyword search with an optional category filter, same semantics as the public REST GET /ips.",
+	}, func(ctx context.Context, req *sdkmcp.CallToolRequest, in SearchIPsInput) (*sdkmcp.CallToolResult, any, error) {
+		query := strings.TrimSpace(in.Query)
+		if query == "" || len([]rune(query)) > 100 {
+			return nil, nil, errors.New("query must be 1-100 characters")
+		}
+		category := strings.TrimSpace(in.Category)
+		if category != "" && !deps.ipCategoryAllowed(category) {
+			return nil, nil, errors.New("category must be one of: game, film_tv, anime, manga, novel, literature, music, variety, short_drama, vtuber, other")
+		}
+		page, pageSize := in.Page, in.PageSize
+		if page < 1 {
+			page = 1
+		}
+		if pageSize < 1 || pageSize > 20 {
+			pageSize = 10
+		}
+		ips, total, err := deps.SearchRepo.SearchIPs(query, category, page, pageSize)
+		if err != nil {
+			return nil, nil, fmt.Errorf("ip search failed")
+		}
+		items := make([]map[string]any, 0, len(ips))
+		for _, ip := range ips {
+			items = append(items, map[string]any{
+				"id":          ip.ID,
+				"name":        ip.Name,
+				"slug":        ip.Slug,
+				"category":    ip.Category,
+				"description": truncateRunes(ip.Description, 200),
+				"created_at":  ip.CreatedAt,
+			})
+		}
+		return textResult(map[string]any{
+			"items":     items,
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+		})
+	})
+}
+
+// ipCategoryAllowed validates a category slug against the config allowlist
+// (SP-19 G1-3); an unconfigured allowlist accepts no filter.
+func (d Deps) ipCategoryAllowed(slug string) bool {
+	if d.Cfg == nil {
+		return false
+	}
+	for _, allowed := range d.Cfg.IPCategories {
+		if allowed == slug {
+			return true
+		}
+	}
+	return false
+}
+
 // --- omnicraft_get_content --------------------------------------------------
 
 type ContentIDInput struct {

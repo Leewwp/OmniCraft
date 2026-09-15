@@ -39,7 +39,9 @@ const (
 
 // AgentCitation is a server-normalized reference to viewer-visible content.
 // It is rebuilt from backend-owned content summaries, never from model-authored
-// URLs, so it always carries a valid content_id/title/zone.
+// URLs, so it always carries a valid content_id/title/zone. zone="ip" (SP-19
+// G2-1) references approved IP hubs instead of content chunks: no version/
+// chunk/source provenance, route=/ip/{id}, and an optional category slug.
 type AgentCitation struct {
 	ContentID      int64  `json:"content_id"`
 	ContentVersion int    `json:"content_version"`
@@ -50,11 +52,31 @@ type AgentCitation struct {
 	Route          string `json:"route"`
 	Excerpt        string `json:"excerpt"`
 	Source         string `json:"source"`
+	Category       string `json:"category,omitempty"`
 }
 
 // MarshalJSON keeps the pre-RAG citation contract stable while preserving the
 // complete RAG provenance contract, including a valid zero-based chunk index.
+// zone="ip" citations serialize the IP shape: no chunk provenance, an optional
+// category slug, route=/ip/{id}.
 func (c AgentCitation) MarshalJSON() ([]byte, error) {
+	if c.Zone == "ip" {
+		return json.Marshal(struct {
+			ContentID int64  `json:"content_id"`
+			Title     string `json:"title"`
+			Zone      string `json:"zone"`
+			Route     string `json:"route"`
+			Excerpt   string `json:"excerpt,omitempty"`
+			Category  string `json:"category,omitempty"`
+		}{
+			ContentID: c.ContentID,
+			Title:     c.Title,
+			Zone:      c.Zone,
+			Route:     c.Route,
+			Excerpt:   c.Excerpt,
+			Category:  c.Category,
+		})
+	}
 	if c.ContentVersion == 0 && c.ChunkKey == "" && c.ChunkIndex == 0 && c.Route == "" && c.Source == "" {
 		return json.Marshal(struct {
 			ContentID int64  `json:"content_id"`

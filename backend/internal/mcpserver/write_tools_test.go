@@ -151,7 +151,7 @@ func toolNames(t *testing.T, session *sdkmcp.ClientSession) map[string]bool {
 }
 
 func TestScopedToolLists(t *testing.T) {
-	readonly := []string{"omnicraft_search", "omnicraft_get_content", "omnicraft_get_usage_guide", "omnicraft_list_categories"}
+	readonly := []string{"omnicraft_search", "omnicraft_search_ips", "omnicraft_get_content", "omnicraft_get_usage_guide", "omnicraft_list_categories"}
 
 	anon, _, _, _ := newWriteToolStack(t, nil)
 	anonNames := toolNames(t, anon)
@@ -161,7 +161,7 @@ func TestScopedToolLists(t *testing.T) {
 
 	dl, _, _, _ := newWriteToolStack(t, []string{"download"})
 	dlNames := toolNames(t, dl)
-	if len(dlNames) != 5 || !dlNames["omnicraft_request_download"] {
+	if len(dlNames) != 6 || !dlNames["omnicraft_request_download"] {
 		t.Errorf("download-scope session tool set wrong: %v", dlNames)
 	}
 	for _, w := range []string{"omnicraft_create_content", "omnicraft_request_upload_url", "omnicraft_suggest_publish_metadata"} {
@@ -172,7 +172,7 @@ func TestScopedToolLists(t *testing.T) {
 
 	ul, _, _, _ := newWriteToolStack(t, []string{"upload"})
 	ulNames := toolNames(t, ul)
-	if len(ulNames) != 7 {
+	if len(ulNames) != 8 {
 		t.Errorf("upload-scope session exposes %d tools, want 7: %v", len(ulNames), ulNames)
 	}
 	if ulNames["omnicraft_request_download"] {
@@ -181,7 +181,7 @@ func TestScopedToolLists(t *testing.T) {
 
 	both, _, _, _ := newWriteToolStack(t, []string{"download", "upload"})
 	bothNames := toolNames(t, both)
-	if len(bothNames) != 8 {
+	if len(bothNames) != 9 {
 		t.Errorf("full-scope session exposes %d tools, want 8: %v", len(bothNames), bothNames)
 	}
 }

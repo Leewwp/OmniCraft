@@ -124,6 +124,7 @@ type agentToolResult struct {
 	Detail  *AgentContentSummary `json:"detail,omitempty"`
 	Guide   *UsageGuideResult    `json:"guide,omitempty"`
 	Search  []ContentSummary     `json:"search,omitempty"`
+	IPs     []AgentIPSummary     `json:"ips,omitempty"`
 	Suggest *UploadAssistResult  `json:"suggest,omitempty"`
 }
 
@@ -361,6 +362,7 @@ loop:
 				result.Detail = outcome.Detail
 				result.Guide = outcome.Guide
 				result.Search = outcome.Search
+				result.IPs = outcome.IPs
 				result.Suggest = outcome.Suggest
 				for chunkKey, source := range outcome.RetrievalSources {
 					retrievalSources[chunkKey] = source
@@ -375,6 +377,21 @@ loop:
 						continue
 					}
 					seenCitationKeys[citation.ChunkKey] = true
+					citationCandidates = append(citationCandidates, citation)
+				}
+				// SP-19 G2-1: search_ips results join the same citation
+				// candidate pool; the "ip:{id}" dedupe key cannot collide
+				// with 64-hex chunk keys.
+				for _, ipSummary := range outcome.IPs {
+					citation, ok := citationFromIPSummary(ipSummary)
+					if !ok {
+						continue
+					}
+					key := fmt.Sprintf("ip:%d", citation.ContentID)
+					if seenCitationKeys[key] {
+						continue
+					}
+					seenCitationKeys[key] = true
 					citationCandidates = append(citationCandidates, citation)
 				}
 				if outcome.Detail != nil {

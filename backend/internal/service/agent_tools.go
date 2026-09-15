@@ -37,6 +37,9 @@ var (
 const (
 	// ToolSearchContent finds viewer-visible content by semantic similarity.
 	ToolSearchContent = "search_content"
+	// ToolSearchIPs finds approved public IPs by keyword and optional
+	// category (SP-19 G2-1).
+	ToolSearchIPs = "search_ips"
 	// ToolGetContentDetail returns a compact server-owned summary for one
 	// viewer-visible content item.
 	ToolGetContentDetail = "get_content_detail"
@@ -47,7 +50,8 @@ const (
 	// arguments (no content IDs, no draft IDs, no route names).
 	ToolSuggestPublishMetadata = "suggest_publish_metadata"
 
-	// defaultMaxToolQueryLength bounds search_content query length.
+	// defaultMaxToolQueryLength bounds search_content and search_ips query
+	// length.
 	defaultMaxToolQueryLength = 200
 	// defaultMaxToolResultCount bounds the number of search results returned.
 	defaultMaxToolResultCount = 10
@@ -74,6 +78,16 @@ type AgentContentSummary struct {
 	Excerpt     string `json:"excerpt,omitempty"`
 }
 
+// AgentIPSummary is the compact, server-owned IP summary returned by
+// search_ips. Rebuilt from the database, never from model output.
+type AgentIPSummary struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Slug        string `json:"slug,omitempty"`
+	Category    string `json:"category,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 // AgentToolOutcome carries one tool execution result. Only the matching field
 // is populated; raw arguments and internal reasoning are never exposed.
 type AgentToolOutcome struct {
@@ -81,6 +95,7 @@ type AgentToolOutcome struct {
 	Detail           *AgentContentSummary `json:"detail,omitempty"`
 	Guide            *UsageGuideResult    `json:"guide,omitempty"`
 	Search           []ContentSummary     `json:"search,omitempty"`
+	IPs              []AgentIPSummary     `json:"ips,omitempty"`
 	Suggest          *UploadAssistResult  `json:"suggest,omitempty"`
 	Degraded         bool                 `json:"-"`
 	RetrievalSources map[string]string    `json:"-"`
@@ -122,7 +137,7 @@ func (s *AgentService) ToolPolicy() AgentToolPolicy {
 
 // RegisteredToolNames lists the immutable server-owned tool names.
 func (s *AgentService) RegisteredToolNames() []string {
-	return []string{ToolSearchContent, ToolGetContentDetail, ToolGetUsageGuide, ToolSuggestPublishMetadata}
+	return []string{ToolSearchContent, ToolSearchIPs, ToolGetContentDetail, ToolGetUsageGuide, ToolSuggestPublishMetadata}
 }
 
 // ToolDefinitions returns server-owned tool definitions for provider
@@ -136,6 +151,21 @@ func (s *AgentService) ToolDefinitions() []llm.ToolDefinition {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"query": map[string]interface{}{"type": "string", "description": "natural-language search query"},
+				},
+				"required": []string{"query"},
+			},
+		},
+		{
+			Name:        ToolSearchIPs,
+			Description: "Search approved public IPs (original settings/worlds) by keyword, optionally filtered by category. Returns compact IP summaries.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query":   map[string]interface{}{"type": "string", "description": "self-contained keyword query matched against IP name and description"},
+					"category": map[string]interface{}{
+						"type":        "string",
+						"description": "optional IP category slug; only these values are valid: " + s.ipCategorySlugList(),
+					},
 				},
 				"required": []string{"query"},
 			},
@@ -211,6 +241,9 @@ func (s *AgentService) toolRegistry() map[string]agentToolHandler {
 	return map[string]agentToolHandler{
 		ToolSearchContent: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
 			return s.toolSearchContent(ctx, args, viewerID)
+		},
+		ToolSearchIPs: func(ctx context.Context, args json.RawMessage, _ int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolSearchIPs(ctx, args)
 		},
 		ToolGetContentDetail: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
 			return s.toolGetContentDetail(ctx, args, viewerID)
@@ -313,6 +346,82 @@ func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMe
 	return &AgentToolOutcome{Search: summaries}, nil
 }
 
+type searchIPsToolArgs struct {
+	Query    string `json:"query"`
+	Category string `json:"category"`
+}
+
+// ipCategorySlugList renders the config allowlist for the tool schema so the
+// model can only ever pass legal slugs (SP-19 G2-1). Unknown config states
+// degrade to an explicit note instead of an empty hint.
+func (s *AgentService) ipCategorySlugList() string {
+	if s == nil || s.cfg == nil || len(s.cfg.IPCategories) == 0 {
+		return "(none configured)"
+	}
+	return strings.Join(s.cfg.IPCategories, ", ")
+}
+
+// toolSearchIPs resolves approved public IPs through the keyword search seam
+// (tsvector + ILIKE fallback). Category filters are validated against the
+// config allowlist before any query runs; results are rebuilt as server-owned
+// summaries, never from model output.
+func (s *AgentService) toolSearchIPs(ctx context.Context, rawArgs json.RawMessage) (*AgentToolOutcome, error) {
+	var args searchIPsToolArgs
+	if err := decodeToolArgs(rawArgs, &args); err != nil {
+		return nil, err
+	}
+	query := strings.TrimSpace(args.Query)
+	if query == "" || len([]rune(query)) > defaultMaxToolQueryLength {
+		return nil, ErrAgentToolInvalidArgs
+	}
+	category := strings.TrimSpace(args.Category)
+	if category != "" && !s.ipCategoryAllowed(category) {
+		return nil, ErrAgentToolInvalidArgs
+	}
+	if s.ipSearch == nil {
+		return nil, errors.New("ip search unavailable")
+	}
+	limit := s.ipSearchLimit()
+	ips, err := s.ipSearch(ctx, query, category, limit)
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]AgentIPSummary, 0, len(ips))
+	for _, ip := range ips {
+		summaries = append(summaries, AgentIPSummary{
+			ID:          ip.ID,
+			Name:        ip.Name,
+			Slug:        ip.Slug,
+			Category:    ip.Category,
+			Description: truncateRunes(strings.TrimSpace(ip.Description), 120),
+		})
+	}
+	return &AgentToolOutcome{IPs: summaries}, nil
+}
+
+// ipCategoryAllowed checks a slug against the config allowlist; an
+// unconfigured allowlist accepts no category filter at all.
+func (s *AgentService) ipCategoryAllowed(slug string) bool {
+	if s == nil || s.cfg == nil {
+		return false
+	}
+	for _, allowed := range s.cfg.IPCategories {
+		if allowed == slug {
+			return true
+		}
+	}
+	return false
+}
+
+// ipSearchLimit keeps the tool result size on the configured retrieval budget
+// (rag.hybrid.final_topk) with the shared tool-result bound as the floor.
+func (s *AgentService) ipSearchLimit() int {
+	if s != nil && s.cfg != nil && s.cfg.RAG.Hybrid.FinalTopK > 0 {
+		return s.cfg.RAG.Hybrid.FinalTopK
+	}
+	return defaultMaxToolResultCount
+}
+
 func retrievalSourceMap(summaries []ContentSummary) map[string]string {
 	sources := make(map[string]string, len(summaries))
 	for _, summary := range summaries {
@@ -394,6 +503,27 @@ func contentRoute(zone string, contentID int64) string {
 		return fmt.Sprintf("/original/%d", contentID)
 	}
 	return fmt.Sprintf("/content/%d", contentID)
+}
+
+// ipRoute is the canonical hub route for IP citations (SP-19 G2-1, Q5).
+func ipRoute(ipID int64) string {
+	return fmt.Sprintf("/ip/%d", ipID)
+}
+
+// citationFromIPSummary shapes an approved-IP search result as a zone="ip"
+// citation: no chunk provenance, route=/ip/{id}, optional category slug.
+func citationFromIPSummary(summary AgentIPSummary) (AgentCitation, bool) {
+	if summary.ID <= 0 || strings.TrimSpace(summary.Name) == "" {
+		return AgentCitation{}, false
+	}
+	return AgentCitation{
+		ContentID: summary.ID,
+		Title:     strings.TrimSpace(summary.Name),
+		Zone:      "ip",
+		Route:     ipRoute(summary.ID),
+		Excerpt:   truncateRunes(strings.TrimSpace(summary.Description), 160),
+		Category:  summary.Category,
+	}, true
 }
 
 func validCitationSource(source string) bool {
@@ -499,6 +629,36 @@ func (s *AgentService) revalidateCitations(ctx context.Context, viewerID int64, 
 }
 
 func (s *AgentService) citationRejectionReason(ctx context.Context, viewerID int64, citation AgentCitation) string {
+	// SP-19 G2-1: zone="ip" citations revalidate against the live IP row —
+	// only approved hubs stay citable, mirroring the public IP visibility
+	// gate (handler/ip.go: creators keep studio access to pending/rejected
+	// hubs, but agent citations are viewer-facing and cite approved only).
+	if citation.Zone == "ip" {
+		if citation.ContentID <= 0 || strings.TrimSpace(citation.Title) == "" || strings.TrimSpace(citation.Route) == "" {
+			return "missing_fields"
+		}
+		if citation.Route != ipRoute(citation.ContentID) {
+			return "invalid_route"
+		}
+		if s.db == nil {
+			return "ip_lookup_failed"
+		}
+		var ip model.IP
+		err := s.db.WithContext(ctx).Model(&model.IP{}).Where("id = ?", citation.ContentID).First(&ip).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return "not_visible"
+			}
+			return "ip_lookup_failed"
+		}
+		if ip.Status != "approved" {
+			return "not_visible"
+		}
+		if ip.Name != citation.Title {
+			return "ip_metadata_mismatch"
+		}
+		return ""
+	}
 	if !s.ragHybridEnabled() {
 		if citation.ContentID <= 0 || strings.TrimSpace(citation.Title) == "" || strings.TrimSpace(citation.Zone) == "" {
 			return "missing_fields"
