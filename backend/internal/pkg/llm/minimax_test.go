@@ -280,3 +280,83 @@ func TestMiniMaxProvider_ChatStream_TerminatesWithoutDONE(t *testing.T) {
 		})
 	}
 }
+
+// #539: the MiniMax provider maps ChatRequest.Thinking onto the wire —
+// disabled/adaptive become thinking.type, the zero value omits the field; the
+// plain openai_compat provider never emits it.
+func TestMiniMaxProvider_ThinkingWire(t *testing.T) {
+	type captured struct {
+		body   map[string]any
+		stream bool
+	}
+	bodies := make(chan captured, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var parsed map[string]any
+		json.Unmarshal(raw, &parsed)
+		_, stream := parsed["stream"]
+		bodies <- captured{body: parsed, stream: stream}
+		if stream {
+			w.Header().Set("Content-Type", "text/event-stream")
+			io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n"+"data: [DONE]\n")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(openAIResponse{Choices: []openAIChoice{{Message: openAIMessage{Content: "ok"}}}})
+	}))
+	defer server.Close()
+
+	p := NewMiniMaxProvider("test-key", server.URL, "MiniMax-M3", "embo-01")
+
+	if err := p.ChatStream(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}}, func(delta ChatDelta) error { return nil }); err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+	if err := p.ChatStream(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}, Thinking: ThinkingDisabled}, func(delta ChatDelta) error { return nil }); err != nil {
+		t.Fatalf("ChatStream disabled: %v", err)
+	}
+	if _, err := p.Chat(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}, Thinking: ThinkingAdaptive}); err != nil {
+		t.Fatalf("Chat adaptive: %v", err)
+	}
+
+	first := <-bodies
+	if _, present := first.body["thinking"]; present {
+		t.Errorf("default request must omit the thinking field, got %v", first.body["thinking"])
+	}
+	second := <-bodies
+	thinking, _ := second.body["thinking"].(map[string]any)
+	if thinking["type"] != "disabled" {
+		t.Errorf("ThinkingDisabled must map to thinking.type=disabled, got %v", second.body["thinking"])
+	}
+	third := <-bodies
+	if _, isStream := third.body["stream"]; isStream {
+		t.Errorf("Chat must not send the stream field")
+	}
+	thinking, _ = third.body["thinking"].(map[string]any)
+	if thinking["type"] != "adaptive" {
+		t.Errorf("ThinkingAdaptive must map to thinking.type=adaptive, got %v", third.body["thinking"])
+	}
+}
+
+// #539: providers without WithThinkingWire never emit the thinking field, so
+// their request bodies stay byte-compatible with plain OpenAI servers.
+func TestOpenAICompatProvider_ThinkingFieldOmittedWithoutWire(t *testing.T) {
+	bodies := make(chan map[string]any, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var parsed map[string]any
+		json.Unmarshal(raw, &parsed)
+		bodies <- parsed
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(openAIResponse{Choices: []openAIChoice{{Message: openAIMessage{Content: "ok"}}}})
+	}))
+	defer server.Close()
+
+	p := NewOpenAICompatProvider("test-key", server.URL, "m", "e")
+	if _, err := p.Chat(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}, Thinking: ThinkingDisabled}); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	body := <-bodies
+	if _, present := body["thinking"]; present {
+		t.Errorf("openai_compat must not emit thinking, got %v", body["thinking"])
+	}
+}

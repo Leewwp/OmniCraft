@@ -128,6 +128,8 @@ const workspaceMessages = {
       errorTitle: "This request was not completed",
       errorRetry: "Resend",
       conversationLoadFailed: "Failed to load conversation",
+      deepThink: "Deep think",
+      deepThinkHint: "Reason before answering: higher quality but slower",
       composerHint: "Enter to send · Shift+Enter for newline",
       stoppedNotice: "Stopped generating",
       suggestionLayout:
@@ -757,7 +759,8 @@ test("grounded done with follow_ups renders chips; click fills composer without 
         conversation: conversation(7, now2.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+          { id: 2, conversation_id: 7, role: "assistant", phase: "tools", tools: [{ name: "search_content", status: "success", duration_ms: 42 }] },
+          { id: 3, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -819,7 +822,8 @@ test("workspace streams an answer and renders citation cards", async () => {
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+          { id: 2, conversation_id: 7, role: "assistant", phase: "tools", tools: [{ name: "search_content", status: "success", duration_ms: 42 }] },
+          { id: 3, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -895,7 +899,8 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+          { id: 2, conversation_id: 7, role: "assistant", phase: "tools", tools: [{ name: "search_content", status: "success", duration_ms: 42 }] },
+          { id: 3, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -1752,7 +1757,8 @@ test("closing the citation overlay restores citation focus and the transcript sc
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+          { id: 2, conversation_id: 7, role: "assistant", phase: "tools", tools: [{ name: "search_content", status: "success", duration_ms: 42 }] },
+          { id: 3, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -1870,7 +1876,8 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
         messages: [
           { id: 1, conversation_id: 11, role: "user", content: "最近有点 emo" },
           { id: 2, conversation_id: 11, role: "assistant", content: "先把口语化需求扩展为检索词", phase: "think" },
-          { id: 3, conversation_id: 11, role: "assistant", content: "这是带思考过程的回答。" },
+          { id: 3, conversation_id: 11, role: "assistant", phase: "tools", tools: [{ name: "search_content", args_summary: "治愈 素材 +expanded: 温柔 治愈系", hits: 3, status: "success", duration_ms: 1500 }] },
+          { id: 4, conversation_id: 11, role: "assistant", content: "这是带思考过程的回答。" },
         ],
       },
     },
@@ -1900,6 +1907,56 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     assert.ok(view.getByText(/治愈 素材/), "args summary incl. expansion terms is visible");
     assert.ok(view.getByText("3 hits"), "hit count is visible");
     assert.ok(view.getByText("2s"), "duration summary is visible");
+  } finally {
+    stub.restore();
+  }
+});
+
+/* #539：深度思考开关——默认关、可切换、状态随请求体（deep_think）发送。 */
+test("deep-think toggle defaults off, flips, and rides the chat request body", async () => {
+  installDom();
+  const events = [
+    { type: "start", trace_id: "t1", conversation_id: 12, answer_kind: "grounded_content" },
+    { type: "delta", delta: "ok" },
+    { type: "done", conversation_id: 12, answer_kind: "grounded_content", answer: "ok", citations: [], tools: [] },
+  ];
+  const stub = installSSEFetchWithBodies(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/12",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 12, role: "user", content: "q" },
+          { id: 2, conversation_id: 12, role: "assistant", content: "ok" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    const toggle = await waitFor(() => view.getByRole("button", { name: "Deep think" }));
+    assert.equal(toggle.getAttribute("aria-pressed"), "false", "deep think defaults to off");
+
+    fireEvent.change(composer, { target: { value: "开启深度思考问一句" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(stub.bodies.length >= 1));
+    assert.equal(stub.bodies[0].deep_think, false, "default turn sends deep_think=false");
+
+    /* 首轮后空态 Composer 卸载换停靠态：重新查询当前挂载的开关节点。 */
+    const liveToggle = await waitFor(() => {
+      const btn = view.getByRole("button", { name: "Deep think" });
+      assert.equal(btn.getAttribute("aria-pressed"), "false");
+      return btn;
+    });
+    fireEvent.click(liveToggle);
+    assert.equal(liveToggle.getAttribute("aria-pressed"), "true", "toggle flips to on");
+    const liveComposer = view.getByRole("textbox", { name: "Ask the agent" }) as HTMLTextAreaElement;
+    fireEvent.change(liveComposer, { target: { value: "再问一句" } });
+    fireEvent.keyDown(liveComposer, { key: "Enter" });
+    await waitFor(() => assert.ok(stub.bodies.length >= 2));
+    assert.equal(stub.bodies[stub.bodies.length - 1].deep_think, true, "enabled turn sends deep_think=true");
   } finally {
     stub.restore();
   }

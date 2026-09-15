@@ -35,6 +35,11 @@ type ChatTurnInput struct {
 	// one whose id is returned in the start event.
 	ConversationID int64
 	Message        string
+	// DeepThink is the #539 per-turn reasoning toggle: false (default) pins
+	// the provider to ThinkingDisabled for a faster first delta, true leaves
+	// the provider's adaptive thinking on. Providers without a thinking
+	// switch ignore the mapped request field.
+	DeepThink bool
 }
 
 const (
@@ -191,6 +196,14 @@ func assembleChatContext(system llm.ChatMessage, history []model.AgentMessage, t
 	used := 0
 	for i := len(history) - 1; i >= 0; i-- {
 		msg := history[i]
+		// #538: tool-step summary rows (phase="tools") are replay-only display
+		// rows with no content; they must never enter the provider context as
+		// empty assistant messages. Think rows keep their existing inclusion.
+		if msg.ToolCalls != nil {
+			if phase, _ := msg.ToolCalls["phase"].(string); phase == "tools" {
+				continue
+			}
+		}
 		content := ""
 		if msg.Content != nil {
 			content = *msg.Content
