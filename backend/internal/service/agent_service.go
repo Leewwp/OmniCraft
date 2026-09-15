@@ -712,6 +712,10 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	// （"思考/回答跟随用户语言"指令经实测无法约束 M3 思考链语言，按用户裁决
 	// 移除；该问题仍未解决，待换方案重试。）
 	parts = append(parts, "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge")
+	// #535（2026-09-15 演示站追踪 0a613b3d 实测）：追问轮（「再推荐几个」类）
+	// 模型会复述上一轮引用直接作答而不重新检索，服务端复核 0 引用 →
+	// no_evidence 撤答。明确引用仅当轮有效，追问必须重新检索。
+	parts = append(parts, "citation indexes are valid only within the turn that produced them: when the user asks for more, further, or additional recommendations (for example 「再推荐几个」), call the search tool again in that turn — never answer by reusing or restating results from earlier turns, because reused citations cannot be validated and the answer will be rejected")
 	parts = append(parts, "never mention internal numeric content ids in your answer")
 	// SP-15 A2（2026-09-09）：会话车道指令——寒暄/闲聊/意图不明的消息免工具短答。
 	// 与上一条 must-search 指令互补而非覆盖：内容相关问题永远先检索，本条只放行
