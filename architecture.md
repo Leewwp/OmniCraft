@@ -729,7 +729,7 @@ DEPLOY_ED25519_KEY_ID=            # 当前签名 key id
 # 应用
 APP_ENV=production                # development | production
 APP_PORT=8080
-FRONTEND_URL=https://app.leeppp.online     # 当前生产环境实际域名
+FRONTEND_URL=https://app.example.com       # 部署时替换为实际前端域名
 ```
 
 ### 8.2 Docker Compose 部署档

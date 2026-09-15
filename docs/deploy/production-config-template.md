@@ -9,14 +9,14 @@ for the explicit private-network PgBouncer exception).
 
 ## Public Endpoints
 
-- Frontend: `https://app.leeppp.online`
-- API: `https://api.leeppp.online`
+- Frontend: `https://app.example.com`
+- API: `https://api.example.com`
 
 DNS records:
 
 ```text
-app.leeppp.online  A/AAAA or CNAME  <frontend-or-nginx-target>
-api.leeppp.online  A/AAAA or CNAME  <api-or-nginx-target>
+app.example.com  A/AAAA or CNAME  <frontend-or-nginx-target>
+api.example.com  A/AAAA or CNAME  <api-or-nginx-target>
 ```
 
 ## Backend Runtime Environment
@@ -38,7 +38,7 @@ REDIS_DB=0
 JWT_SECRET=<base64-or-hex-random-at-least-32-bytes>
 LLM_KEY_ENCRYPTION_SECRET=<base64-or-hex-random-at-least-32-bytes>
 
-ALLOWED_ORIGINS=https://app.leeppp.online
+ALLOWED_ORIGINS=https://app.example.com
 
 OSS_ENDPOINT=https://oss-<region>.aliyuncs.com
 OSS_ACCESS_KEY_ID=<oss-ram-access-key-id>
@@ -49,7 +49,7 @@ OSS_DOMAIN=https://<bucket-name>.oss-<region>.aliyuncs.com
 GREEN_ACCESS_KEY_ID=<green-ram-access-key-id>
 GREEN_ACCESS_KEY_SECRET=<green-ram-access-key-secret>
 GREEN_REGION=cn-shanghai
-GREEN_CALLBACK_URL=https://api.leeppp.online/api/v1/internal/ai-callback
+GREEN_CALLBACK_URL=https://api.example.com/api/v1/internal/ai-callback
 # Callback signature seed ([A-Za-z0-9_], max 64 chars). MUST be generated at
 # deploy time (e.g. `openssl rand -hex 24`) before first launch: it is the
 # only credential behind /internal/ai-callback signature verification, and
@@ -87,11 +87,11 @@ server:
   shutdown_timeout: 15
 
 web:
-  public_base_url: "https://app.leeppp.online"
+  public_base_url: "https://app.example.com"
 
 security:
   allowed_origins:
-    - "https://app.leeppp.online"
+    - "https://app.example.com"
 
 features:
   payment_enabled: false
@@ -165,9 +165,9 @@ by sitemap/metadata code; both are passed to `docker build` as build args and
 validated by the release preflight.
 
 ```dotenv
-NEXT_PUBLIC_API_URL=https://api.leeppp.online
-INTERNAL_API_URL=https://api.leeppp.online
-NEXT_PUBLIC_SITE_URL=https://app.leeppp.online
+NEXT_PUBLIC_API_URL=https://api.example.com
+INTERNAL_API_URL=https://api.example.com
+NEXT_PUBLIC_SITE_URL=https://app.example.com
 ```
 
 ## Nginx TLS Template
@@ -177,11 +177,11 @@ Replace the example certificate path in `nginx/nginx.conf` before production.
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name app.leeppp.online api.leeppp.online;
+    server_name app.example.com api.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/app.leeppp.online/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.leeppp.online/privkey.pem;
-    ssl_trusted_certificate /etc/letsencrypt/live/app.leeppp.online/chain.pem;
+    ssl_certificate /etc/letsencrypt/live/app.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/app.example.com/chain.pem;
 
     location /api/ {
         proxy_pass http://backend;
@@ -194,21 +194,21 @@ server {
 ```
 
 If frontend and API are served from separate virtual hosts, use two `server`
-blocks instead: `app.leeppp.online` proxies `/` to frontend, and
-`api.leeppp.online` proxies `/` and `/api/` to backend.
+blocks instead: `app.example.com` proxies `/` to frontend, and
+`api.example.com` proxies `/` and `/api/` to backend.
 
 ## Quick Verification Commands
 
 ```bash
-dig +short app.leeppp.online
-dig +short api.leeppp.online
+dig +short app.example.com
+dig +short api.example.com
 
-curl -I https://app.leeppp.online
-curl https://api.leeppp.online/healthz
-curl https://api.leeppp.online/api/v1/config/public
+curl -I https://app.example.com
+curl https://api.example.com/healthz
+curl https://api.example.com/api/v1/config/public
 
-openssl s_client -connect app.leeppp.online:443 -servername app.leeppp.online
-openssl s_client -connect api.leeppp.online:443 -servername api.leeppp.online
+openssl s_client -connect app.example.com:443 -servername app.example.com
+openssl s_client -connect api.example.com:443 -servername api.example.com
 ```
 
 ## Known Repository Caveats
