@@ -47,7 +47,7 @@ const (
 	conversationTitlePromptCap = 500
 )
 
-var thinkBlockPattern = regexp.MustCompile(`(?s)<think>.*?</think>`)
+var thinkBlockPattern = regexp.MustCompile(`(?s)<(?:mm:)?think>.*?</(?:mm:)?think>`)
 
 // persistPartialTurn stores the already-streamed partial answer (if any)
 // after a failed or cancelled turn and refreshes the conversation activity
