@@ -12,7 +12,7 @@
 - 引用验真：从服务端候选引用和查看者身份重新加载内容、版本、chunk 与可见性真相，并构造 Agent 引用卡片；模型提供的 URL、标题和 route 不属于可信输入。
 - 发布辅助：面向创作者工作室发布表单的标题、描述、分类和标签建议能力；Agent 工作台只能通过受控工具 seam 调用，不拥有其 Provider 细节。
 - 合规检测：面向发布流程的文本/媒体安全检查能力；属于内容发布规则，不属于 Agent 工作台会话编排。
-- 站内内容问答：面向 OmniCraft 已发布内容的 RAG 能力；内容、标签、IP 与来源关系属于社区内容域，Markdown 仅是本地演示导入适配器，不构成独立知识库产品。
+- 站内内容问答：面向 OmniCraft 已发布内容的 RAG 能力；内容、标签、IP 与来源关系属于社区内容域，Markdown 仅是本地导入适配器，不构成独立知识库产品。
 - 社区互动：用户资料浮层、私信聊天浮层和冷启动私信共享消息事实源；详细规则见 `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md` §1。
 - 内容审核：AI 审核（阿里云 Green）与人工判官双轨；术语见下方 Language 的"扫描结果回调 / 审核结果处理"分化，契约事实见 `docs/working/2026-08-08-aliyun-content-safety-callback-research.md`。
 
