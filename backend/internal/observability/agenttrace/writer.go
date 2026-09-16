@@ -31,18 +31,18 @@ type Store interface {
 // never trusted here: FromOptions normalizes them so a stale config file
 // cannot produce a zero-capacity channel or a zero flush interval.
 type Options struct {
-	Enabled         bool
-	SampleRatio     float64
-	ChannelSize     int
-	FlushInterval   time.Duration
-	FlushBatchSize  int
-	DigestMaxRunes  int
-	KeepFullPrompt  bool
-	RetentionDays   int
+	Enabled        bool
+	SampleRatio    float64
+	ChannelSize    int
+	FlushInterval  time.Duration
+	FlushBatchSize int
+	DigestMaxRunes int
+	KeepFullPrompt bool
+	RetentionDays  int
 }
 
 const (
-	minChannelSize    = 64
+	minChannelSize   = 64
 	minFlushInterval = 100 * time.Millisecond
 	minFlushBatch    = 10
 )

@@ -11,6 +11,7 @@ import (
 
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/observability"
+	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/service/promptregistry"
@@ -225,6 +226,25 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	}
 
 	convID := conv.ID
+	// SP-21 T2: bind the turn to the async trace writer. The recorder rides
+	// the context from here on, so the routing provider and the retriever
+	// channels record without parameter changes. Sampling is decided once
+	// per trace id (NewTurnRecorder) and gates every record below.
+	turnRecorder := agenttrace.NewTurnRecorder(s.traceWriter, traceID)
+	ctx = agenttrace.WithTurnRecorder(ctx, turnRecorder)
+	turnStarted := time.Now()
+	_, promptVersion := s.prompts.Resolve(ctx, promptregistry.SlotAgentSystem)
+	promptVer := promptVersion
+	convIDPtr := convID
+	userIDPtr := userID
+	turnRecorder.RecordRunStart(model.AgentTraceRun{
+		StartedAt:      turnStarted,
+		ConversationID: &convIDPtr,
+		UserID:         &userIDPtr,
+		Surface:        string(resolved.Surface),
+		PromptName:     promptregistry.SlotAgentSystem.Name,
+		PromptVersion:  &promptVer,
+	})
 	if err := handler(AgentStreamEvent{
 		Type:           AgentEventStart,
 		TraceID:        traceID,
@@ -240,7 +260,8 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	// happen in the handler before ChatStream), and the user row is already
 	// stored by resolveChatConversation — the shortcut only skips the LLM.
 	if template, ok := s.chitchatShortcutReply(turn.Message); ok {
-		return s.emitChitchatTemplateTurn(traceID, conv, template, handler)
+		s.recordChitchatTurn(turnRecorder, turnStarted, conv)
+		return s.emitChitchatTemplateTurn(traceID, turnRecorder, conv, template, handler)
 	}
 
 	policy := s.ToolPolicy()
@@ -270,6 +291,9 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	retrievalSources := make(map[string]string)
 	degraded := false
 	streamErr := error(nil)
+	// SP-21 T2: user-perceived time to first forwarded display delta
+	// (thinking or answer) — polyu USER_TTFT as a first-class run metric.
+	firstDisplayDelta := time.Time{}
 	var lastUsage *llm.TokenUsage
 	// SP-15 B speculative follow-up generation (#435): started at the first
 	// answer delta of a turn that already executed a tool (grounded answers
@@ -279,6 +303,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	followUpStarted := false
 	followUpStartedAt := time.Time{}
 
+	roundIndex := 0
 loop:
 	for {
 		acc := newStreamedToolCallAccumulator()
@@ -286,24 +311,36 @@ loop:
 			streamErr = errors.New("agent streaming provider unavailable")
 			break loop
 		}
+		roundIndex++
+		roundSpan := turnRecorder.StartNode(agenttrace.NodeTypeLLMRound, fmt.Sprintf("llm_round_%d", roundIndex), nil, turn.Model)
+		roundUsage := (*llm.TokenUsage)(nil)
+		roundAnswer := strings.Builder{}
 		err := s.chatStreamer.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
 			if len(delta.ToolCalls) > 0 {
 				acc.add(delta.ToolCalls)
 			}
 			if delta.Usage != nil {
 				lastUsage = delta.Usage
+				roundUsage = delta.Usage
 			}
 			// A-02 real streaming: reasoning and body increments are
 			// forwarded as they arrive. Thinking is display-only; it never
 			// enters the answer buffer, tool results or citation revalidation.
 			if delta.Thinking != "" {
 				thinkingBuf.WriteString(delta.Thinking)
+				if firstDisplayDelta.IsZero() {
+					firstDisplayDelta = time.Now()
+				}
 				if err := handler(AgentStreamEvent{Type: AgentEventThinkDelta, Delta: delta.Thinking}); err != nil {
 					return err
 				}
 			}
 			if delta.Content != "" {
 				answerBuf.WriteString(delta.Content)
+				roundAnswer.WriteString(delta.Content)
+				if firstDisplayDelta.IsZero() {
+					firstDisplayDelta = time.Now()
+				}
 				if !followUpStarted && len(executedTools) > 0 && s.llmProvider != nil {
 					followUpStarted = true
 					followUpStartedAt = time.Now()
@@ -313,10 +350,11 @@ loop:
 					provider := s.llmProvider
 					resolver := s.prompts
 					sid := traceID
+					followUpRec := turnRecorder
 					recovery.GoSafe(func() {
 						ctx, cancel := context.WithTimeout(context.Background(), followUpBudget)
 						defer cancel()
-						followUpCh <- generateFollowUps(ctx, resolver, provider, sid, question, titles, prefix)
+						followUpCh <- generateFollowUps(ctx, followUpRec, resolver, provider, sid, question, titles, prefix)
 					})
 				}
 				if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content}); err != nil {
@@ -327,8 +365,13 @@ loop:
 		})
 		if err != nil {
 			streamErr = err
+			roundSpan.EndWithError(safeAgentStreamCode(err), "")
 			break loop
 		}
+		roundSpan.End(agenttrace.NodeEndOptions{
+			TokensIn:  usagePtr(roundUsage, func(u *llm.TokenUsage) int64 { return int64(u.PromptTokens) }),
+			TokensOut: usagePtr(roundUsage, func(u *llm.TokenUsage) int64 { return int64(u.CompletionTokens) }),
+		})
 		roundCalls := acc.calls()
 		if len(roundCalls) == 0 {
 			break loop
@@ -348,6 +391,10 @@ loop:
 		toolMessages := make([]llm.ChatMessage, 0, len(roundCalls))
 		for _, tc := range roundCalls {
 			toolStartedAt := time.Now()
+			// SP-21 T2: one node per tool execution (#538 step shape:
+			// server-derived summary only, raw arguments never recorded).
+			toolSpan := turnRecorder.StartNode(agenttrace.NodeTypeTool,
+				fmt.Sprintf("tool_%s_%d", agentToolNodeKey(tc.Function.Name), len(executedTools)+1), roundSpan, "")
 			outcome, toolErr := s.ExecuteTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), userID, nil)
 			execution := AgentToolExecution{
 				Name:        tc.Function.Name,
@@ -438,6 +485,13 @@ loop:
 			if outcome != nil && len(outcome.ExpandedQueries) > 0 {
 				execution.ArgsSummary += " +expanded: " + strings.Join(outcome.ExpandedQueries, " / ")
 			}
+			toolSpan.End(agenttrace.NodeEndOptions{
+				NodeName:     tc.Function.Name,
+				Status:       toolNodeStatus(toolErr),
+				ErrorCode:    result.Error,
+				PromptDigest: execution.ArgsSummary,
+				Extra:        model.JSONB(agentToolExtraJSON(execution)),
+			})
 			executedTools = append(executedTools, execution)
 			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
 				s.persistPartialTurn(conv.ID, answerBuf.String())
@@ -482,12 +536,28 @@ loop:
 		if conv != nil {
 			s.persistPartialTurn(conv.ID, answerBuf.String())
 		}
+		turnRecorder.RecordRunEnd(agenttrace.RunEnd{
+			Status:            runTerminalStatus(streamErr),
+			ErrorCode:         safeAgentStreamCode(streamErr),
+			StartedAt:         turnStarted,
+			FirstDisplayDelta: firstDisplayDelta,
+			Model:             s.servingModel(turnRecorder, turn.Model),
+		})
 		return streamErr
 	}
 
+	// SP-21 T2: citation revalidation and exit classification close the
+	// grounded path before the answer is finalized.
+	citeSpan := turnRecorder.StartNode(agenttrace.NodeTypeCitations, "citation_revalidation", nil, "")
 	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
+	citeSpan.End(agenttrace.NodeEndOptions{NodeName: "citation_revalidation", Extra: model.JSONB(agentCitationExtraJSON(citations))})
 	answer := answerBuf.String()
+	classifySpan := turnRecorder.StartNode(agenttrace.NodeTypeClassify, "classify", nil, "")
 	kind := ClassifyStreamAnswer(citations, executedTools, answer, degraded, s.conversationalMaxRunes())
+	classifySpan.End(agenttrace.NodeEndOptions{
+		NodeName:         "classify",
+		CompletionDigest: answer,
+	})
 	// SP-15 B join (#435): only a grounded, non-degraded turn waits for the
 	// speculative follow-up call. A result already sitting in the buffered
 	// channel is taken non-blockingly even when the budget has elapsed; only a
@@ -604,12 +674,25 @@ loop:
 		}
 		cancel()
 		if !hadAssistantBefore {
-			s.scheduleAutoTitle(traceID, conv.ID, firstUserMessage(history))
+			s.scheduleAutoTitle(traceID, turnRecorder, conv.ID, firstUserMessage(history))
 		}
 		// A-05: the persisted answer is audited asynchronously after the
 		// turn; a flagged row is redacted by the history endpoint.
 		s.scheduleOutputModeration(traceID, answerMessageID, answer)
 	}
+
+	// SP-21 T2: terminal run row — TTFT measured to the first forwarded
+	// display delta, model attribution honors routing events, and the
+	// message id links the trace back into the conversation history.
+	msgID := answerMessageID
+	turnRecorder.RecordRunEnd(agenttrace.RunEnd{
+		Status:            model.AgentTraceStatusSuccess,
+		StartedAt:         turnStarted,
+		FirstDisplayDelta: firstDisplayDelta,
+		AnswerKind:        string(kind),
+		Model:             s.servingModel(turnRecorder, turn.Model),
+		MessageID:         &msgID,
+	})
 
 	if err := handler(AgentStreamEvent{
 		Type:           AgentEventDone,
@@ -631,6 +714,121 @@ loop:
 	return nil
 }
 
+// ---------------------------------------------------------------------------
+// SP-21 T2 trace instrumentation helpers
+// ---------------------------------------------------------------------------
+
+// recordChitchatTurn closes a rule-layer shortcut turn: one chitchat node
+// (no LLM ran) and a conversational terminal run row.
+func (s *AgentService) recordChitchatTurn(rec *agenttrace.TurnRecorder, started time.Time, conv *model.AgentConversation) {
+	if rec == nil {
+		return
+	}
+	convID := conv.ID
+	rec.RecordRunStart(model.AgentTraceRun{
+		StartedAt:      started,
+		ConversationID: &convID,
+		Status:         model.AgentTraceStatusRunning,
+	})
+	if span := rec.StartNode(agenttrace.NodeTypeChitchat, "chitchat_shortcut", nil, ""); span != nil {
+		span.End(agenttrace.NodeEndOptions{NodeName: "chitchat_shortcut"})
+	}
+	rec.RecordRunEnd(agenttrace.RunEnd{
+		Status:     model.AgentTraceStatusSuccess,
+		StartedAt:  started,
+		AnswerKind: string(AgentAnswerConversational),
+	})
+}
+
+// servingModel attributes the turn to the model that actually served it:
+// the last routing event's target when a failover happened, else the
+// client-pinned preference, else the configured display name.
+func (s *AgentService) servingModel(rec *agenttrace.TurnRecorder, pref string) string {
+	if serving := rec.ServingModel(); serving != "" {
+		return serving
+	}
+	if pref != "" {
+		return pref
+	}
+	if s.cfg != nil {
+		return s.cfg.Agent.LLMModel
+	}
+	return ""
+}
+
+// runTerminalStatus maps a stream failure onto the trace run state machine.
+func runTerminalStatus(err error) string {
+	switch {
+	case err == nil:
+		return model.AgentTraceStatusSuccess
+	case errors.Is(err, context.Canceled):
+		return model.AgentTraceStatusCanceled
+	default:
+		return model.AgentTraceStatusError
+	}
+}
+
+// usagePtr lifts a token counter off a usage snapshot, nil-safe.
+func usagePtr(u *llm.TokenUsage, pick func(*llm.TokenUsage) int64) *int64 {
+	if u == nil {
+		return nil
+	}
+	v := pick(u)
+	return &v
+}
+
+func toolNodeStatus(err error) string {
+	if err != nil {
+		return model.AgentTraceStatusError
+	}
+	return model.AgentTraceStatusSuccess
+}
+
+// agentToolNodeKey sanitizes a tool name into a stable node-key fragment.
+func agentToolNodeKey(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	if b.Len() == 0 {
+		return "tool"
+	}
+	return b.String()
+}
+
+// agentToolExtraJSON snapshots the #538 step shape into the node extra.
+func agentToolExtraJSON(execution AgentToolExecution) []byte {
+	return promptregistryMustJSON(map[string]any{
+		"hits":        execution.Hits,
+		"status":      string(execution.Status),
+		"duration_ms": execution.DurationMs,
+	})
+}
+
+func agentCitationExtraJSON(citations []AgentCitation) []byte {
+	return promptregistryMustJSON(map[string]any{"kept": len(citations)})
+}
+
+func promptregistryMustJSON(v any) []byte {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return []byte("{}")
+	}
+	return raw
+}
+
+// firstLine returns the first line of s (bounded digests for side calls).
+func firstLine(s string) string {
+	if idx := strings.IndexByte(s, '\n'); idx >= 0 {
+		return s[:idx]
+	}
+	return s
+}
+
 // emitChitchatTemplateTurn finishes a rule-layer shortcut turn (SP-15 A1):
 // one delta carrying the whole template, then a conversational done event.
 // The assistant template row persists like any answer (history replay stays
@@ -638,7 +836,7 @@ loop:
 // worth a title call and the title-IS-NUL semantics let the first real
 // question name the conversation later. Output moderation is skipped too: the
 // text is a server-owned constant, not model- or user-generated content.
-func (s *AgentService) emitChitchatTemplateTurn(traceID string, conv *model.AgentConversation, template string, handler func(ev AgentStreamEvent) error) error {
+func (s *AgentService) emitChitchatTemplateTurn(traceID string, turnRecorder *agenttrace.TurnRecorder, conv *model.AgentConversation, template string, handler func(ev AgentStreamEvent) error) error {
 	if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: template}); err != nil {
 		return err
 	}
@@ -744,8 +942,19 @@ func followUpRequest(resolver *promptregistry.PromptResolver, question string, t
 // output. Every failure mode (call error, empty or over-long lines, garbage)
 // returns nil — the feature degrades to "no follow-ups" silently and never
 // affects the main stream. The traceID labels the side call for diagnosis.
-func generateFollowUps(ctx context.Context, resolver *promptregistry.PromptResolver, provider llm.LLMProvider, traceID, question string, titles []string, answerPrefix string) []string {
+func generateFollowUps(ctx context.Context, turnRecorder *agenttrace.TurnRecorder, resolver *promptregistry.PromptResolver, provider llm.LLMProvider, traceID, question string, titles []string, answerPrefix string) []string {
+	// SP-21 T2: the side call gets its own node under the turn's trace.
+	followSpan := turnRecorder.StartNode(agenttrace.NodeTypeFollowUps, "follow_ups", nil, "")
 	resp, err := provider.Chat(ctx, followUpRequest(resolver, question, titles, answerPrefix))
+	defer func() {
+		status := model.AgentTraceStatusSuccess
+		errCode := ""
+		if err != nil || resp == nil {
+			status = model.AgentTraceStatusError
+			errCode = "follow_ups_call_failed"
+		}
+		followSpan.End(agenttrace.NodeEndOptions{NodeName: "follow_ups", Status: status, ErrorCode: errCode, CompletionDigest: firstLine(resp.Content)})
+	}()
 	if err != nil {
 		reason := "provider_error"
 		if ctx.Err() == context.DeadlineExceeded {

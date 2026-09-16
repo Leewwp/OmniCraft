@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/service/promptregistry"
@@ -239,14 +240,14 @@ func assembleChatContext(system llm.ChatMessage, history []model.AgentMessage, t
 // scheduleAutoTitle generates and stores the conversation title after the
 // first completed turn. The write only lands while title IS NULL, so later
 // turns and concurrent turns can never overwrite an established title.
-func (s *AgentService) scheduleAutoTitle(traceID string, conversationID int64, firstUserText string) {
+func (s *AgentService) scheduleAutoTitle(traceID string, turnRecorder *agenttrace.TurnRecorder, conversationID int64, firstUserText string) {
 	if s.db == nil {
 		return
 	}
 	recovery.GoSafe(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		title := s.generateConversationTitle(ctx, firstUserText)
+		title := s.generateConversationTitle(ctx, turnRecorder, firstUserText)
 		if title == "" {
 			return
 		}
@@ -263,11 +264,14 @@ func (s *AgentService) scheduleAutoTitle(traceID string, conversationID int64, f
 // title; on any failure it falls back to a truncation of the first user
 // message. Title generation is a side effect of a completed turn and never
 // consumes chat quota.
-func (s *AgentService) generateConversationTitle(ctx context.Context, firstUserMessage string) string {
+func (s *AgentService) generateConversationTitle(ctx context.Context, turnRecorder *agenttrace.TurnRecorder, firstUserMessage string) string {
 	fallback := truncateChatRunes(strings.TrimSpace(firstUserMessage), ConversationTitleMaxRunes)
 	if s.llmProvider == nil {
 		return fallback
 	}
+	// SP-21 T2: the auto-title side call gets its own node under the
+	// requesting turn's trace.
+	titleSpan := turnRecorder.StartNode(agenttrace.NodeTypeTitle, "auto_title", nil, "")
 	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotConversationTitle, map[string]string{
 		"first_user_message": truncateChatRunes(firstUserMessage, conversationTitlePromptCap),
 	})
@@ -275,6 +279,16 @@ func (s *AgentService) generateConversationTitle(ctx context.Context, firstUserM
 		Messages:  []llm.ChatMessage{{Role: "user", Content: prompt}},
 		MaxTokens: 64,
 	})
+	defer func() {
+		status := model.AgentTraceStatusSuccess
+		title := fallback
+		if err == nil && resp != nil {
+			title = sanitizeConversationTitle(resp.Content)
+		} else if err != nil {
+			status = model.AgentTraceStatusError
+		}
+		titleSpan.End(agenttrace.NodeEndOptions{NodeName: "auto_title", Status: status, CompletionDigest: title})
+	}()
 	if err != nil || resp == nil {
 		return fallback
 	}
