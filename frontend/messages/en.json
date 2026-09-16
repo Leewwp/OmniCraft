@@ -1144,6 +1144,14 @@
       "colUser": "User",
       "colConversation": "Conv",
       "totalCount": "{count} runs"
+    },
+    "tracesDetail": {
+      "backToList": "Back to request list",
+      "runStatus": "Status / answer kind",
+      "links": "Links",
+      "routingEvents": "Model routing events",
+      "noNodes": "No nodes recorded for this trace",
+      "selectNodeHint": "Select a node to inspect (digests / tokens / error / extra)"
     }
   },
   "social": {

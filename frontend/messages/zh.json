@@ -1144,6 +1144,14 @@
       "colUser": "用户",
       "colConversation": "会话",
       "totalCount": "共 {count} 条"
+    },
+    "tracesDetail": {
+      "backToList": "返回请求列表",
+      "runStatus": "运行状态 / 回答类型",
+      "links": "关联",
+      "routingEvents": "模型路由事件",
+      "noNodes": "该链路暂无节点记录",
+      "selectNodeHint": "点选左侧节点查看详情（摘要 / tokens / 错误 / extra）"
     }
   },
   "social": {

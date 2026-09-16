@@ -108,6 +108,30 @@ func (h *AdminTraceHandler) ListTraces(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items, "total": total})
 }
 
+// GetTraceDetail returns one run plus its full node list (start order) for
+// the waterfall view. Unknown trace ids are a 404.
+func (h *AdminTraceHandler) GetTraceDetail(c *gin.Context) {
+	traceID := c.Param("trace_id")
+	if len(traceID) < 8 || len(traceID) > 64 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "invalid trace id"})
+		return
+	}
+	run, err := h.repo.GetRunByTraceID(c.Request.Context(), traceID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "TRACE_NOT_FOUND", "message": "trace run not found"})
+		return
+	}
+	nodes, err := h.repo.ListNodesByTrace(c.Request.Context(), traceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load trace nodes"})
+		return
+	}
+	if nodes == nil {
+		nodes = []model.AgentTraceNode{}
+	}
+	c.JSON(http.StatusOK, gin.H{"run": run, "nodes": nodes})
+}
+
 // Stats returns global window aggregates for the statistics card. The
 // window defaults to the last 24h; from/to accept RFC3339 bounds.
 func (h *AdminTraceHandler) Stats(c *gin.Context) {

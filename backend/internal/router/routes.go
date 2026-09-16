@@ -464,6 +464,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		adminTraceHandler := handler.NewAdminTraceHandler(ctr.AgentTraceRepo)
 		admin.GET("/traces", adminTraceHandler.ListTraces)
 		admin.GET("/traces/stats", adminTraceHandler.Stats)
+		admin.GET("/traces/:trace_id", adminTraceHandler.GetTraceDetail)
 		admin.GET("/archive-scan-jobs/:id", archiveScanAdminRateLimit, adminArchiveScanHandler.GetJob)
 		admin.POST("/archive-scan-jobs/:id/manual-review", archiveScanAdminRateLimit, adminArchiveScanHandler.StartManualReview)
 		admin.POST("/archive-scan-jobs/:id/resolve", archiveScanAdminRateLimit, adminArchiveScanHandler.ResolveManualReview)
