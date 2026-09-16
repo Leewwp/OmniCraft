@@ -252,7 +252,92 @@ func TestNewProviderRoutingWiring(t *testing.T) {
 	if !router.ModelRegistered("deepseek") || router.ModelRegistered("nokey") {
 		t.Fatal("registry membership must follow the credential rule")
 	}
-	if router.ModelRegistered("minimax") != true {
+	if !router.ModelRegistered("minimax") {
 		t.Fatal("the synthesized primary must be registered")
+	}
+}
+
+// #545 hotfix regression: the registry provider id "deepseek" must map to a
+// working OpenAI-compatible adapter with the DeepSeek thinking style. Before
+// the factory case existed the entry registered an unsupportedProvider that
+// failed every call instantly (live demo logs: 6/6 instant provider_error).
+func TestNewProviderFromConfigDeepSeekServesChat(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf, _ := io.ReadAll(r.Body)
+		gotBody = buf
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+	}))
+	defer server.Close()
+
+	p := NewProviderFromConfig("deepseek", "k", server.URL, "deepseek-chat", "")
+	resp, err := p.Chat(context.Background(), ChatRequest{
+		Messages: []ChatMessage{{Role: "user", Content: "hi"}},
+		Thinking: ThinkingAdaptive,
+	})
+	if err != nil {
+		t.Fatalf("deepseek provider must serve chat, got %v", err)
+	}
+	if resp.Content != "ok" {
+		t.Fatalf("content = %q", resp.Content)
+	}
+	var payload struct {
+		Model    string `json:"model"`
+		Thinking *struct {
+			Type string `json:"type"`
+		} `json:"thinking"`
+	}
+	if err := json.Unmarshal(gotBody, &payload); err != nil {
+		t.Fatalf("decode captured body: %v", err)
+	}
+	if payload.Model != "deepseek-chat" {
+		t.Errorf("wire model = %q, want deepseek-chat", payload.Model)
+	}
+	if payload.Thinking == nil || payload.Thinking.Type != "enabled" {
+		t.Errorf("wire thinking = %+v, want {type:enabled} (deepseek adaptive naming)", payload.Thinking)
+	}
+}
+
+// #545 hotfix regression through the config seam: a credentialed deepseek
+// registry entry pinned via ModelPref must actually receive the request —
+// registration alone (the pre-fix state) is not enough.
+func TestNewProviderDeepSeekEntryServesChat(t *testing.T) {
+	var gotAuth string
+	deepseekHit := false
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deepseekHit = true
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"from-deepseek"}}]}`))
+	}))
+	defer ds.Close()
+
+	cfg := &config.Config{Agent: config.AgentConfig{
+		LLMProvider: "openai_compat", LLMModel: "primary-model", LLMAPIKey: "k", LLMAPIBase: ds.URL,
+		Models: []config.AgentModelConfig{
+			{ID: "deepseek", Provider: "deepseek", Model: "deepseek-chat", APIBase: ds.URL, APIKey: "ds-key"},
+		},
+		Routing: config.AgentRoutingConfig{Fallbacks: []string{"deepseek"}},
+	}}
+	router, ok := NewProvider(cfg).(*RoutingProvider)
+	if !ok {
+		t.Fatal("credentialed registry entries must build a RoutingProvider")
+	}
+	resp, err := router.Chat(context.Background(), ChatRequest{
+		Messages: []ChatMessage{{Role: "user", Content: "hi"}},
+		ModelPref: "deepseek",
+	})
+	if err != nil {
+		t.Fatalf("deepseek-pinned chat must serve through the registry, got %v", err)
+	}
+	if !deepseekHit {
+		t.Fatal("request never reached the deepseek entry's endpoint")
+	}
+	if gotAuth != "Bearer ds-key" {
+		t.Errorf("Authorization = %q, want the registry entry key", gotAuth)
+	}
+	if resp.Content != "from-deepseek" {
+		t.Fatalf("content = %q, want the deepseek endpoint reply", resp.Content)
 	}
 }
