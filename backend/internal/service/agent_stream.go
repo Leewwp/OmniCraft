@@ -250,12 +250,16 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		MaxTokens: policy.MaxOutputTokens,
 		Stream:    true,
 	}
-	// #539: 深度思考开关——默认关（快、省 token：MiniMax M3 thinking.type=
-	// disabled，首字更快）；开启时不带该字段，保留 provider 默认 adaptive
-	// 思考。不支持该参数的 provider 按各自约定忽略。
+	// #539/#545: 深度思考开关——默认关（快、省 token：thinking.type=
+	// disabled，首字更快）；开启时显式 Adaptive（MiniMax 语义等同默认，
+	// DeepSeek 映射 enabled）。不支持该参数的 provider 按各自约定忽略。
+	// #545: ModelPref 钉选注册表模型（路由层置首），空 = 配置主供给。
 	if !turn.DeepThink {
 		req.Thinking = llm.ThinkingDisabled
+	} else {
+		req.Thinking = llm.ThinkingAdaptive
 	}
+	req.ModelPref = turn.Model
 
 	var answerBuf strings.Builder
 	var thinkingBuf strings.Builder

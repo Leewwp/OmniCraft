@@ -40,6 +40,10 @@ type ChatTurnInput struct {
 	// the provider's adaptive thinking on. Providers without a thinking
 	// switch ignore the mapped request field.
 	DeepThink bool
+	// Model is the SP-20 (#545) per-turn model preference: a registered
+	// model id pinned ahead of the routing chain. Empty uses the configured
+	// primary; the handler rejects unknown ids before any quota work.
+	Model string
 }
 
 const (

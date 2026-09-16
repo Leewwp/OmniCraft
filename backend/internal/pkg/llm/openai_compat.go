@@ -27,10 +27,10 @@ type OpenAICompatProvider struct {
 	client           *http.Client
 	maxRetries       int
 	system           string
-	// thinkingWire opts this provider into mapping ChatRequest.Thinking onto
-	// the wire (#539, MiniMax only); every other provider's body stays
-	// byte-identical.
-	thinkingWire bool
+	// thinkingStyle opts this provider into mapping ChatRequest.Thinking onto
+	// the wire (#539/#545: "minimax" or "deepseek"); every other provider's
+	// body stays byte-identical.
+	thinkingStyle string
 }
 
 func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...ProviderOption) *OpenAICompatProvider {
@@ -54,14 +54,8 @@ func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...
 		client:          &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
 		maxRetries:      cfg.maxRetries,
 		system:          "openai_compatible",
-		thinkingWire:    cfg.thinkingWire,
+		thinkingStyle:   cfg.thinkingStyle,
 	}
-}
-
-// WithThinkingWire opts the provider into mapping ChatRequest.Thinking onto
-// the request body (MiniMax M3 reasoning switch).
-func WithThinkingWire() ProviderOption {
-	return func(c *providerConfig) { c.thinkingWire = true }
 }
 
 func defaultString(value, fallback string) string {
@@ -81,9 +75,10 @@ type openAIRequest struct {
 	// StreamOptions is nil for non-streaming and for providers that do not
 	// opt in; the omitempty keeps their request bodies byte-identical.
 	StreamOptions *streamOptions `json:"stream_options,omitempty"`
-	// Thinking carries the MiniMax M3 reasoning switch ({"type":"adaptive"|
-	// "disabled"}). Nil unless the provider opted in via WithThinkingWire AND
-	// the request pinned a mode, so every other wire stays byte-identical.
+	// Thinking carries the provider reasoning switch (MiniMax M3
+	// {"type":"adaptive"|"disabled"}, DeepSeek V3.2 {"type":"enabled"|
+	// "disabled"}). Nil unless the provider opted in via WithThinkingStyle
+	// AND the request pinned a mode, so every other wire stays byte-identical.
 	Thinking *thinkingControl `json:"thinking,omitempty"`
 }
 
@@ -92,15 +87,27 @@ type thinkingControl struct {
 	Type string `json:"type"`
 }
 
-// thinkingPayloadFor maps a requested mode to the wire field; the zero value
-// and unknown values map to nil (provider default).
-func thinkingPayloadFor(mode ThinkingMode) *thinkingControl {
-	switch mode {
-	case ThinkingAdaptive, ThinkingDisabled:
-		return &thinkingControl{Type: string(mode)}
-	default:
+// thinkingPayloadFor maps a requested mode to the wire field per provider
+// style; the zero mode and unknown styles map to nil (provider default).
+func thinkingPayloadFor(style string, mode ThinkingMode) *thinkingControl {
+	if mode == "" {
 		return nil
 	}
+	switch style {
+	case "minimax":
+		if mode == ThinkingAdaptive || mode == ThinkingDisabled {
+			return &thinkingControl{Type: string(mode)}
+		}
+	case "deepseek":
+		switch mode {
+		case ThinkingDisabled:
+			return &thinkingControl{Type: "disabled"}
+		case ThinkingAdaptive:
+			// DeepSeek names the reasoning-on state "enabled" (V3.2).
+			return &thinkingControl{Type: "enabled"}
+		}
+	}
+	return nil
 }
 
 // streamOptions carries the OpenAI-compatible stream_options request field.
@@ -170,9 +177,7 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (respo
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,
 	}
-	if p.thinkingWire {
-		payload.Thinking = thinkingPayloadFor(req.Thinking)
-	}
+	payload.Thinking = thinkingPayloadFor(p.thinkingStyle, req.Thinking)
 	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
@@ -209,9 +214,7 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 		Temperature: req.Temperature,
 		Stream:      true,
 	}
-	if p.thinkingWire {
-		payload.Thinking = thinkingPayloadFor(req.Thinking)
-	}
+	payload.Thinking = thinkingPayloadFor(p.thinkingStyle, req.Thinking)
 	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {

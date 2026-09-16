@@ -130,6 +130,7 @@ const workspaceMessages = {
       conversationLoadFailed: "Failed to load conversation",
       deepThink: "Deep think",
       deepThinkHint: "Reason before answering: higher quality but slower",
+      modelLabel: "Model",
       composerHint: "Enter to send · Shift+Enter for newline",
       stoppedNotice: "Stopped generating",
       suggestionLayout:
@@ -1908,6 +1909,47 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     assert.ok(view.getByText("3 hits"), "hit count is visible");
     assert.ok(view.getByText("2s"), "duration summary is visible");
   } finally {
+    stub.restore();
+  }
+});
+
+/* #545：模型选择器——>1 供给才渲染，选择随请求体（model）发送并持久化。 */
+test("model selector renders for multi-model registries and rides the request body", async () => {
+  installDom();
+  const events = [
+    { type: "start", trace_id: "t1", conversation_id: 21, answer_kind: "grounded_content" },
+    { type: "delta", delta: "ok" },
+    { type: "done", conversation_id: 21, answer_kind: "grounded_content", answer: "ok", citations: [], tools: [] },
+  ];
+  const stub = installSSEFetchWithBodies(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    { method: "GET", path: "/api/v1/agent/models", response: { models: [{ id: "minimax", display_name: "MiniMax M3" }, { id: "deepseek", display_name: "DeepSeek" }] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/21",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 21, role: "user", content: "q" },
+          { id: 2, conversation_id: 21, role: "assistant", content: "ok" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const selector = await waitFor(() => view.getByRole("combobox", { name: "Model" }) as HTMLSelectElement);
+    assert.equal(selector.value, "minimax", "registry order puts the primary first");
+    assert.equal(selector.options.length, 2);
+
+    fireEvent.change(selector, { target: { value: "deepseek" } });
+    const composer = view.getByRole("textbox", { name: "Ask the agent" }) as HTMLTextAreaElement;
+    fireEvent.change(composer, { target: { value: "用 deepseek 回答" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(stub.bodies.length >= 1));
+    assert.equal(stub.bodies[0].model, "deepseek", "selected model rides the request body");
+    assert.equal(window.localStorage.getItem("agentModelPref"), "deepseek", "preference persists");
+  } finally {
+    window.localStorage.removeItem("agentModelPref");
     stub.restore();
   }
 });
