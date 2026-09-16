@@ -88,6 +88,13 @@ func NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel stri
 		return NewOpenAICompatProvider(apiKey, apiBase, model, embedModel, opts...)
 	case "minimax":
 		return NewMiniMaxProvider(apiKey, apiBase, model, embedModel, opts...)
+	case "deepseek":
+		// Registry provider id → OpenAI-compatible wire with the DeepSeek
+		// thinking param style (thinking.type=enabled|disabled, V3.2 naming).
+		// Without this case the config entry would register an
+		// unsupportedProvider that fails every call instantly.
+		opts = append(opts, WithThinkingStyle("deepseek"))
+		return NewOpenAICompatProvider(apiKey, apiBase, model, embedModel, opts...)
 	case "qwen":
 		// The native DashScope adapter is retired for agent use: it sends
 		// neither tools nor max_tokens and parses neither tool_calls nor
