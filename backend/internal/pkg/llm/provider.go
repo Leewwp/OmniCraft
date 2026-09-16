@@ -69,9 +69,13 @@ type ChatRequest struct {
 	MaxTokens   int              `json:"max_tokens,omitempty"`
 	Temperature float64          `json:"temperature,omitempty"`
 	Stream      bool             `json:"stream,omitempty"`
-	// Thinking is honored only by providers wired with WithThinkingWire
+	// Thinking is honored only by providers wired with a thinking style
 	// (#539 deep-think toggle); every other provider ignores it.
 	Thinking ThinkingMode `json:"thinking,omitempty"`
+	// ModelPref pins the request to a registered model id; the RoutingProvider
+	// puts it first and keeps the configured chain behind it. Empty uses the
+	// configured primary; non-routing providers ignore it.
+	ModelPref string `json:"model_pref,omitempty"`
 }
 
 type ChatResponse struct {
@@ -113,7 +117,7 @@ type providerConfig struct {
 	embeddingGroupID    string
 	embeddingAPIKey     string
 	embeddingDimensions int
-	thinkingWire        bool
+	thinkingStyle       string
 }
 
 // ProviderOption configures timeout and retry behavior of a concrete provider.
@@ -154,4 +158,11 @@ func WithEmbeddingAPIKey(key string) ProviderOption {
 // (DashScope text-embedding-v4, OpenAI text-embedding-3 family).
 func WithEmbeddingDimensions(dimensions int) ProviderOption {
 	return func(c *providerConfig) { c.embeddingDimensions = dimensions }
+}
+
+// WithThinkingStyle opts the provider into mapping ChatRequest.Thinking onto
+// the request body. Styles: "minimax" → thinking.type=adaptive|disabled;
+// "deepseek" → thinking.type=enabled|disabled (DeepSeek V3.2 naming).
+func WithThinkingStyle(style string) ProviderOption {
+	return func(c *providerConfig) { c.thinkingStyle = style }
 }

@@ -55,25 +55,25 @@ func ValidGreenSeed(seed string) bool {
 }
 
 type Config struct {
-	Server         ServerConfig         `mapstructure:"server" json:"server"`
-	Web            WebConfig            `mapstructure:"web" json:"web"`
-	Database       DatabaseConfig       `mapstructure:"database" json:"database"`
-	Redis          RedisConfig          `mapstructure:"redis" json:"redis"`
-	JWT            JWTConfig            `mapstructure:"jwt" json:"jwt"`
-	OSS            OSSConfig            `mapstructure:"oss" json:"oss"`
-	Green          GreenConfig          `mapstructure:"green" json:"green"`
-	Security       SecurityConfig       `mapstructure:"security" json:"security"`
-	Features       FeaturesConfig       `mapstructure:"features" json:"features"`
-	Limits         LimitsConfig         `mapstructure:"limits" json:"limits"`
-	Reputation     ReputationConfig     `mapstructure:"reputation" json:"reputation"`
-	Judge          JudgeConfig          `mapstructure:"judge" json:"judge"`
-	IPProposal     IPProposalConfig     `mapstructure:"ip_proposal" json:"ip_proposal"`
+	Server     ServerConfig     `mapstructure:"server" json:"server"`
+	Web        WebConfig        `mapstructure:"web" json:"web"`
+	Database   DatabaseConfig   `mapstructure:"database" json:"database"`
+	Redis      RedisConfig      `mapstructure:"redis" json:"redis"`
+	JWT        JWTConfig        `mapstructure:"jwt" json:"jwt"`
+	OSS        OSSConfig        `mapstructure:"oss" json:"oss"`
+	Green      GreenConfig      `mapstructure:"green" json:"green"`
+	Security   SecurityConfig   `mapstructure:"security" json:"security"`
+	Features   FeaturesConfig   `mapstructure:"features" json:"features"`
+	Limits     LimitsConfig     `mapstructure:"limits" json:"limits"`
+	Reputation ReputationConfig `mapstructure:"reputation" json:"reputation"`
+	Judge      JudgeConfig      `mapstructure:"judge" json:"judge"`
+	IPProposal IPProposalConfig `mapstructure:"ip_proposal" json:"ip_proposal"`
 	// IPCategories is the IP category allowlist (SP-19 G1-3). Kept in sync
 	// with the frontend single source frontend/lib/ip-categories.ts; IP
 	// creation validates category against it. Extending = frontend constant +
 	// this list + ipCategory.* i18n keys in one small PR (GLOSSARY "IP 分类").
-	IPCategories  []string             `mapstructure:"ip_categories" json:"ip_categories"`
-	Discussion    DiscussionConfig     `mapstructure:"discussion" json:"discussion"`
+	IPCategories   []string             `mapstructure:"ip_categories" json:"ip_categories"`
+	Discussion     DiscussionConfig     `mapstructure:"discussion" json:"discussion"`
 	Social         SocialConfig         `mapstructure:"social" json:"social"`
 	Collaboration  CollaborationConfig  `mapstructure:"collaboration" json:"collaboration"`
 	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history" json:"browse_history"`
@@ -517,6 +517,46 @@ type AgentConfig struct {
 	// longer falls back to no_evidence. Zero disables the lane entirely
 	// (fail-closed: a missing key can never loosen the citation guard).
 	ConversationalMaxRunes int `mapstructure:"conversational_max_runes" json:"conversational_max_runes"`
+	// Models is the SP-20 (#545) incremental model supply registry. The
+	// primary stays on the single llm_provider wiring above (zero migration);
+	// each entry with an empty api_key is silently unregistered (not
+	// selectable, never in the routing chain).
+	Models []AgentModelConfig `mapstructure:"models" json:"models"`
+	// Routing drives the SP-20 chain: primary empty = the llm_provider
+	// synthetic entry goes first; fallbacks list registered model ids in
+	// order; retry_on accepts provider_error / blank_answer.
+	Routing AgentRoutingConfig `mapstructure:"routing" json:"routing"`
+}
+
+// AgentModelConfig is one incremental chat model registry entry.
+type AgentModelConfig struct {
+	ID          string `mapstructure:"id" json:"id"`
+	Provider    string `mapstructure:"provider" json:"provider"`
+	Model       string `mapstructure:"model" json:"model"`
+	APIBase     string `mapstructure:"api_base" json:"api_base"`
+	APIKey      string `mapstructure:"api_key" json:"-"`
+	DisplayName string `mapstructure:"display_name" json:"display_name"`
+}
+
+// AgentRoutingConfig is the SP-20 routing chain configuration.
+type AgentRoutingConfig struct {
+	Primary   string   `mapstructure:"primary" json:"primary"`
+	Fallbacks []string `mapstructure:"fallbacks" json:"fallbacks"`
+	RetryOn   []string `mapstructure:"retry_on" json:"retry_on"`
+}
+
+// modelEnvKey normalizes a model id for its credential env var suffix.
+func modelEnvKey(id string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(id) {
+		switch {
+		case r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
 }
 
 type CaptchaConfig struct {
@@ -812,6 +852,17 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_LLM_API_KEY"); v != "" {
 		cfg.Agent.LLMAPIKey = v
+	}
+	// SP-20 (#545): per-entry model credentials follow the
+	// AGENT_MODEL_<ID>_API_KEY convention (id upper-cased, non-alnum → _).
+	for i := range cfg.Agent.Models {
+		if cfg.Agent.Models[i].ID == "" {
+			continue
+		}
+		envKey := "AGENT_MODEL_" + modelEnvKey(cfg.Agent.Models[i].ID) + "_API_KEY"
+		if v := os.Getenv(envKey); v != "" {
+			cfg.Agent.Models[i].APIKey = v
+		}
 	}
 	if v := os.Getenv("SERVER_PORT"); v != "" {
 		cfg.Server.Port = v

@@ -39,6 +39,8 @@ import { AgentFollowUpChips } from "@/components/agent/AgentFollowUpChips";
 const SIDEBAR_STORAGE_KEY = "agentSidebarCollapsed";
 /** #539：深度思考开关持久化（localStorage，随会话恢复用户偏好）。 */
 const DEEP_THINK_STORAGE_KEY = "agentDeepThink";
+/** #545：模型偏好持久化（注册表 id；失效 id 由选项列表校验兜底）。 */
+const MODEL_STORAGE_KEY = "agentModelPref";
 const STICKY_BOTTOM_THRESHOLD = 80;
 /** 输入自动增高上限：约 8 行（leading-6 = 24px × 8 + 上下 padding）后转内部滚动。 */
 
@@ -155,6 +157,22 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   useEffect(() => {
     setDeepThink(window.localStorage.getItem(DEEP_THINK_STORAGE_KEY) === "on");
   }, []);
+
+  /* #545：模型选择——拉取注册表（>1 供给才渲染选择器；拉取失败静默降级为
+     单供给形态，不打扰对话主链路）。偏好持久 localStorage，失效 id 丢弃。 */
+  const [modelOptions, setModelOptions] = useState<{ id: string; display_name: string }[]>([]);
+  const [modelPref, setModelPref] = useState("");
+  useEffect(() => {
+    api
+      .get<{ models?: { id: string; display_name: string }[] }>("/api/v1/agent/models")
+      .then((data) => {
+        const options = data.models ?? [];
+        setModelOptions(options);
+        const saved = window.localStorage.getItem(MODEL_STORAGE_KEY);
+        if (saved && options.some((option) => option.id === saved)) setModelPref(saved);
+      })
+      .catch(() => {});
+  }, []);
   function toggleDeepThink() {
     const next = !deepThink;
     window.localStorage.setItem(DEEP_THINK_STORAGE_KEY, next ? "on" : "off");
@@ -176,6 +194,24 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       <span>{t("agent.workspace.deepThink")}</span>
     </button>
   );
+  const modelSelector =
+    modelOptions.length > 1 ? (
+      <select
+        aria-label={t("agent.workspace.modelLabel")}
+        value={modelPref || modelOptions[0].id}
+        onChange={(event) => {
+          setModelPref(event.target.value);
+          window.localStorage.setItem(MODEL_STORAGE_KEY, event.target.value);
+        }}
+        className="h-7 rounded-md border border-border-default bg-canvas-default px-1.5 text-xs text-fg-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {modelOptions.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.display_name}
+          </option>
+        ))}
+      </select>
+    ) : null;
 
   /* 选中会话时加载服务端历史；新对话清空本地消息。think 行（phase="think"）
      以思考折叠块回放；A-05 blocked 行渲染占位提示。注意：done 事件会把新会话
@@ -577,6 +613,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       context: { surface: "global" },
       deep_think: deepThink,
     };
+    if (modelPref) body.model = modelPref;
     if (activeId !== null) body.conversation_id = activeId;
     activeQueryRef.current = query;
     fallbackRequestRef.current += 1;
@@ -726,7 +763,14 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         disabled={streaming}
         stopLabel={streaming ? t("agent.workspace.stopGenerating") : undefined}
         onStop={streaming ? handleStop : undefined}
-        leading={deepThinkToggle}
+        leading={modelSelector ? (
+          <>
+            {deepThinkToggle}
+            {modelSelector}
+          </>
+        ) : (
+          deepThinkToggle
+        )}
       />
       <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
     </div>

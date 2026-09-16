@@ -232,6 +232,9 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		// DeepThink is the #539 per-turn reasoning toggle; omitted/false keeps
 		// the fast no-thinking default, true enables provider reasoning.
 		DeepThink bool `json:"deep_think,omitempty"`
+		// Model is the SP-20 (#545) per-turn model preference; empty uses the
+		// configured primary. Unknown ids are rejected before any quota work.
+		Model string `json:"model,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.Message) == "" {
 		response.ValidationError(c, "invalid request parameters")
@@ -262,6 +265,11 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	message := strings.TrimSpace(body.Message)
 	if len([]rune(message)) > maxMsgLen {
 		response.ValidationError(c, "message exceeds maximum length")
+		return
+	}
+	modelPref := strings.TrimSpace(body.Model)
+	if modelPref != "" && !h.agentSvc.AgentModelRegistered(modelPref) {
+		response.Error(c, http.StatusBadRequest, "INVALID_MODEL", "unknown model")
 		return
 	}
 
@@ -330,6 +338,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		ConversationID: conversationID,
 		Message:        message,
 		DeepThink:      body.DeepThink,
+		Model:          modelPref,
 	}, resolved, func(ev service.AgentStreamEvent) error {
 		return writer.emit(ev)
 	}); err != nil {
@@ -559,6 +568,17 @@ func agentToolsFromStoredSteps(raw any) []service.AgentToolExecution {
 		return nil
 	}
 	return steps
+}
+
+// ListModels serves the selectable chat models (SP-20 #545): the registered
+// routing chain for routing wirings, or the single configured provider
+// otherwise. Authenticated like every agent endpoint; credentials never
+// appear in the projection.
+func (h *AgentHandler) ListModels(c *gin.Context) {
+	if !h.requireAgentFeature(c) {
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"models": h.agentSvc.AgentModels()})
 }
 
 // DeleteConversation deletes only the current user's conversation and its

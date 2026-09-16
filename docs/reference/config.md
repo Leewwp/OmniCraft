@@ -39,10 +39,15 @@ model-routed conversational lane (SP-15 A2): a zero-too... |
 | `agent.max_output_tokens` | `int` | MaxOutputTokens |
 | `agent.max_tool_calls_per_turn` | `int` | MaxToolCallsPerTurn |
 | `agent.max_user_message_chars` | `int` | MaxUserMessageChars |
+| `agent.models` | `[]AgentModelConfig` | Models is the SP-20 (#545) incremental model supply registry. The
+primary stays on the single llm_provider wiring abo... |
 | `agent.provider_max_retries` | `int` | ProviderMaxRetries |
 | `agent.provider_timeout_sec` | `int` | ProviderTimeoutSec |
 | `agent.rate_limit_per_day` | `int` | RateLimitPerDay |
 | `agent.rate_limit_per_minute` | `int` | RateLimitPerMinute |
+| `agent.routing.fallbacks` | `[]string` | Fallbacks |
+| `agent.routing.primary` | `string` | Primary |
+| `agent.routing.retry_on` | `[]string` | RetryOn |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
 | `agent_access.max_tokens_per_user` | `int` | MaxTokensPerUser |
@@ -100,10 +105,11 @@ upgrades; defaults stay off until A-04 ablation... |
 | `green.region` | `string` | Region |
 | `green.seed` | `string` | Seed is the callback signature seed (green.seed): release-required, [A-Za-z0-9_], max 64 chars. |
 | `green.uid` | `string` | UID is the Aliyun main account UID (green.uid): release-required, digits only (console account info, not RAM UID). |
+| `ip_categories` | `[]string` | IPCategories is the IP category allowlist (SP-19 G1-3). Kept in sync
+with the frontend single source frontend/lib/ip-... |
 | `ip_proposal.deadline_days` | `int` | DeadlineDays |
 | `ip_proposal.min_votes` | `int` | MinVotes |
 | `ip_proposal.pass_threshold` | `float64` | PassThreshold |
-| `ip_categories` | `[]string` | IPCategories is the IP category allowlist; kept in sync with frontend/lib/ip-categories.ts |
 | `judge.error_rate_revoke` | `float64` | ErrorRateRevoke |
 | `judge.error_rate_window` | `int` | ErrorRateWindow |
 | `judge.exam_pass_rate` | `float64` | ExamPassRate |
@@ -114,8 +120,9 @@ upgrades; defaults stay off until A-04 ablation... |
 | `jwt.secret` | `string` | Secret |
 | `legal.current_privacy_version` | `string` | CurrentPrivacyVersion |
 | `legal.current_terms_version` | `string` | CurrentTermsVersion |
+| `limits.dm_max_length` | `int` | DMMaxLength caps a direct-message text in runes; must stay aligned with
+the frontend MAX_DM_LENGTH (2000) so the UI c... |
 | `limits.image_max_mb` | `int` | ImageMaxMB |
-| `limits.dm_max_length` | `int` | DMMaxLength |
 | `limits.mod_max_mb` | `int` | ModMaxMB |
 | `limits.sheet_music_max_mb` | `int` | SheetMusicMaxMB |
 | `limits.text_max_mb` | `int` | TextMaxMB |

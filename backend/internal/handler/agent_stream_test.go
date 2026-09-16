@@ -781,3 +781,52 @@ func TestAgentConversationDeleteDBFailureReturnsStableError(t *testing.T) {
 		t.Fatal("failed delete must not partially remove the conversation")
 	}
 }
+
+// #545: an unknown model id is rejected with INVALID_MODEL before any stream
+// or quota work; the models endpoint lists the single-provider surface.
+func TestAgentChatStreamRejectsUnknownModel(t *testing.T) {
+	handler, _, _ := newAgentStreamTestHandler(t, &recordingAgentHTTPProvider{
+		deltas: []llm.ChatDelta{{Content: "ok"}, {Done: true}},
+	}, nil)
+
+	router := gin.New()
+	router.POST("/agent/chat/stream", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(7))
+		handler.ChatStream(c)
+	})
+	req := httptest.NewRequest(http.MethodPost, "/agent/chat/stream", bytes.NewBufferString(`{"message":"hi","model":"ghost"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "INVALID_MODEL") {
+		t.Fatalf("body = %s, want INVALID_MODEL", rec.Body.String())
+	}
+}
+
+func TestAgentListModelsSingleProviderSurface(t *testing.T) {
+	handler, _, _ := newAgentStreamTestHandler(t, &recordingAgentHTTPProvider{}, &config.Config{
+		Server: config.ServerConfig{Mode: "debug"},
+		Agent: config.AgentConfig{
+			WebAgentEnabled: true, LLMProvider: "minimax", LLMModel: "MiniMax-M3", LLMAPIKey: "k",
+			MaxToolCallsPerTurn: 8, MaxOutputTokens: 1200, CitationMaxCount: 5,
+			ChatContextTokenBudget: 100000, ChatMaxContextMsgs: 10,
+		},
+	})
+
+	router := gin.New()
+	router.GET("/agent/models", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(7))
+		handler.ListModels(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/agent/models", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"minimax"`) || strings.Contains(rec.Body.String(), "api_key") {
+		t.Fatalf("body = %s, want minimax option without credentials", rec.Body.String())
+	}
+}

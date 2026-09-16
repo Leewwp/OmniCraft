@@ -24,6 +24,15 @@ import (
 //     across vendors always fails (a MiniMax key against DashScope 401s), so
 //     a missing key fails closed instead of degrading.
 func NewProvider(cfg *config.Config) LLMProvider {
+	base := newBaseProvider(cfg)
+	if routingModels(cfg) == nil {
+		return base
+	}
+	return newRoutingProvider(cfg, base)
+}
+
+// newBaseProvider builds the legacy single LLM surface from cfg.Agent.
+func newBaseProvider(cfg *config.Config) LLMProvider {
 	chatProviderType := cfg.Agent.LLMProvider
 	embedProviderType := strings.ToLower(strings.TrimSpace(cfg.Agent.EmbeddingProvider))
 	timeout := time.Duration(cfg.Agent.ProviderTimeoutSec) * time.Second
@@ -166,4 +175,81 @@ func (p *failingProvider) ChatStream(context.Context, ChatRequest, func(ChatDelt
 
 func (p *failingProvider) GetEmbedding(context.Context, string) ([]float32, error) {
 	return nil, p.err()
+}
+
+// routingModels returns the registered incremental model adapters, or nil
+// when no registry entry carries a credential (routing stays off and the
+// deployment behaves exactly like the single-provider wiring).
+func routingModels(cfg *config.Config) map[string]LLMProvider {
+	if len(cfg.Agent.Models) == 0 {
+		return nil
+	}
+	models := make(map[string]LLMProvider, len(cfg.Agent.Models)+1)
+	for _, m := range cfg.Agent.Models {
+		id := strings.ToLower(strings.TrimSpace(m.ID))
+		if id == "" || strings.TrimSpace(m.APIKey) == "" || strings.TrimSpace(m.Model) == "" {
+			continue
+		}
+		models[id] = NewProviderFromConfig(m.Provider, m.APIKey, m.APIBase, m.Model, "",
+			WithTimeout(time.Duration(cfg.Agent.ProviderTimeoutSec)*time.Second),
+			WithMaxRetries(cfg.Agent.ProviderMaxRetries),
+		)
+	}
+	if len(models) == 0 {
+		return nil
+	}
+	return models
+}
+
+// newRoutingProvider wraps the base (primary) provider with the registry and
+// the configured chain. The primary registry entry is synthesized from the
+// legacy single-provider wiring so existing deployments need no config
+// migration; its display name is the configured chat model.
+func newRoutingProvider(cfg *config.Config, base LLMProvider) LLMProvider {
+	models := routingModels(cfg)
+	primaryID := strings.ToLower(strings.TrimSpace(cfg.Agent.LLMProvider))
+	if primaryID == "" {
+		primaryID = "primary"
+	}
+	models[primaryID] = base
+
+	primary := strings.ToLower(strings.TrimSpace(cfg.Agent.Routing.Primary))
+	if primary == "" {
+		primary = primaryID
+	}
+	chain := append([]string{primary}, cfg.Agent.Routing.Fallbacks...)
+
+	options := []AgentModelOption{{ID: primaryID, DisplayName: strings.TrimSpace(cfg.Agent.LLMModel)}}
+	if options[0].DisplayName == "" {
+		options[0].DisplayName = primaryID
+	}
+	for _, m := range cfg.Agent.Models {
+		id := strings.ToLower(strings.TrimSpace(m.ID))
+		if _, ok := models[id]; !ok || id == primaryID {
+			continue
+		}
+		display := strings.TrimSpace(m.DisplayName)
+		if display == "" {
+			display = id
+		}
+		options = append(options, AgentModelOption{ID: id, DisplayName: display})
+	}
+	// Chain order wins for the option list (primary first unless overridden).
+	ordered := make([]AgentModelOption, 0, len(options))
+	byID := make(map[string]AgentModelOption, len(options))
+	for _, opt := range options {
+		byID[opt.ID] = opt
+	}
+	for _, name := range chain {
+		if opt, ok := byID[name]; ok {
+			ordered = append(ordered, opt)
+			delete(byID, name)
+		}
+	}
+	for _, opt := range options {
+		if _, ok := byID[opt.ID]; ok {
+			ordered = append(ordered, opt)
+		}
+	}
+	return NewRoutingProvider(models, chain, cfg.Agent.Routing.RetryOn, ordered)
 }

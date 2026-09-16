@@ -32,7 +32,7 @@ func NewMiniMaxProvider(apiKey, apiBase, model, embedModel string, opts ...Provi
 	}
 	// #539: the MiniMax wire carries the M3 reasoning switch, so this provider
 	// opts into mapping ChatRequest.Thinking (thinking.type=adaptive/disabled).
-	opts = append(opts, WithThinkingWire())
+	opts = append(opts, WithThinkingStyle("minimax"))
 	openAI := NewOpenAICompatProvider(apiKey, apiBase, model, embedModel, opts...)
 	openAI.system = "minimax"
 	return &MiniMaxProvider{
@@ -69,7 +69,7 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 		// requested; the Agent usage event needs the token accounting.
 		StreamOptions: &streamOptions{IncludeUsage: true},
 	}
-	payload.Thinking = thinkingPayloadFor(req.Thinking)
+	payload.Thinking = thinkingPayloadFor("minimax", req.Thinking)
 	resp, started, err := p.openAI.doPost(ctx, "/v1/chat/completions", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {

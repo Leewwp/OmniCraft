@@ -391,6 +391,7 @@ backend/
 | `GET` | `/api/v1/admin/users` | adminHandler.ListUsers |
 | `GET` | `/api/v1/agent/conversations` | agentHandler.ListConversations |
 | `GET` | `/api/v1/agent/conversations/:id` | agentHandler.GetConversationMessages |
+| `GET` | `/api/v1/agent/models` | agentHandler.ListModels |
 | `GET` | `/api/v1/agent/usage-guide/:id` | agentHandler.UsageGuide |
 | `GET` | `/api/v1/appeals/me` | appealHandler.GetMyAppeals |
 | `GET` | `/api/v1/auth/csrf` | authHandler.CSRFToken |

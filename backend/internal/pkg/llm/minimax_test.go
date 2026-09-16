@@ -337,7 +337,7 @@ func TestMiniMaxProvider_ThinkingWire(t *testing.T) {
 	}
 }
 
-// #539: providers without WithThinkingWire never emit the thinking field, so
+// #539: providers without a thinking style never emit the thinking field, so
 // their request bodies stay byte-compatible with plain OpenAI servers.
 func TestOpenAICompatProvider_ThinkingFieldOmittedWithoutWire(t *testing.T) {
 	bodies := make(chan map[string]any, 1)
@@ -358,5 +358,46 @@ func TestOpenAICompatProvider_ThinkingFieldOmittedWithoutWire(t *testing.T) {
 	body := <-bodies
 	if _, present := body["thinking"]; present {
 		t.Errorf("openai_compat must not emit thinking, got %v", body["thinking"])
+	}
+}
+
+// #545: the deepseek style maps Disabled→disabled and Adaptive→enabled on the
+// openai_compat wire; a request without a mode keeps the field omitted.
+func TestDeepSeekThinkingStyleWire(t *testing.T) {
+	bodies := make(chan map[string]any, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var parsed map[string]any
+		json.Unmarshal(raw, &parsed)
+		bodies <- parsed
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(openAIResponse{Choices: []openAIChoice{{Message: openAIMessage{Content: "ok"}}}})
+	}))
+	defer server.Close()
+
+	p := NewOpenAICompatProvider("k", server.URL, "deepseek-chat", "", WithThinkingStyle("deepseek"))
+	if _, err := p.Chat(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}}); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if _, err := p.Chat(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}, Thinking: ThinkingDisabled}); err != nil {
+		t.Fatalf("Chat disabled: %v", err)
+	}
+	if _, err := p.Chat(context.Background(), ChatRequest{Messages: []ChatMessage{{Role: "user", Content: "hi"}}, Thinking: ThinkingAdaptive}); err != nil {
+		t.Fatalf("Chat adaptive: %v", err)
+	}
+
+	first := <-bodies
+	if _, present := first["thinking"]; present {
+		t.Errorf("no mode must omit thinking, got %v", first["thinking"])
+	}
+	second := <-bodies
+	thinking, _ := second["thinking"].(map[string]any)
+	if thinking["type"] != "disabled" {
+		t.Errorf("ThinkingDisabled must map to disabled, got %v", second["thinking"])
+	}
+	third := <-bodies
+	thinking, _ = third["thinking"].(map[string]any)
+	if thinking["type"] != "enabled" {
+		t.Errorf("ThinkingAdaptive must map to enabled (DeepSeek naming), got %v", third["thinking"])
 	}
 }
