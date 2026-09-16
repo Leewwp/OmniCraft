@@ -60,6 +60,58 @@
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `citations` | `JSONB` | - | citations |
 
+### agent_trace_nodes
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `trace_id` | `VARCHAR(64)` | NOT NULL | trace_id |
+| `node_key` | `VARCHAR(96)` | NOT NULL | node_key |
+| `parent_node_key` | `VARCHAR(96)` | - | parent_node_key |
+| `depth` | `INT` | NOT NULL DEFAULT 0 | depth |
+| `node_type` | `VARCHAR(32)` | NOT NULL | node_type |
+| `node_name` | `VARCHAR(100)` | NOT NULL DEFAULT '' | node_name |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'RUNNING' | status |
+| `error_code` | `VARCHAR(64)` | NOT NULL DEFAULT '' | error_code |
+| `error_message` | `TEXT` | NOT NULL DEFAULT '' | error_message |
+| `started_at` | `TIMESTAMPTZ` | NOT NULL | started_at |
+| `ended_at` | `TIMESTAMPTZ` | - | ended_at |
+| `duration_ms` | `BIGINT` | - | duration_ms |
+| `model` | `VARCHAR(100)` | NOT NULL DEFAULT '' | model |
+| `prompt_digest` | `TEXT` | NOT NULL DEFAULT '' | prompt_digest |
+| `completion_digest` | `TEXT` | NOT NULL DEFAULT '' | completion_digest |
+| `tokens_in` | `BIGINT` | - | tokens_in |
+| `tokens_out` | `BIGINT` | - | tokens_out |
+| `cost_estimate` | `DOUBLE` | - | cost_estimate |
+| `extra` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | extra |
+| — | — | UNIQUE (`trace_id`, `node_key`) | table constraint |
+
+### agent_trace_runs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `trace_id` | `VARCHAR(64)` | NOT NULL UNIQUE | trace_id |
+| `conversation_id` | `BIGINT` | - | conversation_id |
+| `message_id` | `BIGINT` | - | message_id |
+| `user_id` | `BIGINT` | - | user_id |
+| `surface` | `VARCHAR(32)` | NOT NULL DEFAULT '' | surface |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'RUNNING' | status |
+| `error_code` | `VARCHAR(64)` | NOT NULL DEFAULT '' | error_code |
+| `error_message` | `TEXT` | NOT NULL DEFAULT '' | error_message |
+| `started_at` | `TIMESTAMPTZ` | NOT NULL | started_at |
+| `ended_at` | `TIMESTAMPTZ` | - | ended_at |
+| `duration_ms` | `BIGINT` | - | duration_ms |
+| `ttft_ms` | `BIGINT` | - | ttft_ms |
+| `model` | `VARCHAR(100)` | NOT NULL DEFAULT '' | model |
+| `answer_kind` | `VARCHAR(32)` | NOT NULL DEFAULT '' | answer_kind |
+| `routing_events` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | routing_events |
+| `prompt_name` | `VARCHAR(100)` | NOT NULL DEFAULT '' | prompt_name |
+| `prompt_version` | `INT` | - | prompt_version |
+| `extra` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | extra |
+
 ### ai_review_records
 
 | 列名 | 类型 | 约束 | 说明 |

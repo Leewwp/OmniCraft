@@ -78,6 +78,9 @@ func main() {
 	queue.SetMetricsHooks(observability.SetDefaultQueueBacklog, observability.IncDefaultWorkerFailures)
 
 	ctr := container.NewContainer(db, rdb, cfg)
+	// SP-21 T1: agent trace batch writer flushes off the request path; stop
+	// happens after HTTP shutdown so in-flight turns finish recording.
+	ctr.AgentTraceWriter.Start(context.Background())
 
 	scheduler.NewJudgeQuestionSync(db).Start()
 	scheduler.NewTagUsageSync(db).Start()
@@ -169,6 +172,7 @@ func main() {
 	if err := shutdownTracing(ctx); err != nil {
 		logger.Warn("trace provider shutdown failed", "error", err)
 	}
+	ctr.AgentTraceWriter.Stop(ctx)
 
 	if rdb != nil {
 		rdb.Close()

@@ -26,6 +26,15 @@ observability:
     sample_ratio: 1.0
     backend: "jaeger"
     service_name: "omnicraft-server"
+  agent_trace:
+    enabled: true
+    sample_ratio: 1.0
+    channel_size: 1024
+    flush_interval_ms: 1000
+    flush_batch_size: 200
+    digest_max_runes: 500
+    keep_full_prompt: false
+    retention_days: 30
 
 web:
   public_base_url: "http://localhost:3000"

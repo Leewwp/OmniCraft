@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/mcpserver"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/clamav"
@@ -63,6 +64,11 @@ type ServiceContainer struct {
 	ArchiveScanRepo   *repository.ArchiveScanRepository
 	OpenSearchRepo    *repository.OpenSearchRepository
 	HybridRetriever   *ragservice.HybridRetriever
+	// AgentTraceWriter batches agent trace run/node upserts off the request
+	// path (SP-21 T1, map #549); nil-safe, gated by
+	// observability.agent_trace.enabled.
+	AgentTraceRepo   *repository.AgentTraceRepository
+	AgentTraceWriter *agenttrace.Writer
 
 	// Services
 	AuthService         *service.AuthService
@@ -147,6 +153,20 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		}
 	}
 	c.ArchiveScanRepo = repository.NewArchiveScanRepositoryWithOutbox(db, repository.ArchiveScanRetryPolicy{Backoff: backoff}, c.OutboxRepo)
+	// SP-21 T1: async trace persistence. Start/Stop are owned by the
+	// server/worker mains so shutdown ordering (flush before redis close)
+	// stays explicit; recording call sites arrive with T2.
+	c.AgentTraceRepo = repository.NewAgentTraceRepository(db)
+	c.AgentTraceWriter = agenttrace.NewWriter(c.AgentTraceRepo, agenttrace.Options{
+		Enabled:        cfg.Observability.AgentTrace.Enabled,
+		SampleRatio:    cfg.Observability.AgentTrace.SampleRatio,
+		ChannelSize:    cfg.Observability.AgentTrace.ChannelSize,
+		FlushInterval:  time.Duration(cfg.Observability.AgentTrace.FlushIntervalMs) * time.Millisecond,
+		FlushBatchSize: cfg.Observability.AgentTrace.FlushBatchSize,
+		DigestMaxRunes: cfg.Observability.AgentTrace.DigestMaxRunes,
+		KeepFullPrompt: cfg.Observability.AgentTrace.KeepFullPrompt,
+		RetentionDays:  cfg.Observability.AgentTrace.RetentionDays,
+	})
 	if cfg.Features.ArchiveMalwareScanEnabled {
 		ossClient, ossErr := aliyun.NewOSSClient(cfg.OSS.Endpoint, cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret, cfg.OSS.BucketName)
 		if ossErr != nil {
