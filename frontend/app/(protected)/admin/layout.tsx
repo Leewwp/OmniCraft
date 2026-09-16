@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ScrollText, Megaphone, ChevronRight, PanelLeftClose, PanelLeft, X } from "lucide-react";
+import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ScrollText, Megaphone, Activity, ChevronRight, PanelLeftClose, PanelLeft, X } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 import {
@@ -31,6 +31,7 @@ const ADMIN_NAV = [
   { href: "/admin/feedback", labelKey: "navFeedback", icon: MessageSquare },
   { href: "/admin/categories", labelKey: "navCategories", icon: Tags },
   { href: "/admin/queue", labelKey: "navQueue", icon: ListOrdered },
+  { href: "/admin/traces", labelKey: "navTraces", icon: Activity },
   { href: "/admin/audit-logs", labelKey: "navAuditLogs", icon: ScrollText },
   { href: "/admin/config", labelKey: "navConfig", icon: Settings },
   { href: "/admin/agent-config", labelKey: "navAgentConfig", icon: Bot },
