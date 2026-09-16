@@ -143,13 +143,13 @@ func (p *RoutingProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRespo
 			if strings.TrimSpace(resp.Content) != "" || len(resp.ToolCalls) > 0 || !p.retryBlank || i == len(chain)-1 {
 				return resp, nil
 			}
-			p.route(name, chain[i+1], RetryOnBlankAnswer)
+			p.route(name, chain[i+1], RetryOnBlankAnswer, nil)
 			continue
 		}
 		if errors.Is(err, context.Canceled) || !p.retryErr || i == len(chain)-1 {
 			return resp, err
 		}
-		p.route(name, chain[i+1], RetryOnProviderError)
+		p.route(name, chain[i+1], RetryOnProviderError, err)
 	}
 	return resp, err
 }
@@ -174,7 +174,7 @@ func (p *RoutingProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 			if !blank || !p.retryBlank || i == len(chain)-1 {
 				return nil
 			}
-			p.route(name, chain[i+1], RetryOnBlankAnswer)
+			p.route(name, chain[i+1], RetryOnBlankAnswer, nil)
 			continue
 		}
 		lastErr = err
@@ -185,11 +185,18 @@ func (p *RoutingProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 		if !p.retryErr || i == len(chain)-1 || observableStreamed {
 			return err
 		}
-		p.route(name, chain[i+1], RetryOnProviderError)
+		p.route(name, chain[i+1], RetryOnProviderError, err)
 	}
 	return lastErr
 }
 
-func (p *RoutingProvider) route(from, to, reason string) {
-	slog.Warn("agent model routed", "from", from, "to", to, "reason", reason)
+func (p *RoutingProvider) route(from, to, reason string, err error) {
+	args := []any{"from", from, "to", to, "reason", reason}
+	if err != nil {
+		// The underlying error strings never carry credentials (keys live in
+		// request headers); surfacing them turns "provider_error" from a
+		// mystery into a one-line diagnosis.
+		args = append(args, "err", err.Error())
+	}
+	slog.Warn("agent model routed", args...)
 }
