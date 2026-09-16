@@ -18,6 +18,7 @@ import (
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service/promptregistry"
 )
 
 var ErrAgentDisabled = errors.New("web agent is disabled")
@@ -42,6 +43,16 @@ type AgentService struct {
 	// G2-1): production wiring closes over SearchRepository.SearchIPs; tests
 	// inject a fake because the tsvector SQL is PostgreSQL-only.
 	ipSearch func(ctx context.Context, query, category string, limit int) ([]model.IP, error)
+	// prompts resolves versioned prompt templates (SP-21 T5): nil = the
+	// compiled-in builtin of every slot; DB production rows override.
+	prompts *promptregistry.PromptResolver
+}
+
+// SetPromptResolver wires the shared resolver (container constructs it after
+// the repository; both server and worker share one instance so admin label
+// moves invalidate coherently).
+func (s *AgentService) SetPromptResolver(r *promptregistry.PromptResolver) {
+	s.prompts = r
 }
 
 // agentChatStreamer is the narrow Provider capability consumed by the Agent
@@ -144,11 +155,12 @@ func (s *AgentService) UploadAssist(ctx context.Context, userID int64, title, de
 		return nil, ErrAgentDisabled
 	}
 
-	systemPrompt := fmt.Sprintf(`You are a content tagging assistant for a fan content platform.
-Given a file named "%s" of type "%s" with title "%s" and description "%s",
-suggest appropriate tags, category, title improvements, and description.
-Respond ONLY with valid JSON: {"suggested_tags":[],"suggested_category":"","suggested_title":"","suggested_description":""}`,
-		filename, contentType, title, description)
+	systemPrompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUploadAssist, map[string]string{
+		"filename":     filename,
+		"content_type": contentType,
+		"title":        title,
+		"description":  description,
+	})
 
 	req := llm.ChatRequest{
 		Messages: []llm.ChatMessage{
@@ -275,13 +287,11 @@ func (s *AgentService) ComplianceCheck(ctx context.Context, title, description, 
 	}
 
 	// Step 2/3: LLM copyright / compliance analysis
-	prompt := fmt.Sprintf(`Analyze the following content for compliance issues (copyright infringement, inappropriate content):
-Title: %s
-Description: %s
-Type: %s
-
-Respond ONLY with valid JSON: {"risk_level":"safe|warning|violation","reason":"","suggestions":[]}`,
-		title, description, contentType)
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotComplianceCheck, map[string]string{
+		"title":        title,
+		"description":  description,
+		"content_type": contentType,
+	})
 
 	req := llm.ChatRequest{
 		Messages: []llm.ChatMessage{
@@ -426,13 +436,12 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 		guideType = "usage instructions and best practices"
 	}
 
-	prompt := fmt.Sprintf(`Generate a concise usage guide for this content:
-Title: %s
-Type: %s
-Description: %s
-
-Focus on: %s
-Format as Markdown.`, content.Title, content.ContentType, content.Description, guideType)
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
+		"title":        content.Title,
+		"content_type": content.ContentType,
+		"description":  content.Description,
+		"guide_focus":  guideType,
+	})
 
 	req := llm.ChatRequest{
 		Messages: []llm.ChatMessage{
@@ -515,14 +524,11 @@ func (s *AgentService) Moderate(ctx context.Context, contentItemID int64) (*Mode
 	}
 
 	// Step 2: LLM comprehensive analysis
-	prompt := fmt.Sprintf(`Moderate this content for policy violations:
-Title: %s
-Description: %s
-Type: %s
-
-Check for: copyright infringement, adult content, spam, hate speech.
-Respond ONLY with JSON: {"risk_level":"safe|warning|violation","violations":[],"suggestions":[]}`,
-		content.Title, content.Description, content.ContentType)
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotContentModeration, map[string]string{
+		"title":        content.Title,
+		"description":  content.Description,
+		"content_type": content.ContentType,
+	})
 
 	req := llm.ChatRequest{
 		Messages: []llm.ChatMessage{
@@ -689,8 +695,12 @@ func (s *AgentService) embedContent(ctx context.Context, contentItemID int64, te
 
 // serverOwnedSystemPrompt builds prompt text exclusively from the server-owned
 // surface enum and database-reloaded resource context. Client-supplied titles,
-// content types, routes, or visibility claims are never interpolated.
-func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, content *model.ContentItem) llm.ChatMessage {
+// content types, routes, or visibility claims are never interpolated. The
+// instruction corpus is the versioned agent_system slot (SP-21 T5): the
+// registry template carries it (DB production version overrides the builtin
+// hot), while the surface prefix and the config-conditional IP clause remain
+// code-built dynamic values.
+func (s *AgentService) serverOwnedSystemPrompt(ctx context.Context, surface model.AgentChatSurface, content *model.ContentItem) llm.ChatMessage {
 	var parts []string
 	switch surface {
 	case model.AgentChatSurfaceContent:
@@ -707,46 +717,17 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	default:
 		parts = append(parts, "surface=global")
 	}
-	// A-06 行内引用锚定（SP-13 R2-Q9）：指示模型在句末标注引用序号，前端把
-	// [n] 渲染为可点击角标并映射到服务端复验后的引用卡片（纯展示层，复验
-	// 语义与引用候选收集逻辑零改动）。引用上限之外的标注由流式收口剥离
-	// （stripOrphanCitationMarkers），此处要求模型克制标注以减少剥离量。
-	parts = append(parts, "when your answer relies on retrieved results, mark the sentence end with 1-based citation indexes like [1] or [2], where n is the position of the result in the search output you used; only mark results you actually used and keep the total number of distinct marks small")
-	// 2026-09-06 实测修复（浏览器验收会话）：两个高频体验缺陷的 prompt 层缓解。
-	// ① 推荐/发现类请求模型会跳过工具直接凭常识作答，而 grounded 契约会把
-	// 无引用回答整体替换为拒答 → 强制先检索再回答；
-	// ② 工具输出含内部 id，模型原样复述暴露实现细节 → 禁止在回答中出现。
-	// （"思考/回答跟随用户语言"指令经实测无法约束 M3 思考链语言，按用户裁决
-	// 移除；该问题仍未解决，待换方案重试。）
-	parts = append(parts, "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge")
-	// #535（2026-09-15 演示站追踪 0a613b3d 实测）：追问轮（「再推荐几个」类）
-	// 模型会复述上一轮引用直接作答而不重新检索，服务端复核 0 引用 →
-	// no_evidence 撤答。明确引用仅当轮有效，追问必须重新检索。
-	parts = append(parts, "citation indexes are valid only within the turn that produced them: when the user asks for more, further, or additional recommendations (for example 「再推荐几个」), call the search tool again in that turn — never answer by reusing or restating results from earlier turns, because reused citations cannot be validated and the answer will be rejected")
-	parts = append(parts, "never mention internal numeric content ids in your answer")
-	// SP-15 A2（2026-09-09）：会话车道指令——寒暄/闲聊/意图不明的消息免工具短答。
-	// 与上一条 must-search 指令互补而非覆盖：内容相关问题永远先检索，本条只放行
-	// 本来就不需要引用的会话轮。短答约束与服务端 ≤160 runes 护栏双保险。
-	// 2026-09-09 评测回退门两轮收紧：首版让模型把裸标题/引文式查询当意图不明跳过
-	// 检索（冻结 test vi-0003/vi-0013/ke-0051 逃逸）；第二版把「含具体标题/引文/
-	// 关键词 = 内容请求必须先检索」提为句首主导子句，澄清仅限零可检索文本的消息。
-	parts = append(parts, "when the user's message contains a concrete title, quote, character name, or keyword that could exist on the site, always call the cited_search tool with it before replying, even if the intent seems ambiguous; for example, a message that is just a title like 「星轨下的制琴师」or 'A Quiet Ledger of Small Storms' is a search request: search that exact text first, then answer from the results, and only say you found nothing usable if the search comes back empty; only for pure greetings, thanks, farewells, or a message with no searchable text at all (for example garbled characters), reply briefly without any tool and without citation marks — one or two sentences in the user's language, either a greeting back or one clarifying question about what site content they need")
-	// SP-15 D1/D2（2026-09-10 #434）：查询理解三件套，prompt 层指令为主。
-	// D1 自包含改写——search_content 的 query 必须消解指代/省略，独立可理解；
-	// few-shot 示例刻意避开冻结评测集查询与站内真实标题（防背题）。D2 复合
-	// 问题拆分——多个子问题多次检索，预算 max_tool_calls_per_turn=8 内充足。
-	// 上方 must-search 与 A2 会话车道指令原文不动，本组指令追加其后。
-	parts = append(parts, "every search_content query must be fully self-contained: resolve all pronouns, ellipsis and context references into the concrete entities they point to (exact titles, author or character names, topics), so each query is understandable with zero prior conversation context; for example, when the user asks 「第二个的作者还有什么作品」 after earlier results, the query must be rewritten like 「《迟到的邮差》的作者的其他作品」 with the resolved title, never a bare reference such as 「第二个」 or 「它的作者」; a message that is just a bare title or quote is itself the self-contained query for its first search")
-	parts = append(parts, "when one message combines several independent sub-questions, decompose it into multiple search_content calls — one call per sub-question, each with its own self-contained query — instead of merging them into a single vague query; the per-turn tool budget is sized for this")
-	// SP-19 G2-1（2026-09-15）：IP 检索指引——找/推荐/按类目浏览 IP 时调
-	// search_ips；category 枚举直接来自 config 11 类 allowlist（防模型猜
-	// 「gaming」等已回填废值空手而归）；IP 引用角标与内容引用同格式。
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotAgentSystem, map[string]string{
+		"surface_context": strings.Join(parts, "; "),
+	})
+	// SP-19 G2-1: the IP-category clause depends on config, not on prompt
+	// management, so it stays dynamic and appends after the rendered slot.
 	if s.cfg != nil && len(s.cfg.IPCategories) > 0 {
-		parts = append(parts, fmt.Sprintf("when the user asks to find, recommend, or browse IPs (original settings/worlds), call the search_ips tool with a self-contained keyword query; when the user names a genre, pass category with one of these slugs only: %s; cite the IPs you used with the same [n] marks as content results", strings.Join(s.cfg.IPCategories, ", ")))
+		prompt += "; " + fmt.Sprintf("when the user asks to find, recommend, or browse IPs (original settings/worlds), call the search_ips tool with a self-contained keyword query; when the user names a genre, pass category with one of these slugs only: %s; cite the IPs you used with the same [n] marks as content results", strings.Join(s.cfg.IPCategories, ", "))
 	}
 	return llm.ChatMessage{
 		Role:    "system",
-		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),
+		Content: prompt,
 	}
 }
 

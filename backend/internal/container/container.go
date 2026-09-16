@@ -25,6 +25,7 @@ import (
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
+	"omnicraft/backend/internal/service/promptregistry"
 	ragservice "omnicraft/backend/internal/service/rag"
 	"omnicraft/backend/internal/worker"
 )
@@ -100,6 +101,11 @@ type ServiceContainer struct {
 	RAGProjection       *ragservice.Projection
 	ArchiveObjectStore  worker.ArchiveScanObjectStore
 	ArchiveScanner      worker.ArchiveScanner
+	// PromptRegistryService resolves versioned prompt templates over the
+	// compiled-in builtins (SP-21 T5); shared by server and worker so admin
+	// label moves are hot in both processes.
+	PromptRegistryRepo    *repository.PromptRegistryRepository
+	PromptRegistryService *promptregistry.PromptResolver
 	// DisplayURLSigner issues short-lived signed GET URLs for display media
 	// at the API serialization boundary (B-002); nil-safe passthrough when
 	// OSS is not configured.
@@ -342,12 +348,22 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	// Create AgentService for worker use
 	provider := llm.NewProvider(cfg)
 	greenClient := aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
+	// SP-21 T5: prompt registry — built before AgentService so every prompt
+	// consumer shares one resolver (cache + invalidation). Seeding is
+	// idempotent (ON CONFLICT DO NOTHING); a missing registry table or a
+	// failed seed degrades to builtins with a log, never blocks startup.
+	c.PromptRegistryRepo = repository.NewPromptRegistryRepository(db)
+	c.PromptRegistryService = promptregistry.NewPromptResolver(c.PromptRegistryRepo)
+	if err := promptregistry.SeedV1(context.Background(), c.PromptRegistryRepo); err != nil {
+		slog.Warn("prompt registry v1 seed failed; builtins stay active", "error", err)
+	}
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
 	c.AgentTokenService = service.NewAgentAccessTokenService(
 		repository.NewAgentAccessTokenRepository(db), cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)
 	c.AgentService.SetUsageGuideService(c.UsageGuideService)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
+	c.AgentService.SetPromptResolver(c.PromptRegistryService)
 	opensearchTimeout := time.Duration(cfg.RAG.Index.TimeoutSec) * time.Second
 	c.OpenSearchRepo = repository.NewOpenSearchRepositoryWithLimits(
 		cfg.RAG.Index.URL,
@@ -378,7 +394,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	// A-03 retrieval upgrades, each behind its feature flag; defaults stay
 	// off until the A-04 ablation decides them.
 	if cfg.Features.RAGQueryExpansionEnabled {
-		c.HybridRetriever.SetQueryExpander(ragservice.NewLLMQueryExpander(provider))
+		expander := ragservice.NewLLMQueryExpander(provider)
+		expander.SetPromptResolver(c.PromptRegistryService)
+		c.HybridRetriever.SetQueryExpander(expander)
 	}
 	if cfg.Features.RAGRerankEnabled {
 		if reranker, inputTopK := llm.NewRerankerFromConfig(cfg.RAG.Rerank); reranker != nil {

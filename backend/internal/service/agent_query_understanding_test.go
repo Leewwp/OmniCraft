@@ -50,7 +50,7 @@ func (r *queryUnderstandingRetriever) Retrieve(_ context.Context, query string, 
 // wording must stay byte-identical (spec: 既有指令原文不动).
 func TestQueryUnderstandingDirectivesInPrompt(t *testing.T) {
 	svc, _ := newStreamTestService(t, &conversationalLaneProvider{}, conversationalLaneTestConfig())
-	prompt := svc.serverOwnedSystemPrompt(model.AgentChatSurfaceGlobal, nil).Content
+	prompt := svc.serverOwnedSystemPrompt(context.Background(), model.AgentChatSurfaceGlobal, nil).Content
 
 	mustSearch := "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge"
 	mustSearchIdx := strings.Index(prompt, mustSearch)

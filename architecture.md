@@ -384,6 +384,8 @@ backend/
 | `GET` | `/api/v1/admin/feedback/:id` | adminFeedbackHandler.GetFeedback |
 | `GET` | `/api/v1/admin/ips` | adminHandler.ListPendingIPs |
 | `GET` | `/api/v1/admin/llm-configs` | adminHandler.ListLLMConfigs |
+| `GET` | `/api/v1/admin/prompts` | adminPromptHandler.ListSlots |
+| `GET` | `/api/v1/admin/prompts/:name/versions` | adminPromptHandler.ListVersions |
 | `GET` | `/api/v1/admin/queue/dlq` | adminHandler.GetDLQEntries |
 | `GET` | `/api/v1/admin/queue/stats` | adminHandler.GetQueueStats |
 | `GET` | `/api/v1/admin/reports` | adminHandler.ListReports |
@@ -497,6 +499,8 @@ backend/
 | `POST` | `/api/v1/admin/llm-configs/:id/activate` | adminHandler.ActivateLLMConfig |
 | `POST` | `/api/v1/admin/llm-configs/:id/test` | adminHandler.TestLLMConfig |
 | `POST` | `/api/v1/admin/notifications/broadcast` | adminHandler.BroadcastNotification |
+| `POST` | `/api/v1/admin/prompts/:name/labels` | adminPromptHandler.SetLabel |
+| `POST` | `/api/v1/admin/prompts/:name/versions` | adminPromptHandler.CreateVersion |
 | `POST` | `/api/v1/admin/queue/dlq/:id/replay` | adminHandler.ReplayDLQEntry |
 | `POST` | `/api/v1/admin/rag/rebuild` | adminRAGHandler.Rebuild |
 | `POST` | `/api/v1/admin/users/:id/ban` | adminHandler.BanUser |

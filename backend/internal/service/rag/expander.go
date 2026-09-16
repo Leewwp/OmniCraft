@@ -3,11 +3,12 @@ package rag
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/service/promptregistry"
 )
 
 // Spec-fixed expansion caps (SP-13 A-03): 3–5 terms, one short capped chat
@@ -30,10 +31,18 @@ type expansionChatProvider interface {
 // continues with the original query.
 type LLMQueryExpander struct {
 	provider expansionChatProvider
+	// prompts renders the versioned query_expansion_prompt slot (SP-21 T5);
+	// nil resolver uses the compiled-in builtin.
+	prompts *promptregistry.PromptResolver
 }
 
 func NewLLMQueryExpander(provider expansionChatProvider) *LLMQueryExpander {
 	return &LLMQueryExpander{provider: provider}
+}
+
+// SetPromptResolver wires the shared registry resolver (container).
+func (e *LLMQueryExpander) SetPromptResolver(r *promptregistry.PromptResolver) {
+	e.prompts = r
 }
 
 func (e *LLMQueryExpander) Expand(ctx context.Context, query string) []string {
@@ -44,10 +53,10 @@ func (e *LLMQueryExpander) Expand(ctx context.Context, query string) []string {
 	if query == "" {
 		return nil
 	}
-	prompt := fmt.Sprintf(
-		"把下面的用户输入扩展为最多 %d 个用于站内内容检索的中文检索词，覆盖同义词、别名与相关表述，不要解释。只输出一个 JSON 字符串数组。\n输入：%s",
-		queryExpansionMaxTerms, truncateRunes(query, queryExpansionMaxTermRunes*2),
-	)
+	prompt := e.prompts.RenderSlot(ctx, promptregistry.SlotQueryExpansion, map[string]string{
+		"max_terms": strconv.Itoa(queryExpansionMaxTerms),
+		"query":     truncateRunes(query, queryExpansionMaxTermRunes*2),
+	})
 	resp, err := e.provider.Chat(ctx, llm.ChatRequest{
 		Messages: []llm.ChatMessage{
 			{Role: "system", Content: "你是站内检索查询扩展器，只输出 JSON 字符串数组。"},

@@ -15,6 +15,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/recovery"
+	"omnicraft/backend/internal/service/promptregistry"
 )
 
 // ErrAgentConversationNotFound is the owner-scoped miss for chat
@@ -267,10 +268,9 @@ func (s *AgentService) generateConversationTitle(ctx context.Context, firstUserM
 	if s.llmProvider == nil {
 		return fallback
 	}
-	prompt := fmt.Sprintf(
-		"为下面的对话生成一个不超过 16 个字的简短中文标题，只输出标题本身，不要引号、序号或句号：\n%s",
-		truncateChatRunes(firstUserMessage, conversationTitlePromptCap),
-	)
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotConversationTitle, map[string]string{
+		"first_user_message": truncateChatRunes(firstUserMessage, conversationTitlePromptCap),
+	})
 	resp, err := s.llmProvider.Chat(ctx, llm.ChatRequest{
 		Messages:  []llm.ChatMessage{{Role: "user", Content: prompt}},
 		MaxTokens: 64,

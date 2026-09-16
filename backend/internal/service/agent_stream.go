@@ -13,6 +13,7 @@ import (
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/recovery"
+	"omnicraft/backend/internal/service/promptregistry"
 )
 
 // AgentStreamEventType is the server-owned SSE event name set for the chat
@@ -243,7 +244,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	}
 
 	policy := s.ToolPolicy()
-	systemMsg := s.serverOwnedSystemPrompt(resolved.Surface, resolved.Content)
+	systemMsg := s.serverOwnedSystemPrompt(ctx, resolved.Surface, resolved.Content)
 	req := llm.ChatRequest{
 		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
 		Tools:     s.ToolDefinitions(),
@@ -310,11 +311,12 @@ loop:
 					titles := followUpTitles(citationCandidates)
 					prefix := delta.Content
 					provider := s.llmProvider
+					resolver := s.prompts
 					sid := traceID
 					recovery.GoSafe(func() {
 						ctx, cancel := context.WithTimeout(context.Background(), followUpBudget)
 						defer cancel()
-						followUpCh <- generateFollowUps(ctx, provider, sid, question, titles, prefix)
+						followUpCh <- generateFollowUps(ctx, resolver, provider, sid, question, titles, prefix)
 					})
 				}
 				if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content}); err != nil {
@@ -719,24 +721,21 @@ func followUpTitles(candidates []AgentCitation) []string {
 
 // followUpRequest builds the bounded non-streaming prompt: user question +
 // retrieved titles + answer prefix, asking for 2-3 same-language follow-up
-// questions, one per line, each within the rune cap.
-func followUpRequest(question string, titles []string, answerPrefix string) llm.ChatRequest {
-	var b strings.Builder
-	b.WriteString("You suggest follow-up questions for a site-content assistant. ")
-	b.WriteString("Based on the user's question, the retrieved result titles, and the beginning of the answer, propose 2-3 short follow-up questions the user might ask next about site content (works, IPs, usage). ")
-	b.WriteString("Rules: one question per line, no numbering, no bullets; each question at most 20 characters; write in the same language as the user's question; output nothing else.\n")
-	b.WriteString("User question: ")
-	b.WriteString(strings.TrimSpace(question))
-	b.WriteString("\nRetrieved titles: ")
-	if len(titles) == 0 {
-		b.WriteString("(none)")
-	} else {
-		b.WriteString(strings.Join(titles, " / "))
+// questions, one per line, each within the rune cap. The instruction corpus
+// is the versioned follow_ups_prompt slot (SP-21 T5); the resolver falls
+// back to the compiled-in builtin.
+func followUpRequest(resolver *promptregistry.PromptResolver, question string, titles []string, answerPrefix string) llm.ChatRequest {
+	titlesJoined := "(none)"
+	if len(titles) > 0 {
+		titlesJoined = strings.Join(titles, " / ")
 	}
-	b.WriteString("\nAnswer beginning: ")
-	b.WriteString(truncateChatRunes(strings.TrimSpace(answerPrefix), followUpPrefixCap))
+	content := resolver.RenderSlot(context.Background(), promptregistry.SlotFollowUps, map[string]string{
+		"question":      strings.TrimSpace(question),
+		"titles":        titlesJoined,
+		"answer_prefix": truncateChatRunes(strings.TrimSpace(answerPrefix), followUpPrefixCap),
+	})
 	return llm.ChatRequest{
-		Messages:  []llm.ChatMessage{{Role: "user", Content: b.String()}},
+		Messages:  []llm.ChatMessage{{Role: "user", Content: content}},
 		MaxTokens: followUpMaxTokens,
 	}
 }
@@ -745,8 +744,8 @@ func followUpRequest(question string, titles []string, answerPrefix string) llm.
 // output. Every failure mode (call error, empty or over-long lines, garbage)
 // returns nil — the feature degrades to "no follow-ups" silently and never
 // affects the main stream. The traceID labels the side call for diagnosis.
-func generateFollowUps(ctx context.Context, provider llm.LLMProvider, traceID, question string, titles []string, answerPrefix string) []string {
-	resp, err := provider.Chat(ctx, followUpRequest(question, titles, answerPrefix))
+func generateFollowUps(ctx context.Context, resolver *promptregistry.PromptResolver, provider llm.LLMProvider, traceID, question string, titles []string, answerPrefix string) []string {
+	resp, err := provider.Chat(ctx, followUpRequest(resolver, question, titles, answerPrefix))
 	if err != nil {
 		reason := "provider_error"
 		if ctx.Err() == context.DeadlineExceeded {

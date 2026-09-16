@@ -831,6 +831,31 @@
 | `used_at` | `TIMESTAMPTZ` | - | used_at |
 | `created_at` | `TIMESTAMPTZ` | DEFAULT NOW() | created_at |
 
+### prompt_labels
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `name` | `VARCHAR(100)` | NOT NULL | name |
+| `label` | `VARCHAR(32)` | NOT NULL | label |
+| `version` | `INT` | NOT NULL | version |
+| — | — | UNIQUE (`name`, `label`) | table constraint |
+
+### prompt_registry
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `name` | `VARCHAR(100)` | NOT NULL | name |
+| `version` | `INT` | NOT NULL | version |
+| `content` | `TEXT` | NOT NULL | content |
+| `required_placeholders` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | required_placeholders |
+| `created_by` | `BIGINT` | - | created_by |
+| — | — | UNIQUE (`name`, `version`) | table constraint |
+
 ### pull_requests
 
 | 列名 | 类型 | 约束 | 说明 |

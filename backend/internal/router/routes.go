@@ -452,6 +452,14 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.GET("/audit-logs", adminAuditHandler.ListAuditLogs)
 		admin.GET("/audit-logs/actions", adminAuditHandler.ListAuditActions)
 		admin.POST("/rag/rebuild", adminRAGHandler.Rebuild)
+		// SP-21 T5: prompt registry management (list/versions/create/move
+		// label). Reads are plain admin auth; writes audit + invalidate the
+		// shared resolver cache.
+		adminPromptHandler := handler.NewAdminPromptHandler(ctr.PromptRegistryRepo, ctr.PromptRegistryService, ctr.AdminAuditService)
+		admin.GET("/prompts", adminPromptHandler.ListSlots)
+		admin.GET("/prompts/:name/versions", adminPromptHandler.ListVersions)
+		admin.POST("/prompts/:name/versions", adminPromptHandler.CreateVersion)
+		admin.POST("/prompts/:name/labels", adminPromptHandler.SetLabel)
 		admin.GET("/archive-scan-jobs/:id", archiveScanAdminRateLimit, adminArchiveScanHandler.GetJob)
 		admin.POST("/archive-scan-jobs/:id/manual-review", archiveScanAdminRateLimit, adminArchiveScanHandler.StartManualReview)
 		admin.POST("/archive-scan-jobs/:id/resolve", archiveScanAdminRateLimit, adminArchiveScanHandler.ResolveManualReview)
