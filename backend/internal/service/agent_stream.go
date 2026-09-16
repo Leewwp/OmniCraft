@@ -943,9 +943,13 @@ func followUpRequest(resolver *promptregistry.PromptResolver, question string, t
 // returns nil — the feature degrades to "no follow-ups" silently and never
 // affects the main stream. The traceID labels the side call for diagnosis.
 func generateFollowUps(ctx context.Context, turnRecorder *agenttrace.TurnRecorder, resolver *promptregistry.PromptResolver, provider llm.LLMProvider, traceID, question string, titles []string, answerPrefix string) []string {
-	// SP-21 T2: the side call gets its own node under the turn's trace.
+	// SP-21 T2: the side call gets its own node under the turn's trace. The
+	// terminal End is deferred BEFORE the provider call so a panic inside
+	// Chat still closes the node (GoSafe recovers; without this the node
+	// stays RUNNING forever — caught live on the real-trace waterfall).
 	followSpan := turnRecorder.StartNode(agenttrace.NodeTypeFollowUps, "follow_ups", nil, "")
-	resp, err := provider.Chat(ctx, followUpRequest(resolver, question, titles, answerPrefix))
+	var resp *llm.ChatResponse
+	var err error
 	defer func() {
 		status := model.AgentTraceStatusSuccess
 		errCode := ""
@@ -955,6 +959,7 @@ func generateFollowUps(ctx context.Context, turnRecorder *agenttrace.TurnRecorde
 		}
 		followSpan.End(agenttrace.NodeEndOptions{NodeName: "follow_ups", Status: status, ErrorCode: errCode, CompletionDigest: firstLine(resp.Content)})
 	}()
+	resp, err = provider.Chat(ctx, followUpRequest(resolver, question, titles, answerPrefix))
 	if err != nil {
 		reason := "provider_error"
 		if ctx.Err() == context.DeadlineExceeded {
