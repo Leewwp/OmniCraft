@@ -22,6 +22,18 @@ func (j JSONB) Value() (driver.Value, error) {
 	return string(j), nil
 }
 
+// MarshalJSON emits the stored bytes as raw JSON. JSONB is a defined type
+// over json.RawMessage, so it does NOT inherit RawMessage's MarshalJSON;
+// without this method encoding/json falls back to []byte semantics and
+// API responses ship jsonb columns as base64 strings (SP-21 T3 caught this
+// on routing_events).
+func (j JSONB) MarshalJSON() ([]byte, error) {
+	if len(j) == 0 {
+		return []byte("null"), nil
+	}
+	return j, nil
+}
+
 // Scan implements sql.Scanner for GORM read paths.
 func (j *JSONB) Scan(value interface{}) error {
 	if value == nil {

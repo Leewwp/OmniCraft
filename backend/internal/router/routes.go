@@ -460,6 +460,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.GET("/prompts/:name/versions", adminPromptHandler.ListVersions)
 		admin.POST("/prompts/:name/versions", adminPromptHandler.CreateVersion)
 		admin.POST("/prompts/:name/labels", adminPromptHandler.SetLabel)
+		// SP-21 T3: agent observability — trace run list + global stats.
+		adminTraceHandler := handler.NewAdminTraceHandler(ctr.AgentTraceRepo)
+		admin.GET("/traces", adminTraceHandler.ListTraces)
+		admin.GET("/traces/stats", adminTraceHandler.Stats)
 		admin.GET("/archive-scan-jobs/:id", archiveScanAdminRateLimit, adminArchiveScanHandler.GetJob)
 		admin.POST("/archive-scan-jobs/:id/manual-review", archiveScanAdminRateLimit, adminArchiveScanHandler.StartManualReview)
 		admin.POST("/archive-scan-jobs/:id/resolve", archiveScanAdminRateLimit, adminArchiveScanHandler.ResolveManualReview)
