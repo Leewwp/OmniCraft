@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"omnicraft/backend/config"
 )
 
 func TestNewOpenAICompatProvider_SetsFields(t *testing.T) {
@@ -214,5 +216,43 @@ func TestOpenAICompatProvider_GetEmbedding_Serialization(t *testing.T) {
 		if embedding[i] != v {
 			t.Errorf("dim[%d]: expected %v, got %v", i, v, embedding[i])
 		}
+	}
+}
+
+// #545: model registry entries without a credential keep the legacy
+// single-provider surface; a credentialed entry upgrades the surface to a
+// RoutingProvider whose chain still starts at the configured primary.
+func TestNewProviderRoutingWiring(t *testing.T) {
+	legacy := &config.Config{Agent: config.AgentConfig{
+		LLMProvider: "minimax", LLMModel: "MiniMax-M3", LLMAPIKey: "k",
+	}}
+	if _, ok := NewProvider(legacy).(*RoutingProvider); ok {
+		t.Fatal("no registry entries must keep the single-provider surface")
+	}
+
+	withKey := &config.Config{Agent: config.AgentConfig{
+		LLMProvider: "minimax", LLMModel: "MiniMax-M3", LLMAPIKey: "k",
+		Models: []config.AgentModelConfig{
+			{ID: "DeepSeek", Provider: "deepseek", Model: "deepseek-chat", APIBase: "https://api.deepseek.com", APIKey: "ds-key", DisplayName: "DeepSeek"},
+			{ID: "nokey", Provider: "deepseek", Model: "x", APIBase: "https://api.deepseek.com"},
+		},
+		Routing: config.AgentRoutingConfig{Fallbacks: []string{"deepseek", "nokey"}, RetryOn: []string{"blank_answer"}},
+	}}
+	router, ok := NewProvider(withKey).(*RoutingProvider)
+	if !ok {
+		t.Fatal("credentialed registry entries must build a RoutingProvider")
+	}
+	options := router.ModelOptions()
+	if len(options) != 2 || options[0].ID != "minimax" || options[1].ID != "deepseek" {
+		t.Fatalf("options = %#v, want minimax primary + deepseek", options)
+	}
+	if options[1].DisplayName != "DeepSeek" {
+		t.Fatalf("display name = %q", options[1].DisplayName)
+	}
+	if !router.ModelRegistered("deepseek") || router.ModelRegistered("nokey") {
+		t.Fatal("registry membership must follow the credential rule")
+	}
+	if router.ModelRegistered("minimax") != true {
+		t.Fatal("the synthesized primary must be registered")
 	}
 }

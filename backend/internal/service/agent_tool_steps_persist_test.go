@@ -140,7 +140,9 @@ func TestAgentStreamDeepThinkToggleControlsProviderThinking(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	require.Empty(t, provider.lastReq.Thinking, "toggle on keeps the provider default (adaptive)")
+	// #545: deep-think on pins Adaptive explicitly so DeepSeek-style providers
+	// map it to their "enabled" reasoning state.
+	require.Equal(t, llm.ThinkingAdaptive, provider.lastReq.Thinking)
 }
 
 // assembleChatContext skips phase="tools" replay rows but keeps every other

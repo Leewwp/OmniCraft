@@ -353,6 +353,23 @@ agent:
   # 且答案 ≤ 该 rune 上限时保留为 conversational；任一不满足回落 no_evidence 清空。
   # 防幻觉语义保留：模型对内容题偷懒不检索而长答时仍被清空。0 = 车道整体关闭。
   conversational_max_runes: 160
+  # SP-20 #545 模型路由：增量供给注册表（主供给沿用上方 llm_provider 单
+  # provider 接线，零迁移）。api_key 为空的条目静默不注册（不可选、不进链，
+  # 部署行为与单供给完全一致）；凭证经 env AGENT_MODEL_<ID>_API_KEY 注入。
+  models:
+    - id: deepseek
+      provider: deepseek          # openai 兼容 wire + thinking.type 参数风格（V3.2）
+      model: deepseek-chat        # 非思考端点；深度思考经 thinking 参数开启
+      api_base: https://api.deepseek.com
+      api_key: ""
+      display_name: DeepSeek
+  # 路由链：primary 空 = 主供给（minimax）置首；fallbacks 引用注册表 id，
+  # 未注册条目自动剔除；retry_on 仅接受确定性信号（provider_error /
+  # blank_answer——#544 形态 A 根治，内容级启发式不做）。
+  routing:
+    primary: ""
+    fallbacks: [deepseek]
+    retry_on: [provider_error, blank_answer]
 
 # SP-16 #450（spec D2）：外部 Agent 接入令牌（PAT）管理参数。
 agent_access:

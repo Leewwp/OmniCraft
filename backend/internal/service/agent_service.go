@@ -26,6 +26,7 @@ var ErrAgentFileTooLarge = errors.New("file too large for upload assist")
 type AgentService struct {
 	llmProvider     llm.LLMProvider
 	chatStreamer    agentChatStreamer
+	modelRouter     llm.ModelRouter
 	embeddingRepo   *repository.EmbeddingRepository
 	contentRepo     *repository.ContentRepository
 	searchRepo      *repository.SearchRepository
@@ -104,6 +105,12 @@ func newAgentServiceWithChatStreamer(provider llm.LLMProvider, chatStreamer agen
 		db:            db,
 		cfg:           cfg,
 		queueProducer: queue.NewNoopProducer(),
+	}
+	// SP-20 (#545): when the provider is a routing surface, expose model
+	// preference validation and the selectable option list; single-provider
+	// wirings keep a nil router and reject any client-supplied model id.
+	if router, ok := provider.(llm.ModelRouter); ok {
+		svc.modelRouter = router
 	}
 	// A nil *aliyun.GreenClient must leave the interface nil (not a typed-nil
 	// pointer) so unconfigured environments take the explicit skip paths.
@@ -745,4 +752,28 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 
 type AIReviewRecord struct {
 	model.AIReviewRecord
+}
+
+// AgentModels lists the selectable chat models (SP-20 #545). A single-provider
+// wiring exposes exactly one option synthesized from the config; a routing
+// surface lists the registered chain. The shape is handler-owned and safe to
+// serialize to authenticated clients (no credentials).
+func (s *AgentService) AgentModels() []llm.AgentModelOption {
+	if s.modelRouter != nil {
+		return s.modelRouter.ModelOptions()
+	}
+	display := strings.TrimSpace(s.cfg.Agent.LLMModel)
+	if display == "" {
+		display = strings.ToLower(strings.TrimSpace(s.cfg.Agent.LLMProvider))
+	}
+	return []llm.AgentModelOption{{ID: strings.ToLower(strings.TrimSpace(s.cfg.Agent.LLMProvider)), DisplayName: display}}
+}
+
+// AgentModelRegistered validates a client-supplied model id against the
+// registry (routing surface) or the single-provider id.
+func (s *AgentService) AgentModelRegistered(id string) bool {
+	if s.modelRouter != nil {
+		return s.modelRouter.ModelRegistered(id)
+	}
+	return strings.EqualFold(strings.TrimSpace(id), strings.TrimSpace(s.cfg.Agent.LLMProvider))
 }
