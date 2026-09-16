@@ -213,7 +213,7 @@ func TestSearchIPsToolDefinitionCategoryEnum(t *testing.T) {
 func TestSystemPromptListsIPCategorySlugs(t *testing.T) {
 	db := seedAgentGroundingDB(t)
 	svc := searchIPsFixture(t, db, nil, []string{"game", "vtuber"})
-	prompt := svc.serverOwnedSystemPrompt(model.AgentChatSurfaceGlobal, nil)
+	prompt := svc.serverOwnedSystemPrompt(context.Background(), model.AgentChatSurfaceGlobal, nil)
 	if !strings.Contains(prompt.Content, "search_ips") {
 		t.Errorf("prompt must mention search_ips, got: %s", prompt.Content)
 	}
