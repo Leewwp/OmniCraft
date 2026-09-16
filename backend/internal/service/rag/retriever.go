@@ -2,12 +2,15 @@ package rag
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/llm"
 )
 
@@ -145,16 +148,27 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 	if r.visibility == nil {
 		return RetrievalResult{}, ErrRetrievalUnavailable
 	}
+	// SP-21 T2: per-channel trace nodes (lexical/vector/RRF/rerank) nest
+	// under the calling tool node when a turn recorder rides the context;
+	// absent recorder = untraced call path, every helper below is nil-safe.
+	rec := agenttrace.TurnRecorderFrom(ctx)
 	query = strings.TrimSpace(query)
 	queries := []string{query}
 	expanded := []string(nil)
 	if r.expander != nil && query != "" {
+		expSpan := rec.StartNode(agenttrace.NodeTypeRetrieval, rec.NextNodeKey("query_expansion"), nil, "")
 		expanded = r.expander.Expand(ctx, query)
+		expSpan.End(agenttrace.NodeEndOptions{
+			Status:   agentTraceBoolStatus(len(expanded) > 0),
+			NodeName: "query_expansion",
+			Extra:    model.JSONB(mustMarshalJSON(map[string]any{"expanded": len(expanded)})),
+		})
 		queries = append(queries, expanded...)
 	}
 
 	degraded := ""
 	bm25TopK := r.topK(r.config.BM25TopK, config.RAGDefaultBM25TopK)
+	lexSpan := rec.StartNode(agenttrace.NodeTypeRetrieval, rec.NextNodeKey("retrieval_lexical"), nil, "")
 	keywordLists := make([][]RetrievalCandidate, 0, len(queries))
 	keywordFailures := 0
 	keywordFallbackUsed := false
@@ -180,8 +194,21 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 	if keywordFallbackUsed {
 		degraded = RetrievalDegradedKeywordFallback
 	}
+	lexSpan.End(agenttrace.NodeEndOptions{
+		Status:    agentTraceBoolStatus(!keywordSideFailed),
+		ErrorCode: agentTraceErrCode(keywordSideFailed, "KEYWORD_SIDE_FAILED"),
+		NodeName:  "lexical",
+		Extra:     model.JSONB(mustMarshalJSON(map[string]any{"queries": len(queries), "failures": keywordFailures, "fallback_used": keywordFallbackUsed, "hits": len(keywordLists)})),
+	})
 
+	vecSpan := rec.StartNode(agenttrace.NodeTypeRetrieval, rec.NextNodeKey("retrieval_vector"), nil, "")
 	vectorLists, vectorErr := r.searchVectors(ctx, queries, viewerID)
+	vecSpan.End(agenttrace.NodeEndOptions{
+		Status:    agentTraceBoolStatus(vectorErr == nil),
+		ErrorCode: agentTraceErrCode(vectorErr != nil, "VECTOR_SIDE_FAILED"),
+		NodeName:  "vector",
+		Extra:     model.JSONB(mustMarshalJSON(map[string]any{"lists": len(vectorLists)})),
+	})
 	if vectorErr != nil {
 		if degraded == "" {
 			degraded = RetrievalDegradedKeywordOnly
@@ -195,7 +222,12 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 		degraded = RetrievalDegradedVectorOnly
 	}
 
+	rrfSpan := rec.StartNode(agenttrace.NodeTypeRetrieval, rec.NextNodeKey("retrieval_rrf"), nil, "")
 	ranked := r.fuseLists(keywordLists, vectorLists)
+	rrfSpan.End(agenttrace.NodeEndOptions{
+		NodeName: "rrf_fusion",
+		Extra:    model.JSONB(mustMarshalJSON(map[string]any{"fused": len(ranked)})),
+	})
 	if r.reranker != nil && len(ranked) > 1 {
 		inputTopK := r.rerankIn
 		if inputTopK <= 0 {
@@ -205,7 +237,14 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 		if len(pool) > inputTopK {
 			pool = pool[:inputTopK]
 		}
+		rerankSpan := rec.StartNode(agenttrace.NodeTypeRerank, rec.NextNodeKey("rerank"), nil, "")
 		ordered, err := r.rerankCandidates(ctx, query, pool)
+		rerankSpan.End(agenttrace.NodeEndOptions{
+			Status:    agentTraceBoolStatus(err == nil),
+			ErrorCode: agentTraceErrCode(err != nil, "RERANK_FAILED"),
+			NodeName:  "rerank",
+			Extra:     model.JSONB(mustMarshalJSON(map[string]any{"input": len(pool), "output": len(ordered)})),
+		})
 		if err == nil && len(ordered) > 0 {
 			ranked = ordered
 		} else if err != nil && degraded == "" {
@@ -225,6 +264,28 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 		ranked = ranked[:finalTopK]
 	}
 	return RetrievalResult{Candidates: ranked, Degraded: degraded, ExpandedQueries: expanded}, nil
+}
+
+func agentTraceBoolStatus(ok bool) string {
+	if ok {
+		return model.AgentTraceStatusSuccess
+	}
+	return model.AgentTraceStatusError
+}
+
+func agentTraceErrCode(failed bool, code string) string {
+	if failed {
+		return code
+	}
+	return ""
+}
+
+func mustMarshalJSON(v any) []byte {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return []byte("{}")
+	}
+	return raw
 }
 
 // fuseLists marks and fuses the per-query keyword/vector lists. A single
