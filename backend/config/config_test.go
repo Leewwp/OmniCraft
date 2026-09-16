@@ -1020,3 +1020,24 @@ func TestUploadConfigNormalizesGalleryDefaultsAndRejectsInvalidBounds(t *testing
 	invalid := UploadConfig{ImageGalleryMinItems: 10, ImageGalleryMaxItems: 2}
 	require.ErrorContains(t, invalid.ValidateGalleryLimits(), "image gallery min_items")
 }
+
+// TestDefaultConfigAgentTrace pins the SP-21 T1 factory wiring: trace
+// persistence ships enabled with a bounded async writer, sampled fully, and
+// digests truncated — never full prompt bodies.
+func TestDefaultConfigAgentTrace(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+	at := cfg.Observability.AgentTrace
+	require.True(t, at.Enabled)
+	require.Equal(t, 1.0, at.SampleRatio)
+	require.Positive(t, at.ChannelSize)
+	require.Positive(t, at.FlushIntervalMs)
+	require.Positive(t, at.FlushBatchSize)
+	require.Positive(t, at.DigestMaxRunes)
+	require.False(t, at.KeepFullPrompt)
+	require.Positive(t, at.RetentionDays)
+	if err := cfg.ValidateRelease(); err != nil {
+		if strings.Contains(err.Error(), "agent_trace") {
+			t.Fatalf("factory agent_trace config must pass release validation: %v", err)
+		}
+	}
+}

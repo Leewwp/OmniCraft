@@ -128,6 +128,14 @@ the frontend MAX_DM_LENGTH (2000) so the UI c... |
 | `limits.text_max_mb` | `int` | TextMaxMB |
 | `limits.video_max_mb` | `int` | VideoMaxMB |
 | `limits.video_max_sec` | `int` | VideoMaxSec |
+| `observability.agent_trace.channel_size` | `int` | ChannelSize |
+| `observability.agent_trace.digest_max_runes` | `int` | DigestMaxRunes |
+| `observability.agent_trace.enabled` | `bool` | Enabled |
+| `observability.agent_trace.flush_batch_size` | `int` | FlushBatchSize |
+| `observability.agent_trace.flush_interval_ms` | `int` | FlushIntervalMs |
+| `observability.agent_trace.keep_full_prompt` | `bool` | KeepFullPrompt |
+| `observability.agent_trace.retention_days` | `int` | RetentionDays |
+| `observability.agent_trace.sample_ratio` | `float64` | SampleRatio |
 | `observability.ip_key_rotation.active_from` | `string` | ActiveFrom |
 | `observability.ip_key_rotation.active_until` | `string` | ActiveUntil |
 | `observability.ip_key_rotation.previous_key_id` | `string` | PreviousKeyID |

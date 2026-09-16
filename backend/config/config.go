@@ -144,6 +144,7 @@ type ObservabilityConfig struct {
 	IPKeyRotation        IPKeyRotationConfig `mapstructure:"ip_key_rotation" json:"ip_key_rotation"`
 	Readiness            ReadinessConfig     `mapstructure:"readiness" json:"readiness"`
 	Tracing              TracingConfig       `mapstructure:"tracing" json:"tracing"`
+	AgentTrace           AgentTraceConfig    `mapstructure:"agent_trace" json:"agent_trace"`
 }
 
 type TracingConfig struct {
@@ -152,6 +153,21 @@ type TracingConfig struct {
 	SampleRatio float64 `mapstructure:"sample_ratio" json:"sample_ratio"`
 	Backend     string  `mapstructure:"backend" json:"backend"`
 	ServiceName string  `mapstructure:"service_name" json:"service_name"`
+}
+
+// AgentTraceConfig governs the self-built agent trace persistence (SP-21 T1,
+// map #549): agent_trace_runs/agent_trace_nodes rows are written by an async
+// batch writer off the request path. A full channel drops records and counts
+// them; trace persistence must never block or fail an agent turn.
+type AgentTraceConfig struct {
+	Enabled         bool    `mapstructure:"enabled" json:"enabled"`
+	SampleRatio     float64 `mapstructure:"sample_ratio" json:"sample_ratio"`
+	ChannelSize     int     `mapstructure:"channel_size" json:"channel_size"`
+	FlushIntervalMs int     `mapstructure:"flush_interval_ms" json:"flush_interval_ms"`
+	FlushBatchSize  int     `mapstructure:"flush_batch_size" json:"flush_batch_size"`
+	DigestMaxRunes  int     `mapstructure:"digest_max_runes" json:"digest_max_runes"`
+	KeepFullPrompt  bool    `mapstructure:"keep_full_prompt" json:"keep_full_prompt"`
+	RetentionDays   int     `mapstructure:"retention_days" json:"retention_days"`
 }
 
 // IPKeyRotationConfig limits the previous IP-hash key to an explicit
@@ -1371,6 +1387,19 @@ func (c *Config) ValidateRelease() error {
 		}
 		if strings.TrimSpace(c.Observability.Tracing.Backend) != "jaeger" {
 			errs = append(errs, "observability.tracing.backend must be jaeger")
+		}
+	}
+	if c.Observability.AgentTrace.Enabled {
+		at := c.Observability.AgentTrace
+		if at.SampleRatio < 0 || at.SampleRatio > 1 {
+			errs = append(errs, "observability.agent_trace.sample_ratio must be between 0 and 1")
+		}
+		requirePositiveInt(&errs, "observability.agent_trace.channel_size", at.ChannelSize)
+		requirePositiveInt(&errs, "observability.agent_trace.flush_interval_ms", at.FlushIntervalMs)
+		requirePositiveInt(&errs, "observability.agent_trace.flush_batch_size", at.FlushBatchSize)
+		requirePositiveInt(&errs, "observability.agent_trace.retention_days", at.RetentionDays)
+		if at.DigestMaxRunes < 0 {
+			errs = append(errs, "observability.agent_trace.digest_max_runes must not be negative")
 		}
 	}
 	if c.Server.ReadTimeout <= 0 || c.Server.WriteTimeout <= 0 || c.Server.IdleTimeout <= 0 {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/container"
@@ -53,6 +54,9 @@ func main() {
 	rdb := redisclient.Init(cfg)
 
 	ctr := container.NewContainer(db, rdb, cfg)
+	// SP-21 T1: the worker shares the agent trace writer (auto-title and
+	// other agent side calls may record nodes from this process).
+	ctr.AgentTraceWriter.Start(context.Background())
 	stopWorkers := ctr.StartWorkers(context.Background())
 
 	quit := make(chan os.Signal, 1)
@@ -61,6 +65,9 @@ func main() {
 	logger.Info("Shutting down worker...")
 
 	stopWorkers()
+	traceStopCtx, traceCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer traceCancel()
+	ctr.AgentTraceWriter.Stop(traceStopCtx)
 	rdb.Close()
 
 	logger.Info("Worker exited")
