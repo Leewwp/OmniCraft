@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+
+	"omnicraft/backend/internal/observability/agenttrace"
 )
 
 // AgentModelOption is the wire shape served by the agent models endpoint:
@@ -143,13 +145,13 @@ func (p *RoutingProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRespo
 			if strings.TrimSpace(resp.Content) != "" || len(resp.ToolCalls) > 0 || !p.retryBlank || i == len(chain)-1 {
 				return resp, nil
 			}
-			p.route(name, chain[i+1], RetryOnBlankAnswer, nil)
+			p.route(ctx, name, chain[i+1], RetryOnBlankAnswer, nil)
 			continue
 		}
 		if errors.Is(err, context.Canceled) || !p.retryErr || i == len(chain)-1 {
 			return resp, err
 		}
-		p.route(name, chain[i+1], RetryOnProviderError, err)
+		p.route(ctx, name, chain[i+1], RetryOnProviderError, err)
 	}
 	return resp, err
 }
@@ -174,7 +176,7 @@ func (p *RoutingProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 			if !blank || !p.retryBlank || i == len(chain)-1 {
 				return nil
 			}
-			p.route(name, chain[i+1], RetryOnBlankAnswer, nil)
+			p.route(ctx, name, chain[i+1], RetryOnBlankAnswer, nil)
 			continue
 		}
 		lastErr = err
@@ -185,12 +187,15 @@ func (p *RoutingProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 		if !p.retryErr || i == len(chain)-1 || observableStreamed {
 			return err
 		}
-		p.route(name, chain[i+1], RetryOnProviderError, err)
+		p.route(ctx, name, chain[i+1], RetryOnProviderError, err)
 	}
 	return lastErr
 }
 
-func (p *RoutingProvider) route(from, to, reason string, err error) {
+// route logs the failover and mirrors it into the turn's routing_events
+// via the context recorder (SP-21 T2). The structured log stays the
+// immediate diagnosis surface; the recorder persists for the admin trace.
+func (p *RoutingProvider) route(ctx context.Context, from, to, reason string, err error) {
 	args := []any{"from", from, "to", to, "reason", reason}
 	if err != nil {
 		// The underlying error strings never carry credentials (keys live in
@@ -199,4 +204,23 @@ func (p *RoutingProvider) route(from, to, reason string, err error) {
 		args = append(args, "err", err.Error())
 	}
 	slog.Warn("agent model routed", args...)
+	if rec := agenttrace.TurnRecorderFrom(ctx); rec != nil {
+		rec.RecordRouting(from, to, reason, err)
+	}
+}
+
+// ServingModel reports which chain entry a completed request actually ran
+// on: the last routing event's target, or the fallback when nothing routed
+// (single-model hit or first-try success).
+func (p *RoutingProvider) ServingModel(ctx context.Context, pref string) string {
+	if rec := agenttrace.TurnRecorderFrom(ctx); rec != nil {
+		if serving := rec.ServingModel(); serving != "" {
+			return serving
+		}
+	}
+	chain := p.resolveChain(pref)
+	if len(chain) == 0 {
+		return ""
+	}
+	return chain[0]
 }

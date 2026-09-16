@@ -77,6 +77,27 @@ func (r *AgentTraceRepository) UpsertNodes(ctx context.Context, nodes []model.Ag
 	}).CreateInBatches(&nodes, defaultTraceWriteBatch).Error
 }
 
+// GetRunByTraceID returns the single run row of one trace.
+func (r *AgentTraceRepository) GetRunByTraceID(ctx context.Context, traceID string) (*model.AgentTraceRun, error) {
+	var row model.AgentTraceRun
+	err := r.db.WithContext(ctx).Where("trace_id = ?", traceID).First(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// ListNodesByTrace returns every node of one trace in start order (the
+// waterfall ordering).
+func (r *AgentTraceRepository) ListNodesByTrace(ctx context.Context, traceID string) ([]model.AgentTraceNode, error) {
+	var rows []model.AgentTraceNode
+	err := r.db.WithContext(ctx).
+		Where("trace_id = ?", traceID).
+		Order("started_at ASC, id ASC").
+		Find(&rows).Error
+	return rows, err
+}
+
 // PurgeBefore enforces observability.agent_trace.retention_days: nodes first
 // (they hold no FK but belong to runs), then runs. Returns rows removed.
 func (r *AgentTraceRepository) PurgeBefore(ctx context.Context, cutoff time.Time) (int64, error) {

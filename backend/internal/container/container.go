@@ -364,6 +364,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.AgentService.SetUsageGuideService(c.UsageGuideService)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
 	c.AgentService.SetPromptResolver(c.PromptRegistryService)
+	// SP-21 T2: turn instrumentation rides the shared async writer.
+	c.AgentService.SetTraceWriter(c.AgentTraceWriter)
 	opensearchTimeout := time.Duration(cfg.RAG.Index.TimeoutSec) * time.Second
 	c.OpenSearchRepo = repository.NewOpenSearchRepositoryWithLimits(
 		cfg.RAG.Index.URL,

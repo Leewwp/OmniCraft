@@ -84,14 +84,14 @@ func runEnd(trace string, status string) model.AgentTraceRun {
 	dur := int64(1500)
 	ttft := int64(480)
 	return model.AgentTraceRun{
-		TraceID:     trace,
-		Status:      status,
-		EndedAt:     &end,
-		DurationMs:  &dur,
-		TTFTMs:      &ttft,
-		AnswerKind:  "grounded_content",
-		Model:       "minimax-m3",
-		PromptName:  "agent_system",
+		TraceID:    trace,
+		Status:     status,
+		EndedAt:    &end,
+		DurationMs: &dur,
+		TTFTMs:     &ttft,
+		AnswerKind: "grounded_content",
+		Model:      "minimax-m3",
+		PromptName: "agent_system",
 	}
 }
 
@@ -110,16 +110,16 @@ func nodeEnd(trace, key string) model.AgentTraceNode {
 	dur := int64(900)
 	tin, tout := int64(1200), int64(350)
 	return model.AgentTraceNode{
-		TraceID:         trace,
-		NodeKey:         key,
-		Status:          model.AgentTraceStatusSuccess,
-		EndedAt:         &end,
-		DurationMs:      &dur,
-		Model:           "minimax-m3",
-		PromptDigest:    "system prompt digest",
+		TraceID:          trace,
+		NodeKey:          key,
+		Status:           model.AgentTraceStatusSuccess,
+		EndedAt:          &end,
+		DurationMs:       &dur,
+		Model:            "minimax-m3",
+		PromptDigest:     "system prompt digest",
 		CompletionDigest: "answer digest",
-		TokensIn:        &tin,
-		TokensOut:       &tout,
+		TokensIn:         &tin,
+		TokensOut:        &tout,
 	}
 }
 

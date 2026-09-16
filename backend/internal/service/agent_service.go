@@ -13,6 +13,8 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
+	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/queue"
@@ -46,6 +48,9 @@ type AgentService struct {
 	// prompts resolves versioned prompt templates (SP-21 T5): nil = the
 	// compiled-in builtin of every slot; DB production rows override.
 	prompts *promptregistry.PromptResolver
+	// traceWriter feeds the async agent trace persistence (SP-21 T2): nil
+	// disables turn recording entirely (tests, DB-less seams).
+	traceWriter *agenttrace.Writer
 }
 
 // SetPromptResolver wires the shared resolver (container constructs it after
@@ -53,6 +58,11 @@ type AgentService struct {
 // moves invalidate coherently).
 func (s *AgentService) SetPromptResolver(r *promptregistry.PromptResolver) {
 	s.prompts = r
+}
+
+// SetTraceWriter wires the shared async trace writer (SP-21 T2).
+func (s *AgentService) SetTraceWriter(w *agenttrace.Writer) {
+	s.traceWriter = w
 }
 
 // agentChatStreamer is the narrow Provider capability consumed by the Agent
@@ -150,6 +160,72 @@ type UploadAssistResult struct {
 	SuggestedDescription string   `json:"suggested_description"`
 }
 
+// auxLLMTrace wraps one auxiliary non-streaming LLM call (moderation,
+// compliance, upload assist, usage guide) with its own trace run and node
+// (SP-21 T2): these calls happen outside chat turns, so each becomes an
+// independent run row attributable in the admin list and the T7 cost
+// ledger. Untraced contexts (nil writer, unsampled) run the call as-is.
+func (s *AgentService) auxLLMTrace(ctx context.Context, surface string, slot promptregistry.PromptSlot, nodeType string, call func() (*llm.ChatResponse, error)) (*llm.ChatResponse, error) {
+	rec := agenttrace.NewTurnRecorder(s.traceWriter, observability.TraceID(ctx))
+	started := time.Now()
+	_, promptVersion := s.prompts.Resolve(ctx, slot)
+	promptVer := promptVersion
+	rec.RecordRunStart(model.AgentTraceRun{
+		StartedAt:     started,
+		Surface:       surface,
+		PromptName:    slot.Name,
+		PromptVersion: &promptVer,
+	})
+	span := rec.StartNode(nodeType, nodeType, nil, "")
+	resp, err := call()
+	span.End(agenttrace.NodeEndOptions{
+		NodeName:         nodeType,
+		Status:           auxNodeStatus(err),
+		ErrorCode:        auxErrCode(err),
+		CompletionDigest: firstLineOfChat(resp),
+		TokensIn:         auxUsage(resp, func(u *llm.TokenUsage) int64 { return int64(u.PromptTokens) }),
+		TokensOut:        auxUsage(resp, func(u *llm.TokenUsage) int64 { return int64(u.CompletionTokens) }),
+	})
+	rec.RecordRunEnd(agenttrace.RunEnd{
+		Status:    auxNodeStatus(err),
+		StartedAt: started,
+		Model:     s.servingModel(rec, ""),
+	})
+	return resp, err
+}
+
+func auxNodeStatus(err error) string {
+	if err != nil {
+		return model.AgentTraceStatusError
+	}
+	return model.AgentTraceStatusSuccess
+}
+
+func auxErrCode(err error) string {
+	if err != nil {
+		return "aux_llm_call_failed"
+	}
+	return ""
+}
+
+func firstLineOfChat(resp *llm.ChatResponse) string {
+	if resp == nil {
+		return ""
+	}
+	if idx := strings.IndexByte(resp.Content, '\n'); idx >= 0 {
+		return resp.Content[:idx]
+	}
+	return resp.Content
+}
+
+func auxUsage(resp *llm.ChatResponse, pick func(*llm.TokenUsage) int64) *int64 {
+	if resp == nil || resp.Usage == nil {
+		return nil
+	}
+	v := pick(resp.Usage)
+	return &v
+}
+
 func (s *AgentService) UploadAssist(ctx context.Context, userID int64, title, description, filename, contentType string) (*UploadAssistResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
@@ -171,7 +247,10 @@ func (s *AgentService) UploadAssist(ctx context.Context, userID int64, title, de
 		Temperature: 0.3,
 	}
 
-	resp, err := s.llmProvider.Chat(ctx, req)
+	// SP-21 T2: auxiliary LLM calls each become their own trace run.
+	resp, err := s.auxLLMTrace(ctx, "aux_upload_assist", promptregistry.SlotUploadAssist, agenttrace.NodeTypeUploadAssist, func() (*llm.ChatResponse, error) {
+		return s.llmProvider.Chat(ctx, req)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +381,9 @@ func (s *AgentService) ComplianceCheck(ctx context.Context, title, description, 
 		Temperature: 0.1,
 	}
 
-	resp, err := s.llmProvider.Chat(ctx, req)
+	resp, err := s.auxLLMTrace(ctx, "aux_compliance", promptregistry.SlotComplianceCheck, agenttrace.NodeTypeCompliance, func() (*llm.ChatResponse, error) {
+		return s.llmProvider.Chat(ctx, req)
+	})
 	if err != nil {
 		// LLM unavailable but Green returned review → return warning
 		if greenResult == "review" {
@@ -452,7 +533,9 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 		Temperature: 0.5,
 	}
 
-	resp, err := s.llmProvider.Chat(ctx, req)
+	resp, err := s.auxLLMTrace(ctx, "aux_guide", promptregistry.SlotUsageGuide, agenttrace.NodeTypeGuide, func() (*llm.ChatResponse, error) {
+		return s.llmProvider.Chat(ctx, req)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -539,7 +622,9 @@ func (s *AgentService) Moderate(ctx context.Context, contentItemID int64) (*Mode
 		Temperature: 0.1,
 	}
 
-	resp, err := s.llmProvider.Chat(ctx, req)
+	resp, err := s.auxLLMTrace(ctx, "aux_moderation", promptregistry.SlotContentModeration, agenttrace.NodeTypeModerate, func() (*llm.ChatResponse, error) {
+		return s.llmProvider.Chat(ctx, req)
+	})
 	if err != nil {
 		// LLM unavailable, use Green result as fallback
 		if greenResult == "block" {
