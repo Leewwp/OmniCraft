@@ -58,20 +58,26 @@ const (
 var pathologicalCases = []string{"sd-0027", "sd-0040"}
 
 type genRun struct {
-	Phase          string                       `json:"phase"` // always "generation" (checkpoint/resume key)
-	CaseKey        string                       `json:"case_key"`
-	PrincipalKey   string                       `json:"principal_key"`
-	Query          string                       `json:"query"`
-	Status         string                       `json:"status"` // answered | no_evidence | degraded | provider_error
-	AnswerKind     string                       `json:"answer_kind,omitempty"`
-	Answer         string                       `json:"answer,omitempty"`
-	Citations      []rageval.AnswerEvalCitation `json:"citations,omitempty"`
-	ToolSteps      []rageval.ToolStepRecord     `json:"tool_steps,omitempty"`
-	RetrievedIDs   []int64                      `json:"retrieved_ids,omitempty"`
-	Degraded       bool                         `json:"degraded"`
-	DegradedReason string                       `json:"degraded_reason,omitempty"`
-	ErrorCode      string                       `json:"error_code,omitempty"`
-	Attempts       int                          `json:"attempts"`
+	Phase        string                       `json:"phase"` // always "generation" (checkpoint/resume key)
+	CaseKey      string                       `json:"case_key"`
+	PrincipalKey string                       `json:"principal_key"`
+	Query        string                       `json:"query"`
+	Status       string                       `json:"status"` // answered | no_evidence | degraded | provider_error
+	AnswerKind   string                       `json:"answer_kind,omitempty"`
+	Answer       string                       `json:"answer,omitempty"`
+	Citations    []rageval.AnswerEvalCitation `json:"citations,omitempty"`
+	ToolSteps    []rageval.ToolStepRecord     `json:"tool_steps,omitempty"`
+	RetrievedIDs []int64                      `json:"retrieved_ids,omitempty"`
+	// ContextExcerpts carries the excerpt text of each cited chunk — the exact
+	// context surface the model saw for those candidates (title + 240 runes).
+	// It lives only in this local checkpoint artifact, never in the redacted
+	// summary or any committed contract, so downstream generation-layer eval
+	// (SP-22) can reconstruct real contexts instead of approximating them.
+	ContextExcerpts []string `json:"context_excerpts,omitempty"`
+	Degraded        bool     `json:"degraded"`
+	DegradedReason  string   `json:"degraded_reason,omitempty"`
+	ErrorCode       string   `json:"error_code,omitempty"`
+	Attempts        int      `json:"attempts"`
 
 	Deterministic     *rageval.DeterministicJudgeResult `json:"deterministic,omitempty"`
 	NoAnswer          *rageval.NoAnswerJudgeResult      `json:"no_answer,omitempty"`
@@ -487,6 +493,7 @@ func generateOne(ctx context.Context, ctr *container.ServiceContainer, c model.E
 		var answer strings.Builder
 		var citations []rageval.AnswerEvalCitation
 		var toolSteps []rageval.ToolStepRecord
+		var excerpts []string
 		errorCode := ""
 		turnCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 		err := ctr.AgentService.ChatStream(turnCtx, fixtureUserID, service.ChatTurnInput{Message: c.Query}, nil,
@@ -505,6 +512,9 @@ func generateOne(ctx context.Context, ctr *container.ServiceContainer, c model.E
 							ContentID: cit.ContentID, ContentVersion: cit.ContentVersion, ChunkKey: cit.ChunkKey,
 							ChunkIndex: cit.ChunkIndex, Title: cit.Title, Zone: cit.Zone, Source: cit.Source,
 						})
+						if strings.TrimSpace(cit.Excerpt) != "" {
+							excerpts = append(excerpts, cit.Title+"\n"+cit.Excerpt)
+						}
 					}
 					run.Degraded = ev.Degraded
 					run.DegradedReason = ev.DegradedReason
@@ -518,6 +528,7 @@ func generateOne(ctx context.Context, ctr *container.ServiceContainer, c model.E
 		run.Answer = answer.String()
 		run.Citations = citations
 		run.ToolSteps = toolSteps
+		run.ContextExcerpts = excerpts
 		run.ErrorCode = errorCode
 		switch {
 		case errorCode != "":
