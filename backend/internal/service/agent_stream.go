@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -128,6 +129,8 @@ type agentToolResult struct {
 	Search  []ContentSummary     `json:"search,omitempty"`
 	IPs     []AgentIPSummary     `json:"ips,omitempty"`
 	Suggest *UploadAssistResult  `json:"suggest,omitempty"`
+	Image   *AgentImageResult    `json:"image,omitempty"`
+	MCP     *AgentMCPResult      `json:"mcp,omitempty"`
 }
 
 // streamedToolCallAccumulator assembles OpenAI-style streamed tool calls,
@@ -266,9 +269,16 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 
 	policy := s.ToolPolicy()
 	systemMsg := s.serverOwnedSystemPrompt(ctx, resolved.Surface, resolved.Content)
+	tools := s.ToolDefinitions()
+	// SP-23 M3: configured MCP servers append their namespaced tools; a
+	// dead server contributes none (never blocks the loop). Unwired seams
+	// (tests, minimal constructors) contribute nothing.
+	if s.mcpBridge != nil {
+		tools = append(tools, s.mcpBridge.ToolDefinitions(ctx)...)
+	}
 	req := llm.ChatRequest{
 		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
-		Tools:     s.ToolDefinitions(),
+		Tools:     tools,
 		MaxTokens: policy.MaxOutputTokens,
 		Stream:    true,
 	}
@@ -286,6 +296,11 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	var answerBuf strings.Builder
 	var thinkingBuf strings.Builder
 	var executedTools []AgentToolExecution
+	// SP-23 M4: conversation-level budget baseline (persisted #538 rows)
+	// and this conversation's own signed-image URL prefixes (the piece-2
+	// allowlist is dynamic: only hosts we ourselves issued survive).
+	persistedToolCalls, persistedToolTurns := conversationToolUsage(s.loadConversationToolRows(ctx, convIDForTools(conv)))
+	ownImagePrefixes := []string{}
 	citationCandidates := make([]AgentCitation, 0, policy.CitationMaxCount)
 	seenCitationKeys := make(map[string]bool, policy.CitationMaxCount)
 	retrievalSources := make(map[string]string)
@@ -400,7 +415,23 @@ loop:
 			// server-derived summary only, raw arguments never recorded).
 			toolSpan := turnRecorder.StartNode(agenttrace.NodeTypeTool,
 				fmt.Sprintf("tool_%s_%d", agentToolNodeKey(tc.Function.Name), len(executedTools)+1), roundSpan, "")
-			outcome, toolErr := s.ExecuteTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), userID, nil)
+			turnImages := 0
+			for _, et := range executedTools {
+				if et.Name == ToolGenerateImage && et.Status == AgentToolStatusSuccess {
+					turnImages++
+				}
+			}
+			// SP-23 M4 pieces 3/4: conversation-level budgets gate every
+			// tool call; the degradation result stops the loop from
+			// burning more rounds against a capped session.
+			if exceeded := s.SessionBudgetExceeded(persistedToolCalls, persistedToolTurns, len(executedTools), 1); exceeded != "" {
+				execution := AgentToolExecution{Name: tc.Function.Name, Status: AgentToolStatusError, ArgsSummary: "[session-budget]"}
+				executedTools = append(executedTools, execution)
+				_ = handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution})
+				toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: `{"ok":false,"error":"session_budget_exceeded","detail":` + strconv.Quote(exceeded) + `}`})
+				continue
+			}
+			outcome, toolErr := s.ExecuteToolInConversation(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), userID, convIDForTools(conv), turnImages, nil)
 			execution := AgentToolExecution{
 				Name:        tc.Function.Name,
 				ArgsSummary: agentToolArgsSummary(tc.Function.Name, json.RawMessage(tc.Function.Arguments)),
@@ -423,11 +454,26 @@ loop:
 				traceAgentEvent(traceID, "tool_error", "tool", tc.Function.Name, "safe_error", result.Error)
 			} else if outcome != nil {
 				execution.Hits = agentToolHitCount(outcome)
+				// SP-23 M5: external tools badge + their specifics land in
+				// the trace node extra (cost for images, server/tool and
+				// truncation for MCP).
+				execution.External = outcome.Image != nil || outcome.MCP != nil
 				result.Detail = outcome.Detail
 				result.Guide = outcome.Guide
 				result.Search = outcome.Search
 				result.IPs = outcome.IPs
 				result.Suggest = outcome.Suggest
+				result.Image = outcome.Image
+				result.MCP = outcome.MCP
+				// SP-23 M4 piece 1: external payloads carry the
+				// not-instructions fence; piece 2 prereq: remember this
+				// conversation's own signed URL prefixes.
+				if outcome.MCP != nil {
+					result.MCP.Result = FenceExternalResult(outcome.MCP.Result, s.cfg.Agent.Guardrails.FenceExternalToolResults)
+				}
+				if outcome.Image != nil && outcome.Image.URL != "" {
+					ownImagePrefixes = append(ownImagePrefixes, urlPrefixOf(outcome.Image.URL))
+				}
 				for chunkKey, source := range outcome.RetrievalSources {
 					retrievalSources[chunkKey] = source
 				}
@@ -495,7 +541,7 @@ loop:
 				Status:       toolNodeStatus(toolErr),
 				ErrorCode:    result.Error,
 				PromptDigest: execution.ArgsSummary,
-				Extra:        model.JSONB(agentToolExtraJSON(execution)),
+				Extra:        model.JSONB(agentToolExtraJSON(execution, outcome)),
 			})
 			executedTools = append(executedTools, execution)
 			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
@@ -557,6 +603,9 @@ loop:
 	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
 	citeSpan.End(agenttrace.NodeEndOptions{NodeName: "citation_revalidation", Extra: model.JSONB(agentCitationExtraJSON(citations))})
 	answer := answerBuf.String()
+	// SP-23 M4 piece 2: image URLs in the model answer survive only on the
+	// platform's own hosts (or a host this conversation's tools issued).
+	answer = SanitizeImageURLs(answer, s.cfg.Agent.Guardrails.ImageURLAllowHosts, ownImagePrefixes)
 	classifySpan := turnRecorder.StartNode(agenttrace.NodeTypeClassify, "classify", nil, "")
 	kind := ClassifyStreamAnswer(citations, executedTools, answer, degraded, s.conversationalMaxRunes())
 	classifySpan.End(agenttrace.NodeEndOptions{
@@ -806,12 +855,25 @@ func agentToolNodeKey(name string) string {
 }
 
 // agentToolExtraJSON snapshots the #538 step shape into the node extra.
-func agentToolExtraJSON(execution AgentToolExecution) []byte {
-	return promptregistryMustJSON(map[string]any{
+func agentToolExtraJSON(execution AgentToolExecution, outcome *AgentToolOutcome) []byte {
+	payload := map[string]any{
 		"hits":        execution.Hits,
 		"status":      string(execution.Status),
+		"external":    execution.External,
 		"duration_ms": execution.DurationMs,
-	})
+	}
+	// SP-23 M5: external-tool specifics — image cost estimate (T7 rate
+	// linkage) and MCP server/tool/truncation — ride the trace node extra.
+	if outcome != nil && outcome.Image != nil {
+		payload["image_cost_cny"] = outcome.Image.CostCNY
+		payload["image_size"] = outcome.Image.Size
+	}
+	if outcome != nil && outcome.MCP != nil {
+		payload["mcp_server"] = outcome.MCP.Server
+		payload["mcp_tool"] = outcome.MCP.Tool
+		payload["mcp_truncated"] = outcome.MCP.Truncated
+	}
+	return promptregistryMustJSON(payload)
 }
 
 func agentCitationExtraJSON(citations []AgentCitation) []byte {

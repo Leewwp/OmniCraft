@@ -87,4 +87,3 @@ func TestSocialReportAutoHideInvalidatesContentCache(t *testing.T) {
 	require.False(t, mr.Exists("cache:content:"+strconv.FormatInt(content.ID, 10)),
 		"auto-hide 写点必须立即失效详情缓存（FIX-38），否则隐藏内容在 TTL 窗口内仍可读")
 }
-

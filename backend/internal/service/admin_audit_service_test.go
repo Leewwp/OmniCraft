@@ -30,15 +30,15 @@ func TestFilterMetadata_AllowlistStripsUnknownKeys(t *testing.T) {
 
 func TestFilterMetadata_SensitiveKeysAlwaysStripped(t *testing.T) {
 	raw := map[string]interface{}{
-		"password":     "secret123",
-		"api_key":      "key123",
-		"cookie":       "session=abc",
-		"access_key":   "ak123",
-		"private_key":  "pk123",
+		"password":      "secret123",
+		"api_key":       "key123",
+		"cookie":        "session=abc",
+		"access_key":    "ak123",
+		"private_key":   "pk123",
 		"authorization": "Bearer xyz",
-		"header":       "X-Custom: val",
-		"grant":        "g123",
-		"secret":       "s123",
+		"header":        "X-Custom: val",
+		"grant":         "g123",
+		"secret":        "s123",
 	}
 	filtered := filterMetadata("content_ban", raw)
 

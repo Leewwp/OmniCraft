@@ -542,6 +542,84 @@ type AgentConfig struct {
 	// synthetic entry goes first; fallbacks list registered model ids in
 	// order; retry_on accepts provider_error / blank_answer.
 	Routing AgentRoutingConfig `mapstructure:"routing" json:"routing"`
+	// Guardrails carries the SP-23 M4 five-piece protections that are
+	// server-side: untrusted-tool-result fencing, image-URL domain
+	// allowlist, and the conversation-level budgets.
+	Guardrails AgentGuardrailsConfig `mapstructure:"guardrails" json:"guardrails"`
+	// MCP drives the external-tool bridge (SP-23 M3, #568): configured
+	// servers are exposed to the agent as mcp_<server>_<tool> tools over
+	// stdio subprocess transports. Default off (gray rollout per server).
+	MCP AgentMCPConfig `mapstructure:"mcp" json:"mcp"`
+	// Image drives the generate_image tool (SP-23 M1, #566): a CogView-4
+	// OpenAI-compatible images endpoint whose results are re-uploaded to the
+	// platform's own OSS bucket (external image URLs never surface), plus a
+	// per-conversation generation budget. enabled=false or a missing
+	// AGENT_IMAGE_API_KEY keeps the tool out of the model's tool list.
+	Image AgentImageConfig `mapstructure:"image" json:"image"`
+}
+
+// AgentGuardrailsConfig holds every M4 limit (config-driven, Key Rule 6).
+type AgentGuardrailsConfig struct {
+	// FenceExternalToolResults wraps MCP/image tool results in explicit
+	// "data, not instructions" boundary markers before they re-enter the
+	// model conversation (OWASP LLM01 / tool-poisoning mitigation).
+	FenceExternalToolResults bool `mapstructure:"fence_external_tool_results" json:"fence_external_tool_results"`
+	// ImageURLAllowHosts is the image-URL allowlist for model output: any
+	// image-looking URL outside these hosts (and the OSS signing host) is
+	// replaced by a placeholder (M4 piece 2).
+	ImageURLAllowHosts []string `mapstructure:"image_url_allow_hosts" json:"image_url_allow_hosts"`
+	// SessionToolCallLimit caps total tool calls per conversation across
+	// turns (persisted #538 steps + live turn); exceeding returns a stable
+	// degradation code instead of executing (M4 piece 3).
+	SessionToolCallLimit int `mapstructure:"session_tool_call_limit" json:"session_tool_call_limit"`
+	// SessionToolTurnLimit caps how many turns of one conversation may run
+	// tools at all — the conversation-level hard roof above the per-turn
+	// tool_limit (M4 piece 4).
+	SessionToolTurnLimit int `mapstructure:"session_tool_turn_limit" json:"session_tool_turn_limit"`
+}
+
+// AgentMCPConfig carries the MCP client bridge switches: every limit is
+// config-driven; servers launch lazily as stdio subprocesses.
+type AgentMCPConfig struct {
+	Enabled        bool                   `mapstructure:"enabled" json:"enabled"`
+	CallTimeoutSec int                    `mapstructure:"call_timeout_sec" json:"call_timeout_sec"`
+	ResultMaxBytes int                    `mapstructure:"result_max_bytes" json:"result_max_bytes"`
+	Servers        []AgentMCPServerConfig `mapstructure:"servers" json:"servers"`
+}
+
+// AgentMCPServerConfig is one stdio MCP server subprocess.
+type AgentMCPServerConfig struct {
+	ID      string            `mapstructure:"id" json:"id"`
+	Command string            `mapstructure:"command" json:"command"`
+	Args    []string          `mapstructure:"args" json:"args"`
+	Env     map[string]string `mapstructure:"env" json:"env"`
+	// Tools is an optional allowlist; empty exposes every advertised tool.
+	Tools []string `mapstructure:"tools" json:"tools"`
+}
+
+// AgentImageConfig carries every generate_image limit (Key Rule 6: limits
+// come from config, never code). APIKey is env-only (AGENT_IMAGE_API_KEY).
+type AgentImageConfig struct {
+	Enabled           bool     `mapstructure:"enabled" json:"enabled"`
+	Provider          string   `mapstructure:"provider" json:"provider"`
+	Model             string   `mapstructure:"model" json:"model"`
+	APIBase           string   `mapstructure:"api_base" json:"api_base"`
+	APIKey            string   `mapstructure:"api_key" json:"-"`
+	SizeDefault       string   `mapstructure:"size_default" json:"size_default"`
+	SizeOptions       []string `mapstructure:"size_options" json:"size_options"`
+	MaxImageBytes     int      `mapstructure:"max_image_bytes" json:"max_image_bytes"`
+	TimeoutSec        int      `mapstructure:"timeout_sec" json:"timeout_sec"`
+	SessionImageLimit int      `mapstructure:"session_image_limit" json:"session_image_limit"`
+	// PricePerImageCNY feeds the trace cost estimate (SP-21 T7 rate-table
+	// linkage): cost = generated images x this flat rate.
+	PricePerImageCNY float64 `mapstructure:"price_per_image_cny" json:"price_per_image_cny"`
+}
+
+// ImageConfigured reports whether the tool may be offered to the model: the
+// switch is on AND an endpoint key exists. Fail-closed — a missing key can
+// never surface a half-working tool.
+func (a AgentImageConfig) ImageConfigured() bool {
+	return a.Enabled && strings.TrimSpace(a.APIKey) != ""
 }
 
 // AgentModelConfig is one incremental chat model registry entry.
@@ -917,6 +995,15 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_EMBEDDING_API_KEY"); v != "" {
 		cfg.Agent.EmbeddingAPIKey = v
+	}
+	if v := os.Getenv("AGENT_IMAGE_API_KEY"); v != "" {
+		cfg.Agent.Image.APIKey = v
+	}
+	if v := os.Getenv("AGENT_IMAGE_API_BASE"); v != "" {
+		cfg.Agent.Image.APIBase = v
+	}
+	if v := os.Getenv("AGENT_IMAGE_MODEL"); v != "" {
+		cfg.Agent.Image.Model = v
 	}
 	if v := os.Getenv("AGENT_EMBEDDING_GROUP_ID"); v != "" {
 		cfg.Agent.EmbeddingGroupID = v
@@ -1344,6 +1431,14 @@ func (c *Config) ValidateRelease() error {
 		requirePositiveInt(&errs, "agent.max_tool_calls_per_turn", c.Agent.MaxToolCallsPerTurn)
 		requirePositiveInt(&errs, "agent.max_output_tokens", c.Agent.MaxOutputTokens)
 		requirePositiveInt(&errs, "agent.provider_timeout_sec", c.Agent.ProviderTimeoutSec)
+		if c.Agent.Image.ImageConfigured() {
+			requirePositiveInt(&errs, "agent.image.timeout_sec", c.Agent.Image.TimeoutSec)
+			requirePositiveInt(&errs, "agent.image.session_image_limit", c.Agent.Image.SessionImageLimit)
+			requirePositiveInt(&errs, "agent.image.max_image_bytes", c.Agent.Image.MaxImageBytes)
+			if strings.TrimSpace(c.Agent.Image.Model) == "" || strings.TrimSpace(c.Agent.Image.APIBase) == "" {
+				errs = append(errs, "agent.image.model and agent.image.api_base are required when image generation is enabled")
+			}
+		}
 		requirePositiveInt(&errs, "agent.citation_max_count", c.Agent.CitationMaxCount)
 		requirePositiveInt(&errs, "agent.max_user_message_chars", c.Agent.MaxUserMessageChars)
 		requirePositiveInt(&errs, "agent.chat_max_context_messages", c.Agent.ChatMaxContextMsgs)
