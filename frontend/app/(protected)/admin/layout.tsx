@@ -33,6 +33,7 @@ const ADMIN_NAV = [
   { href: "/admin/queue", labelKey: "navQueue", icon: ListOrdered },
   { href: "/admin/traces", labelKey: "navTraces", icon: Activity },
   { href: "/admin/llm-costs", labelKey: "navLlmCosts", icon: Coins },
+  { href: "/admin/prompts", labelKey: "navPrompts", icon: ScrollText },
   { href: "/admin/audit-logs", labelKey: "navAuditLogs", icon: ScrollText },
   { href: "/admin/config", labelKey: "navConfig", icon: Settings },
   { href: "/admin/agent-config", labelKey: "navAgentConfig", icon: Bot },

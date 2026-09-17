@@ -1181,6 +1181,26 @@
       "routingEvents": "Model routing events",
       "noNodes": "No nodes recorded for this trace",
       "selectNodeHint": "Select a node to inspect (digests / tokens / error / extra)"
+    },
+    "navPrompts": "Prompts",
+    "prompts": {
+      "title": "Prompt Registry",
+      "subtitle": "Versions, labels and hot updates of every prompt slot (writes are audited)",
+      "loadFailed": "Failed to load the prompt registry",
+      "loading": "Loading…",
+      "placeholders": "Required placeholders",
+      "newVersion": "New version",
+      "editorLabel": "New template content",
+      "save": "Save as new version",
+      "saveFailed": "Save failed",
+      "moveFailed": "Label move failed",
+      "versions": "Version history",
+      "diffFrom": "Diff from",
+      "diffTo": "Diff to",
+      "moveProduction": "Set production",
+      "moveStaging": "Set staging",
+      "selectSlot": "Select a slot to inspect versions and labels",
+      "auditHint": "Version creates and label moves are audited (Admin → Audit Logs, actions prompt.version.create / prompt.label.set)."
     }
   },
   "social": {
