@@ -1173,6 +1173,14 @@
       "estimatedNo": "Unpriced",
       "colConversation": "Conversation",
       "colTurns": "Turns"
+    },
+    "tracesDetail": {
+      "backToList": "Back to request list",
+      "runStatus": "Status / answer kind",
+      "links": "Links",
+      "routingEvents": "Model routing events",
+      "noNodes": "No nodes recorded for this trace",
+      "selectNodeHint": "Select a node to inspect (digests / tokens / error / extra)"
     }
   },
   "social": {

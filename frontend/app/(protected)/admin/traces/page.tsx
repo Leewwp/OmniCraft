@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { AdminMetricCard } from "@/components/admin/AdminMetricCard";
 import { Activity, CheckCircle2, Timer, Zap, GitBranch, Search } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface TraceRun {
@@ -346,9 +347,13 @@ function AdminTracesContent() {
                     {new Date(run.started_at).toLocaleString()}
                   </td>
                   <td className="px-3 py-2">
-                    <span className="font-mono text-xs" title={run.trace_id}>
+                    <Link
+                      href={`/admin/traces/${run.trace_id}`}
+                      className="font-mono text-xs text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                      title={run.trace_id}
+                    >
                       {run.trace_id.slice(0, 12)}…
-                    </span>
+                    </Link>
                   </td>
                   <td className="px-3 py-2">
                     <span

@@ -464,6 +464,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		adminTraceHandler := handler.NewAdminTraceHandler(ctr.AgentTraceRepo)
 		admin.GET("/traces", adminTraceHandler.ListTraces)
 		admin.GET("/traces/stats", adminTraceHandler.Stats)
+		admin.GET("/traces/:trace_id", adminTraceHandler.GetTraceDetail)
 		// SP-21 T7: LLM token/cost ledger — trace-node token matrices
 		// priced at query time by the agent.models rate table.
 		adminLLMCostHandler := handler.NewAdminLLMCostHandler(ctr.AgentTraceRepo, cfg)
