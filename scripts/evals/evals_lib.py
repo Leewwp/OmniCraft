@@ -90,7 +90,10 @@ def load_generation_rows(path: str) -> tuple[dict, list[EvalCase]]:
                 continue
             row = json.loads(line)
             if row.get("kind") == "rag-eval":
-                header = row
+                # Merged multi-split files carry one header per split; the
+                # first one describes the run identity best.
+                if not header:
+                    header = row
                 continue
             phase = row.get("phase", "generation")
             if phase != "generation":

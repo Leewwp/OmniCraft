@@ -1,0 +1,49 @@
+# PR 级零成本评测门禁阈值（SP-22 E3，票 #562）
+#
+# 语义：每一项都是「必须满足」的下限（lower bound）。`except_lower_is_better`
+# 段里的项反向——值是上限（upper bound），超过即失败。
+#
+# 数据源：本文件只被 backend/cmd/rag-gate 读取，断言对象是
+# backend/testdata/rag_pr_gate_snapshot.jsonl 的冻结快照指标。快照刷新
+# （retrieval 行为或 golden 集变化）时同步复核本文件。
+#
+# 阈值策略（用户 2026-09-16 拍板）：先门禁形态、后收紧——初值取基线下方
+# 留足余量，观察两轮 PR 后再按实际波动收紧；faithfulness 类 LLM 指标不在
+# 本门禁（那是发布前全量门，见 SP-22 E1/E5）。
+#
+# 基线（2026-09-17 全量 196 条冻结快照，label=sp22-e1-baseline-dev，
+# switches: hybrid=on / query_expansion=off / rerank=off，实测值）：
+#   context_recall_at_10 0.9605 | hit_rate_at_5 0.8553 | hit_rate_at_10 0.9605
+#   mrr 0.4604 | correct_answer_rate 0.9545 | over_refusal_rate 0.0455
+#   hallucination_rate 0.9000 | correct_refusal_rate 0.1000
+#   （152/196 参与检索层指标，44 条期望集为空按定义跳过）
+#
+# 阈值现状（形态优先）：下限按「基线再留一档余量」设定，不是当前水平的复读，
+# 目的是先让门禁在 PR 上跑起来观察两轮真实波动，再按方差收紧（用户拍板）。
+#
+# 注意 hallucination_rate 基线高达 0.90（20 个 no_answer 层用例里 18 个仍
+# 产出 grounded 答案）——这是 **已记录的观察项**（见 E1 报告与 #562 备注），
+# 初值只做「不得比基线更差」的宽松上限，收紧与根因排查留给 E2/E5。
+
+artifact_version: 1
+
+# 必须达到的下限。
+minimums:
+  context_recall_at_10: 0.60
+  hit_rate_at_5: 0.58
+  hit_rate_at_10: 0.64
+  mrr: 0.32
+  correct_answer_rate: 0.90
+  correct_refusal_rate: 0.05
+
+# 必须不超过的上限（越低越好）。
+maximums:
+  over_refusal_rate: 0.10
+  hallucination_rate: 0.95
+
+# 结构完整性断言：快照自身必须满足，防止「空快照全绿」这类假绿。
+integrity:
+  min_cases: 150
+  min_retrieval_evaluated: 100
+  min_unanswerable: 10
+  min_answerable: 100
