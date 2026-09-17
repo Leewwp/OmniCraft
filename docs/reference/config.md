@@ -62,6 +62,7 @@ linkage): cost = generated images x this flat rate. |
 | `agent.mcp.call_timeout_sec` | `int` | CallTimeoutSec |
 | `agent.mcp.enabled` | `bool` | Enabled |
 | `agent.mcp.result_max_bytes` | `int` | ResultMaxBytes |
+| `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes |
 | `agent.mcp.servers` | `[]AgentMCPServerConfig` | Servers |
 | `agent.models` | `[]AgentModelConfig` | Models is the SP-20 (#545) incremental model supply registry. The
 primary stays on the single llm_provider wiring abo... |
@@ -81,6 +82,7 @@ primary stays on the single llm_provider wiring abo... |
 | `agent.mcp.enabled` | `bool` | Enabled |
 | `agent.mcp.call_timeout_sec` | `int` | CallTimeoutSec |
 | `agent.mcp.result_max_bytes` | `int` | ResultMaxBytes |
+| `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes |
 | `agent.mcp.servers` | `[]AgentMCPServerConfig` | Servers |
 | `agent.image.enabled` | `bool` | Enabled |
 | `agent.image.provider` | `string` | Provider |
