@@ -384,6 +384,7 @@ backend/
 | `GET` | `/api/v1/admin/feedback/:id` | adminFeedbackHandler.GetFeedback |
 | `GET` | `/api/v1/admin/ips` | adminHandler.ListPendingIPs |
 | `GET` | `/api/v1/admin/llm-configs` | adminHandler.ListLLMConfigs |
+| `GET` | `/api/v1/admin/llm-costs` | adminLLMCostHandler.Ledger |
 | `GET` | `/api/v1/admin/prompts` | adminPromptHandler.ListSlots |
 | `GET` | `/api/v1/admin/prompts/:name/versions` | adminPromptHandler.ListVersions |
 | `GET` | `/api/v1/admin/queue/dlq` | adminHandler.GetDLQEntries |

@@ -552,6 +552,11 @@ type AgentModelConfig struct {
 	APIBase     string `mapstructure:"api_base" json:"api_base"`
 	APIKey      string `mapstructure:"api_key" json:"-"`
 	DisplayName string `mapstructure:"display_name" json:"display_name"`
+	// CostInPerMTokens / CostOutPerMTokens are CNY per 1M tokens for the
+	// cost ledger (SP-21 T7). Zero = unknown rate: the model's tokens are
+	// still aggregated but never priced ("unknown 不估算").
+	CostInPerMTokens  float64 `mapstructure:"cost_in_per_m_tokens" json:"cost_in_per_m_tokens"`
+	CostOutPerMTokens float64 `mapstructure:"cost_out_per_m_tokens" json:"cost_out_per_m_tokens"`
 }
 
 // AgentRoutingConfig is the SP-20 routing chain configuration.

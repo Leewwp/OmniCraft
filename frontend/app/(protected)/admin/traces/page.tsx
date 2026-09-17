@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -60,8 +62,22 @@ function formatRate(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
+// useSearchParams needs a Suspense boundary (CSR bailout), so the page body
+// lives in an inner component — same pattern as the agent page.
 export default function AdminTracesPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminTracesContent />
+    </Suspense>
+  );
+}
+
+function AdminTracesContent() {
   const t = useTranslations();
+  const searchParams = useSearchParams();
+  // Deep links (e.g. the llm-costs top-conversation drill-down) pre-apply the
+  // conversation filter once on mount.
+  const initialConversation = searchParams.get("conversation_id") ?? "";
   const [runs, setRuns] = useState<TraceRun[]>([]);
   const [stats, setStats] = useState<TraceStats | null>(null);
   const [total, setTotal] = useState(0);
@@ -70,7 +86,7 @@ export default function AdminTracesPage() {
   const [error, setError] = useState("");
 
   const [traceId, setTraceId] = useState("");
-  const [conversationId, setConversationId] = useState("");
+  const [conversationId, setConversationId] = useState(initialConversation);
   const [userId, setUserId] = useState("");
   const [model, setModel] = useState("");
   const [status, setStatus] = useState("");
@@ -78,7 +94,7 @@ export default function AdminTracesPage() {
   const [windowKey, setWindowKey] = useState<(typeof TIME_WINDOWS)[number]["key"]>("24h");
   const [applied, setApplied] = useState({
     traceId: "",
-    conversationId: "",
+    conversationId: initialConversation,
     userId: "",
     model: "",
     status: "",

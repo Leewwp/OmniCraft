@@ -371,6 +371,11 @@ loop:
 		roundSpan.End(agenttrace.NodeEndOptions{
 			TokensIn:  usagePtr(roundUsage, func(u *llm.TokenUsage) int64 { return int64(u.PromptTokens) }),
 			TokensOut: usagePtr(roundUsage, func(u *llm.TokenUsage) int64 { return int64(u.CompletionTokens) }),
+			// SP-21 T7: attribute the round to the model that actually served
+			// it — the failover target once a routing event fired, else the
+			// pinned preference, else the configured primary. Known only now,
+			// after the (possibly retried) stream call returned.
+			Model: s.servingModel(turnRecorder, turn.Model),
 		})
 		roundCalls := acc.calls()
 		if len(roundCalls) == 0 {
