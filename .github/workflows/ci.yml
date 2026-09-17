@@ -55,6 +55,12 @@ jobs:
         env:
           OMNICRAFT_TEST_POSTGRES_ADMIN_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=postgres sslmode=disable
         run: bash scripts/db/verify-migration-gate.sh -ReportDir artifacts/backend/migrations
+      - name: PR eval gate (zero-cost retrieval + refusal metrics)
+        # SP-22 E3: frozen snapshot + evals/thresholds.yaml. No provider calls,
+        # no database access, milliseconds to run — a regression in the ID
+        # metrics or the refusal confusion matrix fails the PR here.
+        run: go run ./cmd/rag-gate -snapshot testdata/rag_pr_gate_snapshot.jsonl -thresholds ../evals/thresholds.yaml
+        working-directory: backend
       - name: Upload backend evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
