@@ -1,0 +1,3256 @@
+{
+ "snapshot_version": 1,
+ "kind": "rag-pr-gate-snapshot",
+ "dataset_checksum": "sha256:e98c09112f87cec9f3b4f93fa67a70de23e4d3d05d3e0defa82c36198f785814",
+ "source_label": "sp22-e1-baseline-dev",
+ "switches": {
+  "hybrid": true,
+  "query_expansion": false,
+  "rerank": false
+ },
+ "runtime": {
+  "chat": {
+   "api_base": "https://api.minimaxi.com",
+   "model": "MiniMax-M3",
+   "provider": "minimax"
+  },
+  "embedding": {
+   "api_base": "https://dashscope.aliyuncs.com/compatible-mode",
+   "model": "text-embedding-v4",
+   "provider": "openai_compat"
+  },
+  "keyword_source": "postgres",
+  "rerank": {
+   "model": "qwen3-rerank",
+   "provider": "dashscope"
+  }
+ },
+ "cases": [
+  {
+   "case_key": "be-0001",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1782
+   ],
+   "retrieved_ids": [
+    216,
+    228,
+    274,
+    1559,
+    1782
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0002",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1783
+   ],
+   "retrieved_ids": [
+    206,
+    259,
+    286,
+    296,
+    1047,
+    1501,
+    1783,
+    1786
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "be-0003",
+   "split": "test",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1785
+   ],
+   "retrieved_ids": [
+    244,
+    343,
+    357,
+    641,
+    1054,
+    1785
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0004",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1428
+   ],
+   "retrieved_ids": [
+    857,
+    944,
+    1428,
+    1429,
+    1522
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0005",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1465
+   ],
+   "retrieved_ids": [
+    1457,
+    1465
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0006",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    868
+   ],
+   "retrieved_ids": [
+    856,
+    868,
+    944
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0007",
+   "split": "test",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1191
+   ],
+   "retrieved_ids": [
+    1191,
+    1212
+   ],
+   "answer_status": "answered",
+   "answer_kind": "conversational"
+  },
+  {
+   "case_key": "be-0008",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1220
+   ],
+   "retrieved_ids": [
+    1192,
+    1197,
+    1203,
+    1215,
+    1220,
+    1226
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0009",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    865
+   ],
+   "retrieved_ids": [
+    865,
+    896
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0010",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1319
+   ],
+   "retrieved_ids": [
+    805,
+    1311,
+    1319,
+    1329,
+    1796
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "be-0011",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    253
+   ],
+   "retrieved_ids": [
+    253,
+    305,
+    752,
+    1379
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0012",
+   "split": "test",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1154
+   ],
+   "retrieved_ids": [
+    880,
+    923,
+    1154,
+    1166,
+    1242,
+    1246,
+    1279
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0013",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    534
+   ],
+   "retrieved_ids": [
+    486,
+    487,
+    514,
+    529,
+    534,
+    544
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0014",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    781
+   ],
+   "retrieved_ids": [
+    781,
+    944,
+    1792
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0015",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1505
+   ],
+   "retrieved_ids": [
+    201,
+    1488,
+    1502,
+    1505
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0016",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    411
+   ],
+   "retrieved_ids": [
+    411
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0017",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1358
+   ],
+   "retrieved_ids": [
+    222,
+    461,
+    675,
+    701,
+    712,
+    967,
+    1358,
+    1402,
+    1413
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0018",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    774
+   ],
+   "retrieved_ids": [
+    201,
+    228,
+    774,
+    893,
+    1505
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0019",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1714
+   ],
+   "retrieved_ids": [
+    1714,
+    1716,
+    1719,
+    1725,
+    1728
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0020",
+   "split": "test",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1683
+   ],
+   "retrieved_ids": [
+    1671,
+    1682,
+    1683,
+    1696
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0021",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1748
+   ],
+   "retrieved_ids": [
+    1623,
+    1645,
+    1701,
+    1705,
+    1723,
+    1748
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "be-0022",
+   "split": "test",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1659
+   ],
+   "retrieved_ids": [
+    1324,
+    1638,
+    1651,
+    1659,
+    1701,
+    1728
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0023",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    1729
+   ],
+   "retrieved_ids": [
+    1587,
+    1729,
+    1730,
+    1737,
+    1745,
+    1819
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "be-0024",
+   "split": "dev",
+   "layer": "body_evidence",
+   "expected_ids": [
+    608
+   ],
+   "retrieved_ids": [
+    608,
+    630,
+    643
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0001",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    666
+   ],
+   "retrieved_ids": [
+    661,
+    663,
+    666,
+    681,
+    691,
+    721,
+    744
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0002",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1625
+   ],
+   "retrieved_ids": [
+    681,
+    1457,
+    1623,
+    1625,
+    1701,
+    1742
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0003",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1674
+   ],
+   "retrieved_ids": [],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0004",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1660
+   ],
+   "retrieved_ids": [
+    1319,
+    1329,
+    1640,
+    1653,
+    1660,
+    1665,
+    1666
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0005",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    660
+   ],
+   "retrieved_ids": [
+    562,
+    566,
+    582,
+    586,
+    660
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "hn-0006",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1067
+   ],
+   "retrieved_ids": [
+    948,
+    950,
+    956,
+    967,
+    1054,
+    1067
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0007",
+   "split": "test",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1816
+   ],
+   "retrieved_ids": [
+    1553,
+    1566,
+    1581,
+    1587,
+    1597,
+    1816
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0008",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    242
+   ],
+   "retrieved_ids": [
+    242,
+    261,
+    303,
+    308,
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0009",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1491
+   ],
+   "retrieved_ids": [
+    1483,
+    1491,
+    1498,
+    1519,
+    1543
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0010",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1403
+   ],
+   "retrieved_ids": [
+    1395,
+    1403,
+    1428
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "hn-0011",
+   "split": "test",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    427
+   ],
+   "retrieved_ids": [
+    362,
+    368,
+    415
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0012",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1196
+   ],
+   "retrieved_ids": [
+    1196,
+    1208,
+    1248
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0013",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    1179
+   ],
+   "retrieved_ids": [
+    1097,
+    1121,
+    1138,
+    1179,
+    1181
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0014",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    469
+   ],
+   "retrieved_ids": [
+    461,
+    469,
+    480,
+    505,
+    517,
+    521,
+    560
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0015",
+   "split": "dev",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    771
+   ],
+   "retrieved_ids": [
+    771,
+    776,
+    821
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "hn-0016",
+   "split": "test",
+   "layer": "hard_neighbor",
+   "expected_ids": [
+    869
+   ],
+   "retrieved_ids": [
+    896,
+    898,
+    912,
+    920,
+    940
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0001",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    191
+   ],
+   "retrieved_ids": [
+    191,
+    292
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0002",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1378
+   ],
+   "retrieved_ids": [
+    1337,
+    1359,
+    1378,
+    1387
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0003",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1050
+   ],
+   "retrieved_ids": [
+    948,
+    954,
+    967,
+    1050
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0004",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1621
+   ],
+   "retrieved_ids": [
+    1559,
+    1587,
+    1600,
+    1604,
+    1609,
+    1621
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0005",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    257
+   ],
+   "retrieved_ids": [
+    257
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0006",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    415
+   ],
+   "retrieved_ids": [
+    362,
+    368,
+    415
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0007",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    523
+   ],
+   "retrieved_ids": [
+    465,
+    470,
+    493,
+    517,
+    523
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0008",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    673
+   ],
+   "retrieved_ids": [
+    661,
+    671,
+    673,
+    691
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0009",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    565
+   ],
+   "retrieved_ids": [
+    492,
+    561,
+    562,
+    565,
+    566,
+    586,
+    1173,
+    1448
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "ke-0010",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1476
+   ],
+   "retrieved_ids": [
+    1476
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0011",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1244
+   ],
+   "retrieved_ids": [
+    1244,
+    1248,
+    1268
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0012",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1656
+   ],
+   "retrieved_ids": [
+    1293,
+    1309,
+    1318,
+    1329,
+    1656,
+    1796
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0013",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    918
+   ],
+   "retrieved_ids": [
+    848,
+    886,
+    918
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0014",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1089
+   ],
+   "retrieved_ids": [
+    1089,
+    1091,
+    1094,
+    1107,
+    1111,
+    1118,
+    1138
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0015",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1416
+   ],
+   "retrieved_ids": [
+    1416,
+    1442,
+    1465
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0016",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    761
+   ],
+   "retrieved_ids": [
+    761,
+    769
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0017",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1668
+   ],
+   "retrieved_ids": [
+    1293,
+    1658,
+    1668,
+    1770,
+    1776
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0018",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    994
+   ],
+   "retrieved_ids": [
+    956,
+    984,
+    989,
+    994,
+    1047
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0019",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1568
+   ],
+   "retrieved_ids": [
+    1557,
+    1558,
+    1560,
+    1568,
+    1578
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0020",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    433
+   ],
+   "retrieved_ids": [
+    415,
+    433,
+    556,
+    816,
+    909
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0021",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1280
+   ],
+   "retrieved_ids": [
+    1260,
+    1273,
+    1280
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0022",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1125
+   ],
+   "retrieved_ids": [
+    1106,
+    1107,
+    1125
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0023",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    212
+   ],
+   "retrieved_ids": [
+    212,
+    219,
+    279,
+    300
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0024",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    595
+   ],
+   "retrieved_ids": [
+    595,
+    628,
+    650,
+    1409
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0025",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    996
+   ],
+   "retrieved_ids": [
+    948,
+    974,
+    989,
+    996,
+    1062
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0026",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1515
+   ],
+   "retrieved_ids": [
+    1483,
+    1488,
+    1498,
+    1515,
+    1518,
+    1529,
+    1539
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0027",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1709
+   ],
+   "retrieved_ids": [
+    1699,
+    1702,
+    1705,
+    1709,
+    1711,
+    1712,
+    1807,
+    1809
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0028",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    544
+   ],
+   "retrieved_ids": [
+    544
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0029",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1759
+   ],
+   "retrieved_ids": [
+    828,
+    839,
+    923,
+    1100,
+    1328,
+    1712,
+    1759
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0030",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    948
+   ],
+   "retrieved_ids": [
+    948
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0031",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    333
+   ],
+   "retrieved_ids": [
+    333
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0032",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    529
+   ],
+   "retrieved_ids": [
+    521,
+    529
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0033",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1801
+   ],
+   "retrieved_ids": [
+    1359,
+    1801
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0034",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    967
+   ],
+   "retrieved_ids": [
+    967
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0035",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    934
+   ],
+   "retrieved_ids": [
+    909,
+    934
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0036",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    730
+   ],
+   "retrieved_ids": [
+    688,
+    730,
+    837,
+    1558,
+    1609
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0037",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    183
+   ],
+   "retrieved_ids": [
+    183,
+    216,
+    275
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0038",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1810
+   ],
+   "retrieved_ids": [
+    1488,
+    1810
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0039",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    425
+   ],
+   "retrieved_ids": [
+    391,
+    425,
+    438,
+    452
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0040",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    533
+   ],
+   "retrieved_ids": [
+    473,
+    533
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0041",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    721
+   ],
+   "retrieved_ids": [
+    661,
+    691,
+    721
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0042",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    193
+   ],
+   "retrieved_ids": [
+    193,
+    222,
+    275
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0043",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1500
+   ],
+   "retrieved_ids": [
+    1500,
+    1512
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0044",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1400
+   ],
+   "retrieved_ids": [
+    1400,
+    1434,
+    1806
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0045",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1274
+   ],
+   "retrieved_ids": [
+    1239,
+    1274,
+    1284
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0046",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    764
+   ],
+   "retrieved_ids": [
+    359,
+    764,
+    768
+   ],
+   "answer_status": "answered",
+   "answer_kind": "conversational"
+  },
+  {
+   "case_key": "ke-0047",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1525
+   ],
+   "retrieved_ids": [
+    1498,
+    1525
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0048",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    385
+   ],
+   "retrieved_ids": [
+    364,
+    385,
+    400
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0049",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1111
+   ],
+   "retrieved_ids": [
+    1089,
+    1106,
+    1107,
+    1111,
+    1116,
+    1117,
+    1138
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0050",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1699
+   ],
+   "retrieved_ids": [
+    1457,
+    1699,
+    1702,
+    1703,
+    1705,
+    1712
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0051",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1640
+   ],
+   "retrieved_ids": [
+    1329,
+    1640,
+    1642,
+    1656,
+    1662
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0052",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1651
+   ],
+   "retrieved_ids": [
+    253,
+    1294,
+    1300,
+    1323,
+    1651,
+    1668,
+    1766,
+    1790
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0053",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1749
+   ],
+   "retrieved_ids": [
+    1557,
+    1581,
+    1582,
+    1597,
+    1612,
+    1749
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0054",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1671
+   ],
+   "retrieved_ids": [
+    1671,
+    1683,
+    1696
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0055",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1742
+   ],
+   "retrieved_ids": [
+    1607,
+    1719,
+    1729,
+    1742,
+    1745
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0056",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1809
+   ],
+   "retrieved_ids": [
+    1809
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0057",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1636
+   ],
+   "retrieved_ids": [
+    222,
+    303,
+    353,
+    1631,
+    1636,
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0058",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1730
+   ],
+   "retrieved_ids": [
+    1557,
+    1560,
+    1597,
+    1730,
+    1732
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0059",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1706
+   ],
+   "retrieved_ids": [
+    1395,
+    1428,
+    1700,
+    1702,
+    1703,
+    1705,
+    1706,
+    1712,
+    1807
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0060",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1627
+   ],
+   "retrieved_ids": [
+    116,
+    132,
+    148,
+    164,
+    180,
+    1622,
+    1627,
+    1628
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0061",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1807
+   ],
+   "retrieved_ids": [
+    1434,
+    1457,
+    1464,
+    1807
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0062",
+   "split": "test",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1786
+   ],
+   "retrieved_ids": [
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0063",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1821
+   ],
+   "retrieved_ids": [
+    1600,
+    1821
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "ke-0064",
+   "split": "dev",
+   "layer": "known_item_exact",
+   "expected_ids": [
+    1788
+   ],
+   "retrieved_ids": [
+    370,
+    400,
+    680,
+    721,
+    1788
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0001",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    569,
+    664,
+    685,
+    701,
+    748,
+    1166
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0002",
+   "split": "test",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    6,
+    37,
+    38,
+    53,
+    54,
+    69,
+    70,
+    85,
+    101,
+    102
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0003",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    227,
+    244,
+    283,
+    420,
+    933,
+    1396
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0004",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    194,
+    244,
+    1306,
+    1480,
+    1638,
+    1753
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0005",
+   "split": "test",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    184,
+    214,
+    736,
+    1020,
+    1128,
+    1181
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0006",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    291,
+    700,
+    725,
+    745,
+    1611
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0007",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    254,
+    307,
+    326,
+    359,
+    635,
+    1547
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0008",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    303,
+    1601,
+    1622,
+    1623,
+    1631,
+    1705,
+    1707,
+    1712,
+    1792
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0009",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    194,
+    283,
+    391,
+    418,
+    857,
+    872
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "na-0010",
+   "split": "test",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    274,
+    321,
+    327,
+    582,
+    681,
+    701,
+    779,
+    903,
+    1094
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0011",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    6,
+    70,
+    102,
+    118,
+    134,
+    166,
+    1039,
+    1569,
+    1693,
+    1819
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "na-0012",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    788,
+    822,
+    1648,
+    1664,
+    1669,
+    1675,
+    1684,
+    1691,
+    1782
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0013",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1056,
+    1160
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0014",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    183,
+    199,
+    303,
+    350,
+    745,
+    829,
+    1543
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0015",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    383,
+    390,
+    391,
+    661,
+    677,
+    708,
+    730
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0016",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    300,
+    500,
+    701,
+    893,
+    913,
+    920,
+    977,
+    1056,
+    1222
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0017",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    235,
+    364,
+    816,
+    1111,
+    1785
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0018",
+   "split": "test",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1638,
+    1640,
+    1642,
+    1656,
+    1769,
+    1776
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0019",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    183,
+    192,
+    199,
+    227,
+    307,
+    1132,
+    1566,
+    1582,
+    1599
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "na-0020",
+   "split": "dev",
+   "layer": "no_answer",
+   "expected_ids": [],
+   "retrieved_ids": [
+    254,
+    307,
+    350,
+    353,
+    1297
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0001",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1663
+   ],
+   "retrieved_ids": [
+    1329,
+    1643,
+    1648,
+    1658,
+    1663,
+    1666,
+    1770,
+    1776
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0002",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1808
+   ],
+   "retrieved_ids": [
+    1808
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0003",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    251
+   ],
+   "retrieved_ids": [
+    251,
+    254,
+    349
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0004",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    388
+   ],
+   "retrieved_ids": [
+    228,
+    250,
+    368,
+    381,
+    388,
+    410
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0005",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1670
+   ],
+   "retrieved_ids": [
+    1294,
+    1634,
+    1640,
+    1669,
+    1670,
+    1675,
+    1680
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0006",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    377
+   ],
+   "retrieved_ids": [
+    374,
+    377,
+    717,
+    1265,
+    1566,
+    1569,
+    1587,
+    1818
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0007",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1769
+   ],
+   "retrieved_ids": [
+    1293,
+    1665,
+    1769,
+    1776
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0008",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1820
+   ],
+   "retrieved_ids": [
+    201,
+    228,
+    893,
+    1505,
+    1568,
+    1820
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0009",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    737
+   ],
+   "retrieved_ids": [
+    661,
+    681,
+    691,
+    737,
+    744
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0010",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    315
+   ],
+   "retrieved_ids": [
+    254,
+    315,
+    326,
+    350,
+    1125,
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0011",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1172
+   ],
+   "retrieved_ids": [
+    1097,
+    1103,
+    1107,
+    1111,
+    1117,
+    1138,
+    1172,
+    1181
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0012",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1791
+   ],
+   "retrieved_ids": [
+    1183,
+    1268,
+    1791
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0013",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1664
+   ],
+   "retrieved_ids": [
+    1653,
+    1664,
+    1668,
+    1766
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0014",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1751
+   ],
+   "retrieved_ids": [
+    1557,
+    1716,
+    1722,
+    1730,
+    1732,
+    1745,
+    1751,
+    1786
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "sd-0015",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1643
+   ],
+   "retrieved_ids": [
+    806,
+    1406,
+    1637,
+    1643,
+    1653,
+    1664
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0016",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    807
+   ],
+   "retrieved_ids": [
+    776,
+    807,
+    821
+   ],
+   "answer_status": "answered",
+   "answer_kind": "conversational"
+  },
+  {
+   "case_key": "sd-0017",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    334
+   ],
+   "retrieved_ids": [
+    260,
+    334,
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0018",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1648
+   ],
+   "retrieved_ids": [
+    1293,
+    1329,
+    1643,
+    1648,
+    1653,
+    1776
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0019",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1066
+   ],
+   "retrieved_ids": [
+    953,
+    956,
+    981,
+    994,
+    1071,
+    1074
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0020",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    475
+   ],
+   "retrieved_ids": [
+    465,
+    470,
+    473,
+    475,
+    544,
+    923
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0021",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1757
+   ],
+   "retrieved_ids": [
+    799,
+    814,
+    1625,
+    1757,
+    1758
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0022",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1497
+   ],
+   "retrieved_ids": [
+    1480,
+    1494,
+    1497,
+    1498
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0023",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    344
+   ],
+   "retrieved_ids": [
+    344,
+    784
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0024",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    266
+   ],
+   "retrieved_ids": [
+    196,
+    245,
+    266,
+    333,
+    354,
+    358
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0025",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1485
+   ],
+   "retrieved_ids": [
+    1485,
+    1494,
+    1498,
+    1525,
+    1529
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0026",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    306
+   ],
+   "retrieved_ids": [
+    254,
+    306
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0027",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1802
+   ],
+   "retrieved_ids": [
+    1331,
+    1333,
+    1348,
+    1359,
+    1363,
+    1378,
+    1802
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0028",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    816
+   ],
+   "retrieved_ids": [
+    776,
+    816
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0029",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    977
+   ],
+   "retrieved_ids": [
+    956,
+    977,
+    984,
+    990,
+    994,
+    995,
+    1053
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0030",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1522
+   ],
+   "retrieved_ids": [
+    708,
+    745,
+    1395,
+    1406,
+    1429,
+    1474,
+    1494,
+    1512,
+    1522,
+    1539
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0031",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    645
+   ],
+   "retrieved_ids": [
+    201,
+    228,
+    544,
+    645
+   ],
+   "answer_status": "answered",
+   "answer_kind": "conversational"
+  },
+  {
+   "case_key": "sd-0032",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    963
+   ],
+   "retrieved_ids": [
+    948,
+    950,
+    956,
+    963,
+    967,
+    982
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0033",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    893
+   ],
+   "retrieved_ids": [
+    898,
+    903,
+    912,
+    920,
+    940
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0034",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    398
+   ],
+   "retrieved_ids": [
+    366,
+    370,
+    372,
+    398,
+    663,
+    680,
+    744,
+    1788
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0035",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1784
+   ],
+   "retrieved_ids": [
+    206,
+    227,
+    233,
+    235,
+    1784,
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0036",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1812
+   ],
+   "retrieved_ids": [
+    1494,
+    1501,
+    1514,
+    1529,
+    1812
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0037",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    206
+   ],
+   "retrieved_ids": [
+    187,
+    193,
+    206,
+    292
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0038",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    339
+   ],
+   "retrieved_ids": [
+    189,
+    263,
+    339,
+    354,
+    1460
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0039",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1526
+   ],
+   "retrieved_ids": [
+    1488,
+    1494,
+    1526
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0040",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    958
+   ],
+   "retrieved_ids": [
+    953,
+    956,
+    984,
+    994
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0041",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    451
+   ],
+   "retrieved_ids": [
+    192,
+    375,
+    413,
+    448,
+    451,
+    956
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0042",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    262
+   ],
+   "retrieved_ids": [
+    259,
+    262,
+    307,
+    319,
+    359,
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0043",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    336
+   ],
+   "retrieved_ids": [
+    256,
+    265,
+    336,
+    898
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0044",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    833
+   ],
+   "retrieved_ids": [
+    776,
+    821,
+    833
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0045",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    313
+   ],
+   "retrieved_ids": [
+    303,
+    313,
+    331
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0046",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    1680
+   ],
+   "retrieved_ids": [
+    1640,
+    1642,
+    1662,
+    1669,
+    1680,
+    1682,
+    1688,
+    1707
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0047",
+   "split": "test",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    260
+   ],
+   "retrieved_ids": [
+    260,
+    357,
+    423,
+    1785
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "sd-0048",
+   "split": "dev",
+   "layer": "semantic_discovery",
+   "expected_ids": [
+    556
+   ],
+   "retrieved_ids": [
+    465,
+    490,
+    524,
+    556,
+    560
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0001",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    303,
+    323,
+    1570
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0002",
+   "split": "test",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    210,
+    212,
+    214,
+    259,
+    279,
+    338
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0003",
+   "split": "test",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    200,
+    473,
+    494,
+    1414,
+    1417,
+    1435,
+    1541,
+    1809
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0004",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    918,
+    1203,
+    1207,
+    1239,
+    1248,
+    1274
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0005",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    730,
+    1089,
+    1154,
+    1172,
+    1180,
+    1184,
+    1365,
+    1388,
+    1432
+   ],
+   "answer_status": "no_evidence",
+   "answer_kind": "no_evidence"
+  },
+  {
+   "case_key": "vi-0006",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1557,
+    1558,
+    1566,
+    1578,
+    1609,
+    1737,
+    1749,
+    1818
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0007",
+   "split": "test",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1474,
+    1483,
+    1494,
+    1498,
+    1512,
+    1547
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0008",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    359,
+    1291,
+    1453,
+    1591,
+    1638,
+    1642,
+    1659,
+    1701,
+    1709
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0009",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1107,
+    1208,
+    1230,
+    1248,
+    1280,
+    1286
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0010",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    482,
+    579,
+    732,
+    1238,
+    1239,
+    1282,
+    1331,
+    1420,
+    1464
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0011",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    364,
+    418,
+    776,
+    821
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0012",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    677,
+    680,
+    723,
+    742
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0013",
+   "split": "test",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    192,
+    353,
+    1095,
+    1280,
+    1521,
+    1796
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0014",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    306,
+    857,
+    872,
+    903,
+    1060
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0015",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    250,
+    1058,
+    1174,
+    1217,
+    1505,
+    1523
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0016",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    307,
+    698,
+    1494,
+    1558,
+    1566,
+    1578,
+    1597,
+    1730
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0017",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1096,
+    1103,
+    1107,
+    1117,
+    1138
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0018",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1348,
+    1359,
+    1366,
+    1387
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0019",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    263,
+    333,
+    354
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0020",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    1395,
+    1402,
+    1428,
+    1434
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0021",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    315,
+    1107,
+    1631,
+    1786
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0022",
+   "split": "test",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    732,
+    1308,
+    1366,
+    1786,
+    1814
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0023",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    331,
+    1258
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  },
+  {
+   "case_key": "vi-0024",
+   "split": "dev",
+   "layer": "visibility",
+   "expected_ids": [],
+   "retrieved_ids": [
+    309,
+    448,
+    654,
+    1051,
+    1331,
+    1339,
+    1372,
+    1802
+   ],
+   "answer_status": "answered",
+   "answer_kind": "grounded_content"
+  }
+ ]
+}
