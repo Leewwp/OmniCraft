@@ -76,7 +76,9 @@ func TestTurnRecorderRunAndNodes(t *testing.T) {
 	chan2 := rec.StartNode(NodeTypeRetrieval, "retrieval_vector_1", tool, "")
 	chan2.End(NodeEndOptions{Status: model.AgentTraceStatusError, ErrorCode: "TIMEOUT", ErrorMessage: "vector channel timed out"})
 	tin, tout := int64(900), int64(120)
-	tool.End(NodeEndOptions{TokensIn: &tin, TokensOut: &tout, CompletionDigest: "hits=12"})
+	// SP-21 T7: the terminal End() may re-attribute the node to the model
+	// that actually served the call (start-time preference is often empty).
+	tool.End(NodeEndOptions{TokensIn: &tin, TokensOut: &tout, CompletionDigest: "hits=12", Model: "deepseek-chat"})
 
 	rec.RecordRouting("minimax-m3", "deepseek-chat", RetryReasonProviderError, errors.New("context deadline exceeded"))
 	rec.RecordRouting("deepseek-chat", "minimax-m3", RetryReasonBlank, nil)
@@ -118,6 +120,9 @@ func TestTurnRecorderRunAndNodes(t *testing.T) {
 	}
 	if toolNode.Depth != 1 || toolNode.ParentNodeKey != nil {
 		t.Fatalf("tool node tree fields wrong: %+v", toolNode)
+	}
+	if toolNode.Model != "deepseek-chat" {
+		t.Fatalf("tool node model = %q, want end-time re-attribution", toolNode.Model)
 	}
 	child := store.nodes[nodeKey{trace: "trace-rec-1", key: "retrieval_lexical_1"}]
 	if child.Depth != 2 || child.ParentNodeKey == nil || *child.ParentNodeKey != "tool_cited_search_1" {

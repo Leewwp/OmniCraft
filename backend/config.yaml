@@ -372,6 +372,10 @@ agent:
       api_base: https://api.deepseek.com
       api_key: ""
       display_name: DeepSeek
+      # 成本台账费率（SP-21 T7，CNY/百万 tokens；标准时段缓存未命中价）。
+      # 主供给 MiniMax-M3 官方未公开单价——不在注册表内、标 unknown 只计 token 不估算。
+      cost_in_per_m_tokens: 2.0
+      cost_out_per_m_tokens: 8.0
   # 路由链：primary 空 = 主供给（minimax）置首；fallbacks 引用注册表 id，
   # 未注册条目自动剔除；retry_on 仅接受确定性信号（provider_error /
   # blank_answer——#544 形态 A 根治，内容级启发式不做）。

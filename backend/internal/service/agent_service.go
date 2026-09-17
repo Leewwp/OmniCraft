@@ -185,6 +185,7 @@ func (s *AgentService) auxLLMTrace(ctx context.Context, surface string, slot pro
 		CompletionDigest: firstLineOfChat(resp),
 		TokensIn:         auxUsage(resp, func(u *llm.TokenUsage) int64 { return int64(u.PromptTokens) }),
 		TokensOut:        auxUsage(resp, func(u *llm.TokenUsage) int64 { return int64(u.CompletionTokens) }),
+		Model:            s.servingModel(rec, ""),
 	})
 	rec.RecordRunEnd(agenttrace.RunEnd{
 		Status:    auxNodeStatus(err),

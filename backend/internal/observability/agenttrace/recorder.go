@@ -271,6 +271,11 @@ type NodeEndOptions struct {
 	Status           string
 	ErrorCode        string
 	ErrorMessage     string
+	// Model resolves the round's physical model at completion time: round
+	// nodes start with the request preference (usually empty) but the
+	// serving model — failover target or configured primary — is only known
+	// once the stream call returns (SP-21 T7 cost attribution).
+	Model            string
 	PromptDigest     string
 	CompletionDigest string
 	TokensIn         *int64
@@ -310,6 +315,9 @@ func (ns *NodeSpan) End(opts NodeEndOptions) {
 	}
 	if opts.NodeName != "" {
 		node.NodeName = opts.NodeName
+	}
+	if opts.Model != "" {
+		node.Model = opts.Model
 	}
 	ns.recorder.writer.RecordNode(node)
 }

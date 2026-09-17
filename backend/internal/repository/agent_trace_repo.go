@@ -284,6 +284,104 @@ func percentile95(values []float64) float64 {
 	return sorted[lo]*(1-frac) + sorted[hi]*frac
 }
 
+// SP-21 T7: the cost ledger is priced at query time, so the repository only
+// produces raw token matrices (day x model, conversation x model) from the
+// terminal llm_round nodes (the only node type that carries usage tokens —
+// set at round end in agent_stream.go); the handler applies the config rate
+// table. NodeTypeLLMRound lives in internal/observability/agenttrace, which
+// imports this package, so the literal is repeated here.
+const llmRoundNodeType = "llm_round"
+
+// LLMCostDayModel is one (day, model) cell of the token matrix. Day is the
+// node-start date rendered as YYYY-MM-DD (substr over the timestamp text
+// keeps the expression valid on both PostgreSQL and SQLite).
+type LLMCostDayModel struct {
+	Day       string `json:"day"`
+	Model     string `json:"model"`
+	TokensIn  int64  `json:"tokens_in"`
+	TokensOut int64  `json:"tokens_out"`
+}
+
+// LLMCostConversationModel is one (conversation, model) cell.
+type LLMCostConversationModel struct {
+	ConversationID int64  `json:"conversation_id"`
+	Model          string `json:"model"`
+	TokensIn       int64  `json:"tokens_in"`
+	TokensOut      int64  `json:"tokens_out"`
+}
+
+func (r *AgentTraceRepository) costScope(ctx context.Context, from, to *time.Time) *gorm.DB {
+	scope := r.db.WithContext(ctx).Table("agent_trace_nodes AS nodes").
+		Where("nodes.node_type = ?", llmRoundNodeType).
+		Where("nodes.status <> ?", model.AgentTraceStatusRunning)
+	if from != nil {
+		scope = scope.Where("nodes.started_at >= ?", *from)
+	}
+	if to != nil {
+		scope = scope.Where("nodes.started_at < ?", *to)
+	}
+	return scope
+}
+
+// AggregateLLMCostsByDayModel returns the day x model token matrix so every
+// day row can be priced exactly per model (no blended-rate approximation).
+// Model keys are lowercased: preference-pinned and config-resolved names of
+// the same physical model ("minimax-m3" / "MiniMax-M3") share one bucket.
+func (r *AgentTraceRepository) AggregateLLMCostsByDayModel(ctx context.Context, from, to *time.Time) ([]LLMCostDayModel, error) {
+	var rows []LLMCostDayModel
+	err := r.costScope(ctx, from, to).
+		Select("substr(CAST(nodes.started_at AS TEXT), 1, 10) AS day, LOWER(nodes.model) AS model, SUM(COALESCE(nodes.tokens_in, 0)) AS tokens_in, SUM(COALESCE(nodes.tokens_out, 0)) AS tokens_out").
+		Group("substr(CAST(nodes.started_at AS TEXT), 1, 10), LOWER(nodes.model)").
+		Order("day ASC, model ASC").
+		Scan(&rows).Error
+	return rows, err
+}
+
+// AggregateLLMCostsByConversationModel returns the conversation x model token
+// matrix (runs joined for the conversation link; runs without a conversation
+// are skipped). Model keys are lowercased like the day matrix.
+func (r *AgentTraceRepository) AggregateLLMCostsByConversationModel(ctx context.Context, from, to *time.Time) ([]LLMCostConversationModel, error) {
+	var rows []LLMCostConversationModel
+	err := r.costScope(ctx, from, to).
+		Select("runs.conversation_id AS conversation_id, LOWER(nodes.model) AS model, SUM(COALESCE(nodes.tokens_in, 0)) AS tokens_in, SUM(COALESCE(nodes.tokens_out, 0)) AS tokens_out").
+		Joins("JOIN agent_trace_runs AS runs ON runs.trace_id = nodes.trace_id").
+		Where("runs.conversation_id IS NOT NULL").
+		Group("runs.conversation_id, LOWER(nodes.model)").
+		Order("runs.conversation_id ASC, model ASC").
+		Scan(&rows).Error
+	return rows, err
+}
+
+// CountRunsByConversationIDs returns the turn count (trace runs, any status)
+// per conversation id inside the window; the ledger annotates its top
+// conversations with it. Ids without runs in the window are absent.
+func (r *AgentTraceRepository) CountRunsByConversationIDs(ctx context.Context, ids []int64, from, to *time.Time) (map[int64]int64, error) {
+	counts := map[int64]int64{}
+	if len(ids) == 0 {
+		return counts, nil
+	}
+	scope := r.db.WithContext(ctx).Model(&model.AgentTraceRun{}).
+		Where("conversation_id IN ?", ids)
+	if from != nil {
+		scope = scope.Where("started_at >= ?", *from)
+	}
+	if to != nil {
+		scope = scope.Where("started_at < ?", *to)
+	}
+	var rows []struct {
+		ConversationID int64 `gorm:"column:conversation_id"`
+		Turns          int64 `gorm:"column:turns"`
+	}
+	if err := scope.Select("conversation_id, COUNT(*) AS turns").
+		Group("conversation_id").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[row.ConversationID] = row.Turns
+	}
+	return counts, nil
+}
+
 // PurgeBefore enforces observability.agent_trace.retention_days: nodes first
 // (they hold no FK but belong to runs), then runs. Returns rows removed.
 func (r *AgentTraceRepository) PurgeBefore(ctx context.Context, cutoff time.Time) (int64, error) {
