@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ScrollText, Megaphone, Activity, ChevronRight, PanelLeftClose, PanelLeft, X, Coins } from "lucide-react";
+import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ScrollText, Megaphone, Activity, ChevronRight, PanelLeftClose, PanelLeft, X, Coins, FlaskConical } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,7 @@ const ADMIN_NAV = [
   { href: "/admin/queue", labelKey: "navQueue", icon: ListOrdered },
   { href: "/admin/traces", labelKey: "navTraces", icon: Activity },
   { href: "/admin/llm-costs", labelKey: "navLlmCosts", icon: Coins },
+  { href: "/admin/evals", labelKey: "navEvals", icon: FlaskConical },
   { href: "/admin/prompts", labelKey: "navPrompts", icon: ScrollText },
   { href: "/admin/audit-logs", labelKey: "navAuditLogs", icon: ScrollText },
   { href: "/admin/config", labelKey: "navConfig", icon: Settings },

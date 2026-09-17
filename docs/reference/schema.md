@@ -472,6 +472,8 @@
 | `answer_rubric` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | answer_rubric |
 | `classification` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | classification |
 | `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'frozen' | status |
+| `source_trace_id` | `VARCHAR(64)` | - | source_trace_id |
 
 ### eval_runs
 

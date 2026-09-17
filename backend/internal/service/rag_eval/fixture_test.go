@@ -106,6 +106,7 @@ func TestGoldenSetFixtureExportConsistency(t *testing.T) {
 
 	db := testutil.OpenEphemeralPostgres(t)
 	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "..", "migrations", "069_rag_evaluation.sql"))
+	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "..", "migrations", "083_eval_golden_drafts.sql"))
 
 	repo := repository.NewRagEvaluationRepository(db)
 	ctx := t.Context()

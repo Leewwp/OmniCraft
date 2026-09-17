@@ -23,6 +23,10 @@ func TestRagEvaluationMigration(t *testing.T) {
 	migration := filepath.Join("..", "..", "migrations", "069_rag_evaluation.sql")
 	testutil.ApplyMigrationFile(t, db, migration)
 	testutil.ApplyMigrationFile(t, db, migration)
+	// 083 adds the draft lifecycle columns on top of the base schema.
+	drafts := filepath.Join("..", "..", "migrations", "083_eval_golden_drafts.sql")
+	testutil.ApplyMigrationFile(t, db, drafts)
+	testutil.ApplyMigrationFile(t, db, drafts)
 
 	assertRagEvaluationTables(t, db)
 
@@ -41,6 +45,26 @@ func TestRagEvaluationMigration(t *testing.T) {
 	assertColumn(t, db, "eval_golden_cases", "answer_rubric", "jsonb", false)
 	assertColumn(t, db, "eval_golden_cases", "classification", "jsonb", false)
 	assertColumn(t, db, "eval_golden_cases", "is_active", "boolean", false)
+	// SP-22 E5: draft lifecycle (status frozen|draft) + trace provenance.
+	assertColumn(t, db, "eval_golden_cases", "status", "character varying", false)
+	assertColumn(t, db, "eval_golden_cases", "source_trace_id", "character varying", true)
+
+	// drafts must not sneak into the frozen set, and the status check
+	// rejects free-form values.
+	if err := db.Exec(`INSERT INTO eval_golden_cases
+		(case_key, query, query_language, status) VALUES ('zz-draft', 'q', 'zh', 'draft')`).Error; err != nil {
+		t.Fatalf("insert draft row: %v", err)
+	}
+	if err := db.Exec(`UPDATE eval_golden_cases SET status = 'bogus' WHERE case_key = 'zz-draft'`).Error; err == nil {
+		t.Fatal("expected status check constraint to reject 'bogus'")
+	}
+	var draftCount int64
+	if err := db.Raw(`SELECT count(*) FROM eval_golden_cases WHERE status = 'draft'`).Scan(&draftCount).Error; err != nil {
+		t.Fatalf("count drafts: %v", err)
+	}
+	if draftCount != 1 {
+		t.Fatalf("drafts = %d, want 1", draftCount)
+	}
 
 	if !testutil.IndexExists(t, db, "eval_golden_cases", "uq_eval_golden_cases_case_key") {
 		t.Fatal("expected unique index uq_eval_golden_cases_case_key")

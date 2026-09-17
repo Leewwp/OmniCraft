@@ -354,6 +354,7 @@ backend/
 | 方法 | 路径 | 处理器 |
 |------|------|--------|
 | `DELETE` | `/api/v1/admin/categories/:id` | catHandler.AdminDeleteCategory |
+| `DELETE` | `/api/v1/admin/evals/drafts/:case_key` | adminEvalHandler.DeleteDraft |
 | `DELETE` | `/api/v1/admin/llm-configs/:id` | adminHandler.DeleteLLMConfig |
 | `DELETE` | `/api/v1/agent/conversations/:id` | agentHandler.DeleteConversation |
 | `DELETE` | `/api/v1/collections/:id` | collectionHandler.DeleteCollection |
@@ -380,6 +381,8 @@ backend/
 | `GET` | `/api/v1/admin/config` | adminHandler.GetConfig |
 | `GET` | `/api/v1/admin/contents` | adminHandler.ListUnderReviewContents |
 | `GET` | `/api/v1/admin/contents/trash` | adminHandler.ListTrashedContents |
+| `GET` | `/api/v1/admin/evals/drafts` | adminEvalHandler.ListDrafts |
+| `GET` | `/api/v1/admin/evals/runs` | adminEvalHandler.ListRuns |
 | `GET` | `/api/v1/admin/feedback` | adminFeedbackHandler.ListFeedback |
 | `GET` | `/api/v1/admin/feedback/:id` | adminFeedbackHandler.GetFeedback |
 | `GET` | `/api/v1/admin/ips` | adminHandler.ListPendingIPs |
@@ -495,6 +498,7 @@ backend/
 | `POST` | `/api/v1/admin/archive-scan-jobs/:id/retry` | adminArchiveScanHandler.Retry |
 | `POST` | `/api/v1/admin/categories` | catHandler.AdminCreateCategory |
 | `POST` | `/api/v1/admin/contents/:id/ban` | adminHandler.BanContent |
+| `POST` | `/api/v1/admin/evals/drafts` | adminEvalHandler.CreateDraftFromTrace |
 | `POST` | `/api/v1/admin/feedback/:id/replies` | adminFeedbackHandler.ReplyFeedback |
 | `POST` | `/api/v1/admin/ips/:id/approve` | adminHandler.ApproveIP |
 | `POST` | `/api/v1/admin/ips/:id/reject` | adminHandler.RejectIP |
