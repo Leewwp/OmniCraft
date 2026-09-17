@@ -392,6 +392,7 @@ backend/
 | `GET` | `/api/v1/admin/reports` | adminHandler.ListReports |
 | `GET` | `/api/v1/admin/reports/stats` | adminHandler.GetReportStats |
 | `GET` | `/api/v1/admin/traces` | adminTraceHandler.ListTraces |
+| `GET` | `/api/v1/admin/traces/:trace_id` | adminTraceHandler.GetTraceDetail |
 | `GET` | `/api/v1/admin/traces/stats` | adminTraceHandler.Stats |
 | `GET` | `/api/v1/admin/users` | adminHandler.ListUsers |
 | `GET` | `/api/v1/agent/conversations` | agentHandler.ListConversations |

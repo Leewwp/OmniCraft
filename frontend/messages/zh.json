@@ -1173,6 +1173,14 @@
       "estimatedNo": "未定价",
       "colConversation": "会话",
       "colTurns": "轮数"
+    },
+    "tracesDetail": {
+      "backToList": "返回请求列表",
+      "runStatus": "运行状态 / 回答类型",
+      "links": "关联",
+      "routingEvents": "模型路由事件",
+      "noNodes": "该链路暂无节点记录",
+      "selectNodeHint": "点选左侧节点查看详情（摘要 / tokens / 错误 / extra）"
     }
   },
   "social": {

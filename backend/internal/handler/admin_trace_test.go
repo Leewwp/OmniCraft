@@ -35,6 +35,7 @@ func setupAdminTraceRouter(t *testing.T) (*gin.Engine, *repository.AgentTraceRep
 	group := router.Group("/api/v1/admin", middleware.AuthRequired(cfg, nil, db), middleware.AdminRequired())
 	group.GET("/traces", handler.ListTraces)
 	group.GET("/traces/stats", handler.Stats)
+	group.GET("/traces/:trace_id", handler.GetTraceDetail)
 	return router, repo, token
 }
 
@@ -134,3 +135,33 @@ func TestAdminTraceRequiresAdmin(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 }
+
+func TestAdminTraceDetail(t *testing.T) {
+	router, repo, token := setupAdminTraceRouter(t)
+	seedTraceRuns(t, repo)
+	require.NoError(t, repo.UpsertNodes(t.Context(), []model.AgentTraceNode{{
+		TraceID: "aaaa1111aaaa1111aaaa1111aaaa1111", NodeKey: "llm_round_1", NodeType: "llm_round",
+		Status: model.AgentTraceStatusSuccess, StartedAt: time.Now().Add(-time.Minute),
+		Model: "minimax-m3", PromptDigest: "sys", CompletionDigest: "answer", TokensIn: ptrInt64(100), TokensOut: ptrInt64(20),
+	}}))
+
+	get := func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+	rec := get("/api/v1/admin/traces/aaaa1111aaaa1111aaaa1111aaaa1111")
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, `"run"`)
+	require.Contains(t, body, `"nodes"`)
+	require.Contains(t, body, `"node_key":"llm_round_1"`)
+	require.Contains(t, body, `"tokens_in":100`)
+
+	// Unknown trace -> 404; malformed id -> 400.
+	require.Equal(t, http.StatusNotFound, get("/api/v1/admin/traces/11111111111111111111111111111111").Code)
+	require.Equal(t, http.StatusBadRequest, get("/api/v1/admin/traces/short").Code)
+}
+

@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Loader2, Menu, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,9 @@ const SUGGESTION_KEYS = [
  */
 export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
+  // SP-21 T4：管理员可从会话轮直接跳转链路详情（SSE trace_id ↔ 落库一致）。
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.role === "admin";
   const { toast } = useToast();
   const apiBase = getBrowserApiBase();
 
@@ -1033,7 +1037,17 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   )}
                   {turnTraceId && (
                     <p className="mt-1">
-                      {t("agent.workspace.traceLabel")}: <span className="font-mono">{turnTraceId}</span>
+                      {t("agent.workspace.traceLabel")}:{" "}
+                      {isAdmin ? (
+                        <Link
+                          href={`/admin/traces/${turnTraceId}`}
+                          className="font-mono text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                        >
+                          {turnTraceId}
+                        </Link>
+                      ) : (
+                        <span className="font-mono">{turnTraceId}</span>
+                      )}
                     </p>
                   )}
                 </details>
