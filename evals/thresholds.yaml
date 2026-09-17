@@ -1,4 +1,4 @@
-# PR 级零成本评测门禁阈值（SP-22 E3，票 #562）
+# PR 级零成本评测门禁阈值（SP-22 E3，票 #562；E2 校准回填 2026-09-18）
 #
 # 语义：每一项都是「必须满足」的下限（lower bound）。`except_lower_is_better`
 # 段里的项反向——值是上限（upper bound），超过即失败。
@@ -7,32 +7,37 @@
 # backend/testdata/rag_pr_gate_snapshot.jsonl 的冻结快照指标。快照刷新
 # （retrieval 行为或 golden 集变化）时同步复核本文件。
 #
-# 阈值策略（用户 2026-09-16 拍板）：先门禁形态、后收紧——初值取基线下方
-# 留足余量，观察两轮 PR 后再按实际波动收紧；faithfulness 类 LLM 指标不在
-# 本门禁（那是发布前全量门，见 SP-22 E1/E5）。
+# ── 快照保真修正（2026-09-18，E4 网格交叉核对发现）────────────────────
+# 初版快照生成器对 retrieved_ids 做了 sorted()，破坏排名序：冻结值
+# MRR 0.4604 / hit@5 0.8553 实为排序伪影；同批数据按真实排名序重算为
+# MRR 0.9138 / hit@5 0.9539 / recall@10 0.9605（hit@10 巧合不变）。生成器
+# 已修（make_pr_gate_snapshot.py 保留原序）并重新生成快照。
 #
-# 基线（2026-09-17 全量 196 条冻结快照，label=sp22-e1-baseline-dev，
-# switches: hybrid=on / query_expansion=off / rerank=off，实测值）：
-#   context_recall_at_10 0.9605 | hit_rate_at_5 0.8553 | hit_rate_at_10 0.9605
-#   mrr 0.4604 | correct_answer_rate 0.9545 | over_refusal_rate 0.0455
+# ── 修正后基线（196 条，label=sp22-e1-baseline-dev，hybrid=on / expansion=off /
+#    rerank=off）：
+#   context_recall_at_10 0.9605 | hit_rate_at_5 0.9539 | hit_rate_at_10 0.9605
+#   mrr 0.9138 | correct_answer_rate 0.9545 | over_refusal_rate 0.0455
 #   hallucination_rate 0.9000 | correct_refusal_rate 0.1000
 #   （152/196 参与检索层指标，44 条期望集为空按定义跳过）
 #
-# 阈值现状（形态优先）：下限按「基线再留一档余量」设定，不是当前水平的复读，
-# 目的是先让门禁在 PR 上跑起来观察两轮真实波动，再按方差收紧（用户拍板）。
+# 阈值策略（用户 2026-09-16 拍板「先门禁形态、后收紧」）：初值按伪影基线
+# 留双档余量观察了一轮（PR #601，CI 绿）；本轮随快照修正一次性回位到
+# 「修正基线 − 一档余量」，后续波动收紧依据 = E2 校准的重跑方差
+# （judge 侧 ±0.02，检索层同配置重跑为 0）。
 #
 # 注意 hallucination_rate 基线高达 0.90（20 个 no_answer 层用例里 18 个仍
-# 产出 grounded 答案）——这是 **已记录的观察项**（见 E1 报告与 #562 备注），
-# 初值只做「不得比基线更差」的宽松上限，收紧与根因排查留给 E2/E5。
+# 产出 grounded 答案）——这是 **已记录的观察项**（E1 报告 + E2 校准 na 层
+# 偏差 0.625 佐证），初值只做「不得比基线更差」的宽松上限，收紧与根因
+# 排查留给 SP-24 R3（拒答阈值）。
 
 artifact_version: 1
 
 # 必须达到的下限。
 minimums:
-  context_recall_at_10: 0.60
-  hit_rate_at_5: 0.58
-  hit_rate_at_10: 0.64
-  mrr: 0.32
+  context_recall_at_10: 0.85
+  hit_rate_at_5: 0.80
+  hit_rate_at_10: 0.85
+  mrr: 0.75
   correct_answer_rate: 0.90
   correct_refusal_rate: 0.05
 
@@ -47,3 +52,25 @@ integrity:
   min_retrieval_evaluated: 100
   min_unanswerable: 10
   min_answerable: 100
+
+# ── 生成层建议阈值（SP-22 E2 校准回填，2026-09-18）────────────────────
+# 本段是 **建议书产物，PR 门禁不读取**（rag-gate 只断言上面的
+# minimums/maximums/integrity）。发布前全量门的实现（E1 harness 复跑）
+# 采纳以下值前需用户确认；依据见 docs/working/2026-09-18-sp22-e2-*.md：
+#   faithfulness      观察阈 0.70 / 硬地板 0.65
+#                     （基线均值 0.792、中位 0.857；3 次重跑漂移 ±0.02、
+#                      与标注真值 mean|Δ| 0.187、同侧率 82.4%——阈值须吞掉
+#                      校准缺口与重跑方差）
+#   answer_relevancy  **不建议进门禁**：与真值 Pearson −0.17（18 条），
+#                     反向生成问句的 embedding 余弦不跟踪人工相关性判断；
+#                     保留为观测指标，换 prompt 后需重新校准
+#   context_precision 0.55 起步观察（基线 0.662，未经逐条校准，只防大滑坡）
+#   noise_sensitivity 0.10 上限观察（基线 0.021，越低越好）
+# 中英翻转探针（6 条）：judge prompt 英→中 faithfulness mean|Δ| 0.077，
+# 低于文献 10.7–14.4% 区间下限，prompt 语言风险可控但存在。
+generation_layer_advisory:
+  faithfulness_observe: 0.70
+  faithfulness_floor: 0.65
+  context_precision_observe: 0.55
+  noise_sensitivity_max: 0.10
+  answer_relevancy_gate: false

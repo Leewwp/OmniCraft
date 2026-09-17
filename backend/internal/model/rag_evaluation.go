@@ -34,6 +34,19 @@ func (j JSONB) MarshalJSON() ([]byte, error) {
 	return j, nil
 }
 
+// UnmarshalJSON is the MarshalJSON mirror: without it, decoding an API
+// response back into a JSONB-carrying struct (admin evals round-trip,
+// SP-22 E5) fails with "cannot unmarshal object into JSONB" because the
+// defined type does not inherit RawMessage's method set either.
+func (j *JSONB) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*j = nil
+		return nil
+	}
+	*j = append((*j)[:0], data...)
+	return nil
+}
+
 // Scan implements sql.Scanner for GORM read paths.
 func (j *JSONB) Scan(value interface{}) error {
 	if value == nil {
@@ -74,6 +87,13 @@ type EvalGoldenCase struct {
 	AnswerRubric        JSONB     `gorm:"type:jsonb;not null;default:'{}'" json:"answer_rubric"`
 	Classification      JSONB     `gorm:"type:jsonb;not null;default:'{}'" json:"classification"`
 	IsActive            bool      `gorm:"not null;default:true" json:"is_active"`
+	// Status separates the frozen evaluation set ('frozen') from badcase
+	// feedback drafts ('draft', SP-22 E5). Frozen-set readers must filter on
+	// it so a landing draft can never drift a frozen run's dataset checksum.
+	Status string `gorm:"size:16;not null;default:'frozen'" json:"status"`
+	// SourceTraceID links a draft back to the agent trace it was created
+	// from (trace -> golden draft feedback loop); empty on curated cases.
+	SourceTraceID string `gorm:"size:64" json:"source_trace_id"`
 }
 
 func (EvalGoldenCase) TableName() string { return "eval_golden_cases" }

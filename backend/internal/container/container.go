@@ -70,6 +70,9 @@ type ServiceContainer struct {
 	// observability.agent_trace.enabled.
 	AgentTraceRepo   *repository.AgentTraceRepository
 	AgentTraceWriter *agenttrace.Writer
+	// RagEvaluationRepo owns the golden-set / eval-run tables (SP-22 E5
+	// admin evals surface; the rag-eval grid runner records through it too).
+	RagEvaluationRepo *repository.RagEvaluationRepository
 
 	// Services
 	AuthService         *service.AuthService
@@ -163,6 +166,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	// server/worker mains so shutdown ordering (flush before redis close)
 	// stays explicit; recording call sites arrive with T2.
 	c.AgentTraceRepo = repository.NewAgentTraceRepository(db)
+	c.RagEvaluationRepo = repository.NewRagEvaluationRepository(db)
 	c.AgentTraceWriter = agenttrace.NewWriter(c.AgentTraceRepo, agenttrace.Options{
 		Enabled:        cfg.Observability.AgentTrace.Enabled,
 		SampleRatio:    cfg.Observability.AgentTrace.SampleRatio,
