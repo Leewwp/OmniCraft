@@ -581,10 +581,16 @@ type AgentGuardrailsConfig struct {
 // AgentMCPConfig carries the MCP client bridge switches: every limit is
 // config-driven; servers launch lazily as stdio subprocesses.
 type AgentMCPConfig struct {
-	Enabled        bool                   `mapstructure:"enabled" json:"enabled"`
-	CallTimeoutSec int                    `mapstructure:"call_timeout_sec" json:"call_timeout_sec"`
-	ResultMaxBytes int                    `mapstructure:"result_max_bytes" json:"result_max_bytes"`
-	Servers        []AgentMCPServerConfig `mapstructure:"servers" json:"servers"`
+	Enabled        bool `mapstructure:"enabled" json:"enabled"`
+	CallTimeoutSec int  `mapstructure:"call_timeout_sec" json:"call_timeout_sec"`
+	ResultMaxBytes int  `mapstructure:"result_max_bytes" json:"result_max_bytes"`
+	// ExternalAnswerMaxRunes is the conversational-lane guardrail for turns
+	// whose only tools were external ones (MCP / image generation): their
+	// answers cite workspace data rather than RAG chunks, so the strict
+	// citation gate would otherwise clear every substantive answer to
+	// no_evidence. Zero disables the lane.
+	ExternalAnswerMaxRunes int                    `mapstructure:"external_answer_max_runes" json:"external_answer_max_runes"`
+	Servers                []AgentMCPServerConfig `mapstructure:"servers" json:"servers"`
 }
 
 // AgentMCPServerConfig is one stdio MCP server subprocess.

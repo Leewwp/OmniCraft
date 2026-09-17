@@ -607,7 +607,7 @@ loop:
 	// platform's own hosts (or a host this conversation's tools issued).
 	answer = SanitizeImageURLs(answer, s.cfg.Agent.Guardrails.ImageURLAllowHosts, ownImagePrefixes)
 	classifySpan := turnRecorder.StartNode(agenttrace.NodeTypeClassify, "classify", nil, "")
-	kind := ClassifyStreamAnswer(citations, executedTools, answer, degraded, s.conversationalMaxRunes())
+	kind := ClassifyStreamAnswerWithExternal(citations, executedTools, answer, degraded, s.conversationalMaxRunes(), s.cfg.Agent.MCP.ExternalAnswerMaxRunes)
 	classifySpan.End(agenttrace.NodeEndOptions{
 		NodeName:         "classify",
 		CompletionDigest: answer,

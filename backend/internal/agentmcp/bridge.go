@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
@@ -163,14 +164,26 @@ func (b *Bridge) session(ctx context.Context, srv config.AgentMCPServerConfig) (
 	}
 	cmd := exec.Command(srv.Command, srv.Args...)
 	cmd.Env = append(cmd.Environ(), envSlice(srv.Env)...)
+	// Subprocess diagnostics surface in the server log: the transport
+	// discards stderr otherwise, and a dying MCP server would only ever
+	// show as an opaque EOF.
+	cmd.Stderr = os.Stderr
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "omnicraft-agent", Version: "v1"}, nil)
-	sess, err := client.Connect(ctx, &sdkmcp.CommandTransport{Command: cmd}, nil)
+	// The handshake runs on a detached bounded context: the shared session
+	// outlives any single request, and a canceled request (StrictMode
+	// double-fire, client disconnect) must never poison the connect.
+	handshakeCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	slog.Info("mcp bridge launching subprocess", "server", srv.ID, "command", srv.Command, "cwd", mustWd())
+	sess, err := client.Connect(handshakeCtx, &sdkmcp.CommandTransport{Command: cmd}, nil)
 	if err != nil {
 		_ = cmd.Process.Kill()
 		return nil, fmt.Errorf("connect %s: %w", srv.Command, err)
 	}
 	entry := &serverSession{client: sess, cmd: cmd, localOf: map[string]string{}}
-	list, err := sess.ListTools(ctx, nil)
+	listCtx, listCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer listCancel()
+	list, err := sess.ListTools(listCtx, nil)
 	if err != nil {
 		_ = sess.Close()
 		return nil, fmt.Errorf("list tools: %w", err)
@@ -228,10 +241,20 @@ func splitNamespaced(name string) (serverID, tool string, ok bool) {
 	return parts[0], parts[1], true
 }
 
+func mustWd() string {
+	wd, _ := os.Getwd()
+	return wd
+}
+
+// envSlice renders the server env map. Viper lowercases every config key,
+// so the consumed key is uppercased back: yaml `omnicraft_doc_user_id` and
+// `OMNICRAFT_DOC_USER_ID` both reach the subprocess as the latter (env var
+// names are uppercase by convention; a genuinely lowercase variable cannot
+// be expressed through this config path — documented in config.yaml).
 func envSlice(env map[string]string) []string {
 	out := make([]string, 0, len(env))
 	for k, v := range env {
-		out = append(out, k+"="+v)
+		out = append(out, strings.ToUpper(k)+"="+v)
 	}
 	sort.Strings(out)
 	return out

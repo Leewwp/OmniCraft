@@ -830,12 +830,38 @@ func ClassifyGroundedAnswer(citations []AgentCitation) AgentAnswerKind {
 // which disables the lane) falls back to the strict grounded classification,
 // so a lazy zero-retrieval long answer on a content question is still cleared.
 func ClassifyStreamAnswer(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes int) AgentAnswerKind {
+	return ClassifyStreamAnswerWithExternal(citations, executedTools, answer, degraded, conversationalMaxRunes, 0)
+}
+
+// ClassifyStreamAnswerWithExternal extends the lane for SP-23 M3: a turn
+// whose executed tools were ALL external (MCP bridge / image generation)
+// may keep a citation-free answer within externalMaxRunes — its grounding
+// is workspace data the tool fetched, not RAG chunks, so the strict citation
+// gate would otherwise clear every substantive external-tool answer. Any
+// local retrieval tool in the mix keeps the strict shape.
+func ClassifyStreamAnswerWithExternal(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes, externalMaxRunes int) AgentAnswerKind {
 	trimmed := strings.TrimSpace(answer)
-	if len(citations) == 0 && len(executedTools) == 0 && trimmed != "" && !degraded &&
-		conversationalMaxRunes > 0 && len([]rune(trimmed)) <= conversationalMaxRunes {
-		return AgentAnswerConversational
+	if len(citations) == 0 && trimmed != "" && !degraded {
+		if len(executedTools) == 0 && conversationalMaxRunes > 0 && len([]rune(trimmed)) <= conversationalMaxRunes {
+			return AgentAnswerConversational
+		}
+		if externalMaxRunes > 0 && allToolsExternal(executedTools) && len([]rune(trimmed)) <= externalMaxRunes {
+			return AgentAnswerConversational
+		}
 	}
 	return ClassifyGroundedAnswer(citations)
+}
+
+func allToolsExternal(tools []AgentToolExecution) bool {
+	if len(tools) == 0 {
+		return false
+	}
+	for _, t := range tools {
+		if !t.External {
+			return false
+		}
+	}
+	return true
 }
 
 // untracedTraceID is an explicit marker for direct service callers that do

@@ -399,12 +399,16 @@ agent:
     enabled: false
     call_timeout_sec: 10
     result_max_bytes: 8192
+    # 外部工具轮次（仅 MCP/图片工具）的答案长度护栏：这类答案的数据源是
+    # 工作区（草稿）而非 RAG 分片，无引用是常态；超过此 rune 数仍按
+    # no_evidence 清空（防借外部工具之名长篇跑题）。0 = 关闭该通道。
+    external_answer_max_runes: 4000
     servers: []
     #  - id: "doc"                        # 工具将暴露为 mcp_doc_draft_read 等
     #    command: "/opt/omnicraft/bin/mcp-docserver"
     #    args: []
-    #    env:
-    #      OMNICRAFT_DOC_USER_ID: "1"     # 身份在启动参数/env 注入（SP-16 模式）
+    #    env:                              # 键不区分大小写（viper 小写化后桥侧
+    #      OMNICRAFT_DOC_USER_ID: "1"     # 统一回大写注入）；身份经启动 env 注入（SP-16 模式）
   # SP-23 M1（#566）：generate_image 工具 —— 智谱 CogView-4 OpenAI 兼容 images
   # 端点（≈0.06 元/张），产出图先落平台自有 OSS 再回链（外部图床 URL 绝不
   # 透出）。密钥只走 env：AGENT_IMAGE_API_KEY（缺失或 enabled=false 时工具

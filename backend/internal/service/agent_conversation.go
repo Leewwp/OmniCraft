@@ -402,6 +402,9 @@ func agentToolHitCount(outcome *AgentToolOutcome) int {
 	if outcome.Image != nil && outcome.Image.URL != "" {
 		return 1
 	}
+	if outcome.MCP != nil && outcome.MCP.Result != "" {
+		return 1
+	}
 	switch {
 	case len(outcome.Search) > 0:
 		return len(outcome.Search)
