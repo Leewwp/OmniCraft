@@ -38,9 +38,14 @@ class EvalContext:
     chunk_key: str
     title: str
     text: str
+    # raw_surface holds a surface captured verbatim from the run (cited-chunk
+    # excerpts); when present it is used as-is.
+    raw_surface: str = ""
 
     def surface(self) -> str:
         """The context string exactly as the agent's tool result renders it."""
+        if self.raw_surface:
+            return self.raw_surface
         return f"{self.title}\n{self.text[:EXCERPT_RUNES]}"
 
 
@@ -55,6 +60,10 @@ class EvalCase:
     citations: list
     retrieved_ids: list
     contexts: list = field(default_factory=list)
+    # Exact context surfaces the model saw for cited candidates (title +
+    # excerpt), captured live during generation. Preferred over the
+    # post-hoc reconstruction whenever present.
+    context_excerpts: list = field(default_factory=list)
 
     @property
     def refused(self) -> bool:
@@ -98,6 +107,7 @@ def load_generation_rows(path: str) -> tuple[dict, list[EvalCase]]:
                 answer=row.get("answer", ""),
                 citations=row.get("citations") or [],
                 retrieved_ids=row.get("retrieved_ids") or [],
+                context_excerpts=row.get("context_excerpts") or [],
             )
     return header, [cases[k] for k in sorted(cases)]
 
@@ -170,12 +180,22 @@ def load_chunks(content_ids) -> dict:
 
 
 def attach_contexts(case: EvalCase, chunks: dict) -> None:
-    """Reconstruct the ranked context surface for one case.
+    """Reconstruct the context surface for one case.
 
-    Cited candidates resolve to the citation's chunk; uncited candidates fall
-    back to the highest query-overlap chunk of that content.
+    Cited candidates come from `context_excerpts` when the run recorded them
+    (exact text the model saw); any remaining retrieved content is filled
+    from the database, preferring the citation's chunk and otherwise the
+    highest query-overlap chunk. The fallback is a documented approximation:
+    generation rows without excerpts keep only content ids.
     """
+    seen_surfaces = set(case.context_excerpts)
+    for surface in case.context_excerpts:
+        case.contexts.append(
+            EvalContext(content_id=0, chunk_key="",
+                        title=surface.split("\n", 1)[0], text="", raw_surface=surface)
+        )
     citation_chunks = {c.get("chunk_key") for c in case.citations if c.get("chunk_key")}
+    cited_ids = case.cited_ids
     qgrams = _bigrams(case.query)
     for cid in case.retrieved_ids:
         rows = chunks.get(int(cid))
@@ -187,11 +207,20 @@ def attach_contexts(case: EvalCase, chunks: dict) -> None:
                 chosen = row
                 break
         if chosen is None:
+            # Uncited content: the excerpts already cover its cited siblings,
+            # so skip ids fully represented by an excerpt when possible.
+            if cited_ids and int(cid) in cited_ids and case.context_excerpts:
+                best_row = max(rows, key=lambda r: len(_bigrams(r["text"]) & qgrams))
+                if any(best_row["text"][:EXCERPT_RUNES] in s for s in seen_surfaces):
+                    continue
             best = -1
             for row in rows:
                 overlap = len(_bigrams(row["text"]) & qgrams)
                 if overlap > best:
                     best, chosen = overlap, row
+        surface = f"{chosen['title']}\n{chosen['text'][:EXCERPT_RUNES]}"
+        if surface in seen_surfaces:
+            continue
         case.contexts.append(
             EvalContext(content_id=int(cid), chunk_key=chosen["chunk_key"],
                         title=chosen["title"], text=chosen["text"])

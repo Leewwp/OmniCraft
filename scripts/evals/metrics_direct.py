@@ -45,7 +45,15 @@ Question:
 Answer:
 {answer}
 
-Decompose the answer into atomic claims (each independently verifiable single statement). Ignore purely stylistic sentences, greetings, and disclaimers that state no fact. If the answer contains no factual claims (e.g. it only apologizes or asks for clarification), return an empty list.
+Decompose the answer into atomic claims. A claim is a verifiable statement ABOUT SITE CONTENT (works, creators, characters, sources, usage). Extract only such content claims.
+
+Do NOT extract:
+- process narration about the assistant's own actions ("let me search", "我先查一下", "I found", "已为您找到");
+- offers, follow-up questions, or requests for clarification;
+- greetings, thanks, apologies, and disclaimers;
+- statements about the answer itself or about how to use the platform UI.
+
+If the answer contains no content claims at all (for example it only narrates a search, apologizes, or asks a question), return an empty list.
 
 Respond ONLY with JSON: {{"claims": ["...", "..."]}}"""
 

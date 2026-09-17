@@ -7,10 +7,20 @@ per-metric diff against a baseline run, regression case list).
 
 from __future__ import annotations
 
+import datetime
 import json
 
 METRICS = ["faithfulness", "answer_relevancy", "context_precision", "noise_sensitivity"]
 LOWER_IS_BETTER = {"noise_sensitivity"}
+
+
+def _expiry() -> str:
+    """Default +2 months, matching the working-doc convention."""
+    today = datetime.date.today()
+    month = today.month + 2
+    year = today.year + (month - 1) // 12
+    month = (month - 1) % 12 + 1
+    return f"{year:04d}-{month:02d}-{today.day:02d}"
 
 
 def aggregate(results: list[dict], buckets: dict) -> dict:
@@ -82,6 +92,9 @@ def write_md(path: str, label: str, doc: dict, baseline_doc: dict | None,
              baseline_label: str | None) -> None:
     agg = doc["aggregate"]
     lines = [f"# Ragas 生成层评测报告：{label}", ""]
+    # docs/working/ documents must declare an expiry (doc-validator release gate).
+    lines.append("**预计失效日期**: " + _expiry())
+    lines.append("")
     lines.append(f"- 用例数：{agg['counts'].get('total')}（应答 {agg['counts'].get('answered')} / 拒答 {agg['counts'].get('refused')}）")
     lines.append(f"- 判官调用：{doc['judge_usage'].get('calls', 0)} 次，judge tokens ≈ {doc['judge_usage'].get('judge_tokens', 0)}")
     lines.append("")
