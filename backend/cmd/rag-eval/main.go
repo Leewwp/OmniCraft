@@ -103,6 +103,12 @@ func main() {
 	skipGeneration := flag.Bool("skip-generation", false, "retrieval measurement only")
 	rejudge := flag.Bool("rejudge", false, "re-apply the deterministic judges to stored generation rows (no provider calls) and rewrite the summary")
 	sleepMs := flag.Int("sleep-ms", 150, "pause between generation calls (provider courtesy)")
+	// SP-22 E4 grid runner hooks: -record upserts the retrieval measurement
+	// into eval_runs (run_key = prefix-label-split) so the E5 trend page can
+	// render configuration history; -run-key-prefix separates grid runs from
+	// the frozen A-04 ablation keys.
+	record := flag.Bool("record", false, "upsert the retrieval-layer measurement into eval_runs (E4 grid runner)")
+	runKeyPrefix := flag.String("run-key-prefix", "a04", "eval_runs run_key prefix (grid runner uses 'grid')")
 	flag.Parse()
 	if *out == "" || *summaryPath == "" {
 		slog.Error("usage: rag-eval -label C0-v4-only -out runs.jsonl -summary summary.json [-split dev] [-resume]")
@@ -313,7 +319,7 @@ func main() {
 	retrievalResult, err := rageval.RunLayeredRetrievalEval(ctx, selected, registry, retrieve,
 		rageval.LayeredEvalOptions{Split: *split, ConfirmTestSplitRun: *confirmTest, TopK: 20},
 		rageval.RunSpec{
-			RunKey:           fmt.Sprintf("a04-%s-%s", *label, *split),
+			RunKey:           fmt.Sprintf("%s-%s-%s", *runKeyPrefix, *label, *split),
 			RetrieverVersion: "agent-search-content-tool-v1",
 			ChunkingVersion:  "041-current",
 			IndexVersion:     "v4-1536",
@@ -323,6 +329,66 @@ func main() {
 	if err != nil {
 		slog.Error("layered retrieval eval", "error", err)
 		os.Exit(1)
+	}
+	headline := rageval.ComputeRetrievalHeadline(retrievalResult.PerCase)
+	if *record {
+		metricsPayload := map[string]any{
+			"retrieval_headline": headline,
+			"groups":             retrievalResult.Groups,
+		}
+		metricsRaw, err := json.Marshal(metricsPayload)
+		if err != nil {
+			slog.Error("record: marshal metrics", "error", err)
+			os.Exit(1)
+		}
+		envPayload := map[string]any{
+			"note": "SP-22 E4 grid measurement; redacted local artifact",
+			"switches": map[string]bool{
+				"hybrid": cfg.Features.RAGHybridEnabled, "query_expansion": cfg.Features.RAGQueryExpansionEnabled,
+				"rerank": cfg.Features.RAGRerankEnabled,
+			},
+			"axes": map[string]any{
+				"rrf_k":         cfg.RAG.Hybrid.RRFK,
+				"bm25_topk":     cfg.RAG.Hybrid.BM25TopK,
+				"vector_topk":   cfg.RAG.Hybrid.VectorTopK,
+				"final_topk":    cfg.RAG.Hybrid.FinalTopK,
+				"keyword_source": cfg.RAG.Hybrid.KeywordSource,
+				"rerank_model":  cfg.RAG.Rerank.Model,
+				"rerank_input_topk": cfg.RAG.Rerank.InputTopK,
+				// Reserved grid axes (E4 ticket): the refusal threshold becomes
+				// scannable in SP-24 R3, the chunk strategy slot in SP-24 R4.
+				// Recording them as nulls keeps every run row schema-stable.
+				"refusal_threshold": nil,
+				"chunk_strategy":    nil,
+			},
+			"runtime": map[string]any{
+				"chat":      map[string]string{"provider": cfg.Agent.LLMProvider, "model": cfg.Agent.LLMModel},
+				"embedding": map[string]string{"model": cfg.RAG.Index.EmbeddingModel},
+			},
+			"split": *split, "label": *label,
+		}
+		envRaw, err := json.Marshal(envPayload)
+		if err != nil {
+			slog.Error("record: marshal environment", "error", err)
+			os.Exit(1)
+		}
+		if err := evalRepo.UpsertEvalRun(ctx, &model.EvalRun{
+			RunKey: retrievalResult.RunKey,
+			// eval_runs.dataset_checksum is varchar(64): the bare hex digest.
+			// The "sha256:" prefix stays in artifacts/summaries, where the
+			// full form is the canonical dataset identity.
+			DatasetChecksum:  strings.TrimPrefix(datasetChecksum, "sha256:"),
+			RetrieverVersion: "agent-search-content-tool-v1",
+			ChunkingVersion:  "041-current",
+			IndexVersion:     "v4-1536",
+			Metrics:          model.JSONB(metricsRaw),
+			Environment:      model.JSONB(envRaw),
+			ArtifactPath:     *out,
+		}); err != nil {
+			slog.Error("record: upsert eval_runs", "run_key", retrievalResult.RunKey, "error", err)
+			os.Exit(1)
+		}
+		slog.Info("recorded eval run", "run_key", retrievalResult.RunKey)
 	}
 	retrievedByCase := map[string][]int64{}
 	for _, pc := range retrievalResult.PerCase {
@@ -409,6 +475,7 @@ func main() {
 		"dataset_checksum":   datasetChecksum,
 		"cases":              len(selected),
 		"retrieval_groups":   retrievalResult.Groups,
+		"retrieval_headline": headline,
 		"pathological_cases": pathologicalCases,
 		"generation_layers":  rageval.BuildLayeredAnswerSummary(answerCases),
 		"citation_precision": citationPrecisionByLayer(genRuns),

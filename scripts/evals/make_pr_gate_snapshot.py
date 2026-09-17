@@ -87,7 +87,11 @@ def main() -> int:
             "split": label["split"],
             "layer": label["layer"],
             "expected_ids": label["expected_ids"],
-            "retrieved_ids": sorted(case.retrieved_ids),
+            # Rank order is load-bearing: MRR and hit@k are rank-dependent,
+            # so the recorded retrieval order is preserved verbatim (sorting
+            # the ids here once silently halved the frozen MRR — caught in the
+            # SP-22 E4 grid cross-check, 2026-09-18).
+            "retrieved_ids": list(case.retrieved_ids),
             "answer_status": case.status,
             "answer_kind": case.answer_kind,
         })

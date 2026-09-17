@@ -60,3 +60,21 @@ case 落盘）。
 4 指标 × ~5 次判官调用/case × 196 case ≈ 1000 次调用、约 1.1M judge
 tokens/轮 —— DeepSeek 计价 ≈ ¥2–10/全量轮（与调查报告 §2.2 锚点一致）。
 冒烟用 `--max-cases 5` 先行。
+
+## SP-22 E2/E4 追加工具（2026-09-18）
+
+- `judge_calibration.py`（E2）：标注真值 × DeepSeek judge 3 次重跑 + 中文
+  prompt 翻转探针，产出一致率/方差/分层偏差（报告见
+  docs/working/2026-09-18-sp22-e2-judge-calibration-report.md）。真值文件
+  `artifacts/evals/e2-human-labels.json`（模型标注口径，抽检前按该语义解读）。
+- `grid_ablation.py`（E4）：混合权重网格驱动器（rrf_k / bm25+vector 候选数 /
+  final_topk / rerank 开关；refusal_threshold 与 chunk_strategy 为 R3/R4 预留
+  轴）。逐配置写 override yaml → `cmd/rag-eval -skip-generation -record` →
+  身份断言 → `artifacts/evals/grid/<split>/comparison.md` + eval_runs 落行。
+  首扫 8 配置结论：rerank 全指标最优（SP-24 R1 证据面），rrf/候选池在当前
+  语料为零灵敏度轴。
+- `cmd/rag-eval -record -run-key-prefix grid`：检索测量落 eval_runs；
+  `rag_eval/grid_headline.go` 的 headline 指标与 PR 门禁同公式。
+- 坑：eval_runs.dataset_checksum 是 varchar(64)（剥 sha256: 前缀入库）；
+  make_pr_gate_snapshot.py 不得对 retrieved_ids 排序（E4 抓出的排名序伪影，
+  MRR 曾被腰斩到 0.46，真实 0.91）。

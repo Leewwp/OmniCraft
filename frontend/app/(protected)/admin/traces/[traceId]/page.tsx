@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
-import { Activity, ArrowLeft, Zap, Timer, GitBranch } from "lucide-react";
+import { Activity, ArrowLeft, Zap, Timer, GitBranch, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TraceNode {
@@ -75,6 +75,29 @@ export default function AdminTraceDetailPage() {
   const [selected, setSelected] = useState<TraceNode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // SP-22 E5 badcase feedback: turn this traced turn into a golden-set
+  // draft (question/answer/citations) for curator review on /admin/evals.
+  const [converting, setConverting] = useState(false);
+  const [convertDone, setConvertDone] = useState("");
+  const [convertError, setConvertError] = useState("");
+
+  const createGoldenDraft = async () => {
+    setConverting(true);
+    setConvertDone("");
+    setConvertError("");
+    try {
+      const res = await api.post<{ case_key: string; created: boolean }>(
+        "/api/v1/admin/evals/drafts",
+        { trace_id: traceId },
+      );
+      setConvertDone(res.created ? t("admin.evals.draftCreated") : t("admin.evals.draftExists"));
+    } catch (e) {
+      silentError(e, { component: "AdminTraceDetailPage", action: "createGoldenDraft" });
+      setConvertError(t(getUserFacingErrorKey(e, "admin.evals.convertFailed")));
+    } finally {
+      setConverting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -185,7 +208,27 @@ export default function AdminTraceDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           {t("admin.tracesDetail.backToList")}
         </Link>
-        <h1 className="mt-2 break-all font-mono text-lg font-bold">{run.trace_id}</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <h1 className="break-all font-mono text-lg font-bold">{run.trace_id}</h1>
+          <button
+            type="button"
+            onClick={() => void createGoldenDraft()}
+            disabled={converting}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-3 text-xs hover:bg-canvas-subtle disabled:opacity-50"
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            {converting ? t("admin.evals.converting") : t("admin.evals.toGoldenDraft")}
+          </button>
+          {convertDone && (
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">
+              {convertDone}{" "}
+              <Link href="/admin/evals" className="underline underline-offset-2">
+                {t("admin.evals.viewDrafts")}
+              </Link>
+            </span>
+          )}
+          {convertError && <span className="text-xs text-destructive">{convertError}</span>}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

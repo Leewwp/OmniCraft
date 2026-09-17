@@ -469,6 +469,14 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		// priced at query time by the agent.models rate table.
 		adminLLMCostHandler := handler.NewAdminLLMCostHandler(ctr.AgentTraceRepo, cfg)
 		admin.GET("/llm-costs", adminLLMCostHandler.Ledger)
+		// SP-22 E5: evaluation trend page (eval_runs history) + the
+		// trace -> golden-draft badcase feedback queue. Drafts stay
+		// outside the frozen set; freezing is a curation decision.
+		adminEvalHandler := handler.NewAdminEvalHandler(db, ctr.RagEvaluationRepo, ctr.AgentTraceRepo, ctr.AdminAuditService)
+		admin.GET("/evals/runs", adminEvalHandler.ListRuns)
+		admin.GET("/evals/drafts", adminEvalHandler.ListDrafts)
+		admin.POST("/evals/drafts", adminEvalHandler.CreateDraftFromTrace)
+		admin.DELETE("/evals/drafts/:case_key", adminEvalHandler.DeleteDraft)
 		admin.GET("/archive-scan-jobs/:id", archiveScanAdminRateLimit, adminArchiveScanHandler.GetJob)
 		admin.POST("/archive-scan-jobs/:id/manual-review", archiveScanAdminRateLimit, adminArchiveScanHandler.StartManualReview)
 		admin.POST("/archive-scan-jobs/:id/resolve", archiveScanAdminRateLimit, adminArchiveScanHandler.ResolveManualReview)
