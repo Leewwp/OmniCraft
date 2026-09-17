@@ -958,11 +958,17 @@ func generateFollowUps(ctx context.Context, turnRecorder *agenttrace.TurnRecorde
 	defer func() {
 		status := model.AgentTraceStatusSuccess
 		errCode := ""
+		digest := ""
 		if err != nil || resp == nil {
 			status = model.AgentTraceStatusError
 			errCode = "follow_ups_call_failed"
+		} else {
+			digest = firstLine(resp.Content)
 		}
-		followSpan.End(agenttrace.NodeEndOptions{NodeName: "follow_ups", Status: status, ErrorCode: errCode, CompletionDigest: firstLine(resp.Content)})
+		// resp is nil on the error path; reading resp.Content there panicked
+		// inside GoSafe and left the node RUNNING forever (caught live on the
+		// demo-site smoke: deadline-exceeded follow-up side call).
+		followSpan.End(agenttrace.NodeEndOptions{NodeName: "follow_ups", Status: status, ErrorCode: errCode, CompletionDigest: digest})
 	}()
 	resp, err = provider.Chat(ctx, followUpRequest(resolver, question, titles, answerPrefix))
 	if err != nil {
