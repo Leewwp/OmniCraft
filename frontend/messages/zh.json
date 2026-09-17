@@ -1181,6 +1181,26 @@
       "routingEvents": "模型路由事件",
       "noNodes": "该链路暂无节点记录",
       "selectNodeHint": "点选左侧节点查看详情（摘要 / tokens / 错误 / extra）"
+    },
+    "navPrompts": "提示词",
+    "prompts": {
+      "title": "提示词注册表",
+      "subtitle": "全部提示词槽位的版本、标签与热更管理（写操作进审计日志）",
+      "loadFailed": "加载提示词注册表失败",
+      "loading": "加载中…",
+      "placeholders": "必需占位符",
+      "newVersion": "新建版本",
+      "editorLabel": "新版模板内容",
+      "save": "保存为新版本",
+      "saveFailed": "保存失败",
+      "moveFailed": "移动标签失败",
+      "versions": "版本历史",
+      "diffFrom": "对比起点",
+      "diffTo": "对比终点",
+      "moveProduction": "切 production",
+      "moveStaging": "切 staging",
+      "selectSlot": "选择左侧槽位查看版本与标签",
+      "auditHint": "建版本 / 移标签已记入审计日志（管理 → 审计日志，动作 prompt.version.create / prompt.label.set）。"
     }
   },
   "social": {
