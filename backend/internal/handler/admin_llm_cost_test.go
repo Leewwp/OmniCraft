@@ -63,8 +63,11 @@ func seedCostNodes(t *testing.T, repo *repository.AgentTraceRepository) {
 		{TraceID: "t-a", NodeKey: "llm_round_1", NodeType: "llm_round", Status: model.AgentTraceStatusSuccess, StartedAt: day1, Model: "deepseek-chat", TokensIn: &i500, TokensOut: &o100},
 		// Unknown-rate model: tokens count, cost stays 0, unpriced.
 		{TraceID: "t-c", NodeKey: "llm_round_1", NodeType: "llm_round", Status: model.AgentTraceStatusSuccess, StartedAt: day1, Model: "minimax-m3", TokensIn: &i1000, TokensOut: &o200},
-		// Second priced cell on day 2 for conv 42.
-		{TraceID: "t-b", NodeKey: "llm_round_1", NodeType: "llm_round", Status: model.AgentTraceStatusSuccess, StartedAt: day2, Model: "deepseek-chat", TokensIn: &i300, TokensOut: &o60},
+		// Second priced cell on day 2 for conv 42 — labeled with the
+		// registry id form, matching how failover/pinned turns record the
+		// serving model ("deepseek", not "deepseek-chat"); the id-keyed
+		// rate entry must price it identically.
+		{TraceID: "t-b", NodeKey: "llm_round_1", NodeType: "llm_round", Status: model.AgentTraceStatusSuccess, StartedAt: day2, Model: "deepseek", TokensIn: &i300, TokensOut: &o60},
 	}
 	require.NoError(t, repo.UpsertNodes(ctx, nodes))
 }
@@ -105,17 +108,22 @@ func TestAdminLLMCostLedger(t *testing.T) {
 	var rates map[string]llmCostRateView
 	require.NoError(t, json.Unmarshal(body["rates"], &rates))
 	require.Equal(t, llmCostRateView{In: 2, Out: 8}, rates["deepseek-chat"])
+	require.Equal(t, llmCostRateView{In: 2, Out: 8}, rates["deepseek"], "registry-id spelling must carry the same rate")
 	require.NotContains(t, rates, "minimax-m3")
 
 	var byModel []llmCostModelRow
 	require.NoError(t, json.Unmarshal(body["by_model"], &byModel))
-	require.Len(t, byModel, 2)
-	// Sorted by token volume: minimax (1200/240) first, deepseek second.
+	require.Len(t, byModel, 3)
+	// Sorted by token volume: minimax (1200/240) first, then the two
+	// deepseek label spellings (500/100 model-name, 300/60 registry-id).
 	require.Equal(t, "minimax-m3", byModel[0].Model)
 	require.False(t, byModel[0].Estimated)
 	require.Equal(t, "deepseek-chat", byModel[1].Model)
 	require.True(t, byModel[1].Estimated)
-	require.InDelta(t, 0.00288, byModel[1].CostCNY, 1e-12)
+	require.InDelta(t, 0.0018, byModel[1].CostCNY, 1e-12)
+	require.Equal(t, "deepseek", byModel[2].Model)
+	require.True(t, byModel[2].Estimated)
+	require.InDelta(t, 0.00108, byModel[2].CostCNY, 1e-12)
 
 	var byDay []llmCostDayRow
 	require.NoError(t, json.Unmarshal(body["by_day"], &byDay))

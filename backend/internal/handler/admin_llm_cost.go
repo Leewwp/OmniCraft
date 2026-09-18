@@ -67,9 +67,9 @@ type llmCostTotals struct {
 	UnpricedModels int     `json:"unpriced_models"`
 }
 
-// rateTable maps physical model name (lowercased — the ledger buckets are
-// case-normalized) to CNY per 1M tokens from the SP-20 models registry.
-// Entries with no usable rate stay out (unknown rate).
+// rateTable maps every model label the ledger can bucket (lowercased — the
+// ledger buckets are case-normalized) to CNY per 1M tokens from the SP-20
+// models registry. Entries with no usable rate stay out (unknown rate).
 func (h *AdminLLMCostHandler) rateTable() map[string]llmCostRateView {
 	rates := map[string]llmCostRateView{}
 	if h.cfg == nil {
@@ -79,7 +79,19 @@ func (h *AdminLLMCostHandler) rateTable() map[string]llmCostRateView {
 		if m.Model == "" || (m.CostInPerMTokens <= 0 && m.CostOutPerMTokens <= 0) {
 			continue
 		}
-		rates[strings.ToLower(m.Model)] = llmCostRateView{In: m.CostInPerMTokens, Out: m.CostOutPerMTokens}
+		view := llmCostRateView{In: m.CostInPerMTokens, Out: m.CostOutPerMTokens}
+		// Trace rows carry whichever model label served the turn
+		// (servingModel): the config model name for primary turns
+		// ("deepseek-chat"), the registry id for preference-pinned or
+		// failover turns ("deepseek"), the display name lowercased for the
+		// single-provider wiring ("minimax-m3"). Index every spelling so
+		// each label prices; the model-name key wins on collision.
+		rates[strings.ToLower(m.Model)] = view
+		if id := strings.ToLower(strings.TrimSpace(m.ID)); id != "" {
+			if _, dup := rates[id]; !dup {
+				rates[id] = view
+			}
+		}
 	}
 	return rates
 }
