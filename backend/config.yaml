@@ -414,7 +414,7 @@ agent:
   # 透出）。密钥只走 env：AGENT_IMAGE_API_KEY（缺失或 enabled=false 时工具
   # 不进模型工具清单，fail-closed）；AGENT_IMAGE_API_BASE / _MODEL 可覆盖。
   image:
-    enabled: false
+    enabled: true                  # 密钥仍只走 env：AGENT_IMAGE_API_KEY 缺失时 fail-closed 不上架工具
     provider: "zhipu"
     model: "cogview-4"
     api_base: "https://open.bigmodel.cn/api/paas/v4"
