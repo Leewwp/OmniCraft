@@ -42,10 +42,10 @@ return value
 `)
 
 type VerificationService struct {
-	userRepo   *repository.UserRepository
-	rdb        *redis.Client
-	mailSender mail.MailSender
-	cfg        *config.Config
+	userRepo    *repository.UserRepository
+	rdb         *redis.Client
+	mailSender  mail.MailSender
+	cfg         *config.Config
 	authService *AuthService
 }
 

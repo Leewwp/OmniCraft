@@ -37,13 +37,13 @@ func NewUsageGuideService(guideRepo *repository.UsageGuideRepository, contentRep
 
 // UsageGuideView is the wire contract of GET /api/v1/contents/:id/guide.
 type UsageGuideView struct {
-	ContentID   int64    `json:"content_id"`
-	ContentType string   `json:"content_type"`
-	Locale      string   `json:"locale"`
+	ContentID    int64    `json:"content_id"`
+	ContentType  string   `json:"content_type"`
+	Locale       string   `json:"locale"`
 	Requirements []string `json:"requirements"`
-	Steps       []string `json:"steps"`
-	Notes       string   `json:"notes"`
-	Safety      []string `json:"safety"`
+	Steps        []string `json:"steps"`
+	Notes        string   `json:"notes"`
+	Safety       []string `json:"safety"`
 	// Source reports the specifics provenance: "author" | "llm_assisted";
 	// empty when the view degraded to the pure system template.
 	Source           string  `json:"source,omitempty"`

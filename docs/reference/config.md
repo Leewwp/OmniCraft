@@ -31,7 +31,27 @@ model-routed conversational lane (SP-15 A2): a zero-too... |
 | `agent.embedding_model` | `string` | EmbeddingModel |
 | `agent.embedding_provider` | `string` | EmbeddingProvider routes embeddings to a different adapter than chat
 (canonical profile: minimax chat + openai_compat... |
+| `agent.guardrails.fence_external_tool_results` | `bool` | FenceExternalToolResults wraps MCP/image tool results in explicit
+"data, not instructions" boundary markers before th... |
+| `agent.guardrails.image_url_allow_hosts` | `[]string` | ImageURLAllowHosts is the image-URL allowlist for model output: any
+image-looking URL outside these hosts (and the OS... |
+| `agent.guardrails.session_tool_call_limit` | `int` | SessionToolCallLimit caps total tool calls per conversation across
+turns (persisted #538 steps + live turn); exceedin... |
+| `agent.guardrails.session_tool_turn_limit` | `int` | SessionToolTurnLimit caps how many turns of one conversation may run
+tools at all — the conversation-level hard roo... |
 | `agent.hmac_secret` | `string` | HMACSecret |
+| `agent.image.api_base` | `string` | APIBase |
+| `agent.image.api_key` | `string` | APIKey |
+| `agent.image.enabled` | `bool` | Enabled |
+| `agent.image.max_image_bytes` | `int` | MaxImageBytes |
+| `agent.image.model` | `string` | Model |
+| `agent.image.price_per_image_cny` | `float64` | PricePerImageCNY feeds the trace cost estimate (SP-21 T7 rate-table
+linkage): cost = generated images x this flat rate. |
+| `agent.image.provider` | `string` | Provider |
+| `agent.image.session_image_limit` | `int` | SessionImageLimit |
+| `agent.image.size_default` | `string` | SizeDefault |
+| `agent.image.size_options` | `[]string` | SizeOptions |
+| `agent.image.timeout_sec` | `int` | TimeoutSec |
 | `agent.llm_api_base` | `string` | LLMAPIBase |
 | `agent.llm_api_key` | `string` | LLMAPIKey |
 | `agent.llm_model` | `string` | LLMModel |
@@ -39,6 +59,11 @@ model-routed conversational lane (SP-15 A2): a zero-too... |
 | `agent.max_output_tokens` | `int` | MaxOutputTokens |
 | `agent.max_tool_calls_per_turn` | `int` | MaxToolCallsPerTurn |
 | `agent.max_user_message_chars` | `int` | MaxUserMessageChars |
+| `agent.mcp.call_timeout_sec` | `int` | CallTimeoutSec |
+| `agent.mcp.enabled` | `bool` | Enabled |
+| `agent.mcp.result_max_bytes` | `int` | ResultMaxBytes |
+| `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes |
+| `agent.mcp.servers` | `[]AgentMCPServerConfig` | Servers |
 | `agent.models` | `[]AgentModelConfig` | Models is the SP-20 (#545) incremental model supply registry. The
 primary stays on the single llm_provider wiring abo... |
 | `agent.provider_max_retries` | `int` | ProviderMaxRetries |
@@ -50,6 +75,26 @@ primary stays on the single llm_provider wiring abo... |
 | `agent.routing.retry_on` | `[]string` | RetryOn |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
+| `agent.guardrails.fence_external_tool_results` | `bool` | FenceExternalToolResults |
+| `agent.guardrails.image_url_allow_hosts` | `[]string` | ImageURLAllowHosts |
+| `agent.guardrails.session_tool_call_limit` | `int` | SessionToolCallLimit |
+| `agent.guardrails.session_tool_turn_limit` | `int` | SessionToolTurnLimit |
+| `agent.mcp.enabled` | `bool` | Enabled |
+| `agent.mcp.call_timeout_sec` | `int` | CallTimeoutSec |
+| `agent.mcp.result_max_bytes` | `int` | ResultMaxBytes |
+| `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes |
+| `agent.mcp.servers` | `[]AgentMCPServerConfig` | Servers |
+| `agent.image.enabled` | `bool` | Enabled |
+| `agent.image.provider` | `string` | Provider |
+| `agent.image.model` | `string` | Model |
+| `agent.image.api_base` | `string` | APIBase |
+| `agent.image.api_key` | `string` | APIKey |
+| `agent.image.size_default` | `string` | SizeDefault |
+| `agent.image.size_options` | `[]string` | SizeOptions |
+| `agent.image.max_image_bytes` | `int` | MaxImageBytes |
+| `agent.image.timeout_sec` | `int` | TimeoutSec |
+| `agent.image.session_image_limit` | `int` | SessionImageLimit |
+| `agent.image.price_per_image_cny` | `float64` | PricePerImageCNY |
 | `agent_access.max_tokens_per_user` | `int` | MaxTokensPerUser |
 | `archive_scan.clamd_address` | `string` | ClamdAddress |
 | `archive_scan.max_entry_uncompressed_mb` | `int` | MaxEntryUncompressedMB |

@@ -386,7 +386,25 @@ func deriveToolArgsSummary(name string, rawArgs json.RawMessage) (string, error)
 
 // agentToolHitCount counts the retrievable items a tool returned: the search
 // result count, or 1/0 for single-target lookups.
+// convIDForTools safely extracts the conversation id for budget-scoped tools
+// (nil conversation in corner paths = no durable budget).
+func convIDForTools(conv *model.AgentConversation) int64 {
+	if conv == nil {
+		return 0
+	}
+	return conv.ID
+}
+
 func agentToolHitCount(outcome *AgentToolOutcome) int {
+	if outcome == nil {
+		return 0
+	}
+	if outcome.Image != nil && outcome.Image.URL != "" {
+		return 1
+	}
+	if outcome.MCP != nil && outcome.MCP.Result != "" {
+		return 1
+	}
 	switch {
 	case len(outcome.Search) > 0:
 		return len(outcome.Search)
