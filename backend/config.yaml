@@ -88,10 +88,13 @@ features:
   archive_malware_scan_enabled: false
   # RAG remains opt-in until the full T04-T07 slice is complete.
   rag_hybrid_enabled: true
-  # A-03 retrieval upgrades: both default off until the A-04 ablation
-  # decides their default values with real data.
+  # A-03 retrieval upgrades: query expansion stays off (A-04 C4 regression);
+  # rerank defaults ON since SP-24 R1 (2026-09-18): dev 156-case run shows
+  # MRR 0.9338→0.9833 / hit@5 +0.017 with the refusal matrix holding
+  # (rag-gate PASS) at +~160ms per retrieval — evidence in
+  # docs/working/2026-09-18-sp24-r1-rerank-default.md.
   rag_query_expansion_enabled: false
-  rag_rerank_enabled: false
+  rag_rerank_enabled: true
 
 rag:
   chunking:
