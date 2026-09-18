@@ -369,6 +369,18 @@ agent:
   # provider 接线，零迁移）。api_key 为空的条目静默不注册（不可选、不进链，
   # 部署行为与单供给完全一致）；凭证经 env AGENT_MODEL_<ID>_API_KEY 注入。
   models:
+    # 费率专用条目（api_key 留空 → 不注册为可选模型/不进路由，仅成本台账读价）：
+    # MiniMax-M3 国内平台标准档（≤512K 上下文）原价 4.2/16.8，永久五折后实付
+    # 2.1/8.4 CNY/百万 tokens（国际平台折后 $0.30/$1.20 ≈ 同水平）；trace 标签
+    # minimax-m3。改价后台账可重估历史。
+    - id: minimax-m3
+      provider: minimax
+      model: MiniMax-M3
+      api_base: ""
+      api_key: ""                    # 留空 = 费率表专用（见上）
+      display_name: ""
+      cost_in_per_m_tokens: 2.1
+      cost_out_per_m_tokens: 8.4
     - id: deepseek
       provider: deepseek          # openai 兼容 wire + thinking.type 参数风格（V3.2）
       model: deepseek-chat        # 非思考端点；深度思考经 thinking 参数开启
@@ -376,7 +388,9 @@ agent:
       api_key: ""
       display_name: DeepSeek
       # 成本台账费率（SP-21 T7，CNY/百万 tokens；标准时段缓存未命中价）。
-      # 主供给 MiniMax-M3 官方未公开单价——不在注册表内、标 unknown 只计 token 不估算。
+      # deepseek-chat 现为别名（官方页仅列 deepseek-flash/v4-pro，遗留别名按
+      # Flash 档计价：$0.30/$1.20 标准时段 ≈ ¥2.1/¥8.5）；沿用 2/8 误差 <5%，
+      # 改价可重估历史。
       cost_in_per_m_tokens: 2.0
       cost_out_per_m_tokens: 8.0
   # 路由链：primary 空 = 主供给（minimax）置首；fallbacks 引用注册表 id，
