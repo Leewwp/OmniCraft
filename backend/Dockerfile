@@ -17,6 +17,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/server ./cmd/serv
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/worker ./cmd/worker/main.go
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/migrate ./cmd/migrate
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/release-preflight ./cmd/release-preflight
+# MCP document-editing server (SP-23 M2): shipped in the image so the M3
+# bridge can launch it by absolute path (agent.mcp.servers[].command =
+# /app/mcp-docserver); identity/DB wiring arrives via inherited env.
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/mcp-docserver ./cmd/mcp-docserver
 
 # Final stage
 FROM alpine:3.23
@@ -38,6 +42,7 @@ COPY --from=builder /app/server .
 COPY --from=builder /app/worker .
 COPY --from=builder /app/migrate .
 COPY --from=builder /app/release-preflight .
+COPY --from=builder /app/mcp-docserver .
 COPY --from=builder /app/config.yaml .
 COPY --from=builder /app/migrations ./migrations
 
