@@ -296,7 +296,6 @@ func TestExpandedCitationSSEPayloadHasNoScoreOrVisibilityFlag(t *testing.T) {
 	require.NotContains(t, encoded, `"visibility_checked"`)
 }
 
-
 // A-03: the hybrid search_content tool carries the query-expansion terms on
 // its outcome so the stream loop can surface them in the tool step summary.
 func TestSearchContentSurfacesExpandedQueries(t *testing.T) {

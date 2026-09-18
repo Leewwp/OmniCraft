@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrCategoryNotFound = errors.New("category not found")
+	ErrCategoryNotFound    = errors.New("category not found")
 	ErrCategoryHasChildren = errors.New("category has child categories")
 	ErrCategoryHasContent  = errors.New("category has linked content")
 )

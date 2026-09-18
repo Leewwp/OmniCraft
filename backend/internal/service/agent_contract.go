@@ -118,6 +118,9 @@ func (c AgentCitation) MarshalJSON() ([]byte, error) {
 // raw arguments or internal reasoning.
 type AgentToolExecution struct {
 	Name string `json:"name"`
+	// External marks bridged/external tools (MCP, image generation) so the
+	// process panel and trace waterfall can badge them (SP-23 M5).
+	External bool `json:"external,omitempty"`
 	// ArgsSummary is a server-derived, display-safe argument summary (for
 	// example the search query or the requested content id); raw tool
 	// argument JSON is never serialized into events.

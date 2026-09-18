@@ -290,7 +290,7 @@ func TestPostCommentFailClosedWhenModerationFailsInReleaseMode(t *testing.T) {
 	authorID := seedTestSocialUser(t, db)
 	svc := newTestSocialService(db, "release", &fakeTextReviewer{err: errors.New("green api error")})
 
-_, err := svc.PostComment(context.Background(), PostCommentInput{Body: "some comment"}, authorID)
+	_, err := svc.PostComment(context.Background(), PostCommentInput{Body: "some comment"}, authorID)
 	if !errors.Is(err, ErrModerationUnavailable) {
 		t.Fatalf("PostComment() error = %v, want ErrModerationUnavailable", err)
 	}

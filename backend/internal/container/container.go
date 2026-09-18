@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/agentmcp"
 	"omnicraft/backend/internal/mcpserver"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/observability/agenttrace"
@@ -362,6 +363,22 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		slog.Warn("prompt registry v1 seed failed; builtins stay active", "error", err)
 	}
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
+	// SP-23 M3: MCP client bridge — inert unless agent.mcp.enabled; dead
+	// server subprocesses degrade to "no tools from that server".
+	c.AgentService.SetMCPBridge(agentmcp.New(cfg.Agent.MCP))
+	// SP-23 M1: generate_image wiring — fail-closed on every seam (switch,
+	// key, OSS store); an unconfigured image endpoint never surfaces the
+	// tool to the model. A dedicated OSS client keeps image availability
+	// independent of the archive-scan feature switch.
+	if cfg.Agent.Image.ImageConfigured() {
+		if ossClient, ossErr := aliyun.NewOSSClient(cfg.OSS.Endpoint, cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret, cfg.OSS.BucketName); ossErr != nil {
+			slog.Error("generate_image disabled: OSS store unavailable", "error", ossErr)
+		} else {
+			c.AgentService.SetImageTool(cfg.Agent.Image, llm.NewCogViewClient(
+				cfg.Agent.Image.APIBase, cfg.Agent.Image.APIKey, cfg.Agent.Image.Model,
+			), &ossAgentImageStore{client: ossClient})
+		}
+	}
 	c.AgentTokenService = service.NewAgentAccessTokenService(
 		repository.NewAgentAccessTokenRepository(db), cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)

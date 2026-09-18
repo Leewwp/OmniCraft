@@ -25,8 +25,8 @@ func searchIPsFixture(t *testing.T, db *gorm.DB, ips []model.IP, allow []string)
 		nil,
 		db,
 		&config.Config{
-			Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 2, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200},
-			RAG:   config.RAGConfig{Hybrid: config.RAGHybridConfig{FinalTopK: 10}},
+			Agent:        config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 2, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200},
+			RAG:          config.RAGConfig{Hybrid: config.RAGHybridConfig{FinalTopK: 10}},
 			IPCategories: allow,
 		},
 	)

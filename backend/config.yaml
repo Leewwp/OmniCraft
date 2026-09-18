@@ -383,6 +383,47 @@ agent:
     primary: ""
     fallbacks: [deepseek]
     retry_on: [provider_error, blank_answer]
+  # SP-23 M4（#569）：护栏五件套的服务端三件——外部工具结果围栏（数据非
+  # 指令边界标记）、模型输出图片 URL 白名单（域外换占位）、会话级预算
+  # （工具调用总数 + 允许跑工具的轮数硬顶；0 = 不限）。第五件写确认门在
+  # MCP docserver 的 draft_apply_edit 二段式确认里（见 internal/mcpdocserver）。
+  guardrails:
+    fence_external_tool_results: true
+    image_url_allow_hosts: []     # 留空 = 仅平台 OSS 签名域放行
+    session_tool_call_limit: 200  # 每会话累计工具调用上限
+    session_tool_turn_limit: 50   # 每会话允许带工具调用的轮数上限
+  # SP-23 M3（#568）：MCP client 桥 —— 按 server 注册外部 MCP 工具（stdio 子进
+  # 程，惰起），工具名加 mcp_<server>_<tool> 前缀防与本地工具冲突。默认关；
+  # 灰度时按 server 单开。结果回填有截断上限；调用超时见 call_timeout_sec。
+  mcp:
+    enabled: false
+    call_timeout_sec: 10
+    result_max_bytes: 8192
+    # 外部工具轮次（仅 MCP/图片工具）的答案长度护栏：这类答案的数据源是
+    # 工作区（草稿）而非 RAG 分片，无引用是常态；超过此 rune 数仍按
+    # no_evidence 清空（防借外部工具之名长篇跑题）。0 = 关闭该通道。
+    external_answer_max_runes: 4000
+    servers: []
+    #  - id: "doc"                        # 工具将暴露为 mcp_doc_draft_read 等
+    #    command: "/opt/omnicraft/bin/mcp-docserver"
+    #    args: []
+    #    env:                              # 键不区分大小写（viper 小写化后桥侧
+    #      OMNICRAFT_DOC_USER_ID: "1"     # 统一回大写注入）；身份经启动 env 注入（SP-16 模式）
+  # SP-23 M1（#566）：generate_image 工具 —— 智谱 CogView-4 OpenAI 兼容 images
+  # 端点（≈0.06 元/张），产出图先落平台自有 OSS 再回链（外部图床 URL 绝不
+  # 透出）。密钥只走 env：AGENT_IMAGE_API_KEY（缺失或 enabled=false 时工具
+  # 不进模型工具清单，fail-closed）；AGENT_IMAGE_API_BASE / _MODEL 可覆盖。
+  image:
+    enabled: false
+    provider: "zhipu"
+    model: "cogview-4"
+    api_base: "https://open.bigmodel.cn/api/paas/v4"
+    size_default: "1024x1024"
+    size_options: ["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"]
+    max_image_bytes: 10485760     # 单张下载上限 10MB
+    timeout_sec: 60
+    session_image_limit: 5        # 每会话累计张数上限（触顶走降级文案）
+    price_per_image_cny: 0.06     # trace 成本估算用（与 T7 费率表同语义）
 
 # SP-16 #450（spec D2）：外部 Agent 接入令牌（PAT）管理参数。
 agent_access:

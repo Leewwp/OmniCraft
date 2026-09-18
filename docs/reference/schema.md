@@ -48,6 +48,20 @@
 | `title` | `VARCHAR(200)` | - | title |
 | `pinned_at` | `TIMESTAMPTZ` | - | pinned_at |
 
+### agent_drafts
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `user_id` | `BIGINT` | NOT NULL | user_id |
+| `title` | `VARCHAR(200)` | NOT NULL DEFAULT '' | title |
+| `content_type` | `VARCHAR(20)` | NOT NULL DEFAULT 'article' | content_type |
+| `body` | `TEXT` | NOT NULL DEFAULT '' | body |
+| `tags` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | tags |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'active' | status |
+
 ### agent_messages
 
 | 列名 | 类型 | 约束 | 说明 |

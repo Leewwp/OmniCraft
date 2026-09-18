@@ -46,11 +46,11 @@ func setupRefreshRaceService(t *testing.T) (*AuthService, *miniredis.Miniredis, 
 	cfg.JWT.RefreshTokenTTL = 7
 
 	user := &model.User{
-		Email:            "refresh-race@example.test",
-		Username:         "refresh-race-user",
-		PasswordHash:     "hash",
-		Role:             "user",
-		EmailVerifiedAt:  timePtrForRefreshRace(time.Now()),
+		Email:           "refresh-race@example.test",
+		Username:        "refresh-race-user",
+		PasswordHash:    "hash",
+		Role:            "user",
+		EmailVerifiedAt: timePtrForRefreshRace(time.Now()),
 	}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("seed user: %v", err)

@@ -49,7 +49,7 @@ func conversationalLaneTestConfig() *config.Config {
 		Agent: config.AgentConfig{
 			WebAgentEnabled: true, MaxToolCallsPerTurn: 8, CitationMaxCount: 5,
 			MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200,
-			ChatContextTokenBudget: 100000,
+			ChatContextTokenBudget:  100000,
 			ChitchatShortcutEnabled: true,
 			ChitchatPatterns: []string{"你好", "您好", "嗨", "哈喽", "hello", "hi", "hey", "在吗",
 				"谢谢", "多谢", "感谢", "thanks", "thank you", "再见", "拜拜", "晚安"},

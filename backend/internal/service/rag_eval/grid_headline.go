@@ -13,10 +13,10 @@ package rageval
 // the agent would have no citable evidence for that case. The real confusion
 // matrix (with hallucination) stays a generation-layer artifact.
 type RetrievalHeadlineMetrics struct {
-	RetrievalEvaluated   int     `json:"retrieval_evaluated"`
-	RetrievalNotEvaluated int    `json:"retrieval_not_evaluated"`
-	RetrievalFailed      int     `json:"retrieval_failed"`
-	AnswerableEvaluated  int     `json:"answerable_evaluated"`
+	RetrievalEvaluated    int `json:"retrieval_evaluated"`
+	RetrievalNotEvaluated int `json:"retrieval_not_evaluated"`
+	RetrievalFailed       int `json:"retrieval_failed"`
+	AnswerableEvaluated   int `json:"answerable_evaluated"`
 
 	ContextRecallAt5  float64 `json:"context_recall_at_5"`
 	ContextRecallAt10 float64 `json:"context_recall_at_10"`

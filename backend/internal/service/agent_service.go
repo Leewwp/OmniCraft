@@ -51,6 +51,36 @@ type AgentService struct {
 	// traceWriter feeds the async agent trace persistence (SP-21 T2): nil
 	// disables turn recording entirely (tests, DB-less seams).
 	traceWriter *agenttrace.Writer
+	// generate_image seams (SP-23 M1): zero config or nil seams keep the
+	// tool unregistered (fail-closed — no half-working tool ever reaches
+	// the model's tool list).
+	agentImageCfg   config.AgentImageConfig
+	agentImageGen   llm.AgentImageGenerator
+	agentImageStore AgentImageStore
+	// mcpBridge exposes configured MCP servers as mcp_<server>_<tool>
+	// tools (SP-23 M3). nil = no bridged tools; every method is nil-safe.
+	mcpBridge AgentMCPBridge
+}
+
+// AgentMCPBridge is the MCP client seam consumed by the tool loop.
+type AgentMCPBridge interface {
+	ToolDefinitions(ctx context.Context) []llm.ToolDefinition
+	CallTool(ctx context.Context, name string, rawArgs json.RawMessage) (resultJSON string, truncated bool, err error)
+}
+
+// SetMCPBridge wires the external-tool bridge (container calls this even
+// when disabled; the bridge no-ops unless configured).
+func (s *AgentService) SetMCPBridge(b AgentMCPBridge) {
+	s.mcpBridge = b
+}
+
+// SetImageTool wires the generate_image tool. Any nil seam or an
+// unconfigured switch keeps the tool off; the container only calls this when
+// the image endpoint and the OSS store are both live.
+func (s *AgentService) SetImageTool(cfg config.AgentImageConfig, gen llm.AgentImageGenerator, store AgentImageStore) {
+	s.agentImageCfg = cfg
+	s.agentImageGen = gen
+	s.agentImageStore = store
 }
 
 // SetPromptResolver wires the shared resolver (container constructs it after

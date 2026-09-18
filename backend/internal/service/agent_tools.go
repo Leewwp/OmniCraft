@@ -1,6 +1,8 @@
 package service
 
 import (
+	"omnicraft/backend/internal/agentmcp"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -91,15 +93,19 @@ type AgentIPSummary struct {
 // AgentToolOutcome carries one tool execution result. Only the matching field
 // is populated; raw arguments and internal reasoning are never exposed.
 type AgentToolOutcome struct {
-	Execution        AgentToolExecution   `json:"execution"`
-	Detail           *AgentContentSummary `json:"detail,omitempty"`
-	Guide            *UsageGuideResult    `json:"guide,omitempty"`
-	Search           []ContentSummary     `json:"search,omitempty"`
-	IPs              []AgentIPSummary     `json:"ips,omitempty"`
-	Suggest          *UploadAssistResult  `json:"suggest,omitempty"`
-	Degraded         bool                 `json:"-"`
-	RetrievalSources map[string]string    `json:"-"`
-	ExpandedQueries  []string             `json:"-"`
+	Execution AgentToolExecution   `json:"execution"`
+	Detail    *AgentContentSummary `json:"detail,omitempty"`
+	Guide     *UsageGuideResult    `json:"guide,omitempty"`
+	Search    []ContentSummary     `json:"search,omitempty"`
+	IPs       []AgentIPSummary     `json:"ips,omitempty"`
+	Suggest   *UploadAssistResult  `json:"suggest,omitempty"`
+	// Image carries the generate_image outcome (SP-23 M1): platform-owned
+	// OSS coordinates only, never the provider URL.
+	Image            *AgentImageResult `json:"image,omitempty"`
+	MCP              *AgentMCPResult   `json:"mcp,omitempty"`
+	Degraded         bool              `json:"-"`
+	RetrievalSources map[string]string `json:"-"`
+	ExpandedQueries  []string          `json:"-"`
 }
 
 // AgentToolPolicy exposes the config-driven budget used to stop the tool loop
@@ -142,7 +148,31 @@ func (s *AgentService) RegisteredToolNames() []string {
 
 // ToolDefinitions returns server-owned tool definitions for provider
 // advertisement. They are built from constants; content cannot change them.
+// generate_image joins only when the image provider is configured (switch +
+// key + store), so the model never sees a dead tool (SP-23 M1 fail-closed).
 func (s *AgentService) ToolDefinitions() []llm.ToolDefinition {
+	defs := s.baseToolDefinitions()
+	if s.imageToolAvailable() {
+		defs = append(defs, llm.ToolDefinition{
+			Name:        ToolGenerateImage,
+			Description: "Generate one illustration from a Chinese text description and return the platform-hosted image URL. Use for covers or scene art the user asks for.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"prompt": map[string]interface{}{"type": "string", "description": "image description in Chinese"},
+					"size": map[string]interface{}{
+						"type":        "string",
+						"description": "optional aspect; one of: " + strings.Join(s.agentImageCfg.SizeOptions, ", "),
+					},
+				},
+				"required": []string{"prompt"},
+			},
+		})
+	}
+	return defs
+}
+
+func (s *AgentService) baseToolDefinitions() []llm.ToolDefinition {
 	return []llm.ToolDefinition{
 		{
 			Name:        ToolSearchContent,
@@ -161,7 +191,7 @@ func (s *AgentService) ToolDefinitions() []llm.ToolDefinition {
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"query":   map[string]interface{}{"type": "string", "description": "self-contained keyword query matched against IP name and description"},
+					"query": map[string]interface{}{"type": "string", "description": "self-contained keyword query matched against IP name and description"},
 					"category": map[string]interface{}{
 						"type":        "string",
 						"description": "optional IP category slug; only these values are valid: " + s.ipCategorySlugList(),
@@ -234,38 +264,73 @@ func (s *AgentService) resolveVisibleContent(ctx context.Context, viewerID, cont
 	return &content, nil
 }
 
-type agentToolHandler func(context.Context, json.RawMessage, int64, *AgentPublishSnapshot) (*AgentToolOutcome, error)
+// agentToolScope carries the per-turn execution context into tool handlers:
+// viewer identity, the conversation for budget-scoped tools, the live-turn
+// image count (the durable #538 rows only land at end of turn), and the
+// typed publish snapshot.
+type agentToolScope struct {
+	ViewerID       int64
+	ConversationID int64
+	TurnImages     int
+	Snapshot       *AgentPublishSnapshot
+}
+
+type agentToolHandler func(context.Context, json.RawMessage, agentToolScope) (*AgentToolOutcome, error)
 
 // toolRegistry is local and fixed: callers cannot register tools at runtime.
 func (s *AgentService) toolRegistry() map[string]agentToolHandler {
 	return map[string]agentToolHandler{
-		ToolSearchContent: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
-			return s.toolSearchContent(ctx, args, viewerID)
+		ToolSearchContent: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
+			return s.toolSearchContent(ctx, args, scope.ViewerID)
 		},
-		ToolSearchIPs: func(ctx context.Context, args json.RawMessage, _ int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+		ToolSearchIPs: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
 			return s.toolSearchIPs(ctx, args)
 		},
-		ToolGetContentDetail: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
-			return s.toolGetContentDetail(ctx, args, viewerID)
+		ToolGetContentDetail: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
+			return s.toolGetContentDetail(ctx, args, scope.ViewerID)
 		},
-		ToolGetUsageGuide: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
-			return s.toolGetUsageGuide(ctx, args, viewerID)
+		ToolGetUsageGuide: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
+			return s.toolGetUsageGuide(ctx, args, scope.ViewerID)
 		},
-		ToolSuggestPublishMetadata: func(ctx context.Context, args json.RawMessage, _ int64, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
-			return s.toolSuggestPublishMetadata(ctx, args, snapshot)
+		ToolSuggestPublishMetadata: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
+			return s.toolSuggestPublishMetadata(ctx, args, scope.Snapshot)
+		},
+		ToolGenerateImage: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
+			return s.toolGenerateImage(ctx, args, scope)
 		},
 	}
 }
 
 // ExecuteTool validates and executes one registered read-only tool. Unknown
 // names and invalid arguments never reach a provider or visibility query.
+// Conversation-scoped tools (the image budget) see conversationID=0 here and
+// only enforce the live-turn budget; the stream loop passes the real id via
+// ExecuteToolInConversation.
 func (s *AgentService) ExecuteTool(ctx context.Context, name string, rawArgs json.RawMessage, viewerID int64, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+	return s.ExecuteToolInConversation(ctx, name, rawArgs, viewerID, 0, 0, snapshot)
+}
+
+// ExecuteToolInConversation additionally binds the conversation id and the
+// live-turn image count for per-conversation budgets (SP-23 M1 image quota).
+func (s *AgentService) ExecuteToolInConversation(ctx context.Context, name string, rawArgs json.RawMessage, viewerID, conversationID int64, turnImages int, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
 	start := time.Now()
+	// SP-23 M3: bridged external tools route through the MCP seam before
+	// the local registry (the mcp_ namespace cannot collide with it).
+	if strings.HasPrefix(name, agentmcp.ToolNamePrefix) {
+		if s.mcpBridge == nil {
+			return nil, withToolError(nil, name, ErrAgentToolUnknown, start)
+		}
+		outcome, err := s.mcpToolOutcome(ctx, name, rawArgs)
+		return outcome, withToolError(outcome, name, err, start)
+	}
 	handler, ok := s.toolRegistry()[name]
 	if !ok {
 		return nil, ErrAgentToolUnknown
 	}
-	outcome, err := handler(ctx, rawArgs, viewerID, snapshot)
+	outcome, err := handler(ctx, rawArgs, agentToolScope{
+		ViewerID: viewerID, ConversationID: conversationID,
+		TurnImages: turnImages, Snapshot: snapshot,
+	})
 	return outcome, withToolError(outcome, name, err, start)
 }
 
@@ -765,12 +830,38 @@ func ClassifyGroundedAnswer(citations []AgentCitation) AgentAnswerKind {
 // which disables the lane) falls back to the strict grounded classification,
 // so a lazy zero-retrieval long answer on a content question is still cleared.
 func ClassifyStreamAnswer(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes int) AgentAnswerKind {
+	return ClassifyStreamAnswerWithExternal(citations, executedTools, answer, degraded, conversationalMaxRunes, 0)
+}
+
+// ClassifyStreamAnswerWithExternal extends the lane for SP-23 M3: a turn
+// whose executed tools were ALL external (MCP bridge / image generation)
+// may keep a citation-free answer within externalMaxRunes — its grounding
+// is workspace data the tool fetched, not RAG chunks, so the strict citation
+// gate would otherwise clear every substantive external-tool answer. Any
+// local retrieval tool in the mix keeps the strict shape.
+func ClassifyStreamAnswerWithExternal(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes, externalMaxRunes int) AgentAnswerKind {
 	trimmed := strings.TrimSpace(answer)
-	if len(citations) == 0 && len(executedTools) == 0 && trimmed != "" && !degraded &&
-		conversationalMaxRunes > 0 && len([]rune(trimmed)) <= conversationalMaxRunes {
-		return AgentAnswerConversational
+	if len(citations) == 0 && trimmed != "" && !degraded {
+		if len(executedTools) == 0 && conversationalMaxRunes > 0 && len([]rune(trimmed)) <= conversationalMaxRunes {
+			return AgentAnswerConversational
+		}
+		if externalMaxRunes > 0 && allToolsExternal(executedTools) && len([]rune(trimmed)) <= externalMaxRunes {
+			return AgentAnswerConversational
+		}
 	}
 	return ClassifyGroundedAnswer(citations)
+}
+
+func allToolsExternal(tools []AgentToolExecution) bool {
+	if len(tools) == 0 {
+		return false
+	}
+	for _, t := range tools {
+		if !t.External {
+			return false
+		}
+	}
+	return true
 }
 
 // untracedTraceID is an explicit marker for direct service callers that do
