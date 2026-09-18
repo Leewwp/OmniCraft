@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/llm"
 )
@@ -191,4 +193,61 @@ func TestAgentStreamV2NoEvidenceStreamsButDoneStaysEmpty(t *testing.T) {
 	var persisted model.AgentMessage
 	require.NoError(t, db.First(&persisted, done.MessageID).Error)
 	require.Empty(t, *persisted.Content, "persisted answer stays empty on no_evidence")
+}
+
+// SP-23 M1 quota contract (live regression 2026-09-18, conversation #1083):
+// when the per-conversation image budget blocks a generate_image call, the
+// stream must relay the stable image_quota_exceeded code to the model AND
+// mark the step external — otherwise the model retries against a generic
+// tool_error and the strict citation gate clears its relay to an empty
+// bubble (user sees a misleading "未找到足够依据" refusal).
+func TestAgentStreamV2ImageQuotaRelayKept(t *testing.T) {
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{toolCallDelta("generate_image", `{"prompt":"a lighthouse at night"}`)},
+		{toolCallDelta("generate_image", `{"prompt":"the same lighthouse at dusk"}`)},
+		{{Content: "本会话配图额度已用完，无法再生成新图。", Done: true}},
+	}}
+	cfg := continuationTestConfig(100000)
+	// Production shape: the external-answer lane is armed by
+	// agent.mcp.external_answer_max_runes (4000 in config.yaml).
+	cfg.Agent.MCP.ExternalAnswerMaxRunes = 4000
+	cfg.Agent.Image = config.AgentImageConfig{
+		Enabled: true, APIKey: "test-key", SessionImageLimit: 1,
+		SizeDefault: "1024x1024", TimeoutSec: 5, MaxImageBytes: 1 << 20,
+	}
+	svc, db := newStreamTestService(t, provider, cfg)
+	gen := &fakeImageGenerator{bytes: []byte("fakepng")}
+	store := newFakeImageStore()
+	svc.SetImageTool(cfg.Agent.Image, gen, store)
+
+	var done *AgentStreamEvent
+	err := svc.ChatStream(context.Background(), 7, ChatTurnInput{Message: "画一张灯塔"}, resolveGlobalChatContext(t, svc, 7), func(ev AgentStreamEvent) error {
+		if ev.Type == AgentEventDone {
+			done = &ev
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, done)
+
+	require.Equal(t, 1, gen.calls, "the second generate_image must be blocked before the provider")
+	require.Equal(t, "本会话配图额度已用完，无法再生成新图。", done.Answer,
+		"the model's quota relay must survive the citation gate instead of being cleared to a refusal")
+
+	var toolsRows []model.AgentMessage
+	require.NoError(t, db.Where("role = ?", "assistant").Find(&toolsRows).Error)
+	var steps []map[string]any
+	for _, row := range toolsRows {
+		if row.ToolCalls != nil && row.ToolCalls["phase"] == "tools" {
+			raw, marshalErr := json.Marshal(row.ToolCalls["steps"])
+			require.NoError(t, marshalErr)
+			require.NoError(t, json.Unmarshal(raw, &steps))
+		}
+	}
+	require.Len(t, steps, 2, "both tool attempts persist as steps")
+	require.Equal(t, "success", steps[0]["status"])
+	second, _ := steps[1]["status"].(string)
+	require.Equal(t, "error", second)
+	external, _ := steps[1]["external"].(bool)
+	require.True(t, external, "the quota-blocked step must carry the external badge so the all-external lane applies")
 }

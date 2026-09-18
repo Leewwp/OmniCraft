@@ -122,8 +122,12 @@ func (s *AgentService) ResolveChatContext(ctx context.Context, viewerID int64, c
 // model. Raw tool arguments and internal reasoning are never included; a
 // forbidden content ID produces the uniform content_not_found result.
 type agentToolResult struct {
-	OK      bool                 `json:"ok"`
-	Error   string               `json:"error,omitempty"`
+	OK   bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+	// Message is a model-facing relay hint for stable degradation codes
+	// (image quota): what the model should tell the user instead of
+	// retrying the call.
+	Message string               `json:"message,omitempty"`
 	Detail  *AgentContentSummary `json:"detail,omitempty"`
 	Guide   *UsageGuideResult    `json:"guide,omitempty"`
 	Search  []ContentSummary     `json:"search,omitempty"`
@@ -446,9 +450,19 @@ loop:
 					result = agentToolResult{OK: false, Error: "tool_error"}
 				} else if errors.Is(toolErr, ErrAgentToolInvalidArgs) {
 					result = agentToolResult{OK: false, Error: "invalid_args"}
-				} else if errors.Is(toolErr, ErrContentNotFound) {
-					result = agentToolResult{OK: false, Error: "content_not_found"}
-				} else {
+			} else if errors.Is(toolErr, ErrContentNotFound) {
+				result = agentToolResult{OK: false, Error: "content_not_found"}
+			} else if errors.Is(toolErr, ErrAgentImageQuotaExceeded) {
+				// M1 quota contract (live regression 2026-09-18: with the
+				// generic tool_error the model retried 5x and the strict
+				// citation gate then cleared its relay to an empty bubble):
+				// relay a stable code + hint so the model tells the user the
+				// cap is reached instead of retrying, and mark the step
+				// external so the all-external lane keeps that short relay.
+				result = agentToolResult{OK: false, Error: "image_quota_exceeded",
+					Message: "本会话配图额度已用完。请直接告知用户额度已满、勿再调用 generate_image。"}
+				execution.External = true
+			} else {
 					result = agentToolResult{OK: false, Error: "tool_error"}
 				}
 				traceAgentEvent(traceID, "tool_error", "tool", tc.Function.Name, "safe_error", result.Error)
