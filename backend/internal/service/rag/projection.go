@@ -157,6 +157,23 @@ func (p *Projection) activeIndexVersion(ctx context.Context) (int, error) {
 	return p.config.IndexVersion, nil
 }
 
+// projectableContentIDs lists published contents that have an active latest
+// version — the projection universe. Published-but-unversioned contents
+// (partially deleted version chains, corpus leftovers) have nothing to
+// project: their sync fails with ErrVersionNotFound, so including them in a
+// rebuild both aborts the run and breaks the promote row-count assertion.
+// The EXISTS mirrors LoadLatestPublishedContent exactly (latest row, active).
+func (p *Projection) projectableContentIDs(ctx context.Context) ([]int64, error) {
+	var ids []int64
+	if err := p.db.WithContext(ctx).Table("content_items AS ci").
+		Where("ci.status = ? AND ci.deleted_at IS NULL", "published").
+		Where("EXISTS (SELECT 1 FROM content_versions cv WHERE cv.content_item_id = ci.id AND cv.is_latest = TRUE AND cv.status = 'active')").
+		Order("ci.id ASC").Pluck("ci.id", &ids).Error; err != nil {
+		return nil, fmt.Errorf("list projectable rebuild contents: %w", err)
+	}
+	return ids, nil
+}
+
 func (p *Projection) syncContent(ctx context.Context, contentID int64, indexVersion int, promote bool) error {
 	var content projectionContent
 	if err := p.db.WithContext(ctx).Table("content_items").
@@ -445,10 +462,9 @@ func (p *Projection) rebuild(ctx context.Context) error {
 	if err := manager.CreateIndex(ctx, targetIndex); err != nil {
 		return ErrProjectionUnavailable
 	}
-	var contentIDs []int64
-	if err := p.db.WithContext(ctx).Table("content_items").Where("status = ? AND deleted_at IS NULL", "published").
-		Order("id ASC").Pluck("id", &contentIDs).Error; err != nil {
-		return fmt.Errorf("list published rebuild contents: %w", err)
+	contentIDs, err := p.projectableContentIDs(ctx)
+	if err != nil {
+		return err
 	}
 	for _, contentID := range contentIDs {
 		if err := p.syncContent(ctx, contentID, targetVersion, false); err != nil {
@@ -643,10 +659,9 @@ func (p *Projection) reconcileAlias(ctx context.Context, manager SearchIndexMana
 	if !ok {
 		return false, 0, ErrProjectionUnavailable
 	}
-	var publishedIDs []int64
-	if err := p.db.WithContext(ctx).Table("content_items").Where("status = ? AND deleted_at IS NULL", "published").
-		Order("id ASC").Pluck("id", &publishedIDs).Error; err != nil {
-		return false, 0, fmt.Errorf("list published rebuild contents: %w", err)
+	publishedIDs, err := p.projectableContentIDs(ctx)
+	if err != nil {
+		return false, 0, err
 	}
 	if len(publishedIDs) == 0 {
 		return false, 0, nil
@@ -696,10 +711,9 @@ func (p *Projection) reconcileAlias(ctx context.Context, manager SearchIndexMana
 }
 
 func (p *Projection) generationState(ctx context.Context, version int, requireCurrent bool) (complete bool, allCurrent bool, err error) {
-	var publishedIDs []int64
-	if err := p.db.WithContext(ctx).Table("content_items").Where("status = ? AND deleted_at IS NULL", "published").
-		Order("id ASC").Pluck("id", &publishedIDs).Error; err != nil {
-		return false, false, fmt.Errorf("list published rebuild contents: %w", err)
+	publishedIDs, err := p.projectableContentIDs(ctx)
+	if err != nil {
+		return false, false, err
 	}
 	var statuses []model.IndexProjectionStatus
 	if err := p.db.WithContext(ctx).Where("index_version = ?", version).Order("content_id ASC").Find(&statuses).Error; err != nil {

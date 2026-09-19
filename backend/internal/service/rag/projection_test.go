@@ -1169,3 +1169,29 @@ func TestProjectionContextualAnnotatorFlowsIntoStoredText(t *testing.T) {
 	require.Len(t, documents, 1)
 	require.Equal(t, current[0].Text, documents[0].Text, "search documents and stored chunks share the prefixed text")
 }
+
+// TestProjectionRebuildSkipsUnversionedPublishedContent pins the R4 pilot
+// crash: a published content without an active latest version (corpus
+// leftover) must not abort the whole rebuild, and the promote row-count
+// assertion must count the projectable universe, not raw published rows.
+func TestProjectionRebuildSkipsUnversionedPublishedContent(t *testing.T) {
+	db := prepareProjectionDatabase(t)
+	require.NoError(t, db.Exec(`INSERT INTO content_items (id, author_id, title, description, zone, content_type, category, status)
+		VALUES (11, 1, 'Orphan', 'no version rows', 'original', 'guide', 'build', 'published')`).Error)
+	search := &recordingSearchProjection{aliasTarget: "omnicraft-rag-v1"}
+	projection := newTestProjection(db, search)
+	require.NoError(t, projection.SyncContent(context.Background(), 10))
+
+	require.NoError(t, projection.Rebuild(context.Background()))
+
+	require.Equal(t, "omnicraft-rag-v2", search.aliasTarget)
+	var orphanChunks int64
+	require.NoError(t, db.Model(&model.RagChunk{}).Where("content_id = ?", 11).Count(&orphanChunks).Error)
+	require.Zero(t, orphanChunks, "unversioned content must stay unprojected")
+	var failed int64
+	require.NoError(t, db.Model(&model.IndexProjectionStatus{}).Where("state = ?", "failed").Count(&failed).Error)
+	require.Zero(t, failed, "the orphan must fail no generation")
+	var current int64
+	require.NoError(t, db.Model(&model.IndexProjectionStatus{}).Where("index_version = 2 AND is_current AND state = 'ready'").Count(&current).Error)
+	require.Equal(t, int64(1), current, "the versioned content alone promotes")
+}
