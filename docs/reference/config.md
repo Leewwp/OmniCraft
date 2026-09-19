@@ -61,8 +61,9 @@ linkage): cost = generated images x this flat rate. |
 | `agent.max_user_message_chars` | `int` | MaxUserMessageChars |
 | `agent.mcp.call_timeout_sec` | `int` | CallTimeoutSec |
 | `agent.mcp.enabled` | `bool` | Enabled |
+| `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes is the conversational-lane guardrail for turns
+whose only tools were external ones (MCP / imag... |
 | `agent.mcp.result_max_bytes` | `int` | ResultMaxBytes |
-| `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes |
 | `agent.mcp.servers` | `[]AgentMCPServerConfig` | Servers |
 | `agent.models` | `[]AgentModelConfig` | Models is the SP-20 (#545) incremental model supply registry. The
 primary stays on the single llm_provider wiring abo... |
@@ -75,26 +76,6 @@ primary stays on the single llm_provider wiring abo... |
 | `agent.routing.retry_on` | `[]string` | RetryOn |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
-| `agent.guardrails.fence_external_tool_results` | `bool` | FenceExternalToolResults |
-| `agent.guardrails.image_url_allow_hosts` | `[]string` | ImageURLAllowHosts |
-| `agent.guardrails.session_tool_call_limit` | `int` | SessionToolCallLimit |
-| `agent.guardrails.session_tool_turn_limit` | `int` | SessionToolTurnLimit |
-| `agent.mcp.enabled` | `bool` | Enabled |
-| `agent.mcp.call_timeout_sec` | `int` | CallTimeoutSec |
-| `agent.mcp.result_max_bytes` | `int` | ResultMaxBytes |
-| `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes |
-| `agent.mcp.servers` | `[]AgentMCPServerConfig` | Servers |
-| `agent.image.enabled` | `bool` | Enabled |
-| `agent.image.provider` | `string` | Provider |
-| `agent.image.model` | `string` | Model |
-| `agent.image.api_base` | `string` | APIBase |
-| `agent.image.api_key` | `string` | APIKey |
-| `agent.image.size_default` | `string` | SizeDefault |
-| `agent.image.size_options` | `[]string` | SizeOptions |
-| `agent.image.max_image_bytes` | `int` | MaxImageBytes |
-| `agent.image.timeout_sec` | `int` | TimeoutSec |
-| `agent.image.session_image_limit` | `int` | SessionImageLimit |
-| `agent.image.price_per_image_cny` | `float64` | PricePerImageCNY |
 | `agent_access.max_tokens_per_user` | `int` | MaxTokensPerUser |
 | `archive_scan.clamd_address` | `string` | ClamdAddress |
 | `archive_scan.max_entry_uncompressed_mb` | `int` | MaxEntryUncompressedMB |
@@ -230,6 +211,8 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rag.index.response_body_max_bytes` | `int` | ResponseBodyMaxBytes |
 | `rag.index.timeout_sec` | `int` | TimeoutSec |
 | `rag.index.url` | `string` | URL |
+| `rag.refusal.min_surviving_citations` | `int` | MinSurvivingCitations |
+| `rag.refusal.min_top_relevance_score` | `float64` | MinTopRelevanceScore |
 | `rag.rerank.api_base` | `string` | APIBase |
 | `rag.rerank.api_key` | `string` | APIKey |
 | `rag.rerank.fallback_api_base` | `string` | FallbackAPIBase |
@@ -240,10 +223,6 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rag.rerank.model` | `string` | Model |
 | `rag.rerank.provider` | `string` | Provider |
 | `rag.rerank.timeout_sec` | `int` | TimeoutSec |
-| `rag.refusal.min_surviving_citations` | `int` | Refusal.MinSurvivingCitations |
-| `rag.refusal.min_top_relevance_score` | `float64` | Refusal.MinTopRelevanceScore |
-| `resilience.breaker.failure_threshold` | `int` | Resilience.Breaker.FailureThreshold |
-| `resilience.breaker.open_timeout_sec` | `int` | Resilience.Breaker.OpenTimeoutSec |
 | `rate_limit.agent_minute_window_sec` | `int` | AgentMinuteWindowSec |
 | `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
 | `rate_limit.ai_callback_per_minute` | `int` | AICallbackPerMinute |
@@ -295,6 +274,14 @@ Zero means "use the hardcoded default in reputation_service.go". |
 | `reputation.score_rehab_course` | `int` | ScoreRehabCourse |
 | `reputation.score_tag_recognized` | `int` | ScoreTagRecognized |
 | `reputation.score_valid_report` | `int` | ScoreValidReport |
+| `resilience.aux_cache.expander.enabled` | `bool` | Enabled |
+| `resilience.aux_cache.expander.ttl_sec` | `int` | TTLSec |
+| `resilience.aux_cache.title.enabled` | `bool` | Enabled |
+| `resilience.aux_cache.title.ttl_sec` | `int` | TTLSec |
+| `resilience.breaker.failure_threshold` | `int` | FailureThreshold |
+| `resilience.breaker.open_timeout_sec` | `int` | OpenTimeoutSec |
+| `resilience.llm_concurrency.enabled` | `bool` | Enabled |
+| `resilience.llm_concurrency.max_per_provider` | `int` | MaxPerProvider |
 | `security.allowed_origins` | `[]string` | AllowedOrigins |
 | `security.trusted_proxies` | `[]string` | TrustedProxies |
 | `server.idle_timeout` | `int` | IdleTimeout |

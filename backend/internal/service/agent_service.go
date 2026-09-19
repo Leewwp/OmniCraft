@@ -16,6 +16,7 @@ import (
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/auxcache"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
@@ -60,6 +61,10 @@ type AgentService struct {
 	// mcpBridge exposes configured MCP servers as mcp_<server>_<tool>
 	// tools (SP-23 M3). nil = no bridged tools; every method is nil-safe.
 	mcpBridge AgentMCPBridge
+	// titleCache reuses auto titles for identical opening messages
+	// (SP-24 R6). nil or disabled = every title generation calls the LLM,
+	// exactly the pre-R6 behavior.
+	titleCache *auxcache.Cache
 }
 
 // AgentMCPBridge is the MCP client seam consumed by the tool loop.
@@ -72,6 +77,13 @@ type AgentMCPBridge interface {
 // when disabled; the bridge no-ops unless configured).
 func (s *AgentService) SetMCPBridge(b AgentMCPBridge) {
 	s.mcpBridge = b
+}
+
+// SetTitleCache wires the auto-title content-hash cache (SP-24 R6). The
+// cache itself is nil/disabled-safe; wiring it unconditionally keeps the
+// call sites branch-free.
+func (s *AgentService) SetTitleCache(c *auxcache.Cache) {
+	s.titleCache = c
 }
 
 // SetImageTool wires the generate_image tool. Any nil seam or an
