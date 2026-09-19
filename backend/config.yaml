@@ -115,7 +115,13 @@ rag:
     fallback_provider: "siliconflow"
     fallback_model: "bge-reranker-v2-m3"
     fallback_api_base: ""
-    input_topk: 20
+    # SP-24 R2（2026-09-19）20 → 40：RRF 融合后送重排的候选池深度。dev 156
+    # 条双环境网格证据——池深 20 会饿死内容多样性（单一内容霸占 chunk 级前
+    # 20 时，期望内容进不了重排池，sd-0040 实证）；40 = recall/hit 0.9917→
+    # 1.0、MRR 0.9833→0.9917、over-refusal 代理 0.0083→0，代价 +76ms/次。
+    # 同轮扫描 rrf_k / bm25+vector 候选数 / final K 三轴均无增益，维持
+    # 60 / 200/200 / 10（负结果留档 #573）。
+    input_topk: 40
     timeout_sec: 30
   index:
     # Host-local default; Compose overrides this with the service DNS name.

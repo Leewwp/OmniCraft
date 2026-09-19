@@ -64,6 +64,9 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	// Canonical profile: the pg_jieba Postgres retriever is the lexical
 	// primary; OpenSearch is the optional fallback.
 	require.Equal(t, "postgres", cfg.RAG.Hybrid.KeywordSource)
+	// SP-24 R2（2026-09-19）：rerank 池深 20→40（dev 156 条双环境网格，
+	// recall/hit 0.9917→1.0 / MRR +0.0083 / over-refusal 代理→0，+76ms）。
+	require.Equal(t, 40, cfg.RAG.Rerank.InputTopK)
 }
 
 func TestValidateReleaseRejectsInvalidRAGChunkingConfig(t *testing.T) {
