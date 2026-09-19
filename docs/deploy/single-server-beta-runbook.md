@@ -286,6 +286,31 @@ init scripts only apply to a brand-new empty data volume and silently ignore
 later migration files. `docker compose logs migrate` shows the applied
 migration set and `migration-summary.json` in the container.
 
+### 6.1 PostgreSQL credential flow (rotation + git-archive deploys)
+
+`DB_DSN` values in `docker-compose.yml` interpolate `POSTGRES_PASSWORD` from
+the project `.env` (fallback `omnicraft` for a bare dev checkout), so the
+compose file itself carries no server credential. Two runtime spots still
+need attention after any password rotation and after every `git archive`
+deploy (the archive rewrites the ini to the repo placeholder):
+
+- `pgbouncer/pgbouncer.ini` — the `[databases]` upstream password. Clients
+  authenticate with `auth_type=trust`, so the client DSN password is never
+  verified; the upstream line is the only credential that reaches postgres
+  through the pooler (SCRAM client auth never reveals a plaintext password,
+  so credential passthrough is not an option). Regenerate after deploy:
+  `sed -i "s|password=omnicraft|password=$(grep ^POSTGRES_PASSWORD= .env | cut -d= -f2-)|" pgbouncer/pgbouncer.ini`
+  then `docker compose restart pgbouncer`.
+- the `migrate` one-shot — its DSN interpolates from `.env` like the others;
+  when it is instead invoked with an explicit `-e DB_DSN=...` override, that
+  override must carry the real password (a hardcoded `password=omnicraft`
+  fails with `28P01` against a rotated database).
+
+Failure signature of a stale credential after a deploy or rotation: `migrate`
+exits 1 with `pq: password authentication failed for user "omnicraft"
+(28P01)` and `docker compose ps` shows backend/frontend/worker `Created` but
+not running.
+
 ## 7. Verify
 
 ```bash
