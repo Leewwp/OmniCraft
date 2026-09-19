@@ -217,8 +217,8 @@ func TestSlotsValidAndUnique(t *testing.T) {
 			t.Fatalf("builtin of %s violates its own contract: %v", slot.Name, err)
 		}
 	}
-	if len(Slots) != 8 {
-		t.Fatalf("slot count = %d, want 8 (full inventory)", len(Slots))
+	if len(Slots) != 9 {
+		t.Fatalf("slot count = %d, want 9 (full inventory)", len(Slots))
 	}
 }
 

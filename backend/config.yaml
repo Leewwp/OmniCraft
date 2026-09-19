@@ -131,6 +131,24 @@ rag:
   refusal:
     min_surviving_citations: 1
     min_top_relevance_score: 0.0
+  # SP-24 R4（2026-09-19）contextual retrieval 试点（#575，默认关）：摄入侧每
+  # chunk 由 LLM 生成 50–100 token 上下文定位前缀并拼入 chunk 存储文本——
+  # 向量输入/词法索引/引用面读同一 text 列，一次拼接全路径生效（Anthropic
+  # 锚点：检索失败率 -49%，+rerank -67%）。失败 fail-open 保留原 chunk。
+  # API key 只走环境变量：RAG_CONTEXTUAL_API_KEY，缺省回退
+  # AGENT_MODEL_DEEPSEEK_API_KEY（SP-20 注册表约定）；开启需翻
+  # rag.chunking.version 代际并重建投影（A/B 对比证据见 #575）。
+  contextual:
+    enabled: false
+    provider: "deepseek"
+    model: "deepseek-chat"
+    api_base: ""
+    max_prefix_tokens: 100
+    doc_context_chars: 2000
+    concurrency: 4
+    request_interval_ms: 150
+    timeout_sec: 30
+    max_retries: 2
   index:
     # Host-local default; Compose overrides this with the service DNS name.
     # OpenSearch is the optional lexical fallback (full-infra); the canonical

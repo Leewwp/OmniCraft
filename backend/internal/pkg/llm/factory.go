@@ -106,7 +106,14 @@ func NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel stri
 		// Registry provider id → OpenAI-compatible wire with the DeepSeek
 		// thinking param style (thinking.type=enabled|disabled, V3.2 naming).
 		// Without this case the config entry would register an
-		// unsupportedProvider that fails every call instantly.
+		// unsupportedProvider that fails every call instantly. An empty base
+		// must NOT fall through to the OpenAI default inside the compat
+		// constructor: a DeepSeek key against api.openai.com 401s every call
+		// (fail-open callers — the R4 annotator — would silently produce an
+		// unannotated "contextual" generation).
+		if strings.TrimSpace(apiBase) == "" {
+			apiBase = "https://api.deepseek.com"
+		}
 		opts = append(opts, WithThinkingStyle("deepseek"))
 		return NewOpenAICompatProvider(apiKey, apiBase, model, embedModel, opts...)
 	case "qwen":

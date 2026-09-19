@@ -12,6 +12,27 @@ import (
 	"omnicraft/backend/config"
 )
 
+// TestNewProviderFromConfigDeepSeekDefaultBase pins the SP-24 R4 pre-flight
+// catch: an empty deepseek api_base must resolve to the DeepSeek endpoint,
+// never the OpenAI default (a DeepSeek key against api.openai.com 401s every
+// call and fail-open callers would silently skip annotation).
+func TestNewProviderFromConfigDeepSeekDefaultBase(t *testing.T) {
+	p, ok := NewProviderFromConfig("deepseek", "key", "", "deepseek-chat", "").(*OpenAICompatProvider)
+	if !ok {
+		t.Fatalf("deepseek provider must construct the compat adapter, got %T", p)
+	}
+	if p.apiBase != "https://api.deepseek.com" {
+		t.Errorf("expected default apiBase %q, got %q", "https://api.deepseek.com", p.apiBase)
+	}
+	custom, ok := NewProviderFromConfig("deepseek", "key", "https://proxy.example.com", "deepseek-chat", "").(*OpenAICompatProvider)
+	if !ok {
+		t.Fatalf("deepseek provider must construct the compat adapter, got %T", custom)
+	}
+	if custom.apiBase != "https://proxy.example.com" {
+		t.Errorf("explicit api_base must win, got %q", custom.apiBase)
+	}
+}
+
 func TestNewOpenAICompatProvider_SetsFields(t *testing.T) {
 	t.Run("default_api_base", func(t *testing.T) {
 		p := NewOpenAICompatProvider("key", "", "model", "embed")

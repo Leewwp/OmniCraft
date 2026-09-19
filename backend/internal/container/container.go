@@ -455,6 +455,25 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 			LockCleanupTimeoutSec: cfg.RAG.Index.LockCleanupTimeoutSec,
 		},
 	)
+	// SP-24 R4 contextual retrieval: the annotation provider is separate from
+	// the agent chat provider (cheap one-shot ingestion calls, DeepSeek by
+	// default). An enabled-but-keyless deployment logs once and keeps
+	// ingesting unannotated — fail-open, never a gate.
+	if cfg.RAG.Contextual.Enabled {
+		if strings.TrimSpace(cfg.RAG.Contextual.APIKey) == "" {
+			slog.Warn("rag.contextual.enabled but no API key resolved (RAG_CONTEXTUAL_API_KEY / AGENT_MODEL_DEEPSEEK_API_KEY); ingesting unannotated",
+				"provider", cfg.RAG.Contextual.Provider, "model", cfg.RAG.Contextual.Model)
+		} else {
+			annotationProvider := llm.NewProviderFromConfig(
+				cfg.RAG.Contextual.Provider, cfg.RAG.Contextual.APIKey, cfg.RAG.Contextual.APIBase, cfg.RAG.Contextual.Model, "",
+				llm.WithTimeout(time.Duration(cfg.RAG.Contextual.TimeoutSec)*time.Second),
+				llm.WithMaxRetries(cfg.RAG.Contextual.MaxRetries),
+			)
+			c.RAGProjection.SetContextAnnotator(ragservice.NewContextAnnotator(
+				annotationProvider, cfg.RAG.Contextual, c.PromptRegistryService,
+			))
+		}
+	}
 
 	// Wire notification service
 	c.SocialService.SetNotificationService(c.NotificationService)

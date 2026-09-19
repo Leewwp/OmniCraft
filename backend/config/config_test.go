@@ -82,6 +82,17 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	require.Equal(t, 300, cfg.Resilience.AuxCache.Expander.TTLSec)
 	require.False(t, cfg.Resilience.LLMConcurrency.Enabled)
 	require.Equal(t, 4, cfg.Resilience.LLMConcurrency.MaxPerProvider)
+	// SP-24 R4（2026-09-19）：contextual retrieval 试点出厂全关（零行为
+	// 变化）；其余出厂值即首开推荐（DeepSeek 前缀 + 4 并发 + 150ms 步进）。
+	require.False(t, cfg.RAG.Contextual.Enabled)
+	require.Equal(t, "deepseek", cfg.RAG.Contextual.Provider)
+	require.Equal(t, "deepseek-chat", cfg.RAG.Contextual.Model)
+	require.Equal(t, 100, cfg.RAG.Contextual.MaxPrefixTokens)
+	require.Equal(t, 2000, cfg.RAG.Contextual.DocContextChars)
+	require.Equal(t, 4, cfg.RAG.Contextual.Concurrency)
+	require.Equal(t, 150, cfg.RAG.Contextual.RequestIntervalMS)
+	require.Equal(t, 30, cfg.RAG.Contextual.TimeoutSec)
+	require.Equal(t, 2, cfg.RAG.Contextual.MaxRetries)
 }
 
 func TestValidateReleaseRejectsInvalidRAGRefusalConfig(t *testing.T) {
@@ -1115,4 +1126,97 @@ func TestDefaultConfigAgentTrace(t *testing.T) {
 			t.Fatalf("factory agent_trace config must pass release validation: %v", err)
 		}
 	}
+}
+
+func TestValidateReleaseRejectsInvalidRAGContextualConfig(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	newContextual := func() RAGContextualConfig {
+		return RAGContextualConfig{
+			Enabled: true, Provider: "deepseek", Model: "deepseek-chat",
+			MaxPrefixTokens: 100, DocContextChars: 2000, Concurrency: 4,
+			RequestIntervalMS: 150, TimeoutSec: 30, MaxRetries: 2,
+		}
+	}
+	hybridValidConfig := func() *Config {
+		cfg := validReleaseConfigForTest()
+		cfg.Features.RAGHybridEnabled = true
+		cfg.Agent.EmbeddingModel = "text-embedding-v4"
+		cfg.Agent.EmbeddingDimensions = RAGEmbeddingDimensions
+		cfg.RAG.Chunking = RAGChunkingConfig{MaxTokens: 512, OverlapTokens: 48, ChunkingVersion: 2, TokenizerEncoding: "cl100k_base"}
+		cfg.RAG.Index = RAGIndexConfig{
+			URL: "http://opensearch:9200", GenerationStart: 1, EmbeddingModel: "text-embedding-v4",
+			HealthPollIntervalSec: 1, TimeoutSec: 10, AuditTimeoutSec: 2, LockCleanupTimeoutSec: 2,
+			ErrorBodyMaxBytes: 65536, ResponseBodyMaxBytes: 1048576,
+		}
+		cfg.RAG.Hybrid = RAGHybridConfig{BM25TopK: 200, VectorTopK: 200, RRFK: 60, FinalTopK: 10, KeywordSource: "postgres"}
+		return cfg
+	}
+	t.Run("requires hybrid feature", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.RAG.Contextual = newContextual()
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "rag.contextual.enabled requires features.rag_hybrid_enabled")
+	})
+	t.Run("requires provider and model", func(t *testing.T) {
+		cfg := hybridValidConfig()
+		cfg.RAG.Contextual = newContextual()
+		cfg.RAG.Contextual.Model = " "
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "rag.contextual.provider and rag.contextual.model")
+	})
+	t.Run("rejects out-of-range prefix token budget", func(t *testing.T) {
+		cfg := hybridValidConfig()
+		cfg.RAG.Contextual = newContextual()
+		cfg.RAG.Contextual.MaxPrefixTokens = 10
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "rag.contextual.max_prefix_tokens")
+		cfg = hybridValidConfig()
+		cfg.RAG.Contextual = newContextual()
+		cfg.RAG.Contextual.MaxPrefixTokens = 201
+		err = cfg.ValidateRelease()
+		require.ErrorContains(t, err, "rag.contextual.max_prefix_tokens must be within 20..200")
+	})
+	t.Run("rejects unusable concurrency", func(t *testing.T) {
+		cfg := hybridValidConfig()
+		cfg.RAG.Contextual = newContextual()
+		cfg.RAG.Contextual.Concurrency = 0
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "rag.contextual.concurrency")
+	})
+	t.Run("valid contextual config passes", func(t *testing.T) {
+		cfg := hybridValidConfig()
+		cfg.RAG.Contextual = newContextual()
+		require.NoError(t, cfg.ValidateRelease())
+	})
+}
+
+func TestLoadRAGContextualKeyFallbackChain(t *testing.T) {
+	writeContextualConfig := func(t *testing.T, provider string) {
+		t.Helper()
+		tmp := t.TempDir()
+		require.NoError(t, os.WriteFile(tmp+"/config.yaml",
+			[]byte("rag:\n  contextual:\n    provider: "+provider+"\n"), 0o600))
+		previousWD, err := os.Getwd()
+		require.NoError(t, err)
+		require.NoError(t, os.Chdir(tmp))
+		t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+	}
+	t.Run("dedicated key wins", func(t *testing.T) {
+		t.Setenv("RAG_CONTEXTUAL_API_KEY", "dedicated-contextual-key")
+		t.Setenv("AGENT_MODEL_DEEPSEEK_API_KEY", "registry-key")
+		writeContextualConfig(t, "deepseek")
+		require.Equal(t, "dedicated-contextual-key", Load().RAG.Contextual.APIKey)
+	})
+	t.Run("deepseek registry key backs it up", func(t *testing.T) {
+		t.Setenv("RAG_CONTEXTUAL_API_KEY", "")
+		t.Setenv("AGENT_MODEL_DEEPSEEK_API_KEY", "registry-key")
+		writeContextualConfig(t, "deepseek")
+		require.Equal(t, "registry-key", Load().RAG.Contextual.APIKey)
+	})
+	t.Run("registry key does not leak to other providers", func(t *testing.T) {
+		t.Setenv("RAG_CONTEXTUAL_API_KEY", "")
+		t.Setenv("AGENT_MODEL_DEEPSEEK_API_KEY", "registry-key")
+		writeContextualConfig(t, "openai_compat")
+		require.Equal(t, "", Load().RAG.Contextual.APIKey)
+	})
 }

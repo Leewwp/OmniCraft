@@ -301,11 +301,12 @@ type FeaturesConfig struct {
 }
 
 type RAGConfig struct {
-	Chunking RAGChunkingConfig `mapstructure:"chunking" json:"chunking"`
-	Index    RAGIndexConfig    `mapstructure:"index" json:"index"`
-	Hybrid   RAGHybridConfig   `mapstructure:"hybrid" json:"hybrid"`
-	Rerank   RAGRerankConfig   `mapstructure:"rerank" json:"rerank"`
-	Refusal  RAGRefusalConfig  `mapstructure:"refusal" json:"refusal"`
+	Chunking   RAGChunkingConfig   `mapstructure:"chunking" json:"chunking"`
+	Index      RAGIndexConfig      `mapstructure:"index" json:"index"`
+	Hybrid     RAGHybridConfig     `mapstructure:"hybrid" json:"hybrid"`
+	Rerank     RAGRerankConfig     `mapstructure:"rerank" json:"rerank"`
+	Refusal    RAGRefusalConfig    `mapstructure:"refusal" json:"refusal"`
+	Contextual RAGContextualConfig `mapstructure:"contextual" json:"contextual"`
 }
 
 type RAGChunkingConfig struct {
@@ -367,6 +368,31 @@ type RAGRerankConfig struct {
 type RAGRefusalConfig struct {
 	MinSurvivingCitations int     `mapstructure:"min_surviving_citations" json:"min_surviving_citations"`
 	MinTopRelevanceScore  float64 `mapstructure:"min_top_relevance_score" json:"min_top_relevance_score"`
+}
+
+// RAGContextualConfig carries the SP-24 R4 contextual-retrieval pilot
+// (#575): at ingestion every chunk gets a short LLM-written situation
+// prefix prepended to its stored text — the embedding input, the lexical
+// index and the citation surface all read that one text column, so a
+// single prepend upgrades every retrieval path (Anthropic contextual
+// retrieval). Annotation is fail-open: any per-chunk failure keeps the
+// original chunk text, and enabled=false (the shipped default) leaves
+// ingestion byte-identical. The API key is env-only
+// (RAG_CONTEXTUAL_API_KEY, falling back to the SP-20 registry convention
+// AGENT_MODEL_DEEPSEEK_API_KEY when the provider is deepseek) and never
+// lives in config files.
+type RAGContextualConfig struct {
+	Enabled           bool   `mapstructure:"enabled" json:"enabled"`
+	Provider          string `mapstructure:"provider" json:"provider"`
+	Model             string `mapstructure:"model" json:"model"`
+	APIBase           string `mapstructure:"api_base" json:"api_base"`
+	APIKey            string `mapstructure:"api_key" json:"-"`
+	MaxPrefixTokens   int    `mapstructure:"max_prefix_tokens" json:"max_prefix_tokens"`
+	DocContextChars   int    `mapstructure:"doc_context_chars" json:"doc_context_chars"`
+	Concurrency       int    `mapstructure:"concurrency" json:"concurrency"`
+	RequestIntervalMS int    `mapstructure:"request_interval_ms" json:"request_interval_ms"`
+	TimeoutSec        int    `mapstructure:"timeout_sec" json:"timeout_sec"`
+	MaxRetries        int    `mapstructure:"max_retries" json:"max_retries"`
 }
 
 // ArchiveScanConfig carries the archive malware scanning quotas, timeout and
@@ -1095,6 +1121,14 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("RAG_RERANK_FALLBACK_API_BASE"); v != "" {
 		cfg.RAG.Rerank.FallbackAPIBase = v
 	}
+	// SP-24 R4 contextual annotation key: dedicated var first, then the
+	// model-registry convention so an existing deepseek deployment needs no
+	// new secret plumbing.
+	if v := os.Getenv("RAG_CONTEXTUAL_API_KEY"); v != "" {
+		cfg.RAG.Contextual.APIKey = v
+	} else if v := os.Getenv("AGENT_MODEL_DEEPSEEK_API_KEY"); v != "" && strings.EqualFold(strings.TrimSpace(cfg.RAG.Contextual.Provider), "deepseek") {
+		cfg.RAG.Contextual.APIKey = v
+	}
 	// SP-24 R3 refusal boundary normalization: an omitted or non-positive
 	// min_surviving_citations means the shipped default (the historical
 	// zero-citation no_evidence boundary), so configs predating the knob —
@@ -1516,6 +1550,39 @@ func (c *Config) ValidateRelease() error {
 	}
 	if c.RAG.Refusal.MinTopRelevanceScore > 0 && !(c.Features.RAGHybridEnabled && c.Features.RAGRerankEnabled) {
 		errs = append(errs, "rag.refusal.min_top_relevance_score requires features.rag_hybrid_enabled and features.rag_rerank_enabled (relevance scores exist only on the rerank path)")
+	}
+	// SP-24 R4 contextual retrieval: annotation rides the projection (hybrid
+	// ingestion), so the switch requires hybrid and a fully specified
+	// annotation provider. The API key is deliberately not validated here —
+	// it arrives via env at runtime; an enabled-but-keyless deployment logs
+	// a warning and ingests unannotated (fail-open, never a hard gate).
+	if c.RAG.Contextual.Enabled {
+		if !c.Features.RAGHybridEnabled {
+			errs = append(errs, "rag.contextual.enabled requires features.rag_hybrid_enabled (annotation rides the content projection)")
+		}
+		if strings.TrimSpace(c.RAG.Contextual.Provider) == "" || strings.TrimSpace(c.RAG.Contextual.Model) == "" {
+			errs = append(errs, "rag.contextual.provider and rag.contextual.model are required when rag.contextual.enabled")
+		}
+		// Upper bound aligns with the annotator's fixed 200-token output
+		// cap: a configured 300–500 could never be delivered.
+		if c.RAG.Contextual.MaxPrefixTokens < 20 || c.RAG.Contextual.MaxPrefixTokens > 200 {
+			errs = append(errs, "rag.contextual.max_prefix_tokens must be within 20..200")
+		}
+		if c.RAG.Contextual.DocContextChars < 200 {
+			errs = append(errs, "rag.contextual.doc_context_chars must be >= 200")
+		}
+		if c.RAG.Contextual.Concurrency < 1 || c.RAG.Contextual.Concurrency > 16 {
+			errs = append(errs, "rag.contextual.concurrency must be within 1..16")
+		}
+		if c.RAG.Contextual.RequestIntervalMS < 0 {
+			errs = append(errs, "rag.contextual.request_interval_ms must be non-negative")
+		}
+		if c.RAG.Contextual.TimeoutSec <= 0 {
+			errs = append(errs, "rag.contextual.timeout_sec must be positive")
+		}
+		if c.RAG.Contextual.MaxRetries < 0 {
+			errs = append(errs, "rag.contextual.max_retries must be non-negative")
+		}
 	}
 
 	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {
