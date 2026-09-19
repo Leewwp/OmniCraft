@@ -2,10 +2,11 @@
 
 /* SP-19 G3-3（#524，Q8-A 完整拟真）：发布页手机壳实时预览。
  *
- * 手机壳 375px + 静态状态栏 + 实时标题 + 作者行 + 正文（复用 MarkdownRenderer
- * ——与详情页完全同配置渲染，所见即真实详情效果）+ 底部互动栏静态示意 +
- * 「预览效果仅供参考」脚注。夜间开关只切换预览容器明暗，不影响站点主题；
- * 卡片可折叠。 */
+ * #548：壳体固定纵向比例（280×560、2px 中性描边、正文区内滚动），
+ * 侧挂 320px 预览列不再随内容塌缩。实时标题 + 作者行 + 正文（复用
+ * MarkdownRenderer——与详情页完全同配置渲染，所见即真实详情效果）+
+ * 底部互动栏静态示意 + 「预览效果仅供参考」脚注。夜间开关只切换预览
+ * 容器明暗，不影响站点主题；卡片可折叠。 */
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -54,15 +55,18 @@ export function PublishPhonePreview({ title, markdown, plainText, authorName, cl
 
       {!collapsed && (
         <div className="flex justify-center px-3 pb-4">
-          {/* 手机壳：375px 名义宽、圆角外壳；窄容器（移动 tab 预览）自适应。 */}
+          {/* 手机壳（#548）：固定纵向比例 280×560，正文区内滚动（高度不随
+              内容塌缩）；描边 2px 中性色（暗色态 zinc-700），替代原 6px 近黑
+              粗边。窄容器（<1280px tab 预览）自适应宽度。 */}
           <div
             className={cn(
-              "w-full max-w-[375px] overflow-hidden rounded-[2rem] border-[6px] shadow-md",
-              dark ? "border-zinc-800 bg-zinc-950 text-zinc-100" : "border-zinc-900 bg-white text-zinc-900",
+              "flex w-full max-w-[280px] flex-col overflow-hidden rounded-[1.75rem] border-2 shadow-md",
+              dark ? "border-zinc-700 bg-zinc-950 text-zinc-100" : "border-zinc-300 bg-white text-zinc-900",
             )}
+            style={{ height: 560 }}
           >
             {/* 状态栏（静态示意） */}
-            <div className={cn("flex items-center justify-between px-5 pb-1 pt-2 text-[10px]", dark ? "text-zinc-400" : "text-zinc-500")}>
+            <div className={cn("flex shrink-0 items-center justify-between px-5 pb-1 pt-2 text-[10px]", dark ? "text-zinc-400" : "text-zinc-500")}>
               <span>9:41</span>
               <span className="flex items-center gap-1">
                 <Signal className="h-3 w-3" aria-hidden="true" />
@@ -72,7 +76,7 @@ export function PublishPhonePreview({ title, markdown, plainText, authorName, cl
             </div>
 
             {/* 标题（实时） */}
-            <div className="px-5 pt-3">
+            <div className="shrink-0 px-5 pt-3">
               <h1 className="text-lg font-bold leading-snug break-words">{title || t("titlePlaceholder")}</h1>
               {/* 作者行（当前用户） */}
               <div className="mt-2 flex items-center gap-2">
@@ -83,8 +87,9 @@ export function PublishPhonePreview({ title, markdown, plainText, authorName, cl
               </div>
             </div>
 
-            {/* 正文：text 类走 MarkdownRenderer（与详情页同配置），文件类纯文本 */}
-            <div className={cn("px-5 pb-4 pt-3 text-sm", dark && "[&_.markdown-body]:text-zinc-100")}>
+            {/* 正文：text 类走 MarkdownRenderer（与详情页同配置），文件类纯
+                文本；flex-1 + overflow-y-auto = 壳内滚动。 */}
+            <div className={cn("min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-3 text-sm", dark && "[&_.markdown-body]:text-zinc-100")}>
               {markdown !== undefined ? (
                 markdown.trim() ? <MarkdownRenderer content={markdown} /> : <p className={cn("text-xs", dark ? "text-zinc-500" : "text-zinc-400")}>{t("bodyPlaceholder")}</p>
               ) : plainText ? (
@@ -95,7 +100,7 @@ export function PublishPhonePreview({ title, markdown, plainText, authorName, cl
             </div>
 
             {/* 底部互动栏：静态示意 */}
-            <div className={cn("flex items-center gap-5 border-t px-5 py-2.5 text-xs", dark ? "border-zinc-800 text-zinc-400" : "border-zinc-100 text-zinc-500")}>
+            <div className={cn("flex shrink-0 items-center gap-5 border-t px-5 py-2.5 text-xs", dark ? "border-zinc-800 text-zinc-400" : "border-zinc-100 text-zinc-500")}>
               <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" aria-hidden="true" />128</span>
               <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5" aria-hidden="true" />56</span>
               <span className="inline-flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />12</span>

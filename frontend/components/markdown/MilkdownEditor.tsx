@@ -58,6 +58,10 @@ export interface MilkdownEditorProps {
   minHeight?: number;
   /** 允许图片块/插图上传（发布正文等）；默认 false（讨论/PR/IP 描述/反馈禁图）。 */
   allowImages?: boolean;
+  /** 开启 Crepe TopBar 顶部工具栏（#548 B 站式发布页顶栏；标题选择/加粗/
+   * 斜体/删除线/行内代码/链接/表格/引用/分隔线/列表）。默认 false。挂载期
+   * 配置——与 allowImages 同纪律，变更到下次挂载生效。 */
+  topBar?: boolean;
   /** 自定义上传实现（默认复用 /contents/oss-token presign 直传）。 */
   onUpload?: (file: File) => Promise<string>;
   /** 草稿键（场景 + 表单标识）；提供即启用自动草册与恢复提示。 */
@@ -106,11 +110,14 @@ export async function uploadImageViaPresign(file: File): Promise<string> {
 }
 
 /* zh 覆盖表：只覆盖 label/text 字段（featureConfigs 逐字段 ?? 合并，
- * 部分覆盖安全；图标等其余配置走 Crepe 默认）。 */
+ * 部分覆盖安全；图标等其余配置走 Crepe 默认）。#548：top-bar 的
+ * headingOptions 同表提供中文文案（en 用 Crepe 默认英文）；注意 toolbar
+ * 键是选区浮条，与 TopBar 无关。 */
 function buildFeatureConfigs(
   locale: string,
   placeholder: string | undefined,
   upload: ((file: File) => Promise<string>) | undefined,
+  topBar: boolean,
 ): CrepeConfig["featureConfigs"] {
   if (locale === "zh") {
     const configs: CrepeConfig["featureConfigs"] = {
@@ -147,6 +154,19 @@ function buildFeatureConfigs(
         previewToggleText: (previewOnly: boolean) => (previewOnly ? "编辑代码" : "预览代码"),
       },
     };
+    if (topBar) {
+      configs["top-bar"] = {
+        headingOptions: [
+          { label: "正文", level: null },
+          { label: "标题 1", level: 1 },
+          { label: "标题 2", level: 2 },
+          { label: "标题 3", level: 3 },
+          { label: "标题 4", level: 4 },
+          { label: "标题 5", level: 5 },
+          { label: "标题 6", level: 6 },
+        ],
+      };
+    }
     if (upload) {
       configs["image-block"] = {
         onUpload: upload,
@@ -196,7 +216,7 @@ function CrepeInstance({ defaultValue, features, featureConfigs, disabled, onRea
   }, [disabled]);
 
   return (
-    <div className="milkdown-editor-root w-full flex-1 px-4 py-3" aria-busy={loading || undefined}>
+    <div className="milkdown-editor-root w-full flex-1" aria-busy={loading || undefined}>
       <Milkdown />
     </div>
   );
@@ -210,6 +230,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
       placeholder,
       minHeight = 260,
       allowImages = false,
+      topBar = false,
       onUpload,
       draftKey,
       disabled = false,
@@ -258,17 +279,17 @@ export const MilkdownEditor = forwardRef<MilkdownEditorHandle, MilkdownEditorPro
     const features = useMemo<NonNullable<CrepeConfig["features"]>>(
       () => ({
         [CrepeFeature.Latex]: false,
-        [CrepeFeature.TopBar]: false,
+        [CrepeFeature.TopBar]: topBar,
         [CrepeFeature.AI]: false,
         ...(allowImages ? {} : { [CrepeFeature.ImageBlock]: false }),
       }),
-      // features 只影响挂载期；allowImages 变更同样到下次挂载生效（与单实例纪律一致）。
+      // features 只影响挂载期；allowImages/topBar 变更同样到下次挂载生效（与单实例纪律一致）。
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [],
     );
     const featureConfigs = useMemo(
-      () => buildFeatureConfigs(locale, placeholder, uploadForEditor),
-      // 同上：locale/placeholder/上传实现只在挂载时取值，之后不重建。
+      () => buildFeatureConfigs(locale, placeholder, uploadForEditor, topBar),
+      // 同上：locale/placeholder/上传实现/topBar 只在挂载时取值，之后不重建。
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [],
     );
