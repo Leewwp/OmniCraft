@@ -355,11 +355,14 @@ func main() {
 				"keyword_source": cfg.RAG.Hybrid.KeywordSource,
 				"rerank_model":  cfg.RAG.Rerank.Model,
 				"rerank_input_topk": cfg.RAG.Rerank.InputTopK,
-				// Reserved grid axes (E4 ticket): the refusal threshold becomes
-				// scannable in SP-24 R3, the chunk strategy slot in SP-24 R4.
-				// Recording them as nulls keeps every run row schema-stable.
-				"refusal_threshold": nil,
-				"chunk_strategy":    nil,
+				// SP-24 R3 made the refusal boundary scannable (rag.refusal);
+				// chunk_strategy stays a null placeholder until R4. Recording
+				// the same keys keeps every run row schema-stable.
+				"refusal_threshold": map[string]any{
+					"min_surviving_citations": cfg.RAG.Refusal.MinSurvivingCitations,
+					"min_top_relevance_score":  cfg.RAG.Refusal.MinTopRelevanceScore,
+				},
+				"chunk_strategy": nil,
 			},
 			"runtime": map[string]any{
 				"chat":      map[string]string{"provider": cfg.Agent.LLMProvider, "model": cfg.Agent.LLMModel},

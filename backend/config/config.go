@@ -258,6 +258,7 @@ type RAGConfig struct {
 	Index    RAGIndexConfig    `mapstructure:"index" json:"index"`
 	Hybrid   RAGHybridConfig   `mapstructure:"hybrid" json:"hybrid"`
 	Rerank   RAGRerankConfig   `mapstructure:"rerank" json:"rerank"`
+	Refusal  RAGRefusalConfig  `mapstructure:"refusal" json:"refusal"`
 }
 
 type RAGChunkingConfig struct {
@@ -306,6 +307,19 @@ type RAGRerankConfig struct {
 	FallbackAPIKey   string `mapstructure:"fallback_api_key" json:"-"`
 	InputTopK        int    `mapstructure:"input_topk" json:"input_topk"`
 	TimeoutSec       int    `mapstructure:"timeout_sec" json:"timeout_sec"`
+}
+
+// RAGRefusalConfig carries the SP-24 R3 refusal boundary knobs. The citation
+// revalidation gate itself is untouched (revalidateCitations semantics never
+// change): min_surviving_citations only moves the answer-side boundary of how
+// many revalidation-surviving citations a grounded answer needs to keep its
+// text (1 = the historical zero-citation no_evidence boundary).
+// min_top_relevance_score is the reserved similarity-floor refusal: when > 0,
+// a retrieval whose top rerank relevance score sits below the floor returns
+// no candidates, which flows into the deterministic no_evidence refusal.
+type RAGRefusalConfig struct {
+	MinSurvivingCitations int     `mapstructure:"min_surviving_citations" json:"min_surviving_citations"`
+	MinTopRelevanceScore  float64 `mapstructure:"min_top_relevance_score" json:"min_top_relevance_score"`
 }
 
 // ArchiveScanConfig carries the archive malware scanning quotas, timeout and
@@ -1034,6 +1048,14 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("RAG_RERANK_FALLBACK_API_BASE"); v != "" {
 		cfg.RAG.Rerank.FallbackAPIBase = v
 	}
+	// SP-24 R3 refusal boundary normalization: an omitted or non-positive
+	// min_surviving_citations means the shipped default (the historical
+	// zero-citation no_evidence boundary), so configs predating the knob —
+	// and override files that only pin other axes — stay valid. Release
+	// validation still rejects negative values explicitly.
+	if cfg.RAG.Refusal.MinSurvivingCitations < 1 {
+		cfg.RAG.Refusal.MinSurvivingCitations = 1
+	}
 	if v := os.Getenv("RAG_INDEX_URL"); v != "" {
 		cfg.RAG.Index.URL = v
 	}
@@ -1416,6 +1438,21 @@ func (c *Config) ValidateRelease() error {
 		default:
 			errs = append(errs, "rag.hybrid.keyword_source must be postgres or opensearch")
 		}
+	}
+
+	// SP-24 R3 refusal boundary knobs: the citation-count boundary is an
+	// answer-classification knob (applies regardless of hybrid), the
+	// similarity floor only has meaning on the rerank path. A non-positive
+	// min_surviving_citations is normalized to 1 at load (configs predating
+	// the knob stay valid), so validation only rejects explicit negatives.
+	if c.RAG.Refusal.MinSurvivingCitations < 0 {
+		errs = append(errs, "rag.refusal.min_surviving_citations must not be negative")
+	}
+	if c.RAG.Refusal.MinTopRelevanceScore < 0 || c.RAG.Refusal.MinTopRelevanceScore > 1 {
+		errs = append(errs, "rag.refusal.min_top_relevance_score must be within [0,1] (0 disables the similarity floor)")
+	}
+	if c.RAG.Refusal.MinTopRelevanceScore > 0 && !(c.Features.RAGHybridEnabled && c.Features.RAGRerankEnabled) {
+		errs = append(errs, "rag.refusal.min_top_relevance_score requires features.rag_hybrid_enabled and features.rag_rerank_enabled (relevance scores exist only on the rerank path)")
 	}
 
 	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {
