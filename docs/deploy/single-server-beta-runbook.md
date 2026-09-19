@@ -258,8 +258,12 @@ deployment (`docker compose ... config`):
   39 MiB, pgbouncer 5 MiB, nginx 17 MiB, frontend 90 MiB) with headroom for
   light traffic.
 - `ops/observability/prometheus.lean.yml` — backend-only
-  Prometheus config (single scrape job, no rule_files, no Alertmanager)
-  mounted over the full config by the same override.
+  Prometheus config (single scrape job, no Alertmanager) mounted over the
+  full config by the same override. Since SP-24 R7 it loads
+  `ops/observability/prometheus-rules.lean.yml` — the backend-metrics-only
+  agent SLA subset of the authority rules file (verify-alerts.sh asserts
+  the subset relation); firing alerts surface through the local
+  `/api/v1/rules` API because Alertmanager stays deferred on this host.
 
 Deployment command on the lean host:
 
