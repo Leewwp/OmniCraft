@@ -1,138 +1,161 @@
-# OmniCraft 万象工坊
+# OmniCraft
+
+[![English](https://img.shields.io/badge/English-2f81f7?style=flat-square)](README.md)
+[![简体中文](https://img.shields.io/badge/简体中文-d0d7de?style=flat-square)](README.zh-CN.md)
 
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-336791)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+[![Live](https://img.shields.io/badge/live-app.leeppp.online-2ea44f)](https://app.leeppp.online)
 
-全民创意分享平台——以 IP 二创内容聚合为核心流量底座，Agent 自动化为增值能力，GitHub 式 PR 协同为社区护城河。
+A community platform for original and fan creations — IP fan-work aggregation as the traffic foundation, agent automation as the value-add, and GitHub-style PR collaboration as the moat.
 
-这是一个**Web-only、本地可运行、本地可测试的工程化开源项目**：在模块化单体后端（Go/Gin）上实现了带权限过滤、服务端引用复核、可降级检索和可靠异步处理的单 Agent RAG 工作台。技术栈：Next.js + Go/Gin + PostgreSQL(pgvector) + Redis + 阿里云 OSS/Green。
+This is an **engineering-first, web-only open-source project that runs and tests locally**: a modular-monolith backend (Go/Gin) hosting a single-agent RAG workbench with permission filtering, server-side citation re-checking, degradable retrieval, and reliable async processing. Stack: Next.js + Go/Gin + PostgreSQL(pgvector) + Redis + Aliyun OSS/Green.
 
----
+**Live demo**: [app.leeppp.online](https://app.leeppp.online) — browsable as a guest (single-server lean profile; no public operation, no real-user data).
 
-## 核心能力
-
-### 1. Agent/RAG 检索链路
-
-内容问答必须同时满足相关性、版本一致性和权限边界。核心取舍：**把模型当成不可信建议源，而不是权限或事实源**。
-
-```text
-用户问题
-  -> Agent ChatStream（服务端固定工具注册表）
-  -> search_content 工具
-      ├─ PostgreSQL keyword 召回（默认读路径）
-      ├─ pgvector 语义召回
-      └─ 应用层 RRF 融合（OpenSearch BM25 投影契约就绪，Phase 2 启用）
-  -> content_version / index_generation / is_current 复核
-  -> viewer-aware 可见性过滤
-  -> RevalidateCitations 服务端引用复核
-  -> SSE citation / done（模型只能基于服务端确认过的内容作答）
-```
-
-- chunk 绑定 `content_id/content_version/chunk_key/index_version`，检索、融合、复核全程使用稳定 chunk identity；
-- RRF 避免跨引擎 score 不可比；前 20 个候选批量复核，不足时按排序逐个补位；
-- citation 不向客户端暴露内部分数；客户端只消费服务端生成的 `content_id/title/zone/route/chunk_key`。
-
-### 2. 引用治理与 SSE 流式协议
-
-SSE 只允许服务端定义的七类 typed 事件（`start/tool_status/delta/citation/usage/done/error`）：工具调用片段按 index 在服务端合并、一轮 provider stream 完成后才执行工具；模型伪造 title/route/version/source 或 chunk key 时，输出前的 `RevalidateCitations` 直接丢弃；取消、provider 超时、存储错误使用稳定错误码，不把原始 err.Error() 泄漏给客户端。
-
-### 3. 可靠异步：Transactional Outbox / Worker / Inbox / DLQ
-
-```text
-业务事务（状态变更 + outbox_events 同事务提交）
-  -> relay at-least-once 投递 Redis Streams
-  -> 独立 cmd/worker 消费
-       (consumer_group, event_id) 数据库唯一约束幂等
-       指数退避重试 -> 永久失败进 DLQ -> 管理员 replay
-```
-
-DB 内副作用用 `ConsumeInboxTx`（业务写入与 inbox completion 同事务）；外部副作用（审核、embedding）必须自身幂等。明确 **at-least-once**，不声称 exactly-once。本地故障演练覆盖重复投递、ACK 丢失、Redis 停启恢复、DLQ replay。
-
-### 4. 索引世代与降级
-
-索引是可重建投影，不是业务真相源：rebuild 走 staging → validation → 原子切 alias → 提升 PostgreSQL `is_current`，失败保留旧世代可恢复；增量投影与 rebuild 互斥锁防并发。OpenSearch 不可用降级 PG keyword、embedding provider 失败降级 keyword-only，降级结果显式标记 source。
-
-### 5. 归档文件安全门
-
-Mod 压缩包先过应用层流式结构校验（路径穿越 / symlink / 加密条目 / 嵌套递归 / 解压配额，超限立即中断），再经 ClamAV worker 扫描进状态机与 append-only 审计；发布与下载双 clean-only gate，quarantine 对象即使被错误标记也永不签名下载。
-
-### 6. 全链路可观测
-
-OpenTelemetry W3C trace context 贯穿 HTTP → DB → LLM → SSE 与 Outbox → relay → Redis → Worker → Inbox（traceparent 进 outbox envelope）；`omnicraft-server` / `omnicraft-worker` 服务级命名。已捕获认证 MiniMax Chat 同步链路与异步 embedding 链路真实 trace，并通过 Collector 停机演练（观测丢失不影响业务健康路径）。
+![OmniCraft home page (guest view, 2026-09-19)](docs/screenshots/live-home-2026-09-19.png)
 
 ---
 
-## 真实 Provider 评测（current-v1 冻结语料）
+## Core Capabilities
 
-语料与查询集冻结（63 golden cases / 169 published contents·chunks / generation 2，corpus identity 与 golden-set checksum 固化），真实 MiniMax Chat + embo-01 Embedding 差分运行（2026-08-26）：
+### 1. Agent/RAG retrieval pipeline
 
-| 口径（K=10） | Recall@10 | MRR | nDCG@10 | citation precision | P95 |
+Content Q&A must satisfy relevance, version consistency, and permission boundaries simultaneously. The core trade-off: **treat the model as an untrusted source of suggestions — never as the source of authority or facts.**
+
+```text
+user question
+  -> Agent ChatStream (server-side fixed tool registry)
+  -> search_content tool
+      ├─ PostgreSQL keyword recall (default read path)
+      ├─ pgvector semantic recall
+      └─ application-layer RRF fusion (OpenSearch BM25 projection
+         contract ready, Phase 2 activation)
+  -> content_version / index_generation / is_current re-check
+  -> viewer-aware visibility filter
+  -> RevalidateCitations server-side citation re-check
+  -> SSE citation / done (the model can only answer from
+     server-verified content)
+```
+
+- chunks are bound to `content_id/content_version/chunk_key/index_version`; retrieval, fusion, and re-validation all use this stable chunk identity;
+- RRF avoids cross-engine score comparability problems; the top 20 candidates are re-checked in batch, backfilled one-by-one in rank order when fewer than that;
+- citations never expose internal scores to the client; clients only consume server-generated `content_id/title/zone/route/chunk_key`.
+
+### 2. Citation governance and the SSE streaming protocol
+
+SSE admits only seven server-defined typed events (`start/tool_status/delta/citation/usage/done/error`): tool-call fragments are merged server-side by index and executed only after a full provider stream round; when the model fabricates title/route/version/source or a chunk key, `RevalidateCitations` drops it before output; cancellation, provider timeout, and storage errors use stable error codes — raw `err.Error()` is never leaked to the client.
+
+### 3. Reliable async: Transactional Outbox / Worker / Inbox / DLQ
+
+```text
+business tx (state change + outbox_events committed in the same tx)
+  -> relay, at-least-once delivery to Redis Streams
+  -> standalone cmd/worker consumer
+       (consumer_group, event_id) unique DB constraint for idempotency
+       exponential-backoff retry -> permanent failure into DLQ
+       -> admin replay
+```
+
+DB-internal side effects use `ConsumeInboxTx` (business write and inbox completion in one transaction); external side effects (moderation, embedding) must be idempotent themselves. The system is explicitly **at-least-once** — exactly-once is not claimed. Local failure drills cover duplicate delivery, lost ACKs, Redis stop/restart recovery, and DLQ replay.
+
+### 4. Index generations and degradation
+
+The index is a rebuildable projection, not the source of truth: rebuild goes staging → validation → atomic alias switch → promote PostgreSQL `is_current`; a failure keeps the old generation recoverable. Incremental projection and rebuild are guarded by a mutual lock. OpenSearch unavailability degrades to PG keyword; embedding-provider failure degrades to keyword-only — degraded results are explicitly labeled with their source.
+
+### 5. Archive file security gate
+
+Mod archives first pass application-layer streaming structural validation (path traversal / symlinks / encrypted entries / nested recursion / decompression quota — abort immediately on violation), then a ClamAV worker scan feeds a state machine and an append-only audit log. Publish and download are both clean-only gates; a quarantined object is never signed for download even if mislabeled.
+
+### 6. End-to-end observability
+
+OpenTelemetry W3C trace context spans HTTP → DB → LLM → SSE and Outbox → relay → Redis → Worker → Inbox (traceparent inside the outbox envelope); service-level names `omnicraft-server` / `omnicraft-worker`. Real traces from an authenticated MiniMax Chat sync path and an async embedding path have been captured, plus a collector-outage drill (losing observability does not affect the healthy business path).
+
+---
+
+## Real-provider evaluation (current-v1 frozen corpus)
+
+Corpus and query set frozen (63 golden cases / 169 published contents·chunks / generation 2, corpus identity and golden-set checksum pinned), differential run with real MiniMax Chat + embo-01 embedding (2026-08-26):
+
+| Metric (K=10) | Recall@10 | MRR | nDCG@10 | citation precision | P95 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 同 run chunk keyword baseline | 0.413 | 0.370 | 0.380 | — | — |
-| **hybrid（keyword + pgvector + RRF）** | **0.492** | **0.437** | **0.450** | 0.170 | 164.8ms |
+| same-run chunk keyword baseline | 0.413 | 0.370 | 0.380 | — | — |
+| **hybrid (keyword + pgvector + RRF)** | **0.492** | **0.437** | **0.450** | 0.170 | 164.8ms |
 
-- visibility leak count `0`；degradation success rate `1.000`；
-- K=20 对照（citation 0.162 / coverage 0.508）排除 Top-K 截断解释；
-- 历史 253-content baseline（citation precision 0.913）经 provenance 审计判定语料快照不可恢复、口径不可比——已如实废弃并重建可信口径，**不做「提升/回归」对比**。
+- visibility leak count `0`; degradation success rate `1.000`;
+- a K=20 control (citation 0.162 / coverage 0.508) rules out Top-K truncation as the explanation;
+- the historical 253-content baseline (citation precision 0.913) was audited for provenance: its corpus snapshot is unrecoverable and its counting口径 (content-level vs chunk-level) not comparable — it was honestly deprecated and a trustworthy baseline rebuilt. **No "improvement/regression" comparison is made.**
 
-Agent 答案实测（同冻结语料，2026-08-29，63 case 真实工具循环）：**55/63 answered、0 降级、0 provider 错误**；SSE first-token P50 2078ms / P95 8259ms；平均 3226 tokens/答案（为此修复 MiniMax 流式 usage 两个缺陷）；引用平均 4.2 条/答案、全部通过服务端复核。groundedness/relevance 使用确定性代理指标（对转述型模型饱和，judge 层为规划中的后续叠加），不作为质量结论。
+Agent answers, measured (same frozen corpus, 2026-08-29, 63-case real tool loop): **55/63 answered, 0 degradations, 0 provider errors**; SSE first-token P50 2078ms / P95 8259ms; average 3226 tokens per answer (two MiniMax streaming-usage defects were fixed along the way); citations average 4.2 per answer, all passing server-side re-validation. Groundedness/relevance use deterministic proxy metrics (saturated for paraphrasing models; a judge layer is a planned addition) and are not treated as quality conclusions.
 
-## 运行时架构
+## Evaluation infrastructure & the zero-cost PR gate (SP-22)
+
+Retrieval-layer metrics are pure ID reconciliation (golden set vs retrieved IDs) with no provider calls — they finish in milliseconds, so they should not be an occasional report but **a gate that runs on every PR**.
+
+- **PR-level zero-cost gate**: `evals/thresholds.yaml` defines `minimums` / `maximums` / `integrity` threshold sections; `backend/cmd/rag-gate` asserts against a frozen snapshot in under 0.1s locally. Red/green dual paths and exit 2 (configuration error) are empirically separated; the `integrity` section rejects empty/incomplete snapshots, closing the "empty snapshot, all green" hole.
+- **196-case generation-layer baseline** (`label=sp22-e1-baseline-dev`, hybrid=on / expansion=off / rerank=off, 152/196 participating in the retrieval layer): context recall@10 0.9605, hit@5 0.9539, MRR 0.9138; refusal confusion matrix (answerable 176 / unanswerable 20): answerable accuracy 0.9545, over-refusal 0.0455, **hallucination rate 0.9000 — a located, unfixed observation item**; refusal accuracy 0.1000. Ragas-style generation-layer harness (judge=DeepSeek, 896 judge calls ≈1.41M tokens): faithfulness 0.792 / answer relevancy 0.716 / context precision 0.662 / noise sensitivity 0.021.
+- **Judge calibration**: 18 cases × 3 reruns; faithfulness mean|Δ| 0.187, same-side rate 82.4%, Pearson 0.808; answer relevancy Pearson −0.174 — **gate eligibility for that metric was revoked accordingly** (observation only). Ground truth is model-labeled, not human-labeled.
+- **Attribution grid**: a first 8-configuration sweep found `rrf_k` and candidate-pool size to be zero-sensitivity axes; rerank is the only all-metric positive-contribution cell (recall@10 0.9833→0.9917, MRR 0.9338→0.9833, latency +206ms).
+
+> **Never mix the two baselines**: the differential baseline above = current-v1 frozen corpus, 63 cases, real providers (quality diagnosis); the snapshot baseline in this section = 196 ID-based zero-cost snapshots (regression gating). Always state which one, under which configuration, on which date. Evaluation drafts never enter the frozen set automatically — curation is manual.
+
+## Runtime architecture
 
 ![runtime architecture](docs/architecture.png)
 
-（完整技术架构设计见 [architecture.md](architecture.md)。）
+(Full technical design: [architecture.md](architecture.md).)
 
-## 项目阶段与边界
+## Project phase and boundaries
 
-当前为本地开发与验证阶段（非生产上线系统）：
+A **single-server production deployment is complete** ([app.leeppp.online](https://app.leeppp.online) / api.leeppp.online, 3.6 GiB lean profile; runbook: [docs/deploy/single-server-beta-runbook.md](docs/deploy/single-server-beta-runbook.md), Status: PRODUCTION; deploy/rollback drill evidence archived under `artifacts/ops-08/`). **Deployed ≠ operating**: no public operation, no real users, no QPS/SLA data. Current defaults and boundaries:
 
-- 默认读路径为 PostgreSQL keyword/pgvector + RRF；`features.rag_hybrid_enabled=false`——OpenSearch 投影契约与降级路径就绪，最终投影是显式的 **Phase 2 决策**（隔离实验：新世代 + 小语料 + 不切基线 alias + 记录回滚点）；
-- `observability.tracing.enabled=false`（可经环境变量按需开启）；`archive_malware_scan_enabled` / `desktop_deploy_enabled` 默认关闭；
-- 真实 MiniMax Chat/Embedding provider 已接入并有本地链路证据；ClamAV 当前主要为 fake scanner 与协议级测试；无生产用户量/QPS/SLA 数据；
-- Tauri 桌面客户端仅完成不安全原型关闭（见文末）。
+- the default read path is PostgreSQL keyword/pgvector + RRF; `features.rag_hybrid_enabled=false` — the OpenSearch projection contract and degradation path are ready, and final activation is an explicit **Phase 2 decision** (isolated experiment: new generation + small corpus + no baseline-alias switch + recorded rollback point);
+- `observability.tracing.enabled=false` (can be enabled via environment variables on demand); `archive_malware_scan_enabled` / `desktop_deploy_enabled` off by default;
+- real MiniMax Chat/Embedding providers are integrated with local evidence; ClamAV is currently mostly a fake scanner plus protocol-level tests; no production QPS/SLA data;
+- the Tauri desktop client has only completed the shutdown of its unsafe prototype (see the end of this file).
 
 ---
 
-## 本地开发
+## Local development
 
-### 前提条件
+### Prerequisites
 
-| 工具 | 版本要求 | 说明 |
+| Tool | Version | Notes |
 |------|---------|------|
-| Go | 1.26+ | 后端 API 服务（CI 精确固定 1.26.8，见 `.github/workflows/ci.yml`） |
-| Node.js | 20+ | 前端 Next.js（CI 固定 Node 20；`engines` 声明最低版本策略） |
-| pnpm | 9+ (或 npm 10+) | 前端包管理 |
-| PostgreSQL | 16+ | 需 pgvector ≥ 0.7 |
-| Redis | 7+ | 缓存与会话 |
-| Rust | 1.75+ | 仅 Tauri 客户端需要 |
+| Go | 1.26+ | backend API (CI pins exactly 1.26.8, see `.github/workflows/ci.yml`) |
+| Node.js | 20+ | frontend Next.js (CI pins Node 20; `engines` declares the minimum-version policy) |
+| pnpm | 9+ (or npm 10+) | frontend package manager |
+| PostgreSQL | 16+ | requires pgvector ≥ 0.7 |
+| Redis | 7+ | cache and sessions |
+| Rust | 1.75+ | only for the Tauri client |
 
-本地满足「最低版本」即可；CI 的精确工具链由 `.github/workflows/ci.yml` 与 `tauri-ci.yml` 固定，两者不混为一谈。
+Meeting the "minimum version" locally is enough; CI's exact toolchain is pinned separately by `.github/workflows/ci.yml` and `tauri-ci.yml` — do not conflate the two.
 
-### 1. 克隆仓库
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/Leewwp/OmniCraft.git
 cd OmniCraft
 ```
 
-### 2. 启动基础设施
+### 2. Start the infrastructure
 
 ```bash
-# 启动 PostgreSQL + Redis（Docker）
+# PostgreSQL + Redis (Docker)
 docker compose up -d postgres redis
 ```
 
-### 3. 初始化数据库
+### 3. Initialize the database
 
 ```bash
 chmod +x scripts/init-db.sh
 ./scripts/init-db.sh
 ```
 
-或者手动运行迁移：
+Or run the migrations manually:
 
 ```bash
 for f in backend/migrations/*.sql; do
@@ -140,239 +163,230 @@ for f in backend/migrations/*.sql; do
 done
 ```
 
-### 4. 配置环境变量
+### 4. Configure environment variables
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入本地开发配置
+# edit .env with your local development configuration
 ```
 
-### 5. 启动后端
+### 5. Start the backend
 
 ```bash
 cd backend
 go mod tidy
 go run cmd/server/main.go
-# API 运行在 http://localhost:8080
+# API on http://localhost:8080
 ```
 
-### 6. 启动前端
+### 6. Start the frontend
 
 ```bash
 cd frontend
-pnpm install        # 或 npm install
-pnpm dev            # 或 npm run dev
-# 前端运行在 http://localhost:3000
+pnpm install        # or npm install
+pnpm dev            # or npm run dev
+# frontend on http://localhost:3000
 ```
 
-### 7. 项目验证
+### 7. Project verification
 
-项目统一验证入口会在任一子命令失败时立即停止，并向调用方返回非零退出码。
+The unified verification entry point stops on the first failing subcommand and returns a non-zero exit code to the caller.
 
 ```bash
-# Default：日常确定性工程门
+# Default: daily deterministic engineering gate
 bash scripts/verify-project.sh
 
-# Full：Default + mocked Playwright contracts
+# Full: Default + mocked Playwright contracts
 bash scripts/verify-project.sh --full
 
-# Release：Default + 完整 Playwright E2E
+# Release: Default + the full Playwright E2E suite
 bash scripts/verify-project.sh --release
 ```
 
-| 层级 | 覆盖范围 | 前置条件 |
+| Level | Coverage | Prerequisites |
 |------|----------|----------|
-| `default` | 后端 `test/vet/build`、前端 `unit/lint/build`、doc-validator tests 与严格 `release` profile | Go、Node.js 和已安装的锁定依赖 |
-| `full` | `default` + mocked Playwright contract suite | Playwright 浏览器、PostgreSQL、Redis 和可启动的本地前后端配置 |
-| `release` | `default` + desktop/mobile/mocked/cross-stack 完整 Playwright suite | 发布候选配置、Playwright 浏览器、PostgreSQL、Redis、测试数据及计划要求的外部服务 |
+| `default` | backend `test/vet/build`, frontend `unit/lint/build`, doc-validator tests and the strict `release` profile | Go, Node.js, locked dependencies installed |
+| `full` | `default` + the mocked Playwright contract suite | Playwright browsers, PostgreSQL, Redis, and a startable local front/back configuration |
+| `release` | `default` + desktop/mobile/mocked/cross-stack full Playwright suite | release-candidate configuration, Playwright browsers, PostgreSQL, Redis, test data, and the external services required by the plan |
 
-`--full` 与 `--release` 是互斥层级。`--tauri` 是可叠加维度；修改桌面端时增加 `--tauri`，也可与 `--full` 或 `--release` 组合：
+`--full` and `--release` are mutually exclusive levels. `--tauri` is an additive dimension: add it when touching the desktop client; it can combine with `--full` or `--release`:
 
 ```bash
 bash scripts/verify-project.sh --tauri
 ```
 
-归档链接债务保持可见，但不阻塞当前发布真相：
+Archived-link debt stays visible but does not block the current release truth:
 
 ```bash
 cd tools/doc-validator
 go run . --check --profile archive
 ```
 
-聚合命令不能替代任务要求的浏览器截图、真实外部服务 smoke、Tauri 安装包验证或人工发布证据。
+The aggregate command does not replace browser screenshots, real external-service smokes, Tauri installer verification, or manual release evidence required by tasks.
 
-### 8. 持续安全扫描
+### 8. Continuous security scanning
 
-安全门通过 `.github/workflows/security.yml` 的稳定 `security-gate` 作业在 PR、push 到 main 与每日定时运行；扫描工具全部固定版本或镜像 digest（见 `security/pinned-tools.json`），禁止浮动引用与 `|| true` 隐藏失败（`scripts/security/verify-pinned-actions.sh` 静态校验）。
+The security gate runs as the stable `security-gate` job in `.github/workflows/security.yml` — on PRs, pushes to main, and daily on schedule. All scanning tools are version- or digest-pinned (see `security/pinned-tools.json`); floating references and `|| true` failure-hiding are forbidden (statically checked by `scripts/security/verify-pinned-actions.sh`).
 
 ```bash
-# 扫描类别与豁免策略
+# scan categories and exemption policy
 bash scripts/security/verify-pinned-actions.sh
 bash scripts/security/verify-security.sh -BuildImages -ReportDir artifacts/security
 
-# 合约测试（伪造密钥、过期例外、脆弱 lockfile 各自只触发对应门）
+# contract tests (fake secret, expired exception, fragile lockfile each trip only their own gate)
 bash scripts/security/verify-pinned-actions.tests.sh
 bash scripts/security/verify-security.tests.sh
 ```
 
-覆盖：Go `govulncheck`、frontend/tauri-client `npm audit`、Tauri `cargo audit`、gitleaks（工作树 + 全历史）、Trivy filesystem/IaC/container-image 扫描。secret 命中与 release Critical 不可豁免；High 豁免必须进入 `security/exceptions.json`（含受影响版本/digest、补偿控制、独立人工批准人、commit 绑定 `approval_ref` 与到期日）。单人仓库未配置第二位合格 human owner 前，`high_exceptions_enabled` 保持 `false`，任何 High 都必须修复。
+Coverage: Go `govulncheck`, frontend/tauri-client `npm audit`, Tauri `cargo audit`, gitleaks (worktree + full history), Trivy filesystem/IaC/container-image scans. Secret hits and release-Critical are non-waivable; a High waiver must live in `security/exceptions.json` (affected version/digest, compensating controls, an independent human approver, a commit-bound `approval_ref`, and an expiry). Until a second qualified human owner exists for this single-maintainer repository, `high_exceptions_enabled` stays `false` — every High must be fixed.
 
 ---
 
-## Docker Compose 部署
+## Docker Compose deployment
 
-### 本地集成环境
+### Local integration environment
 
-根目录 `docker-compose.yml` 用于本地集成，不是公网服务器部署权威。公网
-服务器必须使用 `docs/deploy/docker-compose.single-server.yml` 和
-`docs/deploy/single-server-beta-runbook.md`，且只由 Nginx 暴露 80/443。
+The root `docker-compose.yml` is for local integration and is not the authority for public-server deployment. A public server must use `docs/deploy/docker-compose.single-server.yml` and `docs/deploy/single-server-beta-runbook.md`, exposing only 80/443 through Nginx.
 
 ```bash
-# 1. 配置环境变量
+# 1. configure environment variables
 cp .env.example .env
-# 编辑 .env，填入生产环境配置
+# edit .env with production configuration
 
-# 2. 构建并启动
+# 2. build and start
 docker compose up -d --build
 
-# 3. 查看状态
+# 3. check status
 docker compose ps
 docker compose logs -f
 ```
 
-### 核心服务
+### Core services
 
-| 服务 | 端口 | 说明 |
+| Service | Port | Description |
 |------|------|------|
-| nginx | 80, 443 | 反向代理 + SSL 终止 |
+| nginx | 80, 443 | reverse proxy + SSL termination |
 | frontend | 3000 | Next.js SSR |
 | backend | 8080 | Go API |
 | postgres | 5432 | PostgreSQL 16 (pgvector) |
-| pgbouncer | 6432 | 数据库连接池（宿主机端口 6432 → 容器内 5432） |
+| pgbouncer | 6432 | DB connection pooler (host port 6432 → container 5432) |
 | redis | 6379 | Redis 7 |
-| migrate | 无 | 发布时一次性执行前向迁移，成功后退出 |
+| migrate | none | one-shot forward migrations at release time, exits on success |
 
-### 3.6 GiB 精简部署档
+### The 3.6 GiB lean deployment profile
 
-资源受限的低配服务器常驻 `nginx`、`frontend`、`backend`、`postgres`、
-`pgbouncer`、`redis` 和精简 `prometheus`；`migrate` 在每次发布时运行并
-退出。Prometheus 只抓取 backend 的内网 `:9091/metrics`，不得直接沿用
-需要 Alertmanager、exporter、cAdvisor、Blackbox 和 node-exporter 的完整
-配置。
+A resource-constrained low-end server keeps `nginx`, `frontend`, `backend`, `postgres`, `pgbouncer`, `redis`, and a trimmed `prometheus` resident; `migrate` runs and exits on each release. Prometheus scrapes only the backend's internal `:9091/metrics` — do not reuse the full configuration that requires Alertmanager, exporters, cAdvisor, Blackbox, and node-exporter.
 
-该档保留结构化日志、Docker 日志轮转、健康/就绪检查、指标接口与备份恢复
-能力，但暂缓 Loki/Alloy/loki-gate 和完整告警链。它是 Web-only 轻量部署
-档，不等同于完整生产观测档；完整服务清单、资源条件和切换前置门见单服务器
-运行手册。
+This profile keeps structured logging, Docker log rotation, health/readiness checks, the metrics endpoint, and backup/restore, but defers Loki/Alloy/loki-gate and the full alerting chain. It is a web-only lightweight profile, not the full production-observability profile; the complete service list, resource conditions, and switchover gates live in the single-server runbook.
 
-### 本地地址约定
+### Local address conventions
 
-| 调用方 | 地址 | 用途 |
+| Caller | Address | Purpose |
 |------|------|------|
-| 浏览器访问前端 | http://localhost:3000 | 手动浏览与浏览器端请求 |
-| 浏览器访问后端 | http://localhost:8080 | 浏览器端 API 请求 |
-| Docker 前端 SSR | http://backend:8080 | Next.js 服务端渲染请求 |
-| Docker 后端 | 容器内 :8080 | 宿主机映射为 8080 |
+| browser → frontend | http://localhost:3000 | manual browsing and browser-side requests |
+| browser → backend | http://localhost:8080 | browser-side API requests |
+| Docker frontend SSR | http://backend:8080 | Next.js server-side rendering requests |
+| Docker backend | in-container :8080 | mapped to host 8080 |
 
-NEXT_PUBLIC_API_URL 面向浏览器并在前端构建阶段注入；INTERNAL_API_URL 只面向 Next.js 服务端运行时。Docker Compose 本地配置使用 NEXT_PUBLIC_API_URL=http://localhost:8080 和 INTERNAL_API_URL=http://backend:8080：前者供宿主机浏览器访问，后者供容器内 SSR 访问。不要把 backend 作为 NEXT_PUBLIC_API_URL，否则浏览器无法解析 Compose 服务名。
+NEXT_PUBLIC_API_URL faces the browser and is baked in at frontend build time; INTERNAL_API_URL is only for the Next.js server runtime. The local Docker Compose configuration uses NEXT_PUBLIC_API_URL=http://localhost:8080 and INTERNAL_API_URL=http://backend:8080: the former serves the host browser, the latter serves in-container SSR. Do not use `backend` as NEXT_PUBLIC_API_URL — the browser cannot resolve Compose service names.
 
-本地 Compose 为了便于调试会映射 3000（前端）和 8080（API）两个宿主机端口。上线时不要求用户访问两个端口；生产 Compose 只对外发布 Nginx 的 80/443，前端与 API 由域名或反向代理统一暴露。由于 NEXT_PUBLIC_API_URL 在前端构建阶段写入浏览器 bundle，修改它后必须重新构建前端镜像。
+Local Compose maps two host ports (3000 frontend, 8080 API) for debugging convenience. In production users are not expected to access two ports; the production Compose publishes only Nginx's 80/443, with frontend and API exposed uniformly via the domain/reverse proxy. Because NEXT_PUBLIC_API_URL is baked into the browser bundle at build time, changing it requires rebuilding the frontend image.
 
-### 首次部署步骤
+### First deployment
 
-1. **配置 SSL 证书**（Let's Encrypt）：
+1. **Configure SSL certificates** (Let's Encrypt):
 
 ```bash
-# 安装 certbot
+# install certbot
 apt-get install certbot
 
-# 生成证书（standalone 模式）
+# issue certificates (standalone)
 certbot certonly --standalone -d your-domain.com
 
-# 或使用 Docker certbot
+# or Docker certbot
 docker run -it --rm -v /etc/letsencrypt:/etc/letsencrypt \
   -v /var/lib/letsencrypt:/var/lib/letsencrypt \
   -p 80:80 certbot/certbot certonly --standalone -d your-domain.com
 ```
 
-2. **更新 nginx.conf**：将 `omnicraft.example.com` 替换为实际域名
+2. **Update nginx.conf**: replace `omnicraft.example.com` with the real domain
 
-3. **数据库初始化**：
+3. **Initialize the database**:
 
 ```bash
 docker compose exec postgres psql -U omnicraft -d omnicraft -c "SELECT 1;"
-# 迁移文件在容器启动时通过 /docker-entrypoint-initdb.d 自动执行
+# migrations run automatically on first container start via /docker-entrypoint-initdb.d
 ```
 
-4. **启动服务**：
+4. **Start services**:
 
 ```bash
 docker compose up -d
 ```
 
-### 生产环境检查清单
+### Production checklist
 
-- [ ] `.env` 中所有占位符已替换为真实值
-- [ ] SSL 证书已配置（`/etc/letsencrypt/live/`）
-- [ ] `nginx.conf` 中 `server_name` 已设为实际域名
-- [ ] JWT_SECRET 已生成强随机密钥
-- [ ] 阿里云 OSS Bucket 已创建并配置访问权限
-- [ ] 阿里云内容安全（Green）服务已开通
-- [ ] 数据库定期备份已配置（cron + `scripts/backup-db.sh`）
-- [ ] 防火墙仅开放 80/443 端口
+- [ ] all placeholders in `.env` replaced with real values
+- [ ] SSL certificates configured (`/etc/letsencrypt/live/`)
+- [ ] `server_name` in `nginx.conf` set to the real domain
+- [ ] JWT_SECRET generated as a strong random key
+- [ ] Aliyun OSS bucket created with access policy configured
+- [ ] Aliyun content-safety (Green) service enabled
+- [ ] scheduled DB backups configured (cron + `scripts/backup-db.sh`)
+- [ ] firewall open on ports 80/443 only
 
 ---
 
-## 环境变量说明
+## Environment variables
 
-所有环境变量定义在 `.env.example`（本地开发）和 `.env.production.example`（生产部署模板，占位符被 preflight 拒绝）中。
+All variables are defined in `.env.example` (local development) and `.env.production.example` (production template; placeholders are rejected by preflight).
 
-### 必需变量
+### Required
 
-| 变量 | 说明 | 示例 |
+| Variable | Description | Example |
 |------|------|------|
-| `DB_DSN` | PostgreSQL 连接字符串 | `host=localhost port=5432 user=omnicraft password=... dbname=omnicraft sslmode=disable` |
-| `REDIS_ADDR` | Redis 地址 | `localhost:6379` |
-| `JWT_SECRET` | JWT 签名密钥（生成: `openssl rand -base64 64`） | — |
-| `ALIYUN_ACCESS_KEY_ID` | 阿里云 AccessKey（OSS + 内容安全共用） | — |
-| `ALIYUN_ACCESS_KEY_SECRET` | 阿里云 AccessKey Secret | — |
-| `OSS_ENDPOINT` | OSS 服务端点 | `https://oss-cn-hangzhou.aliyuncs.com` |
-| `OSS_BUCKET_NAME` | OSS Bucket 名称 | `omnicraft-prod` |
-| `GREEN_ACCESS_KEY_ID` | 内容安全 AccessKey（可与 OSS 共用） | — |
-| `GREEN_ACCESS_KEY_SECRET` | 内容安全 AccessKey Secret | — |
+| `DB_DSN` | PostgreSQL connection string | `host=localhost port=5432 user=omnicraft password=... dbname=omnicraft sslmode=disable` |
+| `REDIS_ADDR` | Redis address | `localhost:6379` |
+| `JWT_SECRET` | JWT signing key (generate: `openssl rand -base64 64`) | — |
+| `ALIYUN_ACCESS_KEY_ID` | Aliyun AccessKey (shared by OSS + content safety) | — |
+| `ALIYUN_ACCESS_KEY_SECRET` | Aliyun AccessKey Secret | — |
+| `OSS_ENDPOINT` | OSS endpoint | `https://oss-cn-hangzhou.aliyuncs.com` |
+| `OSS_BUCKET_NAME` | OSS bucket name | `omnicraft-prod` |
+| `GREEN_ACCESS_KEY_ID` | content-safety AccessKey (can share the OSS one) | — |
+| `GREEN_ACCESS_KEY_SECRET` | content-safety AccessKey Secret | — |
 
-### 可选变量
+### Optional
 
-| 变量 | 说明 | 默认值 |
+| Variable | Description | Default |
 |------|------|--------|
-| `DB_READ_DSN` | 读从库连接字符串（P1 阶段） | 留空走主库 |
-| `REDIS_PASSWORD` | Redis 密码 | 留空无密码 |
-| `OSS_CDN_DOMAIN` | OSS CDN 加速域名 | 留空直连 OSS |
-| `AGENT_LLM_API_KEY` | LLM API Key（DeepSeek / 通义千问） | — |
-| `AGENT_LLM_API_BASE` | LLM API 地址 | `https://api.deepseek.com` |
-| `AGENT_LLM_MODEL` | LLM 模型名称 | `deepseek-chat` |
-| `AGENT_HMAC_SECRET` | 已禁用 Desktop 原型的兼容构建变量；不得用于生产发布，D-03 后由 Ed25519 配置替代 | — |
-| `GREEN_CALLBACK_URL` | 内容安全审核回调地址 | — |
-| `FRONTEND_URL` | 前端 URL（用于 CORS/OAuth） | `http://localhost:3000` |
-| `INTERNAL_API_URL` | Next.js SSR 访问后端的容器内地址；本地进程可留空 | `http://backend:8080`（Docker） |
+| `DB_READ_DSN` | read-replica connection string (P1 phase) | empty → primary |
+| `REDIS_PASSWORD` | Redis password | empty → none |
+| `OSS_CDN_DOMAIN` | OSS CDN domain | empty → direct OSS |
+| `AGENT_LLM_API_KEY` | LLM API key (DeepSeek / Qwen) | — |
+| `AGENT_LLM_API_BASE` | LLM API base URL | `https://api.deepseek.com` |
+| `AGENT_LLM_MODEL` | LLM model name | `deepseek-chat` |
+| `AGENT_HMAC_SECRET` | compatibility build variable for the disabled desktop prototype; must not be used for production releases, replaced by Ed25519 configuration after D-03 | — |
+| `GREEN_CALLBACK_URL` | content-safety callback URL | — |
+| `FRONTEND_URL` | frontend URL (CORS/OAuth) | `http://localhost:3000` |
+| `INTERNAL_API_URL` | in-container address for Next.js SSR → backend; may be empty for local processes | `http://backend:8080` (Docker) |
 
 ---
 
-## 数据库初始化
+## Database initialization
 
 ```bash
-# 确保 PostgreSQL 运行中，然后执行：
+# make sure PostgreSQL is running, then:
 ./scripts/init-db.sh
 
-# 自定义数据库连接：
+# custom connection:
 DB_HOST=prod-db.example.com DB_PASSWORD=secret ./scripts/init-db.sh
 ```
 
-迁移文件位于 `backend/migrations/`，按编号顺序执行。Docker Compose 会在 postgres 容器首次启动时自动执行迁移。
+Migrations live in `backend/migrations/`, executed in numbered order. Docker Compose runs them automatically on the first postgres container start.
 
-### 收藏集与旧收藏对账
+### Collection / legacy-favorite reconciliation
 
-迁移 `058_create_collections.sql` 后，在保留旧 `favorites` 双写兼容期间运行：
+After migration `058_create_collections.sql`, during the dual-write compatibility period for the legacy `favorites` table, run:
 
 ```bash
 cd backend
@@ -380,174 +394,182 @@ DB_DSN="host=localhost port=5432 user=omnicraft password=... dbname=omnicraft ss
   go run ./cmd/collection-reconcile
 ```
 
-命令默认只读，按用户与内容分区输出缺失默认集、双向缺失项和重复逻辑项；零漂移退出 `0`，存在漂移退出 `1`，参数、连接或执行错误退出 `2`。确认报告后可执行只增不删的幂等修复：
+The command is read-only by default and reports, per user and per content, missing default sets, bidirectionally missing items, and logical duplicates; exit `0` on zero drift, `1` on drift, `2` on argument/connection/execution errors. After reviewing the report, an idempotent add-only repair can be applied:
 
 ```bash
-# 1. 先停止所有会写入 favorites / collection_items 的后端实例或进入等效写停维护窗口
-# 2. 在同一 DB_DSN 上执行修复；显式进程环境变量优先于工作目录中的 .env
+# 1. first stop every backend instance that writes favorites / collection_items,
+#    or enter an equivalent write-stopped maintenance window
+# 2. run the repair on the same DB_DSN; explicit process env vars take
+#    precedence over a .env in the working directory
 go run ./cmd/collection-reconcile --apply --maintenance-window-confirmed
 ```
 
-`--apply` 缺少 `--maintenance-window-confirmed` 时会在任何数据库写入前退出 `2`。该确认表示所有应用写入者已停止；仅限制流量但仍允许收藏变更不满足条件。修复结束并再次只读检查为零漂移后，方可恢复后端实例。
+Without `--maintenance-window-confirmed`, `--apply` exits `2` before any database write. The confirmation asserts all application writers have stopped; merely rate-limiting traffic while favorite mutations remain allowed does not qualify. After the repair and a clean read-only re-check, backend instances may resume.
 
-旧 `favorites` 写路径只能在以下条件全部满足后，由单独的前向清理计划和迁移移除：
+The legacy `favorites` write path may only be removed by a separate forward-cleanup plan and migration once **all** of the following hold:
 
-1. 所有受支持的前端和客户端构建均不再调用旧收藏变更接口；
-2. 对账命令连续七次每日检查均报告零漂移；
-3. 可回滚版本不再依赖旧表；
-4. 推荐系统仅从 `collection_items` 读取时相关测试仍通过；
-5. 删除由独立、可审查的前向清理计划与迁移执行。
+1. every supported frontend and client build no longer calls the legacy favorite-mutation endpoints;
+2. the reconciliation command has reported zero drift on seven consecutive daily checks;
+3. no rollback-able release depends on the legacy table;
+4. tests still pass with the recommender reading only `collection_items`;
+5. removal is executed by a separate, reviewable forward-cleanup plan and migration.
 
 ---
 
-## 数据库备份
+## Database backups
 
 ```bash
-# 手动备份
+# manual backup
 ./scripts/backup-db.sh
 
-# 保留最近 7 个备份
+# keep the 7 most recent backups
 ./scripts/backup-db.sh --retain 7
 
-# 自定义备份目录
+# custom backup directory
 BACKUP_DIR=/mnt/backups ./scripts/backup-db.sh
 ```
 
-### 配置定时备份（cron）
+### Schedule backups (cron)
 
 ```bash
-# 编辑 crontab
+# edit crontab
 crontab -e
 
-# 添加：每天凌晨 2 点备份，保留 30 天
+# add: back up daily at 02:00, retain 30 days
 0 2 * * * /path/to/OmniCraft/scripts/backup-db.sh >> /var/log/omnicraft-backup.log 2>&1
 ```
 
 ---
 
-## SBOM 与制品证明
+## SBOM and artifact attestation
 
-每个发布候选生成 CycloneDX SBOM（Go module、frontend/tauri npm、tauri Rust、容器 OS packages），并绑定到制品 digest、迁移清单 digest 与 pinned 生成器版本。生成、验证与归档全部可在本地复现，CI 通过 `.github/workflows/sbom.yml` 执行同一脚本集合并为 release 生成 GitHub provenance attestation。
+Every release candidate produces CycloneDX SBOMs (Go modules, frontend/tauri npm, tauri Rust, container OS packages), bound to artifact digests, the migration manifest digest, and pinned generator versions. Generation, verification, and archiving are all locally reproducible; CI runs the same script set via `.github/workflows/sbom.yml` and produces GitHub provenance attestations for releases.
 
 ```bash
-# 1. 生成确定性 SBOM 与 release-manifest.json（自动构建缺失的容器镜像）
+# 1. generate deterministic SBOMs and release-manifest.json
+#    (builds missing container images automatically)
 bash scripts/release/generate-sbom.sh -OutputDir artifacts/ops-06
 
-# 2. 验证 manifest schema、全部 digest 与 provenance 引用（-ImageDaemon 额外核对镜像 OCI label 与 commit 绑定）
+# 2. verify the manifest schema, all digests, and provenance references
+#    (-ImageDaemon additionally checks image OCI labels and commit binding)
 bash scripts/release/verify-provenance.sh -Manifest artifacts/ops-06/release-manifest.json -ImageDaemon
 
-# 3. 归档证据并生成一年保留期的机器可读 receipt（真实加密异地目的地需 Ops-08 凭据）
+# 3. archive the evidence and produce a machine-readable one-year retention
+#    receipt (a real encrypted off-site destination requires Ops-08 credentials)
 bash scripts/release/archive-release-evidence.sh -Manifest artifacts/ops-06/release-manifest.json -TargetDir /tmp/omnicraft-ops06-archive
 
-# 4. 契约测试
+# 4. contract tests
 bash scripts/release/generate-sbom.tests.sh
 bash scripts/release/verify-provenance.tests.sh
 bash scripts/release/archive-release-evidence.tests.sh
 ```
 
-- 策略与 schema：`release/sbom-policy.json`、`release/release-manifest.schema.json`
-- 确定性：生成的 SBOM 移除 `metadata.timestamp` 与 `serialNumber` 等易变字段，绝不改写包身份
-- 发布阻塞：SBOM 与制品 digest 不绑定、生成器未 pin、provenance 身份不匹配、易变镜像 tag 作为证据
+- policy and schema: `release/sbom-policy.json`, `release/release-manifest.schema.json`
+- determinism: generated SBOMs strip volatile fields like `metadata.timestamp` and `serialNumber` and never rewrite package identity
+- release blockers: SBOM not bound to artifact digests, unpinned generators, provenance-identity mismatch, volatile image tags used as evidence
 
-## 生产发布门（Ops-08）
+## Production release gate (Ops-08)
 
-生产发布候选必须通过配置 preflight 与 staging 部署/回滚演练：
+Production release candidates must pass configuration preflight and a staging deploy/rollback drill:
 
 ```bash
-# 1. 生产配置契约测试与 preflight（占位符/默认值/非 HTTPS/不安全 flags/TLS 策略/拓扑）
+# 1. production config contract tests and preflight
+#    (placeholders/defaults/non-HTTPS/unsafe flags/TLS policy/topology)
 bash scripts/release/preflight.tests.sh
 bash scripts/release/preflight.sh -EnvironmentFile /opt/omnicraft/.env -OverrideFile /var/lib/omnicraft/config_override.yaml -ReportDir artifacts/ops-08
 
-# 2. 部署/回滚契约测试与 staging 演练（preflight → deploy digest → 验证 → schema 兼容回滚 → 重部署）
+# 2. deployment/rollback contract tests and the staging drill
+#    (preflight -> deploy digest -> verify -> schema-compatible rollback -> redeploy)
 bash scripts/release/deployment-contract.tests.sh
 bash scripts/release/staging-drill.tests.sh
 bash scripts/release/staging-drill.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE" -CandidateManifest "$OMNICRAFT_CANDIDATE_MANIFEST" -PreviousManifest "$OMNICRAFT_PREVIOUS_MANIFEST" -ReportDir artifacts/ops-08
 ```
 
-- 镜像以不可变 sha256 digest 引用（`release/deployment-manifest.schema.json`）；回滚拒绝未知/不兼容 schema 的 digest，绝不执行破坏性 down SQL
-- 发布入口 `.github/workflows/release.yml` 仅手动触发，部署 job 绑定 GitHub Environment `production` 保护
-- 真实 staging 环境、OSS 与加密 off-site 归档凭据缺失时演练阻塞（exit 3），不得以模拟证据替代
-- 生产环境变量模板：`.env.production.example`（预检拒绝占位符）
+- images are referenced by immutable sha256 digest (`release/deployment-manifest.schema.json`); rollback rejects digests of unknown/incompatible schema and never runs destructive down SQL
+- the release entrypoint `.github/workflows/release.yml` is manual-trigger only; the deploy job is bound to the GitHub Environment `production` protection
+- when the real staging environment, OSS, or encrypted off-site archive credentials are missing, the drill blocks (exit 3) — simulated evidence is not a substitute
+- production environment template: `.env.production.example` (placeholders rejected by preflight)
 
 ---
 
-## 项目结构
+## Project structure
 
 ```
 OmniCraft/
-├── README.md                # 本文件
-├── CONTRIBUTING.md          # 贡献指南
-├── SECURITY.md              # 安全策略与漏洞报告
-├── architecture.md          # 技术架构设计
-├── .env.example             # 环境变量模板（开发）
-├── .env.production.example  # 环境变量模板（生产，占位符被 preflight 拒绝）
-├── docker-compose.yml       # Docker Compose 编排
+├── README.md                # this file (English)
+├── README.zh-CN.md          # Chinese README
+├── CONTRIBUTING.md          # contribution guide
+├── SECURITY.md              # security policy and reporting
+├── architecture.md          # technical architecture design
+├── .env.example             # environment template (development)
+├── .env.production.example  # environment template (production; placeholders rejected by preflight)
+├── docker-compose.yml       # Docker Compose orchestration
 ├── nginx/
-│   └── nginx.conf           # Nginx 反向代理配置
+│   └── nginx.conf           # Nginx reverse-proxy configuration
 ├── scripts/
-│   ├── init-db.sh           # 数据库初始化脚本
-│   └── backup-db.sh         # 数据库备份脚本
-├── backend/                 # Go 后端
+│   ├── init-db.sh           # database initialization
+│   └── backup-db.sh         # database backup
+├── backend/                 # Go backend
 │   ├── cmd/server/main.go
 │   ├── config/
 │   ├── internal/
-│   │   ├── handler/         # HTTP 处理器
-│   │   ├── service/         # 业务逻辑（agent_tools / agent_stream / rag / relay …）
-│   │   ├── repository/      # 数据访问
-│   │   ├── model/           # GORM 模型
-│   │   ├── middleware/      # 中间件
-│   │   └── pkg/             # 工具包（archivezip / clamav / llm / queue …）
-│   ├── migrations/          # SQL 迁移文件
-│   ├── config.yaml          # 应用配置
+│   │   ├── handler/         # HTTP handlers
+│   │   ├── service/         # business logic (agent_tools / agent_stream / rag / relay …)
+│   │   ├── repository/      # data access
+│   │   ├── model/           # GORM models
+│   │   ├── middleware/      # middleware
+│   │   └── pkg/             # utility packages (archivezip / clamav / llm / queue …)
+│   ├── migrations/          # SQL migrations
+│   ├── config.yaml          # application configuration
 │   └── Dockerfile
-├── frontend/                # Next.js 前端
-│   ├── app/                 # App Router 页面
-│   ├── components/          # React 组件（agent/AgentCitationCard 等）
+├── frontend/                # Next.js frontend
+│   ├── app/                 # App Router pages
+│   ├── components/          # React components (agent/AgentCitationCard etc.)
 │   ├── lib/
-│   │   └── api.ts           # API 请求封装
+│   │   └── api.ts           # API request wrapper
 │   └── Dockerfile
-├── agent-access/            # 外部 Agent 接入（Skill 包：搜索/下载/发布）
-├── tauri-client/            # Tauri PC 客户端
-├── k8s/                     # K8s 配置（P2 预留）
+├── agent-access/            # external agent access (skill packages: search/download/publish)
+├── tauri-client/            # Tauri desktop client
+├── k8s/                     # K8s config (P2 placeholder)
 └── design/
-    ├── design-system.md     # 设计系统（色彩/字体/间距，唯一设计权威）
-    └── ui-spec.md           # UI 规格书（页面和组件规格）
+    ├── design-system.md     # design system (colors/type/spacing — the single design authority)
+    └── ui-spec.md           # UI specification (pages and components)
 ```
 
 ---
 
-## API 文档
+## API documentation
 
 ```bash
-# 启动后端后，访问健康检查
+# after starting the backend, hit the health check
 curl http://localhost:8080/healthz
 
-# 完整 API 清单见 architecture.md §3.2
+# the full API inventory lives in architecture.md §3.2
 ```
 
-主要 API 路径：
-- `/api/v1/auth/*` — 用户认证
-- `/api/v1/contents/*` — 内容管理
-- `/api/v1/ips/*` — IP 管理
-- `/api/v1/social/*` — 社交互动
-- `/api/v1/judge/*` — 赛博判官
-- `/api/v1/admin/*` — 管理员后台
+Main API paths:
+- `/api/v1/auth/*` — authentication
+- `/api/v1/contents/*` — content management
+- `/api/v1/ips/*` — IP management
+- `/api/v1/social/*` — social interactions
+- `/api/v1/judge/*` — cyber judge
+- `/api/v1/admin/*` — admin backend
 
 ---
 
-## Tauri 客户端
+## Tauri client
 
 ```bash
 cd tauri-client
 
-# 安装依赖
+# install dependencies
 pnpm install
 
-# 开发模式
+# development
 pnpm tauri dev
 
-# 生产构建
+# production build
 pnpm tauri build
 ```
 
-客户端通过 `omnicraft://` URL Scheme 与 Web 前端联动。当前仓库仅完成了不安全原型的关闭（D-01）；HMAC 验签和 WebView 直接文件命令仍属于禁止发布的旧实现。`features.desktop_deploy_enabled` 必须保持 `false`，直至 D-02～D-05 与 R-02 完成短时单次 grant、Ed25519 canonical script、严格 Rust schema/路径边界、原生确认和端到端安全验证。
+The client integrates with the web frontend via the `omnicraft://` URL scheme. Only the shutdown of the unsafe prototype is complete in this repository (D-01); HMAC verification and direct WebView file commands remain the old, publish-forbidden implementation. `features.desktop_deploy_enabled` must stay `false` until D-02–D-05 and R-02 deliver the short-lived single-use grant, Ed25519 canonical script, strict Rust schema/path boundaries, native confirmation, and end-to-end security validation.
