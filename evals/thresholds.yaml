@@ -53,19 +53,23 @@ integrity:
   min_unanswerable: 10
   min_answerable: 100
 
-# ── 生成层建议阈值（SP-22 E2 校准回填，2026-09-18）────────────────────
-# 本段是 **建议书产物，PR 门禁不读取**（rag-gate 只断言上面的
-# minimums/maximums/integrity）。发布前全量门的实现（E1 harness 复跑）
-# 采纳以下值前需用户确认；依据见 docs/working/2026-09-18-sp22-e2-*.md：
+# ── 生成层 advisory 阈值（SP-22 E2 校准回填；已采纳，#611）─────────────
+# 采纳状态：**已采纳（post-R1 基线，2026-09-19 全量复跑）**——用户 2026-09-18
+# 确认采纳阈值语义、2026-09-19 拍板发布前全量门一次跑方案（当前生产形态
+# rerank on 全量复跑即重校准）。本段是发布前全量门的**实际读取源**
+# （scripts/evals/generation_gate.py；PR 门禁 rag-gate 仍只读上面的
+# minimums/maximums/integrity——设计如此）。依据与校准数据见
+# docs/working/2026-09-18-sp22-e2-*.md 与 2026-09-19 全量复跑产物：
 #   faithfulness      观察阈 0.70 / 硬地板 0.65
-#                     （基线均值 0.792、中位 0.857；3 次重跑漂移 ±0.02、
+#                     （E1 基线均值 0.792、中位 0.857；3 次重跑漂移 ±0.02、
 #                      与标注真值 mean|Δ| 0.187、同侧率 82.4%——阈值须吞掉
 #                      校准缺口与重跑方差）
-#   answer_relevancy  **不建议进门禁**：与真值 Pearson −0.17（18 条），
+#   answer_relevancy  **不进门禁**：与真值 Pearson −0.17（18 条），
 #                     反向生成问句的 embedding 余弦不跟踪人工相关性判断；
 #                     保留为观测指标，换 prompt 后需重新校准
-#   context_precision 0.55 起步观察（基线 0.662，未经逐条校准，只防大滑坡）
-#   noise_sensitivity 0.10 上限观察（基线 0.021，越低越好）
+#   context_precision 0.55 起步（防大滑坡下限，E1 基线 0.662）
+#   noise_sensitivity 0.10 上限（E1 基线 0.021，越低越好）
+#   min_answered      结构完整性下限（应答桶样本量，防空跑全绿）
 # 中英翻转探针（6 条）：judge prompt 英→中 faithfulness mean|Δ| 0.077，
 # 低于文献 10.7–14.4% 区间下限，prompt 语言风险可控但存在。
 generation_layer_advisory:
@@ -74,3 +78,4 @@ generation_layer_advisory:
   context_precision_observe: 0.55
   noise_sensitivity_max: 0.10
   answer_relevancy_gate: false
+  min_answered: 150
