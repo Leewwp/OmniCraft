@@ -171,10 +171,12 @@ func TestAgentToolPolicy(t *testing.T) {
 				t.Fatalf("content_id=%v err = %v, want ErrAgentToolInvalidArgs", bad, err)
 			}
 		}
-		longQuery := strings.Repeat("a", defaultMaxToolQueryLength+1)
-		_, err := svc.ExecuteTool(ctx, "search_content", rawJSON(t, map[string]any{"query": longQuery}), viewerID, nil)
+		// #619：超长 query 不再 invalid_args——服务端截断后继续检索
+		//（定向行为测试见 TestSearchContentTruncatesOverlengthQuery）；
+		// 这里只守空 query 仍拒绝。
+		_, err := svc.ExecuteTool(ctx, "search_content", rawJSON(t, map[string]any{"query": ""}), viewerID, nil)
 		if err == nil || !errors.Is(err, ErrAgentToolInvalidArgs) {
-			t.Fatalf("oversized query err = %v, want ErrAgentToolInvalidArgs", err)
+			t.Fatalf("empty query err = %v, want ErrAgentToolInvalidArgs", err)
 		}
 	})
 

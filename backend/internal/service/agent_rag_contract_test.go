@@ -339,3 +339,63 @@ func TestChatStreamToolStepShowsExpandedQueries(t *testing.T) {
 	require.Contains(t, tool.ArgsSummary, "怎么玩", "original query stays in the summary")
 	require.Contains(t, tool.ArgsSummary, "expanded: 攻略 / 教程", "expansion terms must surface in the tool step")
 }
+
+// #619（用户裁决方向 2）：超长自然 query（hn-0003 形态，228 runes）不再
+// invalid_args——工具层单一位置截断到 200 runes 后继续检索；截断动作在
+// outcome 上可观测。200 runes 线不动、空 query 仍拒绝（agent_tools_test 守）。
+func TestSearchContentTruncatesOverlengthQuery(t *testing.T) {
+	db := seedAgentGroundingDB(t)
+	svc := newContractService(db)
+	retriever := &contractRetriever{result: AgentRetrievalResult{
+		Candidates: []AgentRetrievalCandidate{contractCandidate()},
+	}}
+	svc.SetContentRetriever(retriever)
+
+	// hn-0003 form: 228 runes total, distinct head/tail so the cut is visible.
+	longQuery := strings.Repeat("前", 150) + strings.Repeat("后", 78)
+	require.Equal(t, 228, len([]rune(longQuery)))
+
+	outcome, err := svc.ExecuteTool(context.Background(), ToolSearchContent,
+		json.RawMessage(`{"query":"`+strings.Repeat("前", 150)+strings.Repeat("后", 78)+`"}`), 3, nil)
+	require.NoError(t, err, "over-length query must search, not reject")
+	require.Len(t, retriever.queries, 1)
+	require.Equal(t, 200, len([]rune(retriever.queries[0])), "retriever must see exactly the 200-rune head")
+	require.Equal(t, strings.Repeat("前", 150)+strings.Repeat("后", 50), retriever.queries[0])
+	require.True(t, outcome.QueryTruncated, "truncation must be observable on the outcome")
+	require.NotEmpty(t, outcome.Search, "truncated query still returns results")
+
+	// ≤200-rune queries pass through verbatim, untruncated.
+	short := strings.Repeat("题", 200)
+	outcome, err = svc.ExecuteTool(context.Background(), ToolSearchContent,
+		json.RawMessage(`{"query":"`+strings.Repeat("题", 200)+`"}`), 3, nil)
+	require.NoError(t, err)
+	require.False(t, outcome.QueryTruncated)
+	require.Equal(t, short, retriever.queries[1], "at-limit query passes verbatim")
+}
+
+// #619：流式轮里被截断的检索步骤在 tool_status 的服务端参数摘要上带
+// [query-truncated] 标注（过程面板与持久化工具行同源可见）。
+func TestChatStreamToolStepMarksTruncatedQuery(t *testing.T) {
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{toolCallDelta("search_content", `{"query":"`+strings.Repeat("长", 228)+`"}`)},
+		{{Content: "Grounded answer about Published Test Content"}, {Done: true}},
+	}}
+	hybridCfg := continuationTestConfig(100000)
+	hybridCfg.Features.RAGHybridEnabled = true
+	svc, _ := newStreamTestService(t, provider, hybridCfg)
+	svc.SetContentRetriever(&contractRetriever{result: AgentRetrievalResult{
+		Candidates: []AgentRetrievalCandidate{contractCandidate()},
+	}})
+
+	var tool *AgentToolExecution
+	err := svc.ChatStream(context.Background(), 7, ChatTurnInput{Message: "find this"}, resolveGlobalChatContext(t, svc, 7), func(ev AgentStreamEvent) error {
+		if ev.Type == AgentEventToolStatus && ev.Tool != nil && ev.Tool.Name == ToolSearchContent {
+			tool = ev.Tool
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, tool)
+	require.Equal(t, AgentToolStatusSuccess, tool.Status)
+	require.Contains(t, tool.ArgsSummary, "[query-truncated]", "truncation must surface in the tool step summary")
+}
