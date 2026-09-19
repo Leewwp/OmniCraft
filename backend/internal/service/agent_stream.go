@@ -546,7 +546,12 @@ loop:
 			}
 			// A-03: expansion terms surface in the tool step summary so the
 			// process panel can show what the retrieval fanned out to. The
-			// outcome is nil when the tool itself failed.
+			// outcome is nil when the tool itself failed. #619: a truncated
+			// over-length query is marked so "why did it find nothing"
+			// investigations can see the cut.
+			if outcome != nil && outcome.QueryTruncated {
+				execution.ArgsSummary += " [query-truncated]"
+			}
 			if outcome != nil && len(outcome.ExpandedQueries) > 0 {
 				execution.ArgsSummary += " +expanded: " + strings.Join(outcome.ExpandedQueries, " / ")
 			}
@@ -911,6 +916,11 @@ func agentToolExtraJSON(execution AgentToolExecution, outcome *AgentToolOutcome)
 		payload["mcp_server"] = outcome.MCP.Server
 		payload["mcp_tool"] = outcome.MCP.Tool
 		payload["mcp_truncated"] = outcome.MCP.Truncated
+	}
+	// #619: tool-layer query truncation rides the trace node extra next to
+	// the MCP truncation flag.
+	if outcome != nil && outcome.QueryTruncated {
+		payload["query_truncated"] = true
 	}
 	return promptregistryMustJSON(payload)
 }

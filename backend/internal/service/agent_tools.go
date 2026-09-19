@@ -106,6 +106,10 @@ type AgentToolOutcome struct {
 	Degraded         bool              `json:"-"`
 	RetrievalSources map[string]string `json:"-"`
 	ExpandedQueries  []string          `json:"-"`
+	// QueryTruncated marks that the tool-layer entry normalization cut the
+	// query to defaultMaxToolQueryLength runes (#619); the stream loop
+	// surfaces it in the tool step summary and trace extra.
+	QueryTruncated bool `json:"-"`
 }
 
 // AgentToolPolicy exposes the config-driven budget used to stop the tool loop
@@ -351,13 +355,28 @@ type searchToolArgs struct {
 	Query string `json:"query"`
 }
 
+// normalizeSearchQuery is the single tool-layer entry normalization for
+// search_content (#619, user ruling 2026-09-19 direction 2): trim, then
+// truncate an over-length query to defaultMaxToolQueryLength runes and keep
+// searching instead of rejecting it. The retrieval side itself has no such
+// limit; the 200-rune line stays put (no widening, no refusal). The truncated
+// flag feeds the execution summary and trace so "why did it find nothing"
+// investigations can see the cut.
+func normalizeSearchQuery(raw string) (query string, truncated bool) {
+	query = strings.TrimSpace(raw)
+	if runes := []rune(query); len(runes) > defaultMaxToolQueryLength {
+		return string(runes[:defaultMaxToolQueryLength]), true
+	}
+	return query, false
+}
+
 func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMessage, viewerID int64) (*AgentToolOutcome, error) {
 	var args searchToolArgs
 	if err := decodeToolArgs(rawArgs, &args); err != nil {
 		return nil, err
 	}
-	query := strings.TrimSpace(args.Query)
-	if query == "" || len([]rune(query)) > defaultMaxToolQueryLength {
+	query, truncated := normalizeSearchQuery(args.Query)
+	if query == "" {
 		return nil, ErrAgentToolInvalidArgs
 	}
 	if s.ragHybridEnabled() {
@@ -374,6 +393,7 @@ func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMe
 			Degraded:         result.Degraded != "",
 			RetrievalSources: retrievalSourceMap(summaries),
 			ExpandedQueries:  result.ExpandedQueries,
+			QueryTruncated:   truncated,
 		}, nil
 	}
 	if s.vectorSearch == nil || s.embeddingRepo == nil {
@@ -409,7 +429,7 @@ func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMe
 	if len(summaries) > defaultMaxToolResultCount {
 		summaries = summaries[:defaultMaxToolResultCount]
 	}
-	return &AgentToolOutcome{Search: summaries}, nil
+	return &AgentToolOutcome{Search: summaries, QueryTruncated: truncated}, nil
 }
 
 type searchIPsToolArgs struct {
