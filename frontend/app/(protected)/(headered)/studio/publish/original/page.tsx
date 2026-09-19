@@ -47,7 +47,9 @@ export default function PublishOriginalPage() {
 
   if (selectedType) {
     return (
-      <div className="max-w-2xl">
+      // #548：摘除外层 672px 宽框——编辑列随 StudioLayout 容器弹性（PublishForm
+      // 表单自带 880px 上限），双栏网格不再被 672px 锁死。
+      <div>
         <h1 className="mb-6 text-xl font-bold text-foreground">{t("originalTitle")}</h1>
         <PublishForm
           zone="original"

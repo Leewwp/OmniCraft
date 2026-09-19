@@ -1,6 +1,16 @@
 /* SP-19 G3-1：Crepe 主题 token 桥接——把 crepe 调色板变量映射到
  * design-system 主 token（暗色随 token 自动翻转，无需 frame-dark.css 双主题
- * 切换），并约束编辑区排版贴合站点正文样式。 */
+ * 切换），并约束编辑区排版贴合站点正文样式。
+ *
+ * #548 三病修复（选择器带 .milkdown-editor-root 前缀抬高特异性，压过
+ * crepe reset.css 的 .milkdown .ProseMirror，不依赖导入顺序）：
+ * - A 内边距：reset.css 写死 padding:60px 120px（全屏宽编辑器比例），内嵌
+ *   表单场景改为紧凑 16px 20px，首行文字贴左上。
+ * - B 字体/字号：--crepe-font-title 默认衬线栈（Noto Serif…），桥接为站点
+ *   inherit；标题字号从 2.625em… 降级到渲染层 prose-sm 同级比例（h1≈1.5em）。
+ * - C 可见性：--crepe-color-outline 误映 --border（≈#e8e8e8，画布上 1.1:1
+ *   对比度）致行首把手/slash 图标隐形，改映 --muted-foreground（贴近 crepe
+ *   原版中灰语义）；svg fill 显式兜底防其它 token 路径漏网。 */
 
 .milkdown {
   --crepe-color-primary: var(--accent-emphasis, var(--primary));
@@ -11,10 +21,11 @@
   --crepe-color-surface-low: var(--muted);
   --crepe-color-on-surface: var(--foreground);
   --crepe-color-on-surface-variant: var(--muted-foreground);
-  --crepe-color-outline: var(--border);
+  --crepe-color-outline: var(--muted-foreground);
   --crepe-color-error: var(--destructive);
   --crepe-color-inline-code: var(--accent-emphasis, var(--primary));
   --crepe-font-default: inherit;
+  --crepe-font-title: inherit;
   --crepe-base-font-size: 15px;
   color: var(--foreground);
   font-family: inherit;
@@ -24,6 +35,57 @@
   min-height: inherit;
 }
 
-.milkdown .editor-wrapper {
-  padding-bottom: 1.5rem;
+.milkdown-editor-root .milkdown .ProseMirror {
+  padding: 16px 20px;
+}
+
+.milkdown-editor-root .milkdown .ProseMirror h1,
+.milkdown-editor-root .milkdown .ProseMirror h2,
+.milkdown-editor-root .milkdown .ProseMirror h3,
+.milkdown-editor-root .milkdown .ProseMirror h4,
+.milkdown-editor-root .milkdown .ProseMirror h5,
+.milkdown-editor-root .milkdown .ProseMirror h6 {
+  font-family: inherit;
+}
+
+.milkdown-editor-root .milkdown .ProseMirror h1 {
+  font-size: 1.5em;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 16px;
+}
+
+.milkdown-editor-root .milkdown .ProseMirror h2 {
+  font-size: 1.3em;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 14px;
+}
+
+.milkdown-editor-root .milkdown .ProseMirror h3 {
+  font-size: 1.15em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 12px;
+}
+
+.milkdown-editor-root .milkdown .ProseMirror h4 {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-top: 10px;
+}
+
+.milkdown-editor-root .milkdown .ProseMirror h5,
+.milkdown-editor-root .milkdown .ProseMirror h6 {
+  font-size: 0.95em;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-top: 10px;
+}
+
+/* C 兜底：行首「+」把手与 slash 菜单图标显式着色（暗色随 token 翻转）。 */
+.milkdown-editor-root .milkdown .milkdown-block-handle svg,
+.milkdown-editor-root .milkdown .crepe-slash-menu svg {
+  fill: var(--muted-foreground);
 }

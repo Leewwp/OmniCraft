@@ -47,12 +47,24 @@ test("single instance: editor factory runs once with empty deps; locale strings 
   assert.doesNotMatch(factory, /locale|placeholder/);
 });
 
-test("features: Latex/TopBar/AI disabled; images only when allowImages", async () => {
+test("features: Latex/AI disabled; TopBar opt-in (#548); images only when allowImages", async () => {
   const source = await read("components/markdown/MilkdownEditor.tsx");
   assert.match(source, /\[CrepeFeature\.Latex\]: false/);
-  assert.match(source, /\[CrepeFeature\.TopBar\]: false/);
+  // #548：TopBar 由 prop 决定（发布正文 true、其余消费页默认 false）。
+  assert.match(source, /\[CrepeFeature\.TopBar\]: topBar/);
+  assert.match(source, /topBar = false/);
   assert.match(source, /\[CrepeFeature\.AI\]: false/);
   assert.match(source, /\[CrepeFeature\.ImageBlock\]: false/);
+});
+
+test("topBar zh labels: headingOptions only when topBar enabled (#548)", async () => {
+  const source = await read("components/markdown/MilkdownEditor.tsx");
+  assert.match(source, /configs\["top-bar"\] = \{/);
+  assert.match(source, /headingOptions/);
+  assert.match(source, /if \(topBar\)/);
+  // 发布正文消费方开启 TopBar。
+  const form = await read("components/studio/PublishForm.tsx");
+  assert.match(form, /topBar\s*\n/);
 });
 
 test("zh strings are locale-gated, not unconditional", async () => {
@@ -110,4 +122,43 @@ test("theme bridge maps crepe variables onto design tokens", async () => {
   const css = await read("components/markdown/milkdown-editor.css");
   assert.match(css, /--crepe-color-primary: var\(--accent-emphasis/);
   assert.match(css, /--crepe-color-background: var\(--background\)/);
+});
+
+test("#548 editor bridge fixes: compact padding, site title font, visible handles", async () => {
+  const css = await read("components/markdown/milkdown-editor.css");
+  // A 内边距：高特异性覆盖 crepe reset.css 的 padding:60px 120px。
+  assert.match(css, /\.milkdown-editor-root \.milkdown \.ProseMirror \{\s*padding: 16px 20px;/);
+  // B 字体：标题桥接站点字体（inherit），非 Crepe 衬线默认。
+  assert.match(css, /--crepe-font-title: inherit/);
+  // C 可见性：outline 映射 muted-foreground（中灰语义），把手 svg 显式兜底。
+  assert.match(css, /--crepe-color-outline: var\(--muted-foreground\)/);
+  assert.match(css, /\.milkdown-block-handle svg/);
+  // 死代码清理：Crepe 7.22.1 无 editor-wrapper 类名。
+  assert.doesNotMatch(css, /editor-wrapper/);
+  // 标题降级到站点比例（h1 1.5em，非 crepe 默认 2.625em）。
+  assert.match(css, /ProseMirror h1 \{\s*font-size: 1\.5em/);
+});
+
+test("#548 publish layout: editor is the main body, preview column narrowed", async () => {
+  const form = await read("components/studio/PublishForm.tsx");
+  // 双栏预览列 320px；表单列弹性 + 880px 上限（不再是 max-w-2xl）。
+  assert.match(form, /xl:grid-cols-\[minmax\(0,1fr\)_320px\]/);
+  assert.match(form, /max-w-\[880px\]/);
+  assert.doesNotMatch(form, /max-w-2xl/);
+  for (const page of [
+    "app/(protected)/(headered)/studio/publish/original/page.tsx",
+    "app/(protected)/(headered)/studio/publish/fanwork/page.tsx",
+  ]) {
+    const source = await read(page);
+    assert.doesNotMatch(source, /max-w-2xl/, `${page} still pins the outer wrapper`);
+  }
+});
+
+test("#548 phone shell: fixed portrait ratio with in-shell scroll", async () => {
+  const source = await read("components/studio/PublishPhonePreview.tsx");
+  assert.match(source, /max-w-\[280px\]/);
+  assert.match(source, /height: 560/);
+  assert.match(source, /overflow-y-auto/);
+  assert.match(source, /border-2/);
+  assert.doesNotMatch(source, /border-\[6px\]/);
 });
