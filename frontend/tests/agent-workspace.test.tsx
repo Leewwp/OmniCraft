@@ -222,6 +222,11 @@ const workspaceMessages = {
       description: "No public content supports this answer.",
       searchCta: "Search site content",
     },
+    /* #610 空轮空态（镜像真实 catalog）。 */
+    emptyTurn: {
+      title: "No content this turn",
+      description: "This turn completed no search or tool and produced no answer.",
+    },
     degraded: {
       title: "Search fallback active",
       description: "The answer was not generated. Review the available site references.",
@@ -1714,7 +1719,9 @@ test("no-evidence turn shows the notice without fabricating an answer", async ()
       answer_kind: "no_evidence",
       answer: "",
       citations: [],
-      tools: [],
+      /* 检索未命中路径：至少执行过一次检索工具（#610 后空轮/检索未命中
+         分流——零工具 = 空轮文案）。 */
+      tools: [{ name: "search_content", status: "success", duration_ms: 41, hits: 0 }],
     },
   ]);
   installApiMock([
@@ -1741,6 +1748,93 @@ test("no-evidence turn shows the notice without fabricating an answer", async ()
     assert.equal(view.queryByText("I did not find enough material."), null);
     const searchLink = view.getByRole("link", { name: "Search site content" });
     assert.equal(searchLink.getAttribute("href"), "/search?q=Find%20beginner-friendly%20furniture%20mods");
+  } finally {
+    stub.restore();
+  }
+});
+
+/* #610 空答案气泡：no_evidence 且零工具执行的轮次显示专门空态文案，
+   不再渲染「未找到足够依据」的检索文案（那类文案对图片请求等场景误导）。 */
+test("empty no-evidence turn with zero tools shows the dedicated empty-turn copy", async () => {
+  installDom();
+  const now = new Date();
+  const stub = installSSEFetch([
+    { type: "start", conversation_id: 14, answer_kind: "no_evidence" },
+    { type: "delta", delta: "Sure, here is another one in portrait." },
+    {
+      type: "done",
+      conversation_id: 14,
+      answer_kind: "no_evidence",
+      answer: "",
+      citations: [],
+      tools: [],
+    },
+  ]);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(14, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/14",
+      response: {
+        conversation: conversation(14, now.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 14, role: "user", content: "Draw another one in portrait" },
+          { id: 2, conversation_id: 14, role: "assistant", content: "" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("No content this turn")));
+    assert.ok(view.getByText("This turn completed no search or tool and produced no answer."));
+    assert.equal(view.queryByText("Not enough evidence"), null, "empty turn must not show the retrieval-miss copy");
+    assert.equal(view.queryByText("Sure, here is another one in portrait."), null, "gate-cleared body must stay hidden");
+  } finally {
+    stub.restore();
+  }
+});
+
+/* #610 空轮第二形态：工具被调用但全部失败（如图片工具不可用）——同样
+   没有任何有效产出，走空态文案而非检索未命中文案。 */
+test("no-evidence turn whose tools all errored also shows the empty-turn copy", async () => {
+  installDom();
+  const now = new Date();
+  const stub = installSSEFetch([
+    { type: "start", conversation_id: 15, answer_kind: "no_evidence" },
+    {
+      type: "done",
+      conversation_id: 15,
+      answer_kind: "no_evidence",
+      answer: "",
+      citations: [],
+      tools: [{ name: "generate_image", status: "error", duration_ms: 0, hits: 0 }],
+    },
+  ]);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(15, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/15",
+      response: {
+        conversation: conversation(15, now.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 15, role: "user", content: "Draw another one in portrait" },
+          { id: 2, conversation_id: 15, role: "assistant", content: "" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("No content this turn")));
+    assert.equal(view.queryByText("Not enough evidence"), null);
   } finally {
     stub.restore();
   }
