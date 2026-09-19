@@ -277,7 +277,7 @@ docker compose logs -f
 
 A resource-constrained low-end server keeps `nginx`, `frontend`, `backend`, `postgres`, `pgbouncer`, `redis`, and a trimmed `prometheus` resident; `migrate` runs and exits on each release. Prometheus scrapes only the backend's internal `:9091/metrics` — do not reuse the full configuration that requires Alertmanager, exporters, cAdvisor, Blackbox, and node-exporter.
 
-This profile keeps structured logging, Docker log rotation, health/readiness checks, the metrics endpoint, and backup/restore, but defers Loki/Alloy/loki-gate and the full alerting chain. It is a web-only lightweight profile, not the full production-observability profile; the complete service list, resource conditions, and switchover gates live in the single-server runbook.
+This profile keeps structured logging, Docker log rotation, health/readiness checks, the metrics endpoint, and backup/restore, and evaluates the backend-metrics agent SLA rule subset locally (firing state via the local rules API), while deferring Loki/Alloy/loki-gate and the full alerting delivery chain (Alertmanager). It is a web-only lightweight profile, not the full production-observability profile; the complete service list, resource conditions, and switchover gates live in the single-server runbook.
 
 ### Local address conventions
 
