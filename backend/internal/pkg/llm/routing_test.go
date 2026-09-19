@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"omnicraft/backend/internal/observability"
 )
 
 // scriptedProvider is a fake chat model: it plays a fixed delta script per
@@ -265,4 +267,45 @@ func routerToolCallDelta() ChatDelta {
 	fn.Name = "search"
 	fn.Arguments = `{"query":"q"}`
 	return ChatDelta{ToolCalls: []ToolCall{{ID: "call_1", Type: "function", Function: fn}}}
+}
+
+// SP-24 R7: every failover increments omnicraft_agent_routing_fallbacks_total
+// outside the trace sampling gate, so the SLA alert sees all events.
+func TestRoutingFailoverFeedsSLACounter(t *testing.T) {
+	metrics := observability.NewMetrics()
+	observability.SetDefaultMetrics(metrics)
+	defer observability.SetDefaultMetrics(nil)
+
+	primary := &scriptedProvider{scripts: [][]ChatDelta{
+		{{Thinking: "reasoning only"}, {Done: true}},
+	}}
+	fallback := &scriptedProvider{scripts: [][]ChatDelta{
+		{{Content: "answer"}, {Done: true}},
+	}}
+	router := newTestRouter(primary, fallback, []string{RetryOnBlankAnswer})
+
+	if err := router.ChatStream(context.Background(), ChatRequest{}, func(delta ChatDelta) error { return nil }); err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+
+	families, err := metrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	found := false
+	for _, mf := range families {
+		if mf.GetName() != "omnicraft_agent_routing_fallbacks_total" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "reason" && l.GetValue() == "blank_answer" && m.GetCounter().GetValue() == 1 {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("routing failover must increment omnicraft_agent_routing_fallbacks_total{reason=\"blank_answer\"} by 1")
+	}
 }

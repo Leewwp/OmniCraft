@@ -343,6 +343,7 @@ func withToolError(outcome *AgentToolOutcome, name string, err error, start time
 		status = AgentToolStatusError
 	}
 	outcome.Execution = AgentToolExecution{Name: name, Status: status, DurationMs: time.Since(start).Milliseconds()}
+	observability.IncDefaultAgentToolCall(name, err != nil)
 	return err
 }
 
