@@ -16,7 +16,8 @@
 #     from measured idle RSS on the lean host (2026-08-31: redis 6 MiB,
 #     backend 7 MiB, postgres 39 MiB, pgbouncer 5 MiB, nginx 17 MiB,
 #     frontend 90 MiB) with headroom for light traffic;
-#   - points Prometheus at the backend-only lean config. The committed
+#   - points Prometheus at the backend-only lean config (plus the
+#     backend-metrics agent-SLA rule subset). The committed
 #     ops/observability/prometheus.yml also targets exporters/cadvisor/
 #     blackbox/node-exporter, which are deferred on this host; loading it
 #     unchanged would present permanent blind targets.
@@ -69,8 +70,9 @@ services:
   prometheus:
     volumes:
       # Same target path as the base mount: this replaces the full config
-      # (backend-only job list, no rule_files, no alertmanager).
+      # (backend-only job list, agent-SLA rule subset only, no alertmanager).
       - ./ops/observability/prometheus.lean.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/observability/prometheus-rules.lean.yml:/etc/prometheus/prometheus-rules.lean.yml:ro
     deploy:
       resources:
         limits:
