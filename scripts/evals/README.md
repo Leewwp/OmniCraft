@@ -78,3 +78,22 @@ tokens/轮 —— DeepSeek 计价 ≈ ¥2–10/全量轮（与调查报告 §2.2
 - 坑：eval_runs.dataset_checksum 是 varchar(64)（剥 sha256: 前缀入库）；
   make_pr_gate_snapshot.py 不得对 retrieved_ids 排序（E4 抓出的排名序伪影，
   MRR 曾被腰斩到 0.46，真实 0.91）。
+
+## 发布前全量门（#611，2026-09-19 起生效）
+
+`generation_gate.py` 是发布前全量门的断言层：读一份**新鲜的**
+`ragas_harness.py` 全量产物（当前生产形态复跑），对照
+`evals/thresholds.yaml` 的 `generation_layer_advisory` 段（已采纳，
+post-R1 基线 2026-09-19 全量复跑）断言——faithfulness 硬地板 0.65 拦门 /
+观察阈 0.70 告警、context_precision 0.55 下限、noise_sensitivity 0.10 上限、
+answer_relevancy 永不拦门（E2 校准结论）、应答桶 ≥150 防空跑全绿。
+
+```bash
+/tmp/evals-venv/bin/python scripts/evals/ragas_harness.py \
+    --runs <merged dev+test runs.jsonl> --label <label>   # 全量新鲜跑
+/tmp/evals-venv/bin/python scripts/evals/generation_gate.py \
+    --ragas docs/working/<label>.ragas.json
+```
+
+退出码 0 = PASS（可含观察告警）、1 = FAIL（逐项证据行）。PR 门禁
+（rag-gate）不读该段——两层门各管一层，设计如此。
