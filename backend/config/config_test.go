@@ -67,6 +67,39 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	// SP-24 R2（2026-09-19）：rerank 池深 20→40（dev 156 条双环境网格，
 	// recall/hit 0.9917→1.0 / MRR +0.0083 / over-refusal 代理→0，+76ms）。
 	require.Equal(t, 40, cfg.RAG.Rerank.InputTopK)
+	// SP-24 R3（2026-09-19）：拒答边界出厂值 = 既有语义（零引用 no_evidence
+	// 边界、相似度地板关闭）；网格扫描证据回票 #574。
+	require.Equal(t, 1, cfg.RAG.Refusal.MinSurvivingCitations)
+	require.Equal(t, 0.0, cfg.RAG.Refusal.MinTopRelevanceScore)
+}
+
+func TestValidateReleaseRejectsInvalidRAGRefusalConfig(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Run("negative surviving citations boundary", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.RAG.Refusal = RAGRefusalConfig{MinSurvivingCitations: -1, MinTopRelevanceScore: 0}
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "rag.refusal.min_surviving_citations")
+	})
+	t.Run("relevance floor out of range", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.RAG.Refusal = RAGRefusalConfig{MinSurvivingCitations: 1, MinTopRelevanceScore: 1.5}
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "rag.refusal.min_top_relevance_score")
+	})
+	t.Run("relevance floor requires rerank", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.Features.RAGHybridEnabled = true
+		cfg.Features.RAGRerankEnabled = false
+		cfg.RAG.Refusal = RAGRefusalConfig{MinSurvivingCitations: 1, MinTopRelevanceScore: 0.3}
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "min_top_relevance_score requires")
+	})
+	t.Run("valid refusal config passes", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.RAG.Refusal = RAGRefusalConfig{MinSurvivingCitations: 2, MinTopRelevanceScore: 0}
+		require.NoError(t, cfg.ValidateRelease())
+	})
 }
 
 func TestValidateReleaseRejectsInvalidRAGChunkingConfig(t *testing.T) {

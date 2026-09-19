@@ -424,6 +424,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	if cfg.Features.RAGRerankEnabled {
 		if reranker, inputTopK := llm.NewRerankerFromConfig(cfg.RAG.Rerank); reranker != nil {
 			c.HybridRetriever.SetReranker(reranker, inputTopK)
+			// SP-24 R3: the similarity-floor refusal only carries meaning
+			// next to a wired reranker (relevance scores live on that path).
+			c.HybridRetriever.SetMinTopRelevance(cfg.RAG.Refusal.MinTopRelevanceScore)
 		}
 	}
 	if cfg.Features.RAGHybridEnabled {

@@ -191,6 +191,56 @@ func TestHybridRetrieverRerankReordersPool(t *testing.T) {
 	}
 }
 
+// SP-24 R3: the similarity-floor refusal empties a non-empty result whose
+// top rerank relevance sits below the configured floor, without marking the
+// retrieval degraded (it is a legitimate "nothing convincing enough" verdict,
+// not an availability failure).
+func TestHybridRetrieverSimilarityFloorRefusal(t *testing.T) {
+	keyword := &recordingKeywordProvider{results: []RetrievalCandidate{
+		candidate("a", 1), candidate("b", 2), candidate("c", 3),
+	}}
+	reranker := &fakeReranker{results: []llm.RerankResult{
+		{Index: 2, RelevanceScore: 0.42}, {Index: 0, RelevanceScore: 0.2}, {Index: 1, RelevanceScore: 0.1},
+	}}
+	floorAbove := 0.5
+	floorBelow := 0.4
+
+	r := NewHybridRetriever(keyword, nil, &recordingVectorProvider{}, fakeQueryEmbedder{vector: []float32{1}}, fakeVisibility{}, config.RAGHybridConfig{})
+	r.SetReranker(reranker, 20)
+	r.SetMinTopRelevance(floorAbove)
+	result, err := r.Retrieve(context.Background(), "q", 7)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(result.Candidates) != 0 || result.Degraded != "" {
+		t.Fatalf("floor 0.5 over top relevance 0.42 = %+v degraded=%q, want empty and not degraded", result.Candidates, result.Degraded)
+	}
+
+	r2 := NewHybridRetriever(keyword, nil, &recordingVectorProvider{}, fakeQueryEmbedder{vector: []float32{1}}, fakeVisibility{}, config.RAGHybridConfig{})
+	r2.SetReranker(reranker, 20)
+	r2.SetMinTopRelevance(floorBelow)
+	result2, err := r2.Retrieve(context.Background(), "q", 7)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(result2.Candidates) == 0 {
+		t.Fatalf("floor 0.4 over top relevance 0.42 must keep the candidates")
+	}
+
+	// Floor without a reranker stays inert even if set (config validation
+	// rejects the combination; the retriever fails closed to no-op, never to
+	// refusing everything).
+	r3 := NewHybridRetriever(keyword, nil, &recordingVectorProvider{}, fakeQueryEmbedder{vector: []float32{1}}, fakeVisibility{}, config.RAGHybridConfig{})
+	r3.SetMinTopRelevance(0.9)
+	result3, err := r3.Retrieve(context.Background(), "q", 7)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(result3.Candidates) == 0 {
+		t.Fatalf("floor without reranker must not refuse (scores do not exist)")
+	}
+}
+
 // A-03 degradation: a rerank failure keeps the RRF order and marks the
 // result rerank_unavailable.
 func TestHybridRetrieverRerankFailureKeepsRRFOrder(t *testing.T) {
