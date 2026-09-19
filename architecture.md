@@ -691,7 +691,7 @@ omnicraft://deploy?content_id=xxx&token=yyy
 
 日志使用结构化 JSON（稳定字段 `time/level/msg/service/environment/version/trace_id/request_id/route/method/status/duration_ms/client_ip/error_class`）。`trace_id` 是 OTel 128-bit trace，`request_id` 仍是独立的 8-byte hex 请求关联 ID；SSE `trace_id` 沿用当前 OTel context。`client_ip` 只保存 `LOG_IP_HASH_SECRET` 的 HMAC-SHA256 前 128 bit（32 位小写十六进制）+ 非敏感 `client_ip_key_id`；日志永不出现原始 IP、token、cookie、授权头、验证码票据、签名 URL 查询串或消息正文。前一把哈希密钥只在显式轮换窗口内可用（`observability.ip_key_rotation`）。release 模式缺少哈希密钥时 fail-closed 拒绝启动。
 
-指标低基数：请求量/错误率/延迟（route 模板 + method + status_class 标签）、panic、DB pool、Redis pool、队列积压、worker 失败、迁移状态，以及 OSS/Green/CAPTCHA/SMTP/LLM 外部依赖按依赖名+结果聚合的成功/失败/延迟。`/healthz` 仅进程存活；`/readyz` 依赖感知（DB+Redis 超时探测）且不泄露连接细节；`/metrics` 只在内网 `:9091` 暴露。
+指标低基数：请求量/错误率/延迟（route 模板 + method + status_class 标签）、panic、DB pool、Redis pool、队列积压、worker 失败、迁移状态，OSS/Green/CAPTCHA/SMTP/LLM 外部依赖按依赖名+结果聚合的成功/失败/延迟，熔断器状态（`omnicraft_breaker_state`），辅助调用缓存事件（`omnicraft_aux_cache_events_total`），以及 agent 域 SLA 指标（轮次/答案类型/路由回退/工具调用计数 + TTFT 与轮时长直方图；规则见 `ops/observability/prometheus-rules.yml` 的 `omnicraft-agent` 组，契约 allowlist 与加载校验在 `verify-alerts.sh`）。`/healthz` 仅进程存活；`/readyz` 依赖感知（DB+Redis 超时探测）且不泄露连接细节；`/metrics` 只在内网 `:9091` 暴露。
 
 Tracing 使用 head-based ratio sampling，经 OTLP/gRPC 只发往 `observability.tracing.endpoint`；full-infra 由 OTel Collector 转发到 Jaeger，Collector 离线只丢弃遥测并告警，不改变业务路径。HTTP、Redis Streams、GORM 和 LLM span 共享 W3C context；GenAI span 只记录 provider/model、temperature 和 token usage，不记录 prompt 或 embedding 正文。
 
@@ -755,7 +755,7 @@ FRONTEND_URL=https://app.example.com       # 部署时替换为实际前端域�
 |------|------|----------|------|
 | Web 核心 | `frontend`、`backend`、`postgres`、`pgbouncer`、`redis`、`nginx` | 常驻 | `nginx` 是唯一公网入口；其余服务仅在 Compose 内网通信 |
 | 发布门 | `migrate` | 每次发布一次性运行 | 迁移成功后 backend 才能启动；完成后退出，不计入常驻内存 |
-| 3.6 GiB 精简观测 | `prometheus` | 常驻 | 仅抓取 backend 的低基数应用指标，使用精简 scrape 配置，不加载依赖完整观测栈的 targets/rules |
+| 3.6 GiB 精简观测 | `prometheus` | 常驻 | 仅抓取 backend 的低基数应用指标，使用精简 scrape 配置；规则仅加载 backend 指标子集的 agent SLA 规则（`prometheus-rules.lean.yml`），不加载依赖完整观测栈的 targets/rules |
 | 完整生产观测 | `alertmanager`、`postgres-exporter`、`redis-exporter`、`cadvisor`、`blackbox`、`node-exporter`、`loki`、`alloy`、`loki-gate` | 资源充足或迁往独立监控节点后常驻 | 提供主机/依赖/容器指标、外部探测、告警投递和集中日志查询 |
 
 3.6 GiB 低配服务器采用“6 个 Web 核心常驻服务 + 一次性 `migrate` +
