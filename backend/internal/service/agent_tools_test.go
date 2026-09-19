@@ -366,6 +366,38 @@ func TestAgentGrounding(t *testing.T) {
 		}
 	})
 
+	t.Run("SP-24 R3 citation boundary is configurable and clamped", func(t *testing.T) {
+		one := []AgentCitation{{ContentID: 100, Title: "T", Zone: "original"}}
+		two := append(append([]AgentCitation(nil), one...), AgentCitation{ContentID: 101, Title: "U", Zone: "original"})
+		// min=1 (shipped default): a single surviving citation stays grounded.
+		if got := ClassifyStreamAnswerWithExternal(one, nil, "a", false, 0, 0, 1); got != AgentAnswerGroundedContent {
+			t.Fatalf("min=1 one citation = %s, want grounded_content", got)
+		}
+		// min=2: the same turn is cleared to no_evidence.
+		if got := ClassifyStreamAnswerWithExternal(one, nil, "a", false, 0, 0, 2); got != AgentAnswerNoEvidence {
+			t.Fatalf("min=2 one citation = %s, want no_evidence", got)
+		}
+		if got := ClassifyStreamAnswerWithExternal(two, nil, "a", false, 0, 0, 2); got != AgentAnswerGroundedContent {
+			t.Fatalf("min=2 two citations = %s, want grounded_content", got)
+		}
+		// min<=0 clamps to 1: config omission can never weaken the gate.
+		if got := ClassifyStreamAnswerWithExternal(one, nil, "a", false, 0, 0, 0); got != AgentAnswerGroundedContent {
+			t.Fatalf("min=0 one citation = %s, want grounded_content", got)
+		}
+		if got := ClassifyStreamAnswerWithExternal(nil, nil, "a", false, 0, 0, 0); got != AgentAnswerNoEvidence {
+			t.Fatalf("min=0 zero citations = %s, want no_evidence", got)
+		}
+		// The conversational lane stays exempt from the raised boundary.
+		if got := ClassifyStreamAnswerWithExternal(nil, nil, "hi", false, 160, 0, 3); got != AgentAnswerConversational {
+			t.Fatalf("conversational lane under min=3 = %s, want conversational", got)
+		}
+		// The external lane stays exempt as well.
+		ext := []AgentToolExecution{{External: true}}
+		if got := ClassifyStreamAnswerWithExternal(nil, ext, "done", false, 0, 160, 3); got != AgentAnswerConversational {
+			t.Fatalf("external lane under min=3 = %s, want conversational", got)
+		}
+	})
+
 	t.Run("trace ids come from the request context", func(t *testing.T) {
 		provider := trace.NewTracerProvider()
 		t.Cleanup(func() {

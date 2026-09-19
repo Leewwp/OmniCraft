@@ -830,7 +830,7 @@ func ClassifyGroundedAnswer(citations []AgentCitation) AgentAnswerKind {
 // which disables the lane) falls back to the strict grounded classification,
 // so a lazy zero-retrieval long answer on a content question is still cleared.
 func ClassifyStreamAnswer(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes int) AgentAnswerKind {
-	return ClassifyStreamAnswerWithExternal(citations, executedTools, answer, degraded, conversationalMaxRunes, 0)
+	return ClassifyStreamAnswerWithExternal(citations, executedTools, answer, degraded, conversationalMaxRunes, 0, 1)
 }
 
 // ClassifyStreamAnswerWithExternal extends the lane for SP-23 M3: a turn
@@ -839,7 +839,13 @@ func ClassifyStreamAnswer(citations []AgentCitation, executedTools []AgentToolEx
 // is workspace data the tool fetched, not RAG chunks, so the strict citation
 // gate would otherwise clear every substantive external-tool answer. Any
 // local retrieval tool in the mix keeps the strict shape.
-func ClassifyStreamAnswerWithExternal(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes, externalMaxRunes int) AgentAnswerKind {
+//
+// SP-24 R3: minSurvivingCitations moves the grounded boundary — a grounded
+// answer keeps its text only with at least N revalidation-surviving
+// citations (1 = the historical zero-citation no_evidence boundary; the
+// conversational/external lanes above stay exempt by design). The
+// revalidation gate itself (revalidateCitations) is untouched.
+func ClassifyStreamAnswerWithExternal(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes, externalMaxRunes, minSurvivingCitations int) AgentAnswerKind {
 	trimmed := strings.TrimSpace(answer)
 	if len(citations) == 0 && trimmed != "" && !degraded {
 		if len(executedTools) == 0 && conversationalMaxRunes > 0 && len([]rune(trimmed)) <= conversationalMaxRunes {
@@ -849,7 +855,20 @@ func ClassifyStreamAnswerWithExternal(citations []AgentCitation, executedTools [
 			return AgentAnswerConversational
 		}
 	}
-	return ClassifyGroundedAnswer(citations)
+	return classifyGroundedWithBoundary(citations, minSurvivingCitations)
+}
+
+// classifyGroundedWithBoundary applies the SP-24 R3 configurable citation
+// boundary (clamped to >= 1 so a zero/omitted config can never weaken the
+// anti-hallucination gate below its shipped semantics).
+func classifyGroundedWithBoundary(citations []AgentCitation, minSurvivingCitations int) AgentAnswerKind {
+	if minSurvivingCitations < 1 {
+		minSurvivingCitations = 1
+	}
+	if len(citations) < minSurvivingCitations {
+		return AgentAnswerNoEvidence
+	}
+	return AgentAnswerGroundedContent
 }
 
 func allToolsExternal(tools []AgentToolExecution) bool {

@@ -240,6 +240,8 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rag.rerank.model` | `string` | Model |
 | `rag.rerank.provider` | `string` | Provider |
 | `rag.rerank.timeout_sec` | `int` | TimeoutSec |
+| `rag.refusal.min_surviving_citations` | `int` | Refusal.MinSurvivingCitations |
+| `rag.refusal.min_top_relevance_score` | `float64` | Refusal.MinTopRelevanceScore |
 | `rate_limit.agent_minute_window_sec` | `int` | AgentMinuteWindowSec |
 | `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
 | `rate_limit.ai_callback_per_minute` | `int` | AICallbackPerMinute |

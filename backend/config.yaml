@@ -123,6 +123,14 @@ rag:
     # 60 / 200/200 / 10（负结果留档 #573）。
     input_topk: 40
     timeout_sec: 30
+  # SP-24 R3（2026-09-19）拒答边界旋钮：revalidateCitations 硬门语义不变。
+  # min_surviving_citations = grounded 答案保住正文所需的复验存活引用数
+  # （1 = 既有零引用 no_evidence 边界，行为不变；网格扫描证据见 #574）。
+  # min_top_relevance_score = 相似度阈值拒答预留（0 = 关闭；>0 时重排顶部
+  # 相关分低于地板的检索返回空，流入确定性 no_evidence；要求 hybrid+rerank）。
+  refusal:
+    min_surviving_citations: 1
+    min_top_relevance_score: 0.0
   index:
     # Host-local default; Compose overrides this with the service DNS name.
     # OpenSearch is the optional lexical fallback (full-infra); the canonical

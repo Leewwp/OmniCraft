@@ -61,6 +61,10 @@ type RetrievalCandidate struct {
 	Source          string
 
 	rrfScore float64
+	// relevanceScore carries the rerank provider's query-relevance score for
+	// the candidate (0 on the RRF-only path). SP-24 R3: the similarity-floor
+	// refusal reads it off the final top candidate.
+	relevanceScore float64
 }
 
 type KeywordRetriever interface {
@@ -111,6 +115,11 @@ type HybridRetriever struct {
 	expander        QueryExpander
 	reranker        llm.Reranker
 	rerankIn        int
+	// minTopRelevance is the SP-24 R3 similarity-floor refusal (0 = off):
+	// when the final top candidate's rerank relevance sits below the floor,
+	// Retrieve returns no candidates and the turn flows into the
+	// deterministic no_evidence refusal.
+	minTopRelevance float64
 }
 
 func NewHybridRetriever(keywordPrimary, keywordFallback KeywordRetriever, vector VectorRetriever, embedder QueryEmbedder, visibility VisibilityFilter, cfg config.RAGHybridConfig) *HybridRetriever {
@@ -137,6 +146,14 @@ func (r *HybridRetriever) SetQueryExpander(expander QueryExpander) {
 func (r *HybridRetriever) SetReranker(reranker llm.Reranker, inputTopK int) {
 	r.reranker = reranker
 	r.rerankIn = inputTopK
+}
+
+// SetMinTopRelevance sets the SP-24 R3 similarity-floor refusal. floor <= 0
+// disables it; a positive floor only carries meaning when a reranker is
+// wired (relevance scores exist solely on the rerank path — config
+// validation rejects the combination otherwise).
+func (r *HybridRetriever) SetMinTopRelevance(floor float64) {
+	r.minTopRelevance = floor
 }
 
 // Retrieve runs the hybrid pipeline over one user query (A-03: optionally
@@ -262,6 +279,14 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 	}
 	if len(ranked) > finalTopK {
 		ranked = ranked[:finalTopK]
+	}
+	// SP-24 R3 similarity-floor refusal: a non-empty result whose best
+	// candidate still sits below the floor is "nothing convincing enough
+	// to ground an answer" — return no candidates (not degraded) so the
+	// turn flows into the deterministic no_evidence refusal. The floor is
+	// only armed with a reranker wired (scores exist solely there).
+	if r.minTopRelevance > 0 && r.reranker != nil && len(ranked) > 0 && ranked[0].relevanceScore < r.minTopRelevance {
+		return RetrievalResult{Candidates: nil, Degraded: degraded, ExpandedQueries: expanded}, nil
 	}
 	return RetrievalResult{Candidates: ranked, Degraded: degraded, ExpandedQueries: expanded}, nil
 }
@@ -408,6 +433,7 @@ func (r *HybridRetriever) rerankCandidates(ctx context.Context, query string, po
 		}
 		seen[key] = true
 		candidate.Source = RetrievalSourceHybrid
+		candidate.relevanceScore = result.RelevanceScore
 		ordered = append(ordered, candidate)
 	}
 	return ordered, nil
