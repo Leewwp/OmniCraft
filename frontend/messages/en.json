@@ -1666,6 +1666,10 @@
       "description": "Not enough material was found in public content. Try rephrasing or adding detail — genre, type, or author — and ask again.",
       "searchCta": "Search site content"
     },
+    "emptyTurn": {
+      "title": "No content this turn",
+      "description": "This turn completed no search or tool and produced no answer. Try rephrasing, or describe what you want directly."
+    },
     "degraded": {
       "title": "Search fallback active",
       "description": "The answer was not generated. Review the available site references."

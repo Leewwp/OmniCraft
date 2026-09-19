@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ type Store interface {
 	GetByLabel(ctx context.Context, name, label string) (*model.PromptRegistry, error)
 	CreateVersion(ctx context.Context, row *model.PromptRegistry) error
 	EnsureLabel(ctx context.Context, name, label string, version int) error
+	SetLabel(ctx context.Context, name, label string, version int) error
 }
 
 // ProductionLabel is the runtime resolution label; staging exists for
@@ -128,6 +130,63 @@ func SeedV1(ctx context.Context, store Store) error {
 		if err := store.EnsureLabel(ctx, slot.Name, ProductionLabel, 1); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// UpgradeSeed is a code-shipped version bump for an existing slot: the new
+// immutable version's number and content. Content must keep the slot's
+// required placeholders (validated here before any DB I/O).
+type UpgradeSeed struct {
+	SlotName string
+	Version  int
+	Content  string
+}
+
+// RegistryUpgrades is the ordered list of shipped upgrades. Entries are
+// append-only: an already-shipped upgrade never changes content (versions
+// are immutable); a further bump adds a new entry with the next version.
+var RegistryUpgrades = []UpgradeSeed{
+	{SlotName: SlotAgentSystem.Name, Version: 2, Content: agentSystemV2()},
+}
+
+// SeedUpgrades applies code-shipped version bumps after SeedV1. Each entry
+// creates its version only when absent; the production label moves forward
+// exactly once — in the boot that freshly created the row. An upgrade found
+// already in the registry (re-run, second process, or an admin rollback to
+// an older version) never touches the label, so admin-managed states are
+// final after the first ship.
+func SeedUpgrades(ctx context.Context, store Store) error {
+	if store == nil {
+		return nil
+	}
+	for _, up := range RegistryUpgrades {
+		slot, ok := SlotByName(up.SlotName)
+		if !ok {
+			return fmt.Errorf("prompt upgrade references unknown slot %q", up.SlotName)
+		}
+		if err := ValidateTemplate(slot, up.Content); err != nil {
+			return fmt.Errorf("prompt upgrade %s v%d: %w", up.SlotName, up.Version, err)
+		}
+		placeholders, err := json.Marshal(slot.RequiredPlaceholders)
+		if err != nil {
+			return err
+		}
+		if err := store.CreateVersion(ctx, &model.PromptRegistry{
+			Name:                 up.SlotName,
+			Version:              up.Version,
+			Content:              up.Content,
+			RequiredPlaceholders: model.JSONB(placeholders),
+		}); err != nil {
+			if errors.Is(err, repository.ErrPromptVersionExists) {
+				continue
+			}
+			return err
+		}
+		if err := store.SetLabel(ctx, up.SlotName, ProductionLabel, up.Version); err != nil {
+			return err
+		}
+		slog.Info("prompt registry upgrade shipped", "slot", up.SlotName, "version", up.Version)
 	}
 	return nil
 }

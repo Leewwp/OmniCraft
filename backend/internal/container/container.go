@@ -365,6 +365,12 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	if err := promptregistry.SeedV1(context.Background(), c.PromptRegistryRepo); err != nil {
 		slog.Warn("prompt registry v1 seed failed; builtins stay active", "error", err)
 	}
+	// #610: code-shipped version bumps (agent_system v2 image-tool guidance).
+	// Ships once per fresh version row; later boots never move an
+	// admin-managed label. Failure degrades to the current label, not startup.
+	if err := promptregistry.SeedUpgrades(context.Background(), c.PromptRegistryRepo); err != nil {
+		slog.Warn("prompt registry upgrade seed failed; current labels stay active", "error", err)
+	}
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
 	// SP-23 M3: MCP client bridge — inert unless agent.mcp.enabled; dead
 	// server subprocesses degrade to "no tools from that server".
