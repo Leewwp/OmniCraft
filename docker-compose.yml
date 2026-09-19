@@ -13,7 +13,10 @@ services:
     container_name: omnicraft-postgres
     environment:
       POSTGRES_USER: omnicraft
-      POSTGRES_PASSWORD: omnicraft
+      # Single source of truth is the project .env (server: rotated credential;
+      # dev without .env falls back to the local default). Only affects a
+      # brand-new data volume — an initialized volume keeps its password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omnicraft}
       POSTGRES_DB: omnicraft
     ports:
       - "5432:5432"
@@ -37,7 +40,7 @@ services:
       dockerfile: Dockerfile
     container_name: omnicraft-migrate
     environment:
-      DB_DSN: "host=postgres port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=postgres port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
       METRICS_TEXTFILE_DIR: /var/lib/omnicraft/metrics
     depends_on:
       postgres:
@@ -227,7 +230,7 @@ services:
     container_name: omnicraft-backend
     env_file: .env
     environment:
-      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
       RAG_INDEX_URL: "http://opensearch:9200"
       OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
@@ -294,7 +297,7 @@ services:
     container_name: omnicraft-worker
     env_file: .env
     environment:
-      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
       RAG_INDEX_URL: "http://opensearch:9200"
       CLAMD_ADDRESS: "clamav:3310"
