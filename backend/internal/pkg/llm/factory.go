@@ -24,15 +24,29 @@ import (
 //     across vendors always fails (a MiniMax key against DashScope 401s), so
 //     a missing key fails closed instead of degrading.
 func NewProvider(cfg *config.Config) LLMProvider {
-	base := newBaseProvider(cfg)
-	if routingModels(cfg) == nil {
+	// SP-24 R6: one shared per-provider throttle spans the base wiring and
+	// the routing registry so same-vendor adapters share their slot pool.
+	// nil (disabled, the default) makes every Wrap the identity.
+	throttle := newProviderThrottle(cfg)
+	base := newBaseProvider(cfg, throttle)
+	if routingModels(cfg, throttle) == nil {
 		return base
 	}
-	return newRoutingProvider(cfg, base)
+	return newRoutingProvider(cfg, base, throttle)
+}
+
+// newProviderThrottle builds the SP-24 R6 per-provider chat concurrency
+// throttle from resilience.llm_concurrency; disabled or unconfigured returns
+// nil, whose Wrap is the identity.
+func newProviderThrottle(cfg *config.Config) *ProviderThrottle {
+	if cfg == nil || !cfg.Resilience.LLMConcurrency.Enabled {
+		return nil
+	}
+	return NewProviderThrottle(cfg.Resilience.LLMConcurrency.MaxPerProvider)
 }
 
 // newBaseProvider builds the legacy single LLM surface from cfg.Agent.
-func newBaseProvider(cfg *config.Config) LLMProvider {
+func newBaseProvider(cfg *config.Config, throttle *ProviderThrottle) LLMProvider {
 	chatProviderType := cfg.Agent.LLMProvider
 	embedProviderType := strings.ToLower(strings.TrimSpace(cfg.Agent.EmbeddingProvider))
 	timeout := time.Duration(cfg.Agent.ProviderTimeoutSec) * time.Second
@@ -57,7 +71,7 @@ func newBaseProvider(cfg *config.Config) LLMProvider {
 			WithEmbeddingGroupID(cfg.Agent.EmbeddingGroupID),
 			WithEmbeddingAPIKey(embedAPIKey),
 			WithEmbeddingDimensions(dimensions))
-		return NewCompositeProvider(chat, embed)
+		return NewCompositeProvider(throttle.Wrap(chatProviderType, chat), embed)
 	}
 
 	// Single-provider wiring: embedding follows the chat provider, and the
@@ -68,7 +82,7 @@ func newBaseProvider(cfg *config.Config) LLMProvider {
 	if strings.TrimSpace(embedAPIKey) == "" {
 		embedAPIKey = cfg.Agent.LLMAPIKey
 	}
-	return NewProviderFromConfig(
+	return throttle.Wrap(chatProviderType, NewProviderFromConfig(
 		chatProviderType, cfg.Agent.LLMAPIKey, cfg.Agent.LLMAPIBase, cfg.Agent.LLMModel, cfg.Agent.EmbeddingModel,
 		WithTimeout(timeout),
 		WithMaxRetries(retries),
@@ -76,7 +90,7 @@ func newBaseProvider(cfg *config.Config) LLMProvider {
 		WithEmbeddingGroupID(cfg.Agent.EmbeddingGroupID),
 		WithEmbeddingAPIKey(embedAPIKey),
 		WithEmbeddingDimensions(dimensions),
-	)
+	))
 }
 
 func NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel string, opts ...ProviderOption) LLMProvider {
@@ -187,7 +201,7 @@ func (p *failingProvider) GetEmbedding(context.Context, string) ([]float32, erro
 // routingModels returns the registered incremental model adapters, or nil
 // when no registry entry carries a credential (routing stays off and the
 // deployment behaves exactly like the single-provider wiring).
-func routingModels(cfg *config.Config) map[string]LLMProvider {
+func routingModels(cfg *config.Config, throttle *ProviderThrottle) map[string]LLMProvider {
 	if len(cfg.Agent.Models) == 0 {
 		return nil
 	}
@@ -197,10 +211,10 @@ func routingModels(cfg *config.Config) map[string]LLMProvider {
 		if id == "" || strings.TrimSpace(m.APIKey) == "" || strings.TrimSpace(m.Model) == "" {
 			continue
 		}
-		models[id] = NewProviderFromConfig(m.Provider, m.APIKey, m.APIBase, m.Model, "",
+		models[id] = throttle.Wrap(m.Provider, NewProviderFromConfig(m.Provider, m.APIKey, m.APIBase, m.Model, "",
 			WithTimeout(time.Duration(cfg.Agent.ProviderTimeoutSec)*time.Second),
 			WithMaxRetries(cfg.Agent.ProviderMaxRetries),
-		)
+		))
 	}
 	if len(models) == 0 {
 		return nil
@@ -212,8 +226,8 @@ func routingModels(cfg *config.Config) map[string]LLMProvider {
 // the configured chain. The primary registry entry is synthesized from the
 // legacy single-provider wiring so existing deployments need no config
 // migration; its display name is the configured chat model.
-func newRoutingProvider(cfg *config.Config, base LLMProvider) LLMProvider {
-	models := routingModels(cfg)
+func newRoutingProvider(cfg *config.Config, base LLMProvider, throttle *ProviderThrottle) LLMProvider {
+	models := routingModels(cfg, throttle)
 	primaryID := strings.ToLower(strings.TrimSpace(cfg.Agent.LLMProvider))
 	if primaryID == "" {
 		primaryID = "primary"

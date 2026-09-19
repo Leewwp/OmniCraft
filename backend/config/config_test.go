@@ -74,6 +74,14 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	// SP-24 R5（2026-09-19）：共享熔断器出厂值 = polyu 蓝本（2 失败/30s）。
 	require.Equal(t, 2, cfg.Resilience.Breaker.FailureThreshold)
 	require.Equal(t, 30, cfg.Resilience.Breaker.OpenTimeoutSec)
+	// SP-24 R6（2026-09-19）：辅助调用缓存与并发信号量出厂全关（零行为
+	// 变化），TTL/上限出厂值即推荐首开值。
+	require.False(t, cfg.Resilience.AuxCache.Title.Enabled)
+	require.False(t, cfg.Resilience.AuxCache.Expander.Enabled)
+	require.Equal(t, 3600, cfg.Resilience.AuxCache.Title.TTLSec)
+	require.Equal(t, 300, cfg.Resilience.AuxCache.Expander.TTLSec)
+	require.False(t, cfg.Resilience.LLMConcurrency.Enabled)
+	require.Equal(t, 4, cfg.Resilience.LLMConcurrency.MaxPerProvider)
 }
 
 func TestValidateReleaseRejectsInvalidRAGRefusalConfig(t *testing.T) {
@@ -101,6 +109,32 @@ func TestValidateReleaseRejectsInvalidRAGRefusalConfig(t *testing.T) {
 	t.Run("valid refusal config passes", func(t *testing.T) {
 		cfg := validReleaseConfigForTest()
 		cfg.RAG.Refusal = RAGRefusalConfig{MinSurvivingCitations: 2, MinTopRelevanceScore: 0}
+		require.NoError(t, cfg.ValidateRelease())
+	})
+}
+
+func TestValidateReleaseRejectsInvalidResilienceAuxConfig(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Run("enabled title cache needs positive ttl", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.Resilience.AuxCache.Title = AuxCacheItemConfig{Enabled: true, TTLSec: 0}
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "resilience.aux_cache.title.ttl_sec")
+	})
+	t.Run("enabled expander cache needs positive ttl", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.Resilience.AuxCache.Expander = AuxCacheItemConfig{Enabled: true, TTLSec: -5}
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "resilience.aux_cache.expander.ttl_sec")
+	})
+	t.Run("enabled throttle needs usable slot count", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
+		cfg.Resilience.LLMConcurrency = LLMConcurrencyConfig{Enabled: true, MaxPerProvider: 0}
+		err := cfg.ValidateRelease()
+		require.ErrorContains(t, err, "resilience.llm_concurrency.max_per_provider")
+	})
+	t.Run("R6 defaults pass validation", func(t *testing.T) {
+		cfg := validReleaseConfigForTest()
 		require.NoError(t, cfg.ValidateRelease())
 	})
 }

@@ -14,6 +14,10 @@ import (
 var (
 	allowedDependencies = map[string]bool{"oss": true, "green": true, "captcha": true, "smtp": true, "llm": true}
 	allowedResults      = map[string]bool{"success": true, "failure": true}
+	// SP-24 R6 aux-call caches: names and outcomes are fixed vocabularies so
+	// the omnicraft_aux_cache_events_total label set stays bounded.
+	allowedAuxCacheNames    = map[string]bool{"title": true, "expander": true}
+	allowedAuxCacheOutcomes = map[string]bool{"hit": true, "miss": true, "bypass": true, "store_failed": true}
 	allowedStatusClass  = map[string]bool{"1xx": true, "2xx": true, "3xx": true, "4xx": true, "5xx": true}
 	allowedHTTPMethods  = map[string]bool{"GET": true, "HEAD": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "OPTIONS": true, "CONNECT": true, "TRACE": true}
 	// unresolvedRoute is the bounded fallback for requests that match no Gin
@@ -68,6 +72,14 @@ func SetDefaultQueueBacklog(count float64) {
 func IncDefaultWorkerFailures() {
 	if metrics := defaultMetrics.Load(); metrics != nil {
 		metrics.IncWorkerFailures()
+	}
+}
+
+// IncDefaultAuxCacheEvent records one aux-call cache outcome (SP-24 R6)
+// through the installed process-wide registry.
+func IncDefaultAuxCacheEvent(cache, outcome string) {
+	if metrics := defaultMetrics.Load(); metrics != nil {
+		metrics.IncAuxCacheEvent(cache, outcome)
 	}
 }
 
@@ -145,6 +157,7 @@ type Metrics struct {
 	externalRequests *prometheus.CounterVec
 	externalDuration *prometheus.HistogramVec
 	breakerState     *prometheus.GaugeVec
+	auxCacheEvents   *prometheus.CounterVec
 }
 
 // NewMetrics creates and registers the production metric set.
@@ -196,6 +209,10 @@ func NewMetrics() *Metrics {
 			Name: "omnicraft_breaker_state",
 			Help: "Circuit breaker state per guarded dependency (0 closed, 1 open, 2 half_open).",
 		}, []string{"dependency"}),
+		auxCacheEvents: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "omnicraft_aux_cache_events_total",
+			Help: "Auxiliary LLM call cache events by cache and outcome (hit/miss/bypass/store_failed).",
+		}, []string{"cache", "outcome"}),
 	}
 
 	m.Registry.MustRegister(
@@ -209,6 +226,7 @@ func NewMetrics() *Metrics {
 		m.externalRequests,
 		m.externalDuration,
 		m.breakerState,
+		m.auxCacheEvents,
 	)
 	return m
 }
@@ -239,6 +257,16 @@ func (m *Metrics) ObserveExternal(dependency, result string, durationSec float64
 // SetBreakerState records the current circuit state of a guarded dependency.
 func (m *Metrics) SetBreakerState(dependency string, state float64) {
 	m.breakerState.WithLabelValues(dependency).Set(state)
+}
+
+// IncAuxCacheEvent records one auxiliary-call cache outcome. Cache names and
+// outcomes outside the fixed vocabularies are ignored so the label set stays
+// bounded.
+func (m *Metrics) IncAuxCacheEvent(cache, outcome string) {
+	if !allowedAuxCacheNames[cache] || !allowedAuxCacheOutcomes[outcome] {
+		return
+	}
+	m.auxCacheEvents.WithLabelValues(cache, outcome).Inc()
 }
 
 // IncPanics records a recovered handler panic.

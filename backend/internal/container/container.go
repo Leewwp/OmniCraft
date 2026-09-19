@@ -18,6 +18,7 @@ import (
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/auxcache"
 	"omnicraft/backend/internal/pkg/breaker"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/clamav"
@@ -389,6 +390,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.AgentService.SetPromptResolver(c.PromptRegistryService)
 	// SP-21 T2: turn instrumentation rides the shared async writer.
 	c.AgentService.SetTraceWriter(c.AgentTraceWriter)
+	// SP-24 R6: auto-title content-hash cache (disabled config = bypass).
+	c.AgentService.SetTitleCache(c.newAuxCache(cfg.Resilience.AuxCache.Title, "title", rdb))
 	opensearchTimeout := time.Duration(cfg.RAG.Index.TimeoutSec) * time.Second
 	c.OpenSearchRepo = repository.NewOpenSearchRepositoryWithLimits(
 		cfg.RAG.Index.URL,
@@ -422,6 +425,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	if cfg.Features.RAGQueryExpansionEnabled {
 		expander := ragservice.NewLLMQueryExpander(provider)
 		expander.SetPromptResolver(c.PromptRegistryService)
+		// SP-24 R6: query-hash TTL cache (disabled config = bypass cache).
+		expander.SetResultCache(c.newAuxCache(cfg.Resilience.AuxCache.Expander, "expander", rdb))
 		c.HybridRetriever.SetQueryExpander(expander)
 	}
 	if cfg.Features.RAGRerankEnabled {
@@ -563,4 +568,15 @@ func (c *ServiceContainer) newBreaker(cfg *config.Config, name string) *breaker.
 		slog.Warn("[breaker] state change", "dependency", dep, "from", from.String(), "to", to.String())
 		observability.SetDefaultBreakerState(dep, float64(to))
 	})
+}
+
+// newAuxCache builds one SP-24 R6 auxiliary-call cache. A disabled item or a
+// missing redis client yields a permanently bypassing cache, so call sites
+// never branch.
+func (c *ServiceContainer) newAuxCache(item config.AuxCacheItemConfig, name string, rdb *redis.Client) *auxcache.Cache {
+	ttl := time.Duration(0)
+	if item.Enabled {
+		ttl = time.Duration(item.TTLSec) * time.Second
+	}
+	return auxcache.New(name, "omnicraft:auxcache:"+name+":", ttl, rdb)
 }

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"omnicraft/backend/internal/pkg/auxcache"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/service/promptregistry"
 )
@@ -34,6 +35,9 @@ type LLMQueryExpander struct {
 	// prompts renders the versioned query_expansion_prompt slot (SP-21 T5);
 	// nil resolver uses the compiled-in builtin.
 	prompts *promptregistry.PromptResolver
+	// cache reuses expansion terms for an identical query (SP-24 R6). nil
+	// or disabled = every expansion calls the LLM, the pre-R6 behavior.
+	cache *auxcache.Cache
 }
 
 func NewLLMQueryExpander(provider expansionChatProvider) *LLMQueryExpander {
@@ -45,6 +49,11 @@ func (e *LLMQueryExpander) SetPromptResolver(r *promptregistry.PromptResolver) {
 	e.prompts = r
 }
 
+// SetResultCache wires the query-hash TTL cache (container; nil-safe).
+func (e *LLMQueryExpander) SetResultCache(c *auxcache.Cache) {
+	e.cache = c
+}
+
 func (e *LLMQueryExpander) Expand(ctx context.Context, query string) []string {
 	if e == nil || e.provider == nil {
 		return nil
@@ -52,6 +61,16 @@ func (e *LLMQueryExpander) Expand(ctx context.Context, query string) []string {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil
+	}
+	// SP-24 R6: identical queries reuse the cached terms (nil or disabled
+	// cache = bypass). Only usable term sets are cached, so a transient
+	// failure never pins an empty expansion.
+	cacheKey := auxcache.HashKey("expander", query)
+	if cached, ok := e.cache.Get(ctx, cacheKey); ok {
+		var terms []string
+		if err := json.Unmarshal([]byte(cached), &terms); err == nil && len(terms) > 0 {
+			return terms
+		}
 	}
 	prompt := e.prompts.RenderSlot(ctx, promptregistry.SlotQueryExpansion, map[string]string{
 		"max_terms": strconv.Itoa(queryExpansionMaxTerms),
@@ -72,6 +91,10 @@ func (e *LLMQueryExpander) Expand(ctx context.Context, query string) []string {
 	terms := parseExpansionTerms(resp.Content, query)
 	if len(terms) == 0 {
 		slog.Warn("agent query expansion produced no usable terms", "policy", "fail_open")
+		return nil
+	}
+	if payload, err := json.Marshal(terms); err == nil {
+		e.cache.Set(ctx, cacheKey, string(payload))
 	}
 	return terms
 }

@@ -14,6 +14,7 @@ import (
 
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/observability/agenttrace"
+	"omnicraft/backend/internal/pkg/auxcache"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/service/promptregistry"
@@ -269,6 +270,16 @@ func (s *AgentService) generateConversationTitle(ctx context.Context, turnRecord
 	if s.llmProvider == nil {
 		return fallback
 	}
+	// SP-24 R6: an identical opening message reuses the cached title (nil
+	// or disabled cache = bypass). Only LLM-generated titles are cached, and
+	// a hit skips the call entirely, so no trace node is recorded for it.
+	normalized := strings.TrimSpace(firstUserMessage)
+	titleKey := auxcache.HashKey("title", normalized)
+	if cached, ok := s.titleCache.Get(ctx, titleKey); ok {
+		if title := sanitizeConversationTitle(cached); title != "" {
+			return title
+		}
+	}
 	// SP-21 T2: the auto-title side call gets its own node under the
 	// requesting turn's trace.
 	titleSpan := turnRecorder.StartNode(agenttrace.NodeTypeTitle, "auto_title", nil, "")
@@ -295,6 +306,9 @@ func (s *AgentService) generateConversationTitle(ctx context.Context, turnRecord
 	title := sanitizeConversationTitle(resp.Content)
 	if title == "" {
 		return fallback
+	}
+	if normalized != "" {
+		s.titleCache.Set(ctx, titleKey, title)
 	}
 	return title
 }

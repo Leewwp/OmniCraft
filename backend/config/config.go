@@ -100,10 +100,14 @@ type Config struct {
 }
 
 // ResilienceConfig carries the shared failure-isolation tunables
-// (SP-24 R5). The breaker section feeds every guarded external dependency
+// (SP-24 R5/R6). The breaker section feeds every guarded external dependency
 // mount: rerank chain, image API, MCP servers, OpenSearch lexical channel.
+// The aux_cache and llm_concurrency sections gate the SP-24 R6 auxiliary
+// call caches and per-provider chat concurrency; both default off.
 type ResilienceConfig struct {
-	Breaker BreakerConfig `mapstructure:"breaker" json:"breaker"`
+	Breaker        BreakerConfig        `mapstructure:"breaker" json:"breaker"`
+	AuxCache       AuxCacheConfig       `mapstructure:"aux_cache" json:"aux_cache"`
+	LLMConcurrency LLMConcurrencyConfig `mapstructure:"llm_concurrency" json:"llm_concurrency"`
 }
 
 // BreakerConfig mirrors the polyu three-state blueprint: N consecutive
@@ -113,6 +117,32 @@ type ResilienceConfig struct {
 type BreakerConfig struct {
 	FailureThreshold int `mapstructure:"failure_threshold" json:"failure_threshold"`
 	OpenTimeoutSec   int `mapstructure:"open_timeout_sec" json:"open_timeout_sec"`
+}
+
+// AuxCacheConfig gates the SP-24 R6 Redis TTL caches for auxiliary LLM
+// calls: auto conversation title (keyed by the hashed first user message)
+// and query expansion terms (keyed by the hashed query). The main Q&A chain
+// is never cached. Each item defaults off — zero behavior change until an
+// operator flips it.
+type AuxCacheConfig struct {
+	Title    AuxCacheItemConfig `mapstructure:"title" json:"title"`
+	Expander AuxCacheItemConfig `mapstructure:"expander" json:"expander"`
+}
+
+// AuxCacheItemConfig is one cache switch plus its TTL. Validation requires
+// ttl_sec > 0 on an enabled item, so the shipped defaults double as the
+// recommended first-on values.
+type AuxCacheItemConfig struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
+	TTLSec  int  `mapstructure:"ttl_sec" json:"ttl_sec"`
+}
+
+// LLMConcurrencyConfig gates the SP-24 R6 per-provider chat concurrency
+// semaphore (queueing never fails; only slow queue waits are logged).
+// Providers under the same vendor name share one slot pool. Default off.
+type LLMConcurrencyConfig struct {
+	Enabled        bool `mapstructure:"enabled" json:"enabled"`
+	MaxPerProvider int  `mapstructure:"max_per_provider" json:"max_per_provider"`
 }
 
 // RelayConfig carries the outbox relay loop tuning (issue #200): batch size
@@ -1464,6 +1494,19 @@ func (c *Config) ValidateRelease() error {
 	// the knob stay valid), so validation only rejects explicit negatives.
 	if c.Resilience.Breaker.FailureThreshold < 0 || c.Resilience.Breaker.OpenTimeoutSec < 0 {
 		errs = append(errs, "resilience.breaker values must not be negative (0 falls back to the 2-failure/30s defaults)")
+	}
+	// SP-24 R6 aux-call caches: an enabled cache needs a positive TTL; the
+	// shipped TTL defaults are the recommended first-on values.
+	if item := c.Resilience.AuxCache.Title; item.Enabled && item.TTLSec <= 0 {
+		errs = append(errs, "resilience.aux_cache.title.ttl_sec must be positive when the cache is enabled")
+	}
+	if item := c.Resilience.AuxCache.Expander; item.Enabled && item.TTLSec <= 0 {
+		errs = append(errs, "resilience.aux_cache.expander.ttl_sec must be positive when the cache is enabled")
+	}
+	// SP-24 R6 per-provider chat concurrency: an enabled throttle needs a
+	// usable slot count.
+	if conc := c.Resilience.LLMConcurrency; conc.Enabled && conc.MaxPerProvider <= 0 {
+		errs = append(errs, "resilience.llm_concurrency.max_per_provider must be >= 1 when the throttle is enabled")
 	}
 	if c.RAG.Refusal.MinSurvivingCitations < 0 {
 		errs = append(errs, "rag.refusal.min_surviving_citations must not be negative")

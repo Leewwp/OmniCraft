@@ -163,6 +163,23 @@ resilience:
   breaker:
     failure_threshold: 2
     open_timeout_sec: 30
+  # SP-24 R6（2026-09-19）辅助调用 Redis TTL 缓存：自动标题按首条用户消息
+  # 哈希、查询扩展按 query 哈希；主问答链路不缓存。默认全关（enabled=false
+  # 时零行为变化），开启时 ttl_sec 即推荐值（标题 1h / 扩展 5min，按 demo
+  # 流量可再调）。命中率看 omnicraft_aux_cache_events_total{cache,outcome}。
+  aux_cache:
+    title:
+      enabled: false
+      ttl_sec: 3600
+    expander:
+      enabled: false
+      ttl_sec: 300
+  # SP-24 R6 按 provider 并发信号量：同名 provider（同一厂商账号）共享一个
+  # 槽位池，Chat/ChatStream 排队等待不失败、等待超 100ms 记 WARN；embedding
+  # 不受限（批量端点自带节奏）。默认关；开启即防突发打爆配额。
+  llm_concurrency:
+    enabled: false
+    max_per_provider: 4
 
 # Archive malware scanning quotas, timeout and retry policy (design §4/§6).
 # Server-side skeleton only (S01); the scan worker and gates consume it.
