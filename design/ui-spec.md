@@ -5030,7 +5030,7 @@ interface CollabUserPickerProps {
 - **媒体集发布约束（#80/#84 权威）**：image = 纯图片集 2~9 张；video = 纯视频集 1~3 个；数量/类型/宽高/顺序与 poster 的权威校验在后端发布链路（#83），前端只消费 public config 合同并做提示；「第一张即封面」（image），视频缺省取第一帧为封面并可在上传区上传自定义封面。
 **视觉层级**
 - 步骤 1：居中标题「选择原创内容类型」+ ContentTypeGrid 网格
-- 步骤 2：标题「发布原创 — [类型名]」+ 发布表单（max-w 960px 居中）
+- 步骤 2：标题「发布原创 — [类型名]」+ 发布表单（编辑列为主体，随 StudioLayout 容器弹性，表单上限 880px；≥1280px 双栏：编辑列 + 320px 侧挂手机预览，#548 B 站式）
 **核心组件清单**
 - `ContentTypeGrid`
 - `FileUploader`, `MarkdownEditor`, `TagInput`
@@ -5049,7 +5049,8 @@ interface CollabUserPickerProps {
 **响应式规则**
 - 移动 (≤700px): 表单全宽 `p-4`，编辑器高度 250px。
 - 平板 (≤1100px): 表单 max-w 720px 居中。
-- PC (>1100px): 表单 max-w 960px 居中。
+- PC (>1100px): 表单随容器弹性，上限 880px。
+- ≥1280px: 双栏 `minmax(0,1fr) 320px`——编辑列主体 + 侧挂手机预览（PublishPhonePreview 280×560 固定纵向比例、2px 中性描边、正文区内滚动、sticky）；<1280px 降级「编辑/预览」tab（#548）。
 **交互细节**
 - 步骤 1 → 2：`onSelect(type)` 切换状态。
 - 步骤 2 → 1：顶部「← 返回选择类型」按钮（有未保存内容时弹 ConfirmModal）。
@@ -5083,7 +5084,7 @@ interface CollabUserPickerProps {
 
 **布局规范**
 - 同发布原创，额外插入来源选择区；来源选择区字段之间使用 `space-y-3`，不要卡片套卡片。
-- PC (>1100px)：表单最大宽度 `960px`；来源区是普通表单 fieldset，不做独立浮动卡片。
+- PC (>1100px)：表单随容器弹性、上限 880px；来源区是普通表单 fieldset，不做独立浮动卡片；≥1280px 双栏 = 编辑列 + 320px 侧挂手机预览（同发布原创，#548）。
 - 平板 (701-1100px)：表单最大宽度 `720px`；来源选择器结果层等宽。
 - 移动 (<=700px)：表单 `p-4`，来源选择器结果使用底部 Sheet 或全宽下拉；提交按钮保持 44px 高度。
 

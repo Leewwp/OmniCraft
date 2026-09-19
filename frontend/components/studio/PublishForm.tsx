@@ -500,8 +500,10 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       {previewTab === "preview" && (
         <div className="xl:hidden">{previewNode}</div>
       )}
-      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start xl:gap-6">
-    <form onSubmit={handleSubmit} className={cn("max-w-2xl space-y-6", previewTab === "preview" && "hidden xl:block")}>
+      {/* #548 B 站式双栏：编辑列为页面主体（随 StudioLayout 容器弹性，上限
+          880px 保行文可读性），预览列收窄 320px 侧挂；不再被 672px 外框锁死。 */}
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-6">
+    <form onSubmit={handleSubmit} className={cn("max-w-[880px] space-y-6", previewTab === "preview" && "hidden xl:block")}>
       {/* Back */}
       <button type="button" onClick={onBack}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -617,6 +619,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
             defaultValue={body}
             onChange={setBody}
             allowImages
+            topBar
             placeholder={t('studio.publish.bodyPlaceholder')}
             draftKey={`publish-${zone}-${contentType}`}
             minHeight={320}
