@@ -282,6 +282,10 @@ func (f *fakeStore) EnsureLabel(_ context.Context, name, label string, version i
 	return nil
 }
 
+func (f *fakeStore) SetLabel(_ context.Context, name, label string, version int) error {
+	return nil
+}
+
 func TestResolverBuiltinAndOverride(t *testing.T) {
 	slot, _ := SlotByName("compliance_check_prompt")
 	store := &fakeStore{byLabel: map[string]*model.PromptRegistry{}}
@@ -345,6 +349,9 @@ func (c *countingStore) CreateVersion(ctx context.Context, row *model.PromptRegi
 func (c *countingStore) EnsureLabel(ctx context.Context, name, label string, version int) error {
 	return c.inner.EnsureLabel(ctx, name, label, version)
 }
+func (c *countingStore) SetLabel(ctx context.Context, name, label string, version int) error {
+	return c.inner.SetLabel(ctx, name, label, version)
+}
 
 func TestNilResolverSafe(t *testing.T) {
 	var r *PromptResolver
@@ -397,5 +404,105 @@ func TestSeedV1Idempotent(t *testing.T) {
 	row, _ := repo.GetByLabel(ctx, "agent_system", ProductionLabel)
 	if row.Version != 2 {
 		t.Fatalf("re-seed moved admin pointer back to v1 (now v%d)", row.Version)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// #610: agent_system v2 (image-request tool guidance) + shipped upgrades
+// ---------------------------------------------------------------------------
+
+func TestAgentSystemV2Golden(t *testing.T) {
+	slot, ok := SlotByName("agent_system")
+	if !ok {
+		t.Fatal("agent_system slot missing")
+	}
+	var shipped *UpgradeSeed
+	for i := range RegistryUpgrades {
+		if RegistryUpgrades[i].SlotName == "agent_system" {
+			shipped = &RegistryUpgrades[i]
+		}
+	}
+	if shipped == nil || shipped.Version != 2 {
+		t.Fatalf("agent_system v2 upgrade missing from RegistryUpgrades: %+v", RegistryUpgrades)
+	}
+	if err := ValidateTemplate(slot, shipped.Content); err != nil {
+		t.Fatalf("v2 template invalid: %v", err)
+	}
+	// v2 is strictly additive over the golden-pinned v1 corpus.
+	if !strings.HasPrefix(shipped.Content, slot.Builtin) {
+		t.Fatal("v2 must extend the v1 corpus, not rewrite it")
+	}
+	for _, instruction := range agentSystemInstructions {
+		if !strings.Contains(shipped.Content, instruction) {
+			t.Fatalf("v2 dropped a v1 instruction: %.60s…", instruction)
+		}
+	}
+	// #610 acceptance shape: must call the tool, no phantom-image counting,
+	// ideation exemption boundary.
+	for _, marker := range []string{
+		"must call the generate_image tool",
+		"never claim, describe, or count images",
+		"帮我构思画面",
+	} {
+		if !strings.Contains(shipped.Content, marker) {
+			t.Fatalf("v2 missing guidance marker %q", marker)
+		}
+	}
+}
+
+func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
+	db := testutil.OpenEphemeralPostgres(t)
+	testutil.ApplyMigrationFile(t, db, "../../../migrations/082_prompt_registry.sql")
+	repo := repository.NewPromptRegistryRepository(db)
+	ctx := context.Background()
+
+	if err := SeedV1(ctx, repo); err != nil {
+		t.Fatal(err)
+	}
+	if err := SeedUpgrades(ctx, repo); err != nil {
+		t.Fatal(err)
+	}
+	row, err := repo.GetByLabel(ctx, "agent_system", ProductionLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Version != 2 || row.Content != agentSystemV2() {
+		t.Fatalf("fresh ship must move production to v2, got v%d (len %d)", row.Version, len(row.Content))
+	}
+	// All other slots stay at v1.
+	other, _ := repo.GetByLabel(ctx, "conversation_title_prompt", ProductionLabel)
+	if other.Version != 1 {
+		t.Fatalf("untouched slot moved: conversation_title_prompt v%d", other.Version)
+	}
+
+	// Re-run: version already shipped, label untouched.
+	if err := SeedUpgrades(ctx, repo); err != nil {
+		t.Fatal(err)
+	}
+	row, _ = repo.GetByLabel(ctx, "agent_system", ProductionLabel)
+	if row.Version != 2 {
+		t.Fatalf("re-run must not move label (now v%d)", row.Version)
+	}
+
+	// Admin rolls back to v1; a later boot must respect the rollback.
+	if err := repo.SetLabel(ctx, "agent_system", ProductionLabel, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := SeedUpgrades(ctx, repo); err != nil {
+		t.Fatal(err)
+	}
+	row, _ = repo.GetByLabel(ctx, "agent_system", ProductionLabel)
+	if row.Version != 1 {
+		t.Fatalf("shipped upgrade re-upgraded an admin rollback (label v%d)", row.Version)
+	}
+
+	// Resolver serves the label target with the shipped version number.
+	resolver := NewPromptResolver(repo)
+	slot, _ := SlotByName("agent_system")
+	repo.SetLabel(ctx, "agent_system", ProductionLabel, 2)
+	resolver.Invalidate()
+	content, version := resolver.Resolve(ctx, slot)
+	if version != 2 || content != agentSystemV2() {
+		t.Fatalf("resolver must serve shipped v2, got v%d", version)
 	}
 }

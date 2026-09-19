@@ -97,6 +97,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const [turnCitations, setTurnCitations] = useState<AgentStreamCitation[]>([]);
   const [turnDegraded, setTurnDegraded] = useState(false);
   const [lastAnswerKind, setLastAnswerKind] = useState<string | null>(null);
+  /* #610 空答案气泡：no_evidence 且全轮零工具执行（done 事件终裁）= 空轮。
+     区别于「检索过但没材料」的 no_evidence——那类已有检索文案；这类轮
+     什么都没做，正文又被引用门清空，需要专门空态文案替代近空白气泡。 */
+  const [turnEmptyNoEvidence, setTurnEmptyNoEvidence] = useState(false);
   const [turnErrorCode, setTurnErrorCode] = useState<string | null>(null);
   const [turnTraceId, setTurnTraceId] = useState<string | null>(null);
   const [turnUsage, setTurnUsage] = useState<{ prompt_tokens: number; completion_tokens: number } | null>(null);
@@ -283,6 +287,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setTurnError(false);
     setStoppedNotice(false);
     setLastAnswerKind(null);
+    setTurnEmptyNoEvidence(false);
     setTurnErrorCode(null);
     setTurnTraceId(null);
     setTurnUsage(null);
@@ -572,6 +577,13 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             if (event.citations && event.citations.length > 0) setTurnCitations([]);
           }
           setLastAnswerKind(event.answer_kind ?? null);
+          /* #610：no_evidence 且没有任何成功执行的工具（零调用或全部失败，
+             如图片请求未调工具/工具不可用被引用门清空正文）= 空轮，渲染专门
+             空态文案；有成功工具执行的 no_evidence 走检索文案。 */
+          setTurnEmptyNoEvidence(
+            event.answer_kind === "no_evidence" &&
+              !(event.tools ?? []).some((tool) => tool.status === "success"),
+          );
           setTurnFollowUps(
             event.answer_kind === "grounded_content" && !event.degraded && event.follow_ups
               ? event.follow_ups
@@ -1053,7 +1065,19 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 </details>
               )}
 
-              {lastAnswerKind === "no_evidence" && (
+              {/* #610 空轮（no_evidence 且零工具执行）：专门空态文案，
+                  替代「已深度思考」旁的近空白气泡。 */}
+              {turnEmptyNoEvidence && (
+                <div className="flex max-w-[85%] items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" aria-hidden="true" />
+                  <div>
+                    <p className="font-medium">{t("agent.emptyTurn.title")}</p>
+                    <p className="mt-1 text-xs text-fg-muted">{t("agent.emptyTurn.description")}</p>
+                  </div>
+                </div>
+              )}
+
+              {lastAnswerKind === "no_evidence" && !turnEmptyNoEvidence && (
                 <div className="flex max-w-[85%] items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" aria-hidden="true" />
                   <div>
