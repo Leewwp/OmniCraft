@@ -78,8 +78,8 @@ func NewDashScopeReranker(apiKey, base, model string, timeout time.Duration) *Da
 }
 
 type dashscopeRerankRequest struct {
-	Model      string `json:"model"`
-	Input      struct {
+	Model string `json:"model"`
+	Input struct {
 		Query     string   `json:"query"`
 		Documents []string `json:"documents"`
 	} `json:"input"`

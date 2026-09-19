@@ -71,6 +71,9 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	// 边界、相似度地板关闭）；网格扫描证据回票 #574。
 	require.Equal(t, 1, cfg.RAG.Refusal.MinSurvivingCitations)
 	require.Equal(t, 0.0, cfg.RAG.Refusal.MinTopRelevanceScore)
+	// SP-24 R5（2026-09-19）：共享熔断器出厂值 = polyu 蓝本（2 失败/30s）。
+	require.Equal(t, 2, cfg.Resilience.Breaker.FailureThreshold)
+	require.Equal(t, 30, cfg.Resilience.Breaker.OpenTimeoutSec)
 }
 
 func TestValidateReleaseRejectsInvalidRAGRefusalConfig(t *testing.T) {

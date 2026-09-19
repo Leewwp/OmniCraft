@@ -16,17 +16,17 @@ import (
 )
 
 type OpenAICompatProvider struct {
-	apiKey           string
-	apiBase          string
-	embedAPIBase     string
-	embedGroupID     string
-	embedAPIKey      string
-	embedDimensions  int
-	model            string
-	embedModel       string
-	client           *http.Client
-	maxRetries       int
-	system           string
+	apiKey          string
+	apiBase         string
+	embedAPIBase    string
+	embedGroupID    string
+	embedAPIKey     string
+	embedDimensions int
+	model           string
+	embedModel      string
+	client          *http.Client
+	maxRetries      int
+	system          string
 	// thinkingStyle opts this provider into mapping ChatRequest.Thinking onto
 	// the wire (#539/#545: "minimax" or "deepseek"); every other provider's
 	// body stays byte-identical.
