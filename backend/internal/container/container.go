@@ -15,8 +15,10 @@ import (
 	"omnicraft/backend/internal/agentmcp"
 	"omnicraft/backend/internal/mcpserver"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/observability/agenttrace"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/breaker"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/clamav"
 	"omnicraft/backend/internal/pkg/events"
@@ -365,7 +367,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
 	// SP-23 M3: MCP client bridge — inert unless agent.mcp.enabled; dead
 	// server subprocesses degrade to "no tools from that server".
-	c.AgentService.SetMCPBridge(agentmcp.New(cfg.Agent.MCP))
+	c.AgentService.SetMCPBridge(agentmcp.NewGuardedBridge(agentmcp.New(cfg.Agent.MCP), c.newBreaker(cfg, "mcp")))
 	// SP-23 M1: generate_image wiring — fail-closed on every seam (switch,
 	// key, OSS store); an unconfigured image endpoint never surfaces the
 	// tool to the model. A dedicated OSS client keeps image availability
@@ -374,9 +376,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		if ossClient, ossErr := aliyun.NewOSSClient(cfg.OSS.Endpoint, cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret, cfg.OSS.BucketName); ossErr != nil {
 			slog.Error("generate_image disabled: OSS store unavailable", "error", ossErr)
 		} else {
-			c.AgentService.SetImageTool(cfg.Agent.Image, llm.NewCogViewClient(
+			c.AgentService.SetImageTool(cfg.Agent.Image, llm.NewGuardedImageGenerator(llm.NewCogViewClient(
 				cfg.Agent.Image.APIBase, cfg.Agent.Image.APIKey, cfg.Agent.Image.Model,
-			), &ossAgentImageStore{client: ossClient})
+			), c.newBreaker(cfg, "image")), &ossAgentImageStore{client: ossClient})
 		}
 	}
 	c.AgentTokenService = service.NewAgentAccessTokenService(
@@ -402,7 +404,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	// OpenSearch retriever serves as the optional fallback. Full-infra stacks
 	// may invert the pair explicitly.
 	var keywordPrimary ragservice.KeywordRetriever = ragservice.NewPostgresKeywordRetriever(c.SearchRepo)
-	var keywordFallback ragservice.KeywordRetriever = ragservice.NewOpenSearchKeywordRetriever(c.OpenSearchRepo)
+	var keywordFallback ragservice.KeywordRetriever = ragservice.NewGuardedKeywordRetriever(
+		ragservice.NewOpenSearchKeywordRetriever(c.OpenSearchRepo), c.newBreaker(cfg, "opensearch"))
 	if strings.EqualFold(strings.TrimSpace(cfg.RAG.Hybrid.KeywordSource), "opensearch") {
 		keywordPrimary, keywordFallback = keywordFallback, keywordPrimary
 	}
@@ -423,7 +426,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	}
 	if cfg.Features.RAGRerankEnabled {
 		if reranker, inputTopK := llm.NewRerankerFromConfig(cfg.RAG.Rerank); reranker != nil {
-			c.HybridRetriever.SetReranker(reranker, inputTopK)
+			c.HybridRetriever.SetReranker(llm.NewGuardedReranker(reranker, c.newBreaker(cfg, "rerank")), inputTopK)
 			// SP-24 R3: the similarity-floor refusal only carries meaning
 			// next to a wired reranker (relevance scores live on that path).
 			c.HybridRetriever.SetMinTopRelevance(cfg.RAG.Refusal.MinTopRelevanceScore)
@@ -546,4 +549,18 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 		relayCancel()
 		mgr.Stop()
 	}
+}
+
+// newBreaker builds one guarded-dependency circuit breaker (SP-24 R5, polyu
+// three-state blueprint): every transition lands in a WARN log line and the
+// omnicraft_breaker_state gauge; an open circuit makes the mount skip the
+// dependency and walk its existing fallback chain unchanged.
+func (c *ServiceContainer) newBreaker(cfg *config.Config, name string) *breaker.Breaker {
+	return breaker.New(name, breaker.Config{
+		FailureThreshold: cfg.Resilience.Breaker.FailureThreshold,
+		OpenTimeout:      time.Duration(cfg.Resilience.Breaker.OpenTimeoutSec) * time.Second,
+	}, func(dep string, from, to breaker.State) {
+		slog.Warn("[breaker] state change", "dependency", dep, "from", from.String(), "to", to.String())
+		observability.SetDefaultBreakerState(dep, float64(to))
+	})
 }

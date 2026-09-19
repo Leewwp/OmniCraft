@@ -96,6 +96,23 @@ type Config struct {
 	Relay          RelayConfig          `mapstructure:"relay" json:"relay"`
 	Worker         WorkerConfig         `mapstructure:"worker" json:"worker"`
 	Observability  ObservabilityConfig  `mapstructure:"observability" json:"observability"`
+	Resilience     ResilienceConfig     `mapstructure:"resilience" json:"resilience"`
+}
+
+// ResilienceConfig carries the shared failure-isolation tunables
+// (SP-24 R5). The breaker section feeds every guarded external dependency
+// mount: rerank chain, image API, MCP servers, OpenSearch lexical channel.
+type ResilienceConfig struct {
+	Breaker BreakerConfig `mapstructure:"breaker" json:"breaker"`
+}
+
+// BreakerConfig mirrors the polyu three-state blueprint: N consecutive
+// failures open the circuit for open_timeout_sec, then a single HALF_OPEN
+// probe permit is handed out (CAS; stale probe results cannot mis-close).
+// Non-positive values fall back to the construction defaults (2 / 30s).
+type BreakerConfig struct {
+	FailureThreshold int `mapstructure:"failure_threshold" json:"failure_threshold"`
+	OpenTimeoutSec   int `mapstructure:"open_timeout_sec" json:"open_timeout_sec"`
 }
 
 // RelayConfig carries the outbox relay loop tuning (issue #200): batch size
@@ -1445,6 +1462,9 @@ func (c *Config) ValidateRelease() error {
 	// similarity floor only has meaning on the rerank path. A non-positive
 	// min_surviving_citations is normalized to 1 at load (configs predating
 	// the knob stay valid), so validation only rejects explicit negatives.
+	if c.Resilience.Breaker.FailureThreshold < 0 || c.Resilience.Breaker.OpenTimeoutSec < 0 {
+		errs = append(errs, "resilience.breaker values must not be negative (0 falls back to the 2-failure/30s defaults)")
+	}
 	if c.RAG.Refusal.MinSurvivingCitations < 0 {
 		errs = append(errs, "rag.refusal.min_surviving_citations must not be negative")
 	}

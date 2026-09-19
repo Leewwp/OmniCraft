@@ -155,6 +155,15 @@ rag:
     # opensearch inverts primary/fallback for full-infra stacks.
     keyword_source: "postgres"
 
+# SP-24 R5（2026-09-19）共享三态熔断器（polyu ModelHealthStore 蓝本）：连续
+# N 次失败 → OPEN（跳过该依赖走既有 fallback 链，降级标记不变）→ 30s 后
+# HALF_OPEN 单探测名额（CAS，旧探测结果不会误关新熔断）。挂载点：rerank 链、
+# CogView 图片 API、MCP 外部 server、OpenSearch 词法通道。0 = 构造缺省（2/30s）。
+resilience:
+  breaker:
+    failure_threshold: 2
+    open_timeout_sec: 30
+
 # Archive malware scanning quotas, timeout and retry policy (design §4/§6).
 # Server-side skeleton only (S01); the scan worker and gates consume it.
 archive_scan:

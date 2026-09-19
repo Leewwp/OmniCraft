@@ -267,10 +267,10 @@ func (r *TurnRecorder) StartNode(nodeType, nodeKey string, parent *NodeSpan, mod
 // NodeEndOptions carries terminal node attributes; zero values are skipped
 // by the writer's merge semantics.
 type NodeEndOptions struct {
-	NodeName         string
-	Status           string
-	ErrorCode        string
-	ErrorMessage     string
+	NodeName     string
+	Status       string
+	ErrorCode    string
+	ErrorMessage string
 	// Model resolves the round's physical model at completion time: round
 	// nodes start with the request preference (usually empty) but the
 	// serving model — failover target or configured primary — is only known
