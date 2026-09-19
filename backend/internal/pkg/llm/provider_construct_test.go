@@ -325,7 +325,7 @@ func TestNewProviderDeepSeekEntryServesChat(t *testing.T) {
 		t.Fatal("credentialed registry entries must build a RoutingProvider")
 	}
 	resp, err := router.Chat(context.Background(), ChatRequest{
-		Messages: []ChatMessage{{Role: "user", Content: "hi"}},
+		Messages:  []ChatMessage{{Role: "user", Content: "hi"}},
 		ModelPref: "deepseek",
 	})
 	if err != nil {

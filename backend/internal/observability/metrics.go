@@ -46,6 +46,15 @@ func ObserveExternalCall(dependency string, started time.Time, err error) {
 	metrics.ObserveExternal(dependency, result, time.Since(started).Seconds())
 }
 
+// SetDefaultBreakerState records a breaker transition through the installed
+// process-wide registry (no-op when metrics are not installed, e.g. CLI
+// tools).
+func SetDefaultBreakerState(dependency string, state float64) {
+	if metrics := defaultMetrics.Load(); metrics != nil {
+		metrics.SetBreakerState(dependency, state)
+	}
+}
+
 // SetQueueBacklog records the current queue depth when a queue adapter has a
 // bounded observation available.
 func SetDefaultQueueBacklog(count float64) {
@@ -135,6 +144,7 @@ type Metrics struct {
 
 	externalRequests *prometheus.CounterVec
 	externalDuration *prometheus.HistogramVec
+	breakerState     *prometheus.GaugeVec
 }
 
 // NewMetrics creates and registers the production metric set.
@@ -182,6 +192,10 @@ func NewMetrics() *Metrics {
 			Help:    "External dependency latency aggregated by dependency only.",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"dependency"}),
+		breakerState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "omnicraft_breaker_state",
+			Help: "Circuit breaker state per guarded dependency (0 closed, 1 open, 2 half_open).",
+		}, []string{"dependency"}),
 	}
 
 	m.Registry.MustRegister(
@@ -194,6 +208,7 @@ func NewMetrics() *Metrics {
 		m.migrationLastSeen,
 		m.externalRequests,
 		m.externalDuration,
+		m.breakerState,
 	)
 	return m
 }
@@ -219,6 +234,11 @@ func (m *Metrics) ObserveExternal(dependency, result string, durationSec float64
 	}
 	m.externalRequests.WithLabelValues(dependency, result).Inc()
 	m.externalDuration.WithLabelValues(dependency).Observe(durationSec)
+}
+
+// SetBreakerState records the current circuit state of a guarded dependency.
+func (m *Metrics) SetBreakerState(dependency string, state float64) {
+	m.breakerState.WithLabelValues(dependency).Set(state)
 }
 
 // IncPanics records a recovered handler panic.
