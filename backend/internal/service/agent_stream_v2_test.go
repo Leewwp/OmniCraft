@@ -251,3 +251,49 @@ func TestAgentStreamV2ImageQuotaRelayKept(t *testing.T) {
 	external, _ := steps[1]["external"].(bool)
 	require.True(t, external, "the quota-blocked step must carry the external badge so the all-external lane applies")
 }
+
+// #610 部署冒烟热修回归（2026-09-20 实机形态）：generate_image 首调
+// invalid_args（空 prompt，outcome=nil）后重试成功——失败步也必须计入
+// 外部车道，否则 allToolsExternal 被毒化、成功生图轮的转述被引用门清空
+// （用户已付费的图不可见）。
+func TestAgentStreamV2ExternalLaneSurvivesFailedImageCall(t *testing.T) {
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{toolCallDelta("generate_image", `{"prompt":""}`)},
+		{toolCallDelta("generate_image", `{"prompt":"a lighthouse at night","size":"768x1344"}`)},
+		{{Content: "已为您生成一张竖版灯塔夜景插图。", Done: true}},
+	}}
+	cfg := continuationTestConfig(100000)
+	cfg.Agent.MCP.ExternalAnswerMaxRunes = 4000
+	cfg.Agent.Image = config.AgentImageConfig{
+		Enabled: true, APIKey: "test-key", SessionImageLimit: 5,
+		SizeDefault: "1024x1024", SizeOptions: []string{"1024x1024", "768x1344"},
+		TimeoutSec: 5, MaxImageBytes: 1 << 20,
+	}
+	svc, _ := newStreamTestService(t, provider, cfg)
+	store := newFakeImageStore()
+	svc.SetImageTool(cfg.Agent.Image, &fakeImageGenerator{bytes: []byte("fakepng")}, store)
+
+	var done *AgentStreamEvent
+	var toolEvents []*AgentToolExecution
+	err := svc.ChatStream(context.Background(), 7, ChatTurnInput{Message: "画一张竖版灯塔"}, resolveGlobalChatContext(t, svc, 7), func(ev AgentStreamEvent) error {
+		if ev.Type == AgentEventDone {
+			done = &ev
+		}
+		if ev.Type == AgentEventToolStatus && ev.Tool != nil {
+			toolEvents = append(toolEvents, ev.Tool)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, done)
+
+	require.Len(t, toolEvents, 2, "both generate_image steps must be reported")
+	require.Equal(t, AgentToolStatusError, toolEvents[0].Status)
+	require.True(t, toolEvents[0].External, "the failed external call must still badge external")
+	require.Equal(t, AgentToolStatusSuccess, toolEvents[1].Status)
+	require.True(t, toolEvents[1].External)
+
+	require.NotEqual(t, AgentAnswerNoEvidence, done.AnswerKind,
+		"a retry-successful image turn must keep its relay (all-external lane)")
+	require.Equal(t, "已为您生成一张竖版灯塔夜景插图。", done.Answer)
+}
