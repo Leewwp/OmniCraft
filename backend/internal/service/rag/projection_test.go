@@ -1127,3 +1127,45 @@ func prepareProjectionDatabase(t *testing.T) *gorm.DB {
 	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "..", "migrations", "071_rag_chunks.sql"))
 	return db
 }
+
+// stubChunkAnnotator returns a fixed prefix for every chunk (SP-24 R4).
+type stubChunkAnnotator struct {
+	prefix string
+	calls  int
+}
+
+func (a *stubChunkAnnotator) Annotate(_ context.Context, _ SourceDocument, chunks []Chunk) []Chunk {
+	a.calls++
+	annotated := make([]Chunk, len(chunks))
+	copy(annotated, chunks)
+	for i := range annotated {
+		annotated[i].Text = a.prefix + "\n" + annotated[i].Text
+	}
+	return annotated
+}
+
+func TestProjectionContextualAnnotatorFlowsIntoStoredText(t *testing.T) {
+	db := prepareProjectionDatabase(t)
+	search := &recordingSearchProjection{}
+	projection := NewProjection(
+		db,
+		NewChunker(ChunkerConfig{MaxTokens: 64, OverlapTokens: 4, ChunkingVersion: 1}),
+		&deterministicChunkEmbedder{},
+		search,
+		ProjectionConfig{IndexVersion: 1, EmbeddingModel: "deterministic-1536"},
+	)
+	annotator := &stubChunkAnnotator{prefix: "第一章：琴房木料清单的段落。"}
+	projection.SetContextAnnotator(annotator)
+
+	require.NoError(t, projection.SyncContent(context.Background(), 10))
+	require.Equal(t, 1, annotator.calls, "annotator rides the ingestion path")
+
+	current, err := repository.NewRagChunkRepository(db).ListCurrent(context.Background(), 10, 1, "deterministic-1536")
+	require.NoError(t, err)
+	require.Len(t, current, 1)
+	require.Equal(t, "第一章：琴房木料清单的段落。\nGuide\npublished body", current[0].Text,
+		"the prefixed text must be what lands in rag_chunks (embedding + lexical + citation surface)")
+	documents := search.documents["omnicraft-rag-v1"]
+	require.Len(t, documents, 1)
+	require.Equal(t, current[0].Text, documents[0].Text, "search documents and stored chunks share the prefixed text")
+}

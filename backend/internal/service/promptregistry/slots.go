@@ -197,6 +197,19 @@ Retrieved titles: {{titles}}
 Answer beginning: {{answer_prefix}}`,
 		RequiredPlaceholders: []string{"answer_prefix", "question", "titles"},
 	}
+	// SP-24 R4 contextual retrieval: ingestion-side chunk situation prefix
+	// (Anthropic-style). The rendered prompt is the user message; the fixed
+	// system line lives in the annotator (expander pattern).
+	SlotContextualAnnotation = PromptSlot{
+		Name:        "contextual_annotation_prompt",
+		Description: "chunk 上下文定位前缀生成（contextual retrieval 摄入侧，50-100 token 一句话，同语言输出）",
+		Builtin: `为改善检索，请为下面这个文档片段写一句简短的上下文定位说明，帮助读者在不阅读全文的情况下理解该片段在整篇文档中的位置与主题。
+文档标题：{{title}}
+文档内容（可能截断）：{{document}}
+待定位片段：{{chunk}}
+要求：一句话，不超过 {{max_tokens}} 个 token；说明片段相对全文的位置（如所属章节/情节阶段/讨论主题）与它讲什么；与片段相同语言；只输出这句话本身，不要引号、编号、「上下文：」之类的标签或任何解释。`,
+		RequiredPlaceholders: []string{"chunk", "document", "max_tokens", "title"},
+	}
 )
 
 // Slots iterates the full inventory (seeding, admin listings).
@@ -209,4 +222,5 @@ var Slots = []PromptSlot{
 	SlotConversationTitle,
 	SlotQueryExpansion,
 	SlotFollowUps,
+	SlotContextualAnnotation,
 }

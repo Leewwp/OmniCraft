@@ -78,6 +78,9 @@ type Projection struct {
 	search   SearchProjection
 	versions ContentVersionLoader
 	config   ProjectionConfig
+	// annotator is the optional SP-24 R4 contextual-retrieval prefix writer;
+	// nil = ingestion stays byte-identical to the pre-R4 behavior.
+	annotator ChunkAnnotator
 }
 
 func NewProjection(db *gorm.DB, chunker *Chunker, embedder ChunkEmbedder, search SearchProjection, config ProjectionConfig) *Projection {
@@ -93,6 +96,14 @@ func NewProjectionWithVersionLoader(db *gorm.DB, chunker *Chunker, embedder Chun
 		db: db, chunks: repository.NewRagChunkRepository(db), chunker: chunker,
 		embedder: embedder, search: search, versions: versions, config: config,
 	}
+}
+
+// SetContextAnnotator wires the SP-24 R4 contextual-retrieval annotator
+// (container). Annotation happens between chunking and staging so the
+// prefixed text flows into embeddings, the lexical index and the citation
+// surface together. Nil or fail-open annotators never gate ingestion.
+func (p *Projection) SetContextAnnotator(a ChunkAnnotator) {
+	p.annotator = a
 }
 
 func (p *Projection) SyncContent(ctx context.Context, contentID int64) error {
@@ -179,6 +190,15 @@ func (p *Projection) syncContent(ctx context.Context, contentID int64, indexVers
 	})
 	if err != nil {
 		return fmt.Errorf("chunk content projection: %w", err)
+	}
+	// SP-24 R4: contextual prefixes are written after deterministic chunking
+	// (identity stays span-bound; the prefix is an additive text transform),
+	// before staging so embeddings and search documents see the same text.
+	if p.annotator != nil {
+		chunked = p.annotator.Annotate(ctx, SourceDocument{
+			ContentID: contentID, ContentVersion: contentVersion,
+			Title: content.Title, Text: contentText,
+		}, chunked)
 	}
 	generation := repository.RagGeneration{
 		ContentID: contentID, IndexVersion: indexVersion,
