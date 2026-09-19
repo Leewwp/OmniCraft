@@ -79,6 +79,33 @@ if ! promtool_out="$(docker run --rm --entrypoint promtool -v "$CONFIG_DIR:/etc/
   "$PROMETHEUS_IMAGE" check rules /etc/prometheus/prometheus-rules.yml 2>&1)"; then
   fail "promtool rejected prometheus-rules.yml: $promtool_out"
 fi
+if [ -f "$CONFIG_DIR/prometheus-rules.lean.yml" ]; then
+  if ! promtool_out="$(docker run --rm --entrypoint promtool -v "$CONFIG_DIR:/etc/prometheus:ro" \
+    "$PROMETHEUS_IMAGE" check rules /etc/prometheus/prometheus-rules.lean.yml 2>&1)"; then
+    fail "promtool rejected prometheus-rules.lean.yml: $promtool_out"
+  fi
+  # The lean file must stay a byte-identical subset of the authority file
+  # (same alert name, expr, for and labels), or the two profiles drift.
+  ruby - "$CONFIG_DIR/prometheus-rules.yml" "$CONFIG_DIR/prometheus-rules.lean.yml" <<'RUBY' || fail "lean rules drifted from the authority file"
+require "yaml"
+full = YAML.load_file(ARGV[0])
+lean = YAML.load_file(ARGV[1])
+def index_by(rules)
+  rules.fetch("groups", []).flat_map { |g| g.fetch("rules", []) }
+      .to_h { |r| [r["alert"], r] }
+end
+full_rules = index_by(full)
+lean_rules = index_by(lean)
+errors = []
+lean_rules.each do |name, rule|
+  other = full_rules[name] or raise "lean rule #{name} missing from prometheus-rules.yml"
+  %w[expr for labels].each do |field|
+    errors << "#{name}: #{field} differs from prometheus-rules.yml" if rule[field] != other[field]
+  end
+end
+raise errors.join("\n") unless errors.empty?
+RUBY
+fi
 if ! amtool_out="$(docker run --rm --entrypoint amtool -v "$CONFIG_DIR:/etc/alertmanager:ro" \
   "$ALERTMANAGER_IMAGE" check-config /etc/alertmanager/alertmanager.yml 2>&1)"; then
   fail "amtool rejected alertmanager.yml: $amtool_out"

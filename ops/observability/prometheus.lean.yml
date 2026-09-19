@@ -5,12 +5,19 @@
 # The committed prometheus.yml additionally targets node-exporter,
 # postgres-exporter, redis-exporter, cadvisor, blackbox and Alertmanager;
 # all of those services are deferred on this host, so loading it unchanged
-# would present permanent blind/down targets. No rule_files and no
-# alerting section here for the same reason. Retention stays bounded by the
-# compose command flags (--storage.tsdb.retention.time/size).
+# would present permanent blind/down targets. No alerting section for the
+# same reason (Alertmanager is deferred; firing alerts surface through the
+# local /api/v1/rules API). SP-24 R7: rule evaluation loads
+# prometheus-rules.lean.yml — the backend-metrics-only subset of
+# prometheus-rules.yml (agent-domain SLA), so no rule depends on a deferred
+# exporter. Retention stays bounded by the compose command flags
+# (--storage.tsdb.retention.time/size).
 global:
   scrape_interval: 30s
   evaluation_interval: 30s
+
+rule_files:
+  - prometheus-rules.lean.yml
 
 scrape_configs:
   # Application metrics served by the backend's internal observability

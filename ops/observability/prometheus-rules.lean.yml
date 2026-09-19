@@ -1,0 +1,80 @@
+# OmniCraft lean-host alert rules. The lean profile (single-server-beta-
+# runbook.md §6.2) defers alertmanager and every exporter except the
+# backend, so this file carries only rules whose metrics are exported by
+# the backend itself (omnicraft_agent_* / omnicraft_breaker_state). Every
+# rule here must stay identical to its counterpart in prometheus-rules.yml
+# (verify-alerts.sh asserts the subset relation); the full file remains the
+# authority for the full-observability profile.
+groups:
+  - name: omnicraft-agent
+    rules:
+      - alert: AgentRoutingFallbackSpike
+        expr: |
+          sum(rate(omnicraft_agent_routing_fallbacks_total[10m]))
+            / clamp_min(sum(rate(omnicraft_agent_runs_total[10m])), 1) > 0.1
+          and sum(increase(omnicraft_agent_runs_total[10m])) > 10
+        for: 10m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: More than 10% of agent turns hit a model routing failover
+          impact: The primary model is failing (provider errors or blank answers); answers still arrive via fallback but latency and cost rise.
+          first_step: Check backend logs for "agent model routed" WARN lines and the provider key/quota of the from-model.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-agent
+
+      - alert: AgentNoEvidenceDrift
+        expr: |
+          sum(rate(omnicraft_agent_answers_total{kind="no_evidence"}[30m]))
+            / clamp_min(sum(rate(omnicraft_agent_answers_total[30m])), 1) > 0.3
+          and sum(increase(omnicraft_agent_answers_total[30m])) > 10
+        for: 30m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Agent no-evidence refusal rate above 30% for 30 minutes
+          impact: Retrieval is failing to ground answers; users get refusals instead of cited content.
+          first_step: Check the retrieval channel health (embedding provider quota, OpenSearch availability) and rerun the rag-eval retrieval gate.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-agent
+
+      - alert: AgentToolFailureRate
+        expr: |
+          sum(rate(omnicraft_agent_tool_calls_total{outcome="error"}[15m]))
+            / clamp_min(sum(rate(omnicraft_agent_tool_calls_total[15m])), 1) > 0.2
+          and sum(increase(omnicraft_agent_tool_calls_total[15m])) > 10
+        for: 15m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Agent tool failure rate above 20% for 15 minutes
+          impact: Tool rounds are failing (search, image or MCP bridge); answer quality degrades and turns slow down.
+          first_step: Check tool error nodes in the admin trace list and the failing tool's dependency (DashScope quota, MCP server, image API).
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-agent
+
+      - alert: AgentTTFTP95High
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(omnicraft_agent_ttft_seconds_bucket[10m])) by (le)) > 8
+        for: 10m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Agent p95 time-to-first-delta above 8 seconds
+          impact: Users wait too long before any answer text appears; streaming UX is degraded.
+          first_step: Compare retrieval/rerank node durations in the admin trace waterfall against the LLM first-token time to find the slow phase.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-agent
+
+      - alert: AgentCircuitBreakerOpen
+        expr: omnicraft_breaker_state > 0
+        for: 2m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: A guarded-dependency circuit breaker is open or half-open for over 2 minutes
+          impact: Rerank, image API, MCP or the lexical retrieval channel is failing and being skipped; retrieval quality silently degrades.
+          first_step: Check backend logs for "[breaker] state change" lines and probe the failing dependency directly.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-agent
