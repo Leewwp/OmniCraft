@@ -18,8 +18,25 @@ var (
 	// the omnicraft_aux_cache_events_total label set stays bounded.
 	allowedAuxCacheNames    = map[string]bool{"title": true, "expander": true}
 	allowedAuxCacheOutcomes = map[string]bool{"hit": true, "miss": true, "bypass": true, "store_failed": true}
-	allowedStatusClass  = map[string]bool{"1xx": true, "2xx": true, "3xx": true, "4xx": true, "5xx": true}
-	allowedHTTPMethods  = map[string]bool{"GET": true, "HEAD": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "OPTIONS": true, "CONNECT": true, "TRACE": true}
+	// SP-24 R7 agent-domain SLA metrics: every label is a fixed vocabulary.
+	// Run statuses mirror model.AgentTraceStatus (lowercased), answer kinds
+	// mirror service.AgentAnswerKind, routing reasons mirror the routing
+	// chain's deterministic failover signals; unknown values fold to "other"
+	// so ratios keep their denominators instead of silently dropping events.
+	allowedAgentRunStatuses = map[string]bool{"success": true, "error": true, "cancelled": true}
+	allowedAgentAnswerKinds = map[string]bool{
+		"grounded_content": true, "no_evidence": true,
+		"conversational": true, "publish_suggestion": true, "other": true,
+	}
+	allowedAgentRoutingReasons = map[string]bool{"provider_error": true, "blank_answer": true, "other": true}
+	allowedAgentToolNames      = map[string]bool{
+		"search_content": true, "search_ips": true, "get_content_detail": true,
+		"get_usage_guide": true, "suggest_publish_metadata": true,
+		"generate_image": true, "mcp": true, "other": true,
+	}
+	allowedAgentToolOutcomes = map[string]bool{"success": true, "error": true}
+	allowedStatusClass       = map[string]bool{"1xx": true, "2xx": true, "3xx": true, "4xx": true, "5xx": true}
+	allowedHTTPMethods       = map[string]bool{"GET": true, "HEAD": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "OPTIONS": true, "CONNECT": true, "TRACE": true}
 	// unresolvedRoute is the bounded fallback for requests that match no Gin
 	// route template; raw paths must never become label values.
 	unresolvedRoute  = "unmatched"
@@ -80,6 +97,30 @@ func IncDefaultWorkerFailures() {
 func IncDefaultAuxCacheEvent(cache, outcome string) {
 	if metrics := defaultMetrics.Load(); metrics != nil {
 		metrics.IncAuxCacheEvent(cache, outcome)
+	}
+}
+
+// ObserveDefaultAgentRun records one terminal agent chat turn (SP-24 R7)
+// through the installed process-wide registry (no-op in CLI tools).
+func ObserveDefaultAgentRun(status, kind string, ttftSet bool, ttftSec, durationSec float64) {
+	if metrics := defaultMetrics.Load(); metrics != nil {
+		metrics.ObserveAgentRun(status, kind, ttftSet, ttftSec, durationSec)
+	}
+}
+
+// IncDefaultAgentRoutingFallback records one routing-chain failover (SP-24
+// R7) through the installed process-wide registry.
+func IncDefaultAgentRoutingFallback(reason string) {
+	if metrics := defaultMetrics.Load(); metrics != nil {
+		metrics.IncAgentRoutingFallback(reason)
+	}
+}
+
+// IncDefaultAgentToolCall records one agent tool execution outcome (SP-24
+// R7) through the installed process-wide registry.
+func IncDefaultAgentToolCall(name string, failed bool) {
+	if metrics := defaultMetrics.Load(); metrics != nil {
+		metrics.IncAgentToolCall(name, failed)
 	}
 }
 
@@ -158,6 +199,17 @@ type Metrics struct {
 	externalDuration *prometheus.HistogramVec
 	breakerState     *prometheus.GaugeVec
 	auxCacheEvents   *prometheus.CounterVec
+
+	// SP-24 R7 agent-domain SLA metrics: turn counters by terminal status and
+	// answer kind, routing failovers by reason, tool calls by name and
+	// outcome, plus label-free TTFT/run-duration histograms for P50/P95
+	// alerting and the acceptance report.
+	agentRuns            *prometheus.CounterVec
+	agentAnswers         *prometheus.CounterVec
+	agentRoutingFallback *prometheus.CounterVec
+	agentToolCalls       *prometheus.CounterVec
+	agentTTFT            prometheus.Histogram
+	agentRunDuration     prometheus.Histogram
 }
 
 // NewMetrics creates and registers the production metric set.
@@ -213,6 +265,32 @@ func NewMetrics() *Metrics {
 			Name: "omnicraft_aux_cache_events_total",
 			Help: "Auxiliary LLM call cache events by cache and outcome (hit/miss/bypass/store_failed).",
 		}, []string{"cache", "outcome"}),
+		agentRuns: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "omnicraft_agent_runs_total",
+			Help: "Agent chat turns by terminal status (success/error/cancelled).",
+		}, []string{"status"}),
+		agentAnswers: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "omnicraft_agent_answers_total",
+			Help: "Agent answers by classified kind (grounded_content/no_evidence/conversational/publish_suggestion).",
+		}, []string{"kind"}),
+		agentRoutingFallback: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "omnicraft_agent_routing_fallbacks_total",
+			Help: "Model routing chain failovers by deterministic reason (provider_error/blank_answer).",
+		}, []string{"reason"}),
+		agentToolCalls: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "omnicraft_agent_tool_calls_total",
+			Help: "Agent tool executions by tool and outcome; mcp_* names fold to mcp.",
+		}, []string{"tool", "outcome"}),
+		agentTTFT: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "omnicraft_agent_ttft_seconds",
+			Help:    "Agent turn time-to-first-display-delta in seconds (label-free; P95 alerting surface).",
+			Buckets: prometheus.ExponentialBuckets(0.25, 2, 12),
+		}),
+		agentRunDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "omnicraft_agent_run_duration_seconds",
+			Help:    "Agent turn wall-clock duration in seconds (label-free; P95 alerting surface).",
+			Buckets: prometheus.ExponentialBuckets(0.5, 2, 12),
+		}),
 	}
 
 	m.Registry.MustRegister(
@@ -227,6 +305,12 @@ func NewMetrics() *Metrics {
 		m.externalDuration,
 		m.breakerState,
 		m.auxCacheEvents,
+		m.agentRuns,
+		m.agentAnswers,
+		m.agentRoutingFallback,
+		m.agentToolCalls,
+		m.agentTTFT,
+		m.agentRunDuration,
 	)
 	return m
 }
@@ -267,6 +351,57 @@ func (m *Metrics) IncAuxCacheEvent(cache, outcome string) {
 		return
 	}
 	m.auxCacheEvents.WithLabelValues(cache, outcome).Inc()
+}
+
+// ObserveAgentRun records one terminal agent chat turn (SP-24 R7). ttftSet
+// marks whether the turn ever displayed a delta; a turn without one records
+// duration only. Statuses arrive in trace casing (SUCCESS/ERROR/CANCELLED)
+// and are lowercased here; unknown statuses and kinds fold to "other" so the
+// run and answer ratios keep honest denominators.
+func (m *Metrics) ObserveAgentRun(status, kind string, ttftSet bool, ttftSec, durationSec float64) {
+	status = strings.ToLower(strings.TrimSpace(status))
+	if !allowedAgentRunStatuses[status] {
+		status = "other"
+	}
+	m.agentRuns.WithLabelValues(status).Inc()
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if kind != "" {
+		if !allowedAgentAnswerKinds[kind] {
+			kind = "other"
+		}
+		m.agentAnswers.WithLabelValues(kind).Inc()
+	}
+	if ttftSet {
+		m.agentTTFT.Observe(ttftSec)
+	}
+	m.agentRunDuration.Observe(durationSec)
+}
+
+// IncAgentRoutingFallback records one routing-chain failover. Unknown
+// reasons fold to "other".
+func (m *Metrics) IncAgentRoutingFallback(reason string) {
+	if !allowedAgentRoutingReasons[reason] {
+		reason = "other"
+	}
+	m.agentRoutingFallback.WithLabelValues(reason).Inc()
+}
+
+// IncAgentToolCall records one tool execution outcome. Tool names outside the
+// local registry fold to "other"; every mcp_<server>_<tool> name folds to
+// "mcp" so externally-configured servers cannot grow the label set.
+func (m *Metrics) IncAgentToolCall(name string, failed bool) {
+	if !allowedAgentToolNames[name] {
+		if strings.HasPrefix(name, "mcp_") {
+			name = "mcp"
+		} else {
+			name = "other"
+		}
+	}
+	outcome := "success"
+	if failed {
+		outcome = "error"
+	}
+	m.agentToolCalls.WithLabelValues(name, outcome).Inc()
 }
 
 // IncPanics records a recovered handler panic.

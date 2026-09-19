@@ -122,7 +122,7 @@ func (s *AgentService) ResolveChatContext(ctx context.Context, viewerID int64, c
 // model. Raw tool arguments and internal reasoning are never included; a
 // forbidden content ID produces the uniform content_not_found result.
 type agentToolResult struct {
-	OK   bool   `json:"ok"`
+	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
 	// Message is a model-facing relay hint for stable degradation codes
 	// (image quota): what the model should tell the user instead of
@@ -450,19 +450,19 @@ loop:
 					result = agentToolResult{OK: false, Error: "tool_error"}
 				} else if errors.Is(toolErr, ErrAgentToolInvalidArgs) {
 					result = agentToolResult{OK: false, Error: "invalid_args"}
-			} else if errors.Is(toolErr, ErrContentNotFound) {
-				result = agentToolResult{OK: false, Error: "content_not_found"}
-			} else if errors.Is(toolErr, ErrAgentImageQuotaExceeded) {
-				// M1 quota contract (live regression 2026-09-18: with the
-				// generic tool_error the model retried 5x and the strict
-				// citation gate then cleared its relay to an empty bubble):
-				// relay a stable code + hint so the model tells the user the
-				// cap is reached instead of retrying, and mark the step
-				// external so the all-external lane keeps that short relay.
-				result = agentToolResult{OK: false, Error: "image_quota_exceeded",
-					Message: "本会话配图额度已用完。请直接告知用户额度已满、勿再调用 generate_image。"}
-				execution.External = true
-			} else {
+				} else if errors.Is(toolErr, ErrContentNotFound) {
+					result = agentToolResult{OK: false, Error: "content_not_found"}
+				} else if errors.Is(toolErr, ErrAgentImageQuotaExceeded) {
+					// M1 quota contract (live regression 2026-09-18: with the
+					// generic tool_error the model retried 5x and the strict
+					// citation gate then cleared its relay to an empty bubble):
+					// relay a stable code + hint so the model tells the user the
+					// cap is reached instead of retrying, and mark the step
+					// external so the all-external lane keeps that short relay.
+					result = agentToolResult{OK: false, Error: "image_quota_exceeded",
+						Message: "本会话配图额度已用完。请直接告知用户额度已满、勿再调用 generate_image。"}
+					execution.External = true
+				} else {
 					result = agentToolResult{OK: false, Error: "tool_error"}
 				}
 				traceAgentEvent(traceID, "tool_error", "tool", tc.Function.Name, "safe_error", result.Error)
@@ -608,6 +608,9 @@ loop:
 			FirstDisplayDelta: firstDisplayDelta,
 			Model:             s.servingModel(turnRecorder, turn.Model),
 		})
+		// SP-24 R7: run-level SLA metrics fire for every terminal turn,
+		// independent of the recorder's sampling gate.
+		recordAgentRunMetrics(runTerminalStatus(streamErr), "", firstDisplayDelta, turnStarted)
 		return streamErr
 	}
 
@@ -761,6 +764,7 @@ loop:
 		Model:             s.servingModel(turnRecorder, turn.Model),
 		MessageID:         &msgID,
 	})
+	recordAgentRunMetrics(model.AgentTraceStatusSuccess, string(kind), firstDisplayDelta, turnStarted)
 
 	if err := handler(AgentStreamEvent{
 		Type:           AgentEventDone,
@@ -806,6 +810,27 @@ func (s *AgentService) recordChitchatTurn(rec *agenttrace.TurnRecorder, started 
 		StartedAt:  started,
 		AnswerKind: string(AgentAnswerConversational),
 	})
+	recordAgentRunMetrics(model.AgentTraceStatusSuccess, string(AgentAnswerConversational), time.Time{}, started)
+}
+
+// recordAgentRunMetrics mirrors the run-end trace row into the label-free
+// SLA metric set (SP-24 R7): TTFT to the first forwarded display delta,
+// wall-clock duration, terminal status and classified answer kind. A zero
+// firstDisplayDelta means nothing was displayed and records duration only.
+func recordAgentRunMetrics(status, kind string, firstDisplayDelta, startedAt time.Time) {
+	ttftSet := !firstDisplayDelta.IsZero()
+	ttft := 0.0
+	if ttftSet {
+		ttft = firstDisplayDelta.Sub(startedAt).Seconds()
+		if ttft < 0 {
+			ttft = 0
+		}
+	}
+	duration := time.Since(startedAt).Seconds()
+	if duration < 0 {
+		duration = 0
+	}
+	observability.ObserveDefaultAgentRun(status, kind, ttftSet, ttft, duration)
 }
 
 // servingModel attributes the turn to the model that actually served it:

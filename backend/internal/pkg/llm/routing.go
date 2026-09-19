@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/observability/agenttrace"
 )
 
@@ -194,7 +195,9 @@ func (p *RoutingProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 
 // route logs the failover and mirrors it into the turn's routing_events
 // via the context recorder (SP-21 T2). The structured log stays the
-// immediate diagnosis surface; the recorder persists for the admin trace.
+// immediate diagnosis surface; the recorder persists for the admin trace,
+// and the counter feeds the routing-fallback SLA alert (SP-24 R7) outside
+// the recorder's sampling gate.
 func (p *RoutingProvider) route(ctx context.Context, from, to, reason string, err error) {
 	args := []any{"from", from, "to", to, "reason", reason}
 	if err != nil {
@@ -204,6 +207,7 @@ func (p *RoutingProvider) route(ctx context.Context, from, to, reason string, er
 		args = append(args, "err", err.Error())
 	}
 	slog.Warn("agent model routed", args...)
+	observability.IncDefaultAgentRoutingFallback(reason)
 	if rec := agenttrace.TurnRecorderFrom(ctx); rec != nil {
 		rec.RecordRouting(from, to, reason, err)
 	}

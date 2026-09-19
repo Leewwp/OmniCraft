@@ -520,6 +520,17 @@ chmod 600 /opt/omnicraft/alertmanager.yml
 - `QueueBacklogHigh` / `WorkerFailures` / `MigrationFailed` / `RestartLoop`.
   First step: worker logs, migration summary artifact, container restart logs.
 
+### Alerting: agent
+- `AgentRoutingFallbackSpike` (>10% of turns fail over for 10m, min 10 turns),
+  `AgentNoEvidenceDrift` (no-evidence answers >30% for 30m, min 10 answers),
+  `AgentToolFailureRate` (tool errors >20% for 15m, min 10 calls),
+  `AgentTTFTP95High` (p95 first-delta >8s for 10m) and
+  `AgentCircuitBreakerOpen` (breaker open/half-open >2m; rerank, image API,
+  MCP or lexical channel is being skipped). First step: "agent model routed"
+  and "[breaker] state change" WARN lines in backend logs, error nodes in the
+  admin trace waterfall, then the failing dependency's quota/credentials;
+  retrieval drift is confirmed by rerunning the rag-eval retrieval gate.
+
 ### Alerting: backup
 - `BackupStale` (24h) / `RecoveryDrillOverdue` (30d). First step: rerun
   `scripts/backup-db.sh` / `scripts/db/recovery-drill.sh` and confirm metrics.
