@@ -324,3 +324,14 @@ func (c *Chunker) tokenCount(heading, text string) int {
 	}
 	return c.tokenCounter(input)
 }
+
+// CountTokens returns the cl100k_base token count of one text. It exists for
+// the SP-24 R4 contextual cost estimator ("estimate before you run"): the
+// annotation model tokenizes slightly differently, so treat results as
+// estimates, not invoices.
+func (c *Chunker) CountTokens(text string) int {
+	if c == nil || c.tokenCounter == nil {
+		return len([]rune(text))
+	}
+	return c.tokenCounter(text)
+}

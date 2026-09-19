@@ -196,6 +196,17 @@ the frontend MAX_DM_LENGTH (2000) so the UI c... |
 | `rag.chunking.overlap_tokens` | `int` | OverlapTokens |
 | `rag.chunking.tokenizer_encoding` | `string` | TokenizerEncoding |
 | `rag.chunking.version` | `int` | ChunkingVersion |
+| `rag.contextual.api_base` | `string` | APIBase |
+| `rag.contextual.api_key` | `string` | APIKey |
+| `rag.contextual.concurrency` | `int` | Concurrency |
+| `rag.contextual.doc_context_chars` | `int` | DocContextChars |
+| `rag.contextual.enabled` | `bool` | Enabled |
+| `rag.contextual.max_prefix_tokens` | `int` | MaxPrefixTokens |
+| `rag.contextual.max_retries` | `int` | MaxRetries |
+| `rag.contextual.model` | `string` | Model |
+| `rag.contextual.provider` | `string` | Provider |
+| `rag.contextual.request_interval_ms` | `int` | RequestIntervalMS |
+| `rag.contextual.timeout_sec` | `int` | TimeoutSec |
 | `rag.hybrid.bm25_topk` | `int` | BM25TopK |
 | `rag.hybrid.final_topk` | `int` | FinalTopK |
 | `rag.hybrid.keyword_source` | `string` | KeywordSource selects the lexical primary: "postgres" (canonical
