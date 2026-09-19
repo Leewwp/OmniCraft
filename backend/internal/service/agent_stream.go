@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"omnicraft/backend/internal/agentmcp"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/observability/agenttrace"
@@ -442,6 +443,13 @@ loop:
 				Status:      AgentToolStatusSuccess,
 				DurationMs:  time.Since(toolStartedAt).Milliseconds(),
 			}
+			// #610 部署冒烟热修（2026-09-20 实机）：external 归属跟工具名而非
+			// outcome——generate_image 首调失败（invalid args 等，outcome=nil →
+			// External=false）会毒化 allToolsExternal，重试成功的生图轮转述被
+			// 引用门清空（用户已付费的图不可见）。外部工具的失败步同样计入
+			// 外部车道。
+			execution.External = tc.Function.Name == ToolGenerateImage ||
+				strings.HasPrefix(tc.Function.Name, agentmcp.ToolNamePrefix)
 			result := agentToolResult{OK: true}
 			if toolErr != nil {
 				execution.Status = AgentToolStatusError
@@ -457,11 +465,10 @@ loop:
 					// generic tool_error the model retried 5x and the strict
 					// citation gate then cleared its relay to an empty bubble):
 					// relay a stable code + hint so the model tells the user the
-					// cap is reached instead of retrying, and mark the step
-					// external so the all-external lane keeps that short relay.
+					// cap is reached instead of retrying (external 归属已由上方
+					// 工具名判定统一覆盖).
 					result = agentToolResult{OK: false, Error: "image_quota_exceeded",
 						Message: "本会话配图额度已用完。请直接告知用户额度已满、勿再调用 generate_image。"}
-					execution.External = true
 				} else {
 					result = agentToolResult{OK: false, Error: "tool_error"}
 				}
@@ -470,8 +477,7 @@ loop:
 				execution.Hits = agentToolHitCount(outcome)
 				// SP-23 M5: external tools badge + their specifics land in
 				// the trace node extra (cost for images, server/tool and
-				// truncation for MCP).
-				execution.External = outcome.Image != nil || outcome.MCP != nil
+				// truncation for MCP). External 归属已在上方按工具名统一判定。
 				result.Detail = outcome.Detail
 				result.Guide = outcome.Guide
 				result.Search = outcome.Search
