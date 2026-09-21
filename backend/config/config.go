@@ -880,9 +880,45 @@ func Load() *Config {
 		slog.Error("invalid test mode configuration", "error", err)
 		os.Exit(1)
 	}
+	sanitizeAgentMCPServerIDs(cfg)
 
 	Cfg = cfg
 	return cfg
+}
+
+// sanitizeAgentMCPServerIDs enforces the MCP server-id charset at load
+// (SP-25 低-9): ids feed the mcp_<server>_<tool> namespace where '_' is the
+// separator, so an id containing '_' (or any char outside [a-zA-Z0-9-])
+// would make splitNamespaced route calls to the wrong server. Offending
+// servers are dropped with an error log rather than silently mis-routing.
+func sanitizeAgentMCPServerIDs(cfg *Config) {
+	if len(cfg.Agent.MCP.Servers) == 0 {
+		return
+	}
+	kept := cfg.Agent.MCP.Servers[:0]
+	for _, srv := range cfg.Agent.MCP.Servers {
+		if validMCPServerID(srv.ID) {
+			kept = append(kept, srv)
+			continue
+		}
+		slog.Error("agent.mcp server id rejected: charset must be [a-zA-Z0-9-] without underscore ('_' is the namespaced-tool separator); server dropped",
+			"server_id", srv.ID)
+	}
+	cfg.Agent.MCP.Servers = kept
+}
+
+func validMCPServerID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range id {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func applyTestMode(cfg *Config) error {

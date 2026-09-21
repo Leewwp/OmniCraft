@@ -35,22 +35,27 @@ const (
 
 // rerankHTTP is the shared plumbing for the two wire formats: bearer auth,
 // structured external-call observation and non-200 rejection.
-func rerankHTTP(ctx context.Context, client *http.Client, url, apiKey string, payload any, out any) error {
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
+func rerankHTTP(ctx context.Context, client *http.Client, url, apiKey string, payload any, out any) (err error) {
+	b, marshalErr := json.Marshal(payload)
+	if marshalErr != nil {
+		return marshalErr
 	}
-	resp, err := retryDo(ctx, client, url, apiKey, b, 2)
-	if err != nil {
-		return err
-	}
+	// 低-13：计时起点在 retryDo 之前（网络重试占延迟大头），并以命名返回
+	// 值承载真实 err——失败路径同样触发指标且如实记错，不再恒传 nil。
 	started := time.Now()
-	defer func() { observability.ObserveExternalCall("llm", started, nil) }()
+	defer func() { observability.ObserveExternalCall("llm", started, err) }()
+	resp, callErr := retryDo(ctx, client, url, apiKey, b, 2)
+	if callErr != nil {
+		err = callErr
+		return err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("rerank api error %d", resp.StatusCode)
+		err = fmt.Errorf("rerank api error %d", resp.StatusCode)
+		return err
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	err = json.NewDecoder(resp.Body).Decode(out)
+	return err
 }
 
 // DashScopeReranker calls the DashScope native text-rerank service

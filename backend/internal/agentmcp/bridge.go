@@ -37,6 +37,24 @@ type Bridge struct {
 	cfg    config.AgentMCPConfig
 	mu     sync.Mutex
 	claims map[string]*serverSession // server id → live session
+	// inflight dedupes concurrent connects per server (singleflight): the
+	// second caller waits for the first one's result instead of racing a
+	// second subprocess.
+	inflight map[string]*connectCall
+	// connectFn is the subprocess-spawning connect step, a field so
+	// concurrency tests can stub it without real processes.
+	connectFn func(ctx context.Context, srv config.AgentMCPServerConfig) (*serverSession, error)
+}
+
+type connectCall struct {
+	done chan struct{}
+	sess *serverSession
+	err  error
+}
+
+func (c *connectCall) wait() (*serverSession, error) {
+	<-c.done
+	return c.sess, c.err
 }
 
 type serverSession struct {
@@ -51,7 +69,9 @@ func New(cfg config.AgentMCPConfig) *Bridge {
 	if !cfg.Enabled {
 		return &Bridge{}
 	}
-	return &Bridge{cfg: cfg, claims: map[string]*serverSession{}}
+	b := &Bridge{cfg: cfg, claims: map[string]*serverSession{}, inflight: map[string]*connectCall{}}
+	b.connectFn = b.connect
+	return b
 }
 
 // NamespacedTool mints the agent-facing tool name for one server tool.
@@ -154,14 +174,41 @@ func marshalTruncated(res *sdkmcp.CallToolResult, maxBytes int) (string, bool, e
 func utf8RuneStart(b byte) bool { return b&0xC0 != 0x80 }
 
 // session lazily connects (or reconnects) one server and refreshes its
-// tool list. Sessions are cached under the mutex; concurrent callers share
-// one connection.
+// tool list. Established sessions are returned from the cache under a short
+// mutex window; the connect itself (handshake + ListTools, up to ~30s for a
+// slow server) runs OUTSIDE the mutex (SP-25 低-10) so one dead server can
+// no longer stall every other server's session establishment. Concurrent
+// callers for the same server share one connect via inflight.
 func (b *Bridge) session(ctx context.Context, srv config.AgentMCPServerConfig) (*serverSession, error) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if sess, ok := b.claims[srv.ID]; ok {
+		b.mu.Unlock()
 		return sess, nil
 	}
+	if call, ok := b.inflight[srv.ID]; ok {
+		b.mu.Unlock()
+		return call.wait()
+	}
+	call := &connectCall{done: make(chan struct{})}
+	b.inflight[srv.ID] = call
+	b.mu.Unlock()
+
+	sess, err := b.connectFn(ctx, srv)
+
+	b.mu.Lock()
+	delete(b.inflight, srv.ID)
+	if err == nil {
+		b.claims[srv.ID] = sess
+	}
+	b.mu.Unlock()
+	call.sess, call.err = sess, err
+	close(call.done)
+	return sess, err
+}
+
+// connect spawns the server subprocess, runs the handshake and lists its
+// tools. It must be called without b.mu held.
+func (b *Bridge) connect(ctx context.Context, srv config.AgentMCPServerConfig) (*serverSession, error) {
 	cmd := exec.Command(srv.Command, srv.Args...)
 	cmd.Env = append(cmd.Environ(), envSlice(srv.Env)...)
 	// Subprocess diagnostics surface in the server log: the transport
@@ -204,7 +251,6 @@ func (b *Bridge) session(ctx context.Context, srv config.AgentMCPServerConfig) (
 			Parameters:  schemaToParameters(tool.InputSchema),
 		})
 	}
-	b.claims[srv.ID] = entry
 	return entry, nil
 }
 
@@ -227,8 +273,8 @@ func (b *Bridge) findServer(id string) (config.AgentMCPServerConfig, bool) {
 }
 
 // splitNamespaced reverses NamespacedTool: mcp_<server>_<tool>. Server ids
-// cannot contain '_' (sanitized at config use sites by convention), so the
-// second segment is the id.
+// are charset-validated at config load (sanitizeAgentMCPServerIDs: no '_'),
+// so the second segment is the id.
 func splitNamespaced(name string) (serverID, tool string, ok bool) {
 	if !strings.HasPrefix(name, ToolNamePrefix) {
 		return "", "", false

@@ -345,6 +345,17 @@ func withToolError(outcome *AgentToolOutcome, name string, err error, start time
 	status := AgentToolStatusSuccess
 	if err != nil {
 		status = AgentToolStatusError
+		// 低-3：stream loop 会把失败统一折叠成安全码，原始错误串不落任何
+		// 日志（#547 死子进程场景曾需复现才能定位）。此处保留排障证据：
+		// 预期哨兵（unknown/invalid args/404/配额）Debug 级即可，其余
+		// （含 MCP CallTool 底层失败）按 Warn 记录。
+		switch {
+		case errors.Is(err, ErrAgentToolUnknown), errors.Is(err, ErrAgentToolInvalidArgs),
+			errors.Is(err, ErrContentNotFound), errors.Is(err, ErrAgentImageQuotaExceeded):
+			slog.Debug("agent tool call failed", "tool", name, "error", err)
+		default:
+			slog.Warn("agent tool call failed unexpectedly", "tool", name, "error", err)
+		}
 	}
 	outcome.Execution = AgentToolExecution{Name: name, Status: status, DurationMs: time.Since(start).Milliseconds()}
 	observability.IncDefaultAgentToolCall(name, err != nil)

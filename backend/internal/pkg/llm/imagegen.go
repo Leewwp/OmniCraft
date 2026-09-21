@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -50,6 +52,9 @@ type CogViewClient struct {
 	APIKey  string
 	Model   string
 	Client  *http.Client
+	// AllowPrivateHosts relaxes the download host guard so tests can point
+	// at httptest servers on 127.0.0.1; production leaves it false.
+	AllowPrivateHosts bool
 }
 
 // NewCogViewClient builds the client; apiBase must not carry a trailing
@@ -108,8 +113,15 @@ func (c *CogViewClient) GenerateImage(ctx context.Context, prompt, size string, 
 	return c.download(ctx, first.URL, maxImageBytes)
 }
 
-func (c *CogViewClient) download(ctx context.Context, url string, maxImageBytes int) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (c *CogViewClient) download(ctx context.Context, rawURL string, maxImageBytes int) ([]byte, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("image download url parse: %w", err)
+	}
+	if err := c.guardDownloadHost(u); err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("image download build: %w", err)
 	}
@@ -133,6 +145,46 @@ func (c *CogViewClient) download(ctx context.Context, url string, maxImageBytes 
 		return nil, fmt.Errorf("image download returned empty body")
 	}
 	return raw, nil
+}
+
+// guardDownloadHost enforces that a provider-supplied image URL points at a
+// public host (SP-25 低-11 SSRF depth): a hijacked provider must not turn
+// the backend into an intranet/metadata fetcher whose bytes get re-hosted
+// on OSS. The provider's own api_base host is always trusted (it IS the
+// configured trust anchor); private/loopback/link-local literals are
+// rejected everywhere else.
+func (c *CogViewClient) guardDownloadHost(u *url.URL) error {
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("image url scheme must be http(s), got %q", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("image url host is empty")
+	}
+	if c.AllowPrivateHosts {
+		return nil
+	}
+	if base, err := url.Parse(c.APIBase); err == nil && strings.EqualFold(base.Hostname(), host) {
+		return nil
+	}
+	if isPrivateOrLocalHost(host) {
+		return fmt.Errorf("image url host %q is a private/loopback/link-local address", host)
+	}
+	return nil
+}
+
+func isPrivateOrLocalHost(host string) bool {
+	h := strings.ToLower(strings.Trim(host, "[]"))
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") ||
+		strings.HasSuffix(h, ".local") || strings.HasSuffix(h, ".internal") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsUnspecified()
 }
 
 func decodeBase64Image(b64 string, maxImageBytes int) ([]byte, error) {

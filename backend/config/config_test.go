@@ -490,6 +490,51 @@ func TestValidateReleaseRejectsDefaultJWTSecret(t *testing.T) {
 	require.ErrorContains(t, err, "jwt.secret")
 }
 
+// SP-25 中-4 补测：release 模式启动 fail-fast 要求专用 LLM_KEY_ENCRYPTION_SECRET
+// 环境变量（既有严校验，JWT_SECRET 回退不满足 release）；此前该规则无测试覆盖。
+func TestValidateReleaseRequiresLLMKeyEncryptionSecret(t *testing.T) {
+	t.Run("dedicated env var missing fails", func(t *testing.T) {
+		t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "")
+		cfg := validReleaseConfigForTest()
+		err := cfg.ValidateRelease()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "LLM_KEY_ENCRYPTION_SECRET")
+	})
+	t.Run("jwt secret env alone does not satisfy release", func(t *testing.T) {
+		t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "")
+		t.Setenv("JWT_SECRET", "0123456789abcdef0123456789abcdef")
+		cfg := validReleaseConfigForTest()
+		err := cfg.ValidateRelease()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "LLM_KEY_ENCRYPTION_SECRET")
+	})
+	t.Run("dedicated env var set passes", func(t *testing.T) {
+		t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+		cfg := validReleaseConfigForTest()
+		require.NoError(t, cfg.ValidateRelease())
+	})
+}
+
+// SP-25 低-9：MCP server id 字符集在加载期强制（[a-zA-Z0-9-]，拒绝下划线
+// ——下划线是 mcp_<server>_<tool> 命名空间的分隔符）。
+func TestSanitizeAgentMCPServerIDs(t *testing.T) {
+	require.True(t, validMCPServerID("doc"))
+	require.True(t, validMCPServerID("doc-server2"))
+	require.False(t, validMCPServerID(""), "empty id is invalid")
+	require.False(t, validMCPServerID("doc_server"), "underscore creates namespace ambiguity")
+	require.False(t, validMCPServerID("doc.server"), "dot is outside the charset")
+	require.False(t, validMCPServerID("文档"), "non-ASCII is outside the charset")
+
+	cfg := &Config{}
+	cfg.Agent.MCP.Servers = []AgentMCPServerConfig{
+		{ID: "doc"}, {ID: "bad_id"}, {ID: "valid-hyphen"}, {ID: "bad.dot"},
+	}
+	sanitizeAgentMCPServerIDs(cfg)
+	require.Len(t, cfg.Agent.MCP.Servers, 2, "offending servers must be dropped, valid ones kept")
+	require.Equal(t, "doc", cfg.Agent.MCP.Servers[0].ID)
+	require.Equal(t, "valid-hyphen", cfg.Agent.MCP.Servers[1].ID)
+}
+
 func validReleaseConfigForTest() *Config {
 	return &Config{
 		Server:   ServerConfig{Mode: "release", Port: "8080", ShutdownTimeout: 15, ReadTimeout: 30, WriteTimeout: 60, IdleTimeout: 120},
