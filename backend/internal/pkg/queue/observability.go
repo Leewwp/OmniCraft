@@ -70,7 +70,9 @@ func GetQueueStats(ctx context.Context, rdb *redis.Client, topics []string) ([]Q
 		groups, err := rdb.XInfoGroups(ctx, key).Result()
 		if err == nil && len(groups) > 0 {
 			s.PendingCount = groups[0].Pending
-			s.Consumed = int64(groups[0].Consumers)
+			// 低-32：consumed_total 语义修正——消费者个数不是消费量，
+			// 改用组的 entries-read 推导（组从未读时为 0）。
+			s.Consumed = groups[0].EntriesRead
 		}
 		stats = append(stats, s)
 	}
