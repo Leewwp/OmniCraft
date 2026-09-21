@@ -1,15 +1,17 @@
 import type { MetadataRoute } from "next";
+import { absoluteUrl } from "@/lib/site-url";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
   return {
     rules: [
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin/", "/api/", "/studio/", "/judge/", "/publish/", "/settings/", "/history/", "/messages/", "/appeals/", "/rehab/"],
+        // SP-25 低-41：补齐遗漏的受保护路径（/dashboard 重定向 stub、/agent
+        // 工作台、/feedback/mine 个人反馈）。
+        disallow: ["/admin/", "/api/", "/studio/", "/judge/", "/publish/", "/settings/", "/history/", "/messages/", "/appeals/", "/rehab/", "/dashboard/", "/agent/", "/feedback/mine"],
       },
     ],
-    sitemap: `${baseUrl}/sitemap.xml`,
+    sitemap: absoluteUrl("/sitemap.xml"),
   };
 }
