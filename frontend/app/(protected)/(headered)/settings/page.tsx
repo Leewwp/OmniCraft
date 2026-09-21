@@ -94,8 +94,14 @@ export default function SettingsPage() {
         mime_type: file.type,
         file_size: file.size,
       }) as { upload_url: string; oss_key: string };
-      await fetch(presignRes.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
-      const cfgRes = await fetch("/api/v1/config/public").then(r => r.json()).catch(() => null);
+      // SP-25 低-42：OSS PUT 只在网络层错误才 reject，403/4xx 须显式检查——
+      // 失败时不得 PATCH 出指向不存在对象的裂图 URL。
+      const putRes = await fetch(presignRes.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!putRes.ok) {
+        throw new Error(`avatar upload failed: ${putRes.status}`);
+      }
+      // SP-25 低-45：非 2xx 的 JSON 错误体不得被当配置解析。
+      const cfgRes = await fetch("/api/v1/config/public").then(r => (r.ok ? r.json() : null)).catch(() => null);
       const cdnBase = cfgRes?.oss_domain || "";
       const avatarUrl = cdnBase ? `${cdnBase}/${presignRes.oss_key}` : presignRes.oss_key;
       await api.patch(`/api/v1/users/${user.id}`, { avatar_url: avatarUrl });

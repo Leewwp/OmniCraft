@@ -62,8 +62,7 @@ func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
 	}
 	sort := c.DefaultQuery("sort", "latest_reply")
 	query := c.Query("q")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	decay := h.hotDecayHours()
 	discussions, total, err := h.discRepo.ListByIP(ipID, sort, query, decay, page, pageSize)
@@ -104,8 +103,7 @@ func (h *DiscussionHandler) CreateDiscussion(c *gin.Context) {
 
 func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
@@ -216,8 +214,7 @@ func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 		return
 	}
 	keyword := c.Query("q")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	discussions, err := h.discRepo.SearchByKeyword(ipID, keyword, page, pageSize)
 	if err != nil {
@@ -234,8 +231,7 @@ func (h *DiscussionHandler) ListByUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	discussions, total, err := h.discRepo.ListByUser(userID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {

@@ -60,8 +60,8 @@ func TestSearchPageClamp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := clampPage(tt.raw, 100); got != tt.want {
-				t.Fatalf("clampPage(%q, 100) = %d, want %d", tt.raw, got, tt.want)
+			if got := clampSearchPage(tt.raw, 100); got != tt.want {
+				t.Fatalf("clampSearchPage(%q, 100) = %d, want %d", tt.raw, got, tt.want)
 			}
 		})
 	}
