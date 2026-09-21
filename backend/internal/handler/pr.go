@@ -134,6 +134,20 @@ func (h *PRHandler) ListPRs(c *gin.Context) {
 	})
 }
 
+// ListMyIncomingPRs aggregates open (or any-status) pull requests across ALL
+// of the caller's contents in one query (SP-25 FR-12 低-44: the studio
+// PR-requests page used to fire one /contents/:id/prs request per content —
+// up to 50 concurrent calls). Row shape mirrors the per-content endpoint so
+// PRCard renders unchanged.
+func (h *PRHandler) ListMyIncomingPRs(c *gin.Context) {
+	rows, err := h.prSvc.ListIncomingPRsForAuthor(middleware.GetUserID(c), c.Query("status"))
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"prs": rows, "total": len(rows)})
+}
+
 func (h *PRHandler) AcceptPR(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)

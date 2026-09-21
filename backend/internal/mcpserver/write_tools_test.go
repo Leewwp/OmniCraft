@@ -186,7 +186,7 @@ func TestScopedToolLists(t *testing.T) {
 	ul, _, _, _ := newWriteToolStack(t, []string{"upload"})
 	ulNames := toolNames(t, ul)
 	if len(ulNames) != 8 {
-		t.Errorf("upload-scope session exposes %d tools, want 7: %v", len(ulNames), ulNames)
+		t.Errorf("upload-scope session exposes %d tools, want 8: %v", len(ulNames), ulNames)
 	}
 	if ulNames["omnicraft_request_download"] {
 		t.Errorf("upload-scope session must NOT expose the download tool")
@@ -195,7 +195,7 @@ func TestScopedToolLists(t *testing.T) {
 	both, _, _, _ := newWriteToolStack(t, []string{"download", "upload"})
 	bothNames := toolNames(t, both)
 	if len(bothNames) != 9 {
-		t.Errorf("full-scope session exposes %d tools, want 8: %v", len(bothNames), bothNames)
+		t.Errorf("full-scope session exposes %d tools, want 9: %v", len(bothNames), bothNames)
 	}
 }
 
