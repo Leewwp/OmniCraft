@@ -24,6 +24,7 @@ var (
 	ErrInvalidToken     = errors.New("invalid or expired token")
 	ErrResendCooldown   = errors.New("resend cooldown active")
 	ErrPasswordTooShort = errors.New("password too short")
+	ErrPasswordTooLong  = errors.New("password too long")
 	ErrUserNotFound     = errors.New("user not found")
 )
 
@@ -307,6 +308,9 @@ func (s *VerificationService) SendPasswordReset(ctx context.Context, email strin
 	return nil
 }
 
+// maxPasswordBytesLocal：bcrypt 的 72 字节口令上限（按字节计，非 rune）。
+const maxPasswordBytesLocal = 72
+
 func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPassword string) (int64, error) {
 	minLen := s.cfg.Verification.PasswordMinLength
 	if minLen <= 0 {
@@ -315,6 +319,9 @@ func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPa
 	if len(newPassword) < minLen {
 		return 0, ErrPasswordTooShort
 	}
+	if len(newPassword) > maxPasswordBytesLocal {
+		return 0, ErrPasswordTooLong
+	}
 
 	digest := sha256HexLocal(rawToken)
 	userID, err := s.consumeTokenAtomic(ctx, "reset:password", digest)
@@ -322,8 +329,13 @@ func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPa
 		return 0, err
 	}
 
+	hash, err := hashPasswordLocal(newPassword)
+	if err != nil {
+		return 0, err
+	}
+
 	if err := s.userRepo.UpdateFields(userID, map[string]interface{}{
-		"password_hash": hashPasswordLocal(newPassword),
+		"password_hash": hash,
 	}); err != nil {
 		return 0, fmt.Errorf("failed to update password: %w", err)
 	}
@@ -364,10 +376,10 @@ func constantTimeEqual(a, b string) bool {
 	return result == 0
 }
 
-func hashPasswordLocal(password string) string {
+func hashPasswordLocal(password string) (string, error) {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
-	return string(hashed)
+	return string(hashed), nil
 }

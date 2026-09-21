@@ -19,6 +19,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
+	"omnicraft/backend/internal/pkg/rediskeys"
 	"omnicraft/backend/internal/repository"
 )
 
@@ -360,7 +361,9 @@ func (s *AuthService) Logout(accessToken string) error {
 		return nil
 	}
 	ctx := context.Background()
-	key := fmt.Sprintf("blacklist:token:%s", accessToken)
+	// 黑名单键只存 token 摘要（rediskeys.TokenBlacklistKey），Redis 快照/备份
+	// 不得包含仍在有效期的原始 bearer token（与 refresh 键哈希化同款纪律）。
+	key := rediskeys.TokenBlacklistKey(accessToken)
 	if err := s.redis.Set(ctx, key, "1", ttl).Err(); err != nil {
 		return err
 	}
@@ -375,7 +378,7 @@ func (s *AuthService) IsTokenBlacklisted(accessToken string) bool {
 		return false
 	}
 	ctx := context.Background()
-	key := fmt.Sprintf("blacklist:token:%s", accessToken)
+	key := rediskeys.TokenBlacklistKey(accessToken)
 	val, err := s.redis.Get(ctx, key).Result()
 	if err != nil {
 		return false

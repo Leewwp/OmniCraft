@@ -5,9 +5,12 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -139,5 +142,64 @@ func silenceAuthServiceLogger() func() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return func() {
 		slog.SetDefault(previous)
+	}
+}
+
+// FR-01（低-18）：access token 黑名单键不得以明文形态保存原始 JWT。
+// 行为链：签发 → Logout → IsTokenBlacklisted 命中 + 全键空间无原始 token 明文。
+func TestLogoutBlacklistNeverStoresRawAccessToken(t *testing.T) {
+	if testing.Short() {
+		t.Skip("miniredis needed")
+	}
+
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	defer mr.Close()
+
+	db := setupAuthServiceUserDB(t)
+	userRepo := repository.NewUserRepository(db)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = rdb.Close() }()
+
+	cfg := &config.Config{
+		JWT: config.JWTConfig{Secret: "blacklist-test-secret", AccessTokenTTL: 120, RefreshTokenTTL: 7},
+	}
+	authService := NewAuthService(userRepo, rdb, cfg)
+
+	user := &model.User{
+		Email:        "blacklist@example.test",
+		Username:     "blacklist-user",
+		PasswordHash: "hash",
+		Reputation:   10,
+		Role:         "user",
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	pair, err := authService.IssueTokenPairForUser(user)
+	if err != nil {
+		t.Fatalf("issue token pair: %v", err)
+	}
+
+	if err := authService.Logout(pair.AccessToken); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+
+	if !authService.IsTokenBlacklisted(pair.AccessToken) {
+		t.Fatal("access token must be blacklisted after logout")
+	}
+
+	ctx := context.Background()
+	keys, err := rdb.Keys(ctx, "*").Result()
+	if err != nil {
+		t.Fatalf("scan keys: %v", err)
+	}
+	for _, key := range keys {
+		if strings.Contains(key, pair.AccessToken) {
+			t.Fatalf("redis key %q contains the raw access token; blacklist keys must store a digest", key)
+		}
 	}
 }
