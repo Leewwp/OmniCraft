@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"bytes"
 	"net/smtp"
 	"testing"
@@ -50,7 +51,7 @@ func TestSMTPSenderUsesImplicitTLSForPort465(t *testing.T) {
 		from:     "noreply@example.com",
 	}
 
-	if err := sender.sendMail("user@example.com", "Verify", "body"); err != nil {
+	if err := sender.sendMail(context.Background(), "user@example.com", "Verify", "body"); err != nil {
 		t.Fatalf("sendMail: %v", err)
 	}
 	if !calledTLS {
@@ -86,7 +87,7 @@ func TestSMTPSenderUsesPlainSMTPForNon465Ports(t *testing.T) {
 		password: "secret",
 	}
 
-	if err := sender.sendMail("user@example.com", "Subject", "body"); err != nil {
+	if err := sender.sendMail(context.Background(), "user@example.com", "Subject", "body"); err != nil {
 		t.Fatalf("sendMail: %v", err)
 	}
 	if !calledPlain {

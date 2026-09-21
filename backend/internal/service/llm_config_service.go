@@ -68,8 +68,8 @@ func toResponse(c *model.LLMConfig) LLMConfigResponse {
 	}
 }
 
-func (s *LLMConfigService) ListConfigs() ([]LLMConfigResponse, error) {
-	configs, err := s.repo.List()
+func (s *LLMConfigService) ListConfigs(ctx context.Context) ([]LLMConfigResponse, error) {
+	configs, err := s.repo.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -80,17 +80,17 @@ func (s *LLMConfigService) ListConfigs() ([]LLMConfigResponse, error) {
 	return result, nil
 }
 
-func (s *LLMConfigService) CreateConfig(name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
-	return s.createConfig(name, providerType, apiBase, modelName, apiKey)
+func (s *LLMConfigService) CreateConfig(ctx context.Context, name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
+	return s.createConfig(ctx, name, providerType, apiBase, modelName, apiKey)
 }
 
-func (s *LLMConfigService) CreateConfigTx(tx *gorm.DB, name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
+func (s *LLMConfigService) CreateConfigTx(ctx context.Context, tx *gorm.DB, name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
 	txSvc := *s
 	txSvc.repo = s.repo.WithTx(tx)
-	return txSvc.createConfig(name, providerType, apiBase, modelName, apiKey)
+	return txSvc.createConfig(ctx, name, providerType, apiBase, modelName, apiKey)
 }
 
-func (s *LLMConfigService) createConfig(name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
+func (s *LLMConfigService) createConfig(ctx context.Context, name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
 	apiKeyEnc, err := encryptLLMAPIKey(apiKey)
 	if err != nil {
 		return nil, err
@@ -103,25 +103,25 @@ func (s *LLMConfigService) createConfig(name, providerType, apiBase, modelName, 
 		APIKeyEnc:    apiKeyEnc,
 		ExtraParams:  model.JSONMap{},
 	}
-	if err := s.repo.Create(c); err != nil {
+	if err := s.repo.Create(ctx, c); err != nil {
 		return nil, err
 	}
 	r := toResponse(c)
 	return &r, nil
 }
 
-func (s *LLMConfigService) UpdateConfig(id int64, updates map[string]interface{}) error {
-	return s.updateConfig(id, updates)
+func (s *LLMConfigService) UpdateConfig(ctx context.Context, id int64, updates map[string]interface{}) error {
+	return s.updateConfig(ctx, id, updates)
 }
 
-func (s *LLMConfigService) UpdateConfigTx(tx *gorm.DB, id int64, updates map[string]interface{}) error {
+func (s *LLMConfigService) UpdateConfigTx(ctx context.Context, tx *gorm.DB, id int64, updates map[string]interface{}) error {
 	txSvc := *s
 	txSvc.repo = s.repo.WithTx(tx)
-	return txSvc.updateConfig(id, updates)
+	return txSvc.updateConfig(ctx, id, updates)
 }
 
-func (s *LLMConfigService) updateConfig(id int64, updates map[string]interface{}) error {
-	if _, err := s.repo.GetByID(id); err != nil {
+func (s *LLMConfigService) updateConfig(ctx context.Context, id int64, updates map[string]interface{}) error {
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
 		return ErrConfigNotFound
 	}
 	delete(updates, "api_key_enc")
@@ -136,48 +136,48 @@ func (s *LLMConfigService) updateConfig(id int64, updates map[string]interface{}
 			updates["api_key_enc"] = apiKeyEnc
 		}
 	}
-	return s.repo.Update(id, updates)
+	return s.repo.Update(ctx, id, updates)
 }
 
-func (s *LLMConfigService) DeleteConfig(id int64) error {
-	return s.deleteConfig(id)
+func (s *LLMConfigService) DeleteConfig(ctx context.Context, id int64) error {
+	return s.deleteConfig(ctx, id)
 }
 
-func (s *LLMConfigService) DeleteConfigTx(tx *gorm.DB, id int64) error {
+func (s *LLMConfigService) DeleteConfigTx(ctx context.Context, tx *gorm.DB, id int64) error {
 	txSvc := *s
 	txSvc.repo = s.repo.WithTx(tx)
-	return txSvc.deleteConfig(id)
+	return txSvc.deleteConfig(ctx, id)
 }
 
-func (s *LLMConfigService) deleteConfig(id int64) error {
-	if _, err := s.repo.GetByID(id); err != nil {
+func (s *LLMConfigService) deleteConfig(ctx context.Context, id int64) error {
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
 		return ErrConfigNotFound
 	}
-	return s.repo.Delete(id)
+	return s.repo.Delete(ctx, id)
 }
 
-func (s *LLMConfigService) ActivateConfig(id int64) error {
-	return s.activateConfig(id)
+func (s *LLMConfigService) ActivateConfig(ctx context.Context, id int64) error {
+	return s.activateConfig(ctx, id)
 }
 
-func (s *LLMConfigService) ActivateConfigTx(tx *gorm.DB, id int64) error {
+func (s *LLMConfigService) ActivateConfigTx(ctx context.Context, tx *gorm.DB, id int64) error {
 	txSvc := *s
 	txSvc.repo = s.repo.WithTx(tx)
-	if _, err := txSvc.repo.GetByID(id); err != nil {
+	if _, err := txSvc.repo.GetByID(ctx, id); err != nil {
 		return ErrConfigNotFound
 	}
-	return txSvc.repo.ActivateTx(id)
+	return txSvc.repo.ActivateTx(ctx, id)
 }
 
-func (s *LLMConfigService) activateConfig(id int64) error {
-	if _, err := s.repo.GetByID(id); err != nil {
+func (s *LLMConfigService) activateConfig(ctx context.Context, id int64) error {
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
 		return ErrConfigNotFound
 	}
-	return s.repo.Activate(id)
+	return s.repo.Activate(ctx, id)
 }
 
-func (s *LLMConfigService) TestConnection(id int64) (string, error) {
-	c, err := s.repo.GetByID(id)
+func (s *LLMConfigService) TestConnection(ctx context.Context, id int64) (string, error) {
+	c, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return "", ErrConfigNotFound
 	}
@@ -193,7 +193,7 @@ func (s *LLMConfigService) TestConnection(id int64) (string, error) {
 		Temperature: 0,
 	}
 
-	resp, err := provider.Chat(context.Background(), req)
+	resp, err := provider.Chat(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("connection test failed: %w", err)
 	}
@@ -201,8 +201,8 @@ func (s *LLMConfigService) TestConnection(id int64) (string, error) {
 	return strings.TrimSpace(resp.Content), nil
 }
 
-func (s *LLMConfigService) GetActiveConfig() (*model.LLMConfig, error) {
-	return s.repo.GetActive()
+func (s *LLMConfigService) GetActiveConfig(ctx context.Context) (*model.LLMConfig, error) {
+	return s.repo.GetActive(ctx)
 }
 
 func encryptLLMAPIKey(apiKey string) (string, error) {

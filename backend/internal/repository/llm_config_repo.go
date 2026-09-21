@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 
 	"gorm.io/gorm"
@@ -22,62 +23,62 @@ func (r *LLMConfigRepository) WithTx(tx *gorm.DB) *LLMConfigRepository {
 	return &LLMConfigRepository{db: tx}
 }
 
-func (r *LLMConfigRepository) List() ([]model.LLMConfig, error) {
+func (r *LLMConfigRepository) List(ctx context.Context) ([]model.LLMConfig, error) {
 	var configs []model.LLMConfig
-	err := r.db.Order("id ASC").Find(&configs).Error
+	err := r.db.WithContext(ctx).Order("id ASC").Find(&configs).Error
 	return configs, err
 }
 
-func (r *LLMConfigRepository) GetByID(id int64) (*model.LLMConfig, error) {
+func (r *LLMConfigRepository) GetByID(ctx context.Context, id int64) (*model.LLMConfig, error) {
 	var c model.LLMConfig
-	err := r.db.First(&c, id).Error
+	err := r.db.WithContext(ctx).First(&c, id).Error
 	if err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func (r *LLMConfigRepository) GetActive() (*model.LLMConfig, error) {
+func (r *LLMConfigRepository) GetActive(ctx context.Context) (*model.LLMConfig, error) {
 	var c model.LLMConfig
-	err := r.db.Where("is_active = ?", true).First(&c).Error
+	err := r.db.WithContext(ctx).Where("is_active = ?", true).First(&c).Error
 	if err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func (r *LLMConfigRepository) Create(c *model.LLMConfig) error {
-	return r.db.Create(c).Error
+func (r *LLMConfigRepository) Create(ctx context.Context, c *model.LLMConfig) error {
+	return r.db.WithContext(ctx).Create(c).Error
 }
 
-func (r *LLMConfigRepository) Update(id int64, updates map[string]interface{}) error {
-	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Updates(updates).Error
+func (r *LLMConfigRepository) Update(ctx context.Context, id int64, updates map[string]interface{}) error {
+	return r.db.WithContext(ctx).Model(&model.LLMConfig{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func (r *LLMConfigRepository) Delete(id int64) error {
-	c, err := r.GetByID(id)
+func (r *LLMConfigRepository) Delete(ctx context.Context, id int64) error {
+	c, err := r.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if c.IsActive {
 		return ErrActiveConfigCannotDelete
 	}
-	return r.db.Delete(&model.LLMConfig{}, id).Error
+	return r.db.WithContext(ctx).Delete(&model.LLMConfig{}, id).Error
 }
 
-func (r *LLMConfigRepository) DeleteTx(id int64) error {
-	c, err := r.GetByID(id)
+func (r *LLMConfigRepository) DeleteTx(ctx context.Context, id int64) error {
+	c, err := r.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if c.IsActive {
 		return ErrActiveConfigCannotDelete
 	}
-	return r.db.Delete(&model.LLMConfig{}, id).Error
+	return r.db.WithContext(ctx).Delete(&model.LLMConfig{}, id).Error
 }
 
-func (r *LLMConfigRepository) Activate(id int64) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+func (r *LLMConfigRepository) Activate(ctx context.Context, id int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.LLMConfig{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
 			return err
 		}
@@ -85,9 +86,9 @@ func (r *LLMConfigRepository) Activate(id int64) error {
 	})
 }
 
-func (r *LLMConfigRepository) ActivateTx(id int64) error {
-	if err := r.db.Model(&model.LLMConfig{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
+func (r *LLMConfigRepository) ActivateTx(ctx context.Context, id int64) error {
+	if err := r.db.WithContext(ctx).Model(&model.LLMConfig{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
 		return err
 	}
-	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Update("is_active", true).Error
+	return r.db.WithContext(ctx).Model(&model.LLMConfig{}).Where("id = ?", id).Update("is_active", true).Error
 }

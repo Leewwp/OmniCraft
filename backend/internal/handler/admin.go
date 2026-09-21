@@ -916,7 +916,7 @@ func filterSensitivePatches(patches map[string]interface{}) {
 }
 
 func (h *AdminHandler) ListLLMConfigs(c *gin.Context) {
-	configs, err := h.llmConfigSvc.ListConfigs()
+	configs, err := h.llmConfigSvc.ListConfigs(c.Request.Context())
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -940,7 +940,7 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 	entry := h.auditEntry(c, "llm_config_create", "llm_config", "", map[string]any{"provider": req.ProviderType, "model": req.Model})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		var txErr error
-		r, txErr = h.llmConfigSvc.CreateConfigTx(tx, req.ConfigName, req.ProviderType, req.APIBase, req.Model, req.APIKey)
+		r, txErr = h.llmConfigSvc.CreateConfigTx(c.Request.Context(), tx, req.ConfigName, req.ProviderType, req.APIBase, req.Model, req.APIKey)
 		if txErr != nil {
 			return txErr
 		}
@@ -972,7 +972,7 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 	delete(req, "api_key_enc")
 	entry := h.auditEntry(c, "llm_config_update", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return h.llmConfigSvc.UpdateConfigTx(tx, id, req)
+		return h.llmConfigSvc.UpdateConfigTx(c.Request.Context(), tx, id, req)
 	}); err != nil {
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update config") {
 			return
@@ -995,7 +995,7 @@ func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 	}
 	entry := h.auditEntry(c, "llm_config_delete", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return h.llmConfigSvc.DeleteConfigTx(tx, id)
+		return h.llmConfigSvc.DeleteConfigTx(c.Request.Context(), tx, id)
 	}); err != nil {
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to delete config") {
 			return
@@ -1018,7 +1018,7 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 	}
 	entry := h.auditEntry(c, "llm_config_activate", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return h.llmConfigSvc.ActivateConfigTx(tx, id)
+		return h.llmConfigSvc.ActivateConfigTx(c.Request.Context(), tx, id)
 	}); err != nil {
 		// T28（FIX-35）：404（配置不存在）与 500（DB 故障）区分——此前任何
 		// 错误统一 404，排障时误导方向。
@@ -1041,7 +1041,7 @@ func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
 		return
 	}
-	resp, err := h.llmConfigSvc.TestConnection(id)
+	resp, err := h.llmConfigSvc.TestConnection(c.Request.Context(), id)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "TEST_FAILED", err)
 		return

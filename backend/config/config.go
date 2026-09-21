@@ -1425,8 +1425,15 @@ func (c *Config) ValidateRelease() error {
 		errs = append(errs, "green.uid must be the numeric Aliyun main account UID (digits only) in release mode")
 	}
 
-	if c.Captcha.Provider == "bypass" || strings.TrimSpace(c.Captcha.Provider) == "" {
+	switch c.Captcha.Provider {
+	case "aliyun_v2":
+		// the only production-capable provider
+	case "bypass", "":
 		errs = append(errs, "captcha.provider must not be 'bypass' in release mode; use 'aliyun_v2'")
+	default:
+		// SP-25 低-29：拼错的 provider 此前过 release 校验、运行时静默回退
+		// bypass（fail-open）——release 模式直接硬失败。
+		errs = append(errs, "captcha.provider must be 'aliyun_v2' in release mode (unknown provider: "+c.Captcha.Provider+")")
 	}
 	requireReleaseValue(&errs, "captcha.prefix", c.Captcha.Prefix)
 	requireReleaseValue(&errs, "captcha.scene_id", c.Captcha.SceneID)

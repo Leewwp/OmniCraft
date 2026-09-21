@@ -69,3 +69,8 @@ func (r *AgentAccessTokenRepository) TouchLastUsed(ctx context.Context, tokenID 
 		Where("id = ?", tokenID).
 		Update("last_used_at", at).Error
 }
+
+// DeleteByID removes a freshly issued token row (SP-25 低-2 race rollback).
+func (r *AgentAccessTokenRepository) DeleteByID(ctx context.Context, id int64) error {
+	return r.db.WithContext(ctx).Delete(&model.AgentAccessToken{}, id).Error
+}

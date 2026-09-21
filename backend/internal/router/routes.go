@@ -294,6 +294,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.GET("/pending-tasks", userHandler.GetMyPendingTasks)
 		// T50: server-side contributor aggregation for the studio page.
 		me.GET("/contributors", userHandler.GetMyContributors)
+		// SP-25 低-44: server-side aggregation of the author's incoming PRs
+		// (studio PR-requests page formerly fanned out per content).
+		me.GET("/pr-requests", prHandler.ListMyIncomingPRs)
 		// T52: the creator's own IPs across every status + latest reject reason.
 		me.GET("/ips", ipHandler.GetMyIPs)
 	}

@@ -77,6 +77,13 @@ export default function RehabPage() {
     loadData();
   }, [user, loadData]);
 
+  // SP-25 低-43：计时器卸载清理——中途离开页面不再泄漏 setInterval。
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
   async function handleStart(courseId: number, minSec: number) {
     setActiveId(courseId);
     setStartTime(Date.now());

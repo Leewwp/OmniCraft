@@ -364,3 +364,39 @@ func (s *PRService) ListContributors(contentID int64, callerID int64) (interface
 	}
 	return s.prRepo.ListContributors(contentID)
 }
+
+// IncomingPRRow is one aggregated incoming pull-request row for a content
+// author: the PR fields PRCard renders plus the content title (SP-25 低-44).
+type IncomingPRRow struct {
+	ID                int64     `json:"id"`
+	ContentItemID     int64     `json:"content_item_id"`
+	SubmitterID       int64     `json:"submitter_id"`
+	BaseVersionID     int64     `json:"base_version_id"`
+	ProposedVersionID *int64    `json:"proposed_version_id"`
+	Status            string    `json:"status"`
+	Message           string    `json:"message"`
+	CreatedAt         time.Time `json:"created_at"`
+	ContentTitle      string    `json:"content_title"`
+}
+
+// ListIncomingPRsForAuthor aggregates pull requests across every content the
+// author owns (not deleted), newest first, capped at 200 — one query instead
+// of the studio page's former per-content fan-out.
+func (s *PRService) ListIncomingPRsForAuthor(authorID int64, status string) ([]IncomingPRRow, error) {
+	var rows []IncomingPRRow
+	query := s.contentRepo.DB().Table("pull_requests pr").
+		Select(`pr.id, pr.content_item_id, pr.submitter_id, pr.base_version_id,
+		       pr.proposed_version_id, pr.status, pr.message, pr.created_at,
+		       c.title AS content_title`).
+		Joins("JOIN content_items c ON c.id = pr.content_item_id AND c.deleted_at IS NULL").
+		Where("c.author_id = ?", authorID).
+		Order("pr.id DESC").
+		Limit(200)
+	if status != "" {
+		query = query.Where("pr.status = ?", status)
+	}
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}

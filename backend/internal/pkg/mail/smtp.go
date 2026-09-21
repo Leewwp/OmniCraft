@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"time"
 
@@ -37,20 +38,24 @@ func NewSMTPSender(cfg config.SMTPConfig) *SMTPSender {
 func (s *SMTPSender) SendVerification(ctx context.Context, to, link string) error {
 	subject := "Verify your email"
 	body := fmt.Sprintf("Click the following link to verify your email: %s", link)
-	return s.sendMail(to, subject, body)
+	return s.sendMail(ctx, to, subject, body)
 }
 
 func (s *SMTPSender) SendPasswordReset(ctx context.Context, to, link string) error {
 	subject := "Reset your password"
 	body := fmt.Sprintf("Click the following link to reset your password: %s", link)
-	return s.sendMail(to, subject, body)
+	return s.sendMail(ctx, to, subject, body)
 }
 
 func (s *SMTPSender) SendFeedbackUpdate(ctx context.Context, to, subject, body string) error {
-	return s.sendMail(to, subject, body)
+	return s.sendMail(ctx, to, subject, body)
 }
 
-func (s *SMTPSender) sendMail(to, subject, body string) (err error) {
+// smtpSendTimeout bounds one send attempt (SP-25 低-30)：此前 dial/session
+// 无超时无 ctx，慢/挂 SMTP 服务器会无限占用调用 goroutine。
+const smtpSendTimeout = 10 * time.Second
+
+func (s *SMTPSender) sendMail(ctx context.Context, to, subject, body string) (err error) {
 	started := time.Now()
 	defer func() { observability.ObserveExternalCall("smtp", started, err) }()
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
@@ -65,14 +70,30 @@ func (s *SMTPSender) sendMail(to, subject, body string) (err error) {
 	)
 
 	auth := smtp.PlainAuth("", s.user, s.password, s.host)
-	if s.port == 465 {
-		return sendSMTPImplicitTLS(addr, s.host, auth, from, []string{to}, []byte(msg))
+	send := func() error {
+		if s.port == 465 {
+			return sendSMTPImplicitTLS(addr, s.host, auth, from, []string{to}, []byte(msg))
+		}
+		return sendSMTPPlain(addr, auth, from, []string{to}, []byte(msg))
 	}
-	return sendSMTPPlain(addr, auth, from, []string{to}, []byte(msg))
+
+	ctx, cancel := context.WithTimeout(ctx, smtpSendTimeout)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- send() }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		// 后台 goroutine 若最终完成，其结果被丢弃（会话已超时报错）；
+		// 有界泄漏换掉原先的无限挂起。
+		return fmt.Errorf("smtp send exceeded %s: %w", smtpSendTimeout, ctx.Err())
+	}
 }
 
 func sendMailImplicitTLS(addr, serverName string, auth smtp.Auth, from string, to []string, msg []byte) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
+	dialer := &net.Dialer{Timeout: smtpSendTimeout}
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
 	if err != nil {
 		return err
 	}

@@ -71,6 +71,12 @@ type OAuthAccount struct {
 	UserID      int64     `gorm:"not null;index" json:"user_id"`
 	Provider    string    `gorm:"not null;size:20" json:"provider"`
 	ProviderUID string    `gorm:"not null;size:255" json:"provider_uid"`
+	// AccessToken is a P1-reserved column with NO read/write path anywhere
+	// (SP-25 低-35 design note): if OAuth ever activates, do NOT store raw
+	// tokens here — switch to an encrypted column on the LLM_KEY_ENCRYPTION_
+	// SECRET chain (llm_configs precedent) or a hash + refresh reference
+	// (agent PAT precedent). The historical migration 004 is checksum-pinned,
+	// so this contract lives here and in docs/reference/schema.md.
 	AccessToken string    `gorm:"type:text" json:"-"`
 	CreatedAt   time.Time `json:"created_at"`
 }
