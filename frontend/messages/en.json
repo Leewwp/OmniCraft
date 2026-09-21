@@ -2823,7 +2823,8 @@
   },
   "markdown": {
     "copyCode": "Copy code",
-    "citationJump": "Jump to citation {index}"
+    "citationJump": "Jump to citation {index}",
+    "imageBlocked": "Image blocked: non-platform source"
   },
   "agentAccess": {
     "hero": {

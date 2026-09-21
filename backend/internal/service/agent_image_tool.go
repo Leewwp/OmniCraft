@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -41,6 +42,9 @@ type AgentImageResult struct {
 type AgentImageStore interface {
 	PutAgentImage(ctx context.Context, key string, r io.Reader) error
 	SignedAgentImageURL(ctx context.Context, key string) (string, error)
+	// DeleteAgentImagePrefix removes every object under a key prefix
+	// (best-effort; SP-25 低-6 conversation cleanup).
+	DeleteAgentImagePrefix(ctx context.Context, prefix string) error
 }
 
 // ErrAgentImageQuotaExceeded is the budget-cap signal: the conversation
@@ -195,4 +199,27 @@ func agentImageProviderFromConfig(cfg config.AgentImageConfig) llm.AgentImageGen
 		return nil
 	}
 	return llm.NewCogViewClient(cfg.APIBase, cfg.APIKey, cfg.Model)
+}
+
+// CleanupConversationImages asynchronously deletes the conversation's OSS
+// generate-image objects (agent-images/<conversationID>/ prefix) after the
+// conversation rows are committed (SP-25 低-6, D3 code-side cleanup).
+// Best-effort: failures log a WARN and never surface to the request.
+func (s *AgentService) CleanupConversationImages(conversationID int64) {
+	if s.agentImageStore == nil || conversationID <= 0 {
+		return
+	}
+	prefix := agentImagePrefix(conversationID)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := s.agentImageStore.DeleteAgentImagePrefix(ctx, prefix); err != nil {
+			slog.Warn("agent conversation image cleanup failed (best-effort)", "conversation_id", conversationID, "error", err)
+		}
+	}()
+}
+
+// agentImagePrefix is the OSS key prefix holding one conversation's images.
+func agentImagePrefix(conversationID int64) string {
+	return fmt.Sprintf("agent-images/%d/", conversationID)
 }

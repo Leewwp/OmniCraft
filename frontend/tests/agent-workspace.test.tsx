@@ -171,6 +171,7 @@ const workspaceMessages = {
     },
     markdown: {
       copyCode: "Copy code",
+      imageBlocked: "Image blocked: non-platform source",
       citationJump: "Jump to citation {index}",
     },
     tools: {

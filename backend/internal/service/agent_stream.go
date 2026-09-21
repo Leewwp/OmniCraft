@@ -298,13 +298,24 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	}
 	req.ModelPref = turn.Model
 
+	// 低-1：图片移除占位文案按会话语言输出（chitchat containsCJK 同款约定）。
+	answerLang := "en"
+	if containsCJK(turn.Message) {
+		answerLang = "zh"
+	}
 	var answerBuf strings.Builder
 	var thinkingBuf strings.Builder
 	var executedTools []AgentToolExecution
 	// SP-23 M4: conversation-level budget baseline (persisted #538 rows)
 	// and this conversation's own signed-image URL prefixes (the piece-2
 	// allowlist is dynamic: only hosts we ourselves issued survive).
-	persistedToolCalls, persistedToolTurns := conversationToolUsage(s.loadConversationToolRows(ctx, convIDForTools(conv)))
+	// SP-25 中-2：预算基线加载失败时保守拦截（视为已达预算）+ Warn——
+	// 护栏在 DB 故障窗口静默放行等于成本护栏失效。
+	persistedToolCalls, persistedToolTurns, budgetLoadErr := s.conversationBudgetBaseline(ctx, convIDForTools(conv))
+	if budgetLoadErr != nil {
+		slog.Warn("session budget baseline load failed; failing closed for this turn", "conversation_id", convIDForTools(conv), "error", budgetLoadErr)
+		persistedToolCalls, persistedToolTurns = budgetExhaustedSentinel, budgetExhaustedSentinel
+	}
 	ownImagePrefixes := []string{}
 	citationCandidates := make([]AgentCitation, 0, policy.CitationMaxCount)
 	seenCitationKeys := make(map[string]bool, policy.CitationMaxCount)
@@ -570,7 +581,7 @@ loop:
 			})
 			executedTools = append(executedTools, execution)
 			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
-				s.persistPartialTurn(conv.ID, answerBuf.String())
+				s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, 0, answerLang)
 				return err
 			}
 			resultJSON, err := json.Marshal(result)
@@ -610,7 +621,7 @@ loop:
 		// explicit DELETE. The request context is commonly canceled on client
 		// disconnect, so persistence runs on a detached bounded context.
 		if conv != nil {
-			s.persistPartialTurn(conv.ID, answerBuf.String())
+			s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, 0, answerLang)
 		}
 		turnRecorder.RecordRunEnd(agenttrace.RunEnd{
 			Status:            runTerminalStatus(streamErr),
@@ -633,7 +644,7 @@ loop:
 	answer := answerBuf.String()
 	// SP-23 M4 piece 2: image URLs in the model answer survive only on the
 	// platform's own hosts (or a host this conversation's tools issued).
-	answer = SanitizeImageURLs(answer, s.cfg.Agent.Guardrails.ImageURLAllowHosts, ownImagePrefixes)
+	answer = SanitizeImageURLs(answer, s.cfg.Agent.Guardrails.ImageURLAllowHosts, ownImagePrefixes, answerLang)
 	classifySpan := turnRecorder.StartNode(agenttrace.NodeTypeClassify, "classify", nil, "")
 	kind := ClassifyStreamAnswerWithExternal(citations, executedTools, answer, degraded, s.conversationalMaxRunes(), s.cfg.Agent.MCP.ExternalAnswerMaxRunes, s.cfg.RAG.Refusal.MinSurvivingCitations)
 	classifySpan.End(agenttrace.NodeEndOptions{
@@ -678,7 +689,7 @@ loop:
 	answer = stripOrphanCitationMarkers(answer, len(citations))
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
-			s.persistPartialTurn(conv.ID, answerBuf.String())
+			s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, len(citations), answerLang)
 			return err
 		}
 	}
@@ -688,7 +699,7 @@ loop:
 		usage = &AgentUsage{PromptTokens: lastUsage.PromptTokens, CompletionTokens: lastUsage.CompletionTokens}
 	}
 	if err := handler(AgentStreamEvent{Type: AgentEventUsage, Usage: usage}); err != nil {
-		s.persistPartialTurn(conv.ID, answerBuf.String())
+		s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, len(citations), answerLang)
 		return err
 	}
 
@@ -1274,7 +1285,7 @@ func emitAgentStreamError(handler func(ev AgentStreamEvent) error, code string, 
 // 常超过 citation_max_count，残留的角标在前端渲染为不可点死引用；终稿与落库
 // 前统一剥离。Markdown 链接形如 [1](url) 的数字文本不受影响。
 func stripOrphanCitationMarkers(answer string, kept int) string {
-	if kept <= 0 {
+	if kept < 0 {
 		return answer
 	}
 	var b strings.Builder

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"regexp"
 	"strings"
 
@@ -34,19 +33,40 @@ func FenceExternalResult(payload string, fenced bool) string {
 // Two passes: markdown images first (their URL sits inside parens), then
 // bare image URLs — RE2 has no lookbehind, so the paren-wrapped form must
 // be consumed before the bare pattern can rematch it.
+//
+// 低-5 一致性说明：bare 模式只匹配常见图片扩展名，markdown 模式匹配任意
+// URL——差异是有意的：裸文本 URL 不会被 markdown 渲染层自动变成 <img>（无
+// autolink 插件），只有显式 ![]() 语法才产生图片加载；无扩展名图源
+// （如 https://host/img?fmt=png）走 markdown 模式覆盖，裸文本形态由前端
+// MarkdownRenderer 的 img 域名白名单兜底（SP-25 中-1 渲染层护栏）。
 var (
 	markdownImagePattern = regexp.MustCompile(`!\[[^\]]*\]\(https?://[^)\s]+\)`)
 	bareImageURLPattern  = regexp.MustCompile(`https?://[^\s<>"'()]+\.(?:png|jpe?g|webp|gif)(?:\?[^\s<>"']*)?`)
 )
 
+// removedImagePlaceholder 按 会话语言 输出占位文案（低-1，chitchat zh/en
+// 模板同款约定）；缺省回退 zh。
+var removedImagePlaceholder = map[string]string{
+	"zh": "[图片链接已移除：非平台图源]",
+	"en": "[image link removed: non-platform image source]",
+}
+
+func placeholderForLang(lang string) string {
+	if text, ok := removedImagePlaceholder[lang]; ok {
+		return text
+	}
+	return removedImagePlaceholder["zh"]
+}
+
 // SanitizeImageURLs rewrites image-looking URLs in the model answer: URLs
 // on an allowed host (or one of this conversation's own signed URL
-// prefixes) survive; everything else becomes a placeholder (M4 piece 2 —
-// the model must never launder external image hosts).
-func SanitizeImageURLs(answer string, allowHosts []string, ownURLPrefixes []string) string {
+// prefixes) survive; everything else becomes a language-aware placeholder
+// (M4 piece 2 — the model must never launder external image hosts).
+func SanitizeImageURLs(answer string, allowHosts []string, ownURLPrefixes []string, lang string) string {
 	if answer == "" {
 		return answer
 	}
+	placeholder := placeholderForLang(lang)
 	allow := map[string]bool{}
 	for _, h := range allowHosts {
 		allow[strings.ToLower(strings.TrimSpace(h))] = true
@@ -61,10 +81,23 @@ func SanitizeImageURLs(answer string, allowHosts []string, ownURLPrefixes []stri
 		if urlAllowed(url, allow, ownURLPrefixes) {
 			return match
 		}
-		return "[图片链接已移除：非平台图源]"
+		return placeholder
 	}
 	out := markdownImagePattern.ReplaceAllStringFunc(answer, rewrite)
 	return bareImageURLPattern.ReplaceAllStringFunc(out, rewrite)
+}
+
+// sanitizeAnswerImages applies the configured image whitelist to an answer
+// for the given conversation language ("zh"/"en").
+func (s *AgentService) sanitizeAnswerImages(answer, lang string) string {
+	return SanitizeImageURLs(answer, s.agentImageAllowHosts(), nil, lang)
+}
+
+func (s *AgentService) agentImageAllowHosts() []string {
+	if s.cfg == nil {
+		return nil
+	}
+	return s.cfg.Agent.Guardrails.ImageURLAllowHosts
 }
 
 func urlAllowed(url string, allowHosts map[string]bool, ownPrefixes []string) bool {
@@ -100,20 +133,10 @@ func conversationToolUsage(rows []model.AgentMessage) (calls int, turns int) {
 	return calls, turns
 }
 
-// loadConversationToolRows fetches the persisted assistant rows once per
-// turn for budget evaluation; the db seam is nil in unit tests (zero usage).
-func (s *AgentService) loadConversationToolRows(ctx context.Context, conversationID int64) []model.AgentMessage {
-	if s.db == nil || conversationID <= 0 {
-		return nil
-	}
-	var rows []model.AgentMessage
-	if err := s.db.WithContext(ctx).
-		Where("conversation_id = ? AND role = ?", conversationID, "assistant").
-		Find(&rows).Error; err != nil {
-		return nil
-	}
-	return rows
-}
+// budgetExhaustedSentinel marks "baseline unknown, block everything" —
+// used when the persisted-usage load fails so the session budgets stay
+// conservative during DB faults (SP-25 中-2) instead of silently passing.
+const budgetExhaustedSentinel = 1 << 30
 
 var sessionBudgetExceededText = map[string]string{
 	"tool_calls": "session tool call budget reached",

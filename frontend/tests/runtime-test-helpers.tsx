@@ -53,6 +53,11 @@ const testingLibrary = require("@testing-library/react") as typeof import("@test
 export const { act, cleanup, fireEvent, render, waitFor, within } = testingLibrary;
 
 export const testMessages = {
+  markdown: {
+    copyCode: "Copy code",
+    citationJump: "Jump to citation {index}",
+    imageBlocked: "Image blocked: non-platform source",
+  },
   auth: {
     captchaLoading: "Captcha loading",
     captchaReady: "Captcha ready",

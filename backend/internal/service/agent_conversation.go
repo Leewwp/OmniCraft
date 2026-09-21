@@ -65,28 +65,56 @@ var thinkBlockPattern = regexp.MustCompile(`(?s)<(?:mm:)?think>.*?</(?:mm:)?thin
 // after a failed or cancelled turn and refreshes the conversation activity
 // timestamp. It runs on a detached bounded context because the request
 // context is usually canceled by the disconnect that caused the partial turn.
-func (s *AgentService) persistPartialTurn(conversationID int64, partial string) {
+//
+// FR-07（中-1 落库面）：落库原文与终稿走同一套展示侧护栏——先过图片白名单
+// 消毒（占位文案按会话语言）、再剥离孤儿引用角标；keptCitations 是该路径
+// 已核验的引用数（未核验路径传 0 = 全部视为孤儿）。ownPrefixes 为本回合
+// 工具签发的自有图 URL 前缀（终稿 sanitize 同源）。
+func (s *AgentService) persistPartialTurn(conversationID int64, partial string, ownPrefixes []string, keptCitations int, lang string) {
 	if s.db == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	if partial != "" {
-		content := partial
-		if err := s.db.WithContext(ctx).Create(&model.AgentMessage{
-			ConversationID: conversationID,
-			Role:           "assistant",
-			Content:        &content,
-			CreatedAt:      time.Now(),
-		}).Error; err != nil {
-			slog.Error("failed to persist partial agent answer", "conversation_id", conversationID, "error", err)
+		sanitized := SanitizeImageURLs(partial, s.agentImageAllowHosts(), ownPrefixes, lang)
+		sanitized = stripOrphanCitationMarkers(sanitized, keptCitations)
+		if sanitized != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			content := sanitized
+			if err := s.db.WithContext(ctx).Create(&model.AgentMessage{
+				ConversationID: conversationID,
+				Role:           "assistant",
+				Content:        &content,
+				CreatedAt:      time.Now(),
+			}).Error; err != nil {
+				slog.Error("failed to persist partial agent answer", "conversation_id", conversationID, "error", err)
+			}
+			cancel()
 		}
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if err := s.db.WithContext(ctx).Model(&model.AgentConversation{}).
 		Where("id = ?", conversationID).
 		Update("updated_at", time.Now()).Error; err != nil {
 		slog.Error("failed to update agent conversation timestamp after partial turn", "conversation_id", conversationID, "error", err)
 	}
+}
+
+// conversationBudgetBaseline loads the persisted tool usage rows for the
+// conversation-level budget check. FR-07（中-2）：DB 加载错误显性返回——
+// 调用方按保守拦截处理（视为已达预算），不得静默当作零用量放行。
+func (s *AgentService) conversationBudgetBaseline(ctx context.Context, conversationID int64) (calls, turns int, err error) {
+	if s.db == nil || conversationID <= 0 {
+		return 0, 0, nil
+	}
+	var rows []model.AgentMessage
+	if err := s.db.WithContext(ctx).
+		Where("conversation_id = ? AND role = ?", conversationID, "assistant").
+		Find(&rows).Error; err != nil {
+		return 0, 0, err
+	}
+	calls, turns = conversationToolUsage(rows)
+	return calls, turns, nil
 }
 
 // EnsureConversationOwned is the pre-quota ownership gate for chat

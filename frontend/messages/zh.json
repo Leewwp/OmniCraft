@@ -2823,7 +2823,8 @@
   },
   "markdown": {
     "copyCode": "复制代码",
-    "citationJump": "跳转到引用 {index}"
+    "citationJump": "跳转到引用 {index}",
+    "imageBlocked": "图片已屏蔽：非平台图源"
   },
   "agentAccess": {
     "hero": {
