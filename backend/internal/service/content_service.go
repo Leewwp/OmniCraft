@@ -1294,14 +1294,14 @@ func (s *ContentService) FlushDownloadCounts(ctx context.Context) error {
 		return nil
 	}
 
-	pipeline := s.rdb.Pipeline()
-	for id, delta := range batch {
-		pipeline.ZRem(ctx, "rank:download:counts", fmt.Sprintf("%d", id))
-		_ = delta
-	}
-	pipeline.Exec(ctx)
-
-	caseStmt := "download_count = CASE id "
+	/* #400 同族（中-12）：CASE 表达式交给 UpdateColumn 的列赋值——表达式
+	   本身不得再带 "download_count = " 前缀，否则生成
+	   SET download_count = download_count = CASE ...（内层 = 是 boolean
+	   比较），PostgreSQL 以 SQLSTATE 42804 拒绝、每次 flush 必败；
+	   sqlite 宽松类型不报错故此前未暴露。id/delta 均为 int64（ZSET
+	   member/score 经 strconv 解析），%d 插值无注入面（同
+	   BatchIncrViewCounts 的既有安全论证）。 */
+	caseStmt := "CASE id "
 	var ids []int64
 	for id, delta := range batch {
 		caseStmt += fmt.Sprintf("WHEN %d THEN download_count + %d ", id, delta)
@@ -1314,5 +1314,13 @@ func (s *ContentService) FlushDownloadCounts(ctx context.Context) error {
 		slog.Error("[DownloadCountFlush] DB update error", "error", err)
 		return err
 	}
+
+	// 增量落库成功后才清 Redis——失败的 flush 保留 ZSET 增量待下轮重放，
+	// 否则该批下载计数永久丢失（无第二来源）。
+	pipeline := s.rdb.Pipeline()
+	for id := range batch {
+		pipeline.ZRem(ctx, "rank:download:counts", fmt.Sprintf("%d", id))
+	}
+	pipeline.Exec(ctx)
 	return nil
 }
