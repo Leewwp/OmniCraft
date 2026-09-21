@@ -1,4 +1,5 @@
 import { getBrowserApiBase, getServerApiBase } from "@/lib/server-api";
+import { absoluteUrl } from "@/lib/site-url";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
 import { HomePageClient } from "@/components/home/HomePageClient";
@@ -62,7 +63,7 @@ async function fetchContents(apiBase: string): Promise<{ items: ContentCardData[
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
+  const siteUrl = absoluteUrl(""); // SP-05 低-41：占位域出清，env 缺失走相对路径
   return {
     title: t('home.heroSubtitle'),
     description: t('home.heroDescription'),
