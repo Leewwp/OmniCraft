@@ -2497,7 +2497,6 @@
       "lostUnsupported": "Not supported yet",
       "chartPlaceholder": "Follower trends chart will be shown when data is available (P1)",
       "noTrendData": "No follower trend data available",
-      "trendTitle": "Follower Growth Trend (Last 30 Days)",
       "newFollowers": "New Followers",
       "netFollowers": "Net Followers",
       "noSourceData": "No follower source data available",
