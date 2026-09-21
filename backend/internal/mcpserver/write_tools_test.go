@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -32,10 +33,16 @@ func (mcpFakeSigner) GeneratePresignDownloadURL(ctx context.Context, ossKey stri
 	return "https://signed.example.com/" + ossKey, nil
 }
 
-type fakeSuggest struct{ called int }
+type fakeSuggest struct {
+	called   int
+	failWith error
+}
 
 func (f *fakeSuggest) suggest(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error) {
 	f.called++
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
 	return &service.UploadAssistResult{
 		SuggestedTitle:       "assisted " + title,
 		SuggestedDescription: "assisted description",
@@ -44,10 +51,16 @@ func (f *fakeSuggest) suggest(ctx context.Context, title, description, filename,
 	}, nil
 }
 
-type fakeIssuer struct{ calls []service.PresignUploadRequest }
+type fakeIssuer struct {
+	calls    []service.PresignUploadRequest
+	failWith error
+}
 
 func (f *fakeIssuer) issue(ctx context.Context, req service.PresignUploadRequest, userID int64) (*service.PresignUploadResponse, error) {
 	f.calls = append(f.calls, req)
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
 	return &service.PresignUploadResponse{
 		UploadURL: "https://oss.example.com/uploads/fake?sig=1",
 		OSSKey:    "uploads/sp16b/fake.pdf",
@@ -324,4 +337,66 @@ func TestRequestUploadURLTool(t *testing.T) {
 	if len(issuer.calls) != 1 || issuer.calls[0].FileSize != 2048 {
 		t.Errorf("issuer calls = %+v", issuer.calls)
 	}
+}
+
+// SP-25 中-3：写通道兜底错误走安全词表——响应不得携带底层错误串（密钥/
+// 端点/内部地址），原始错误只进日志。
+func TestWriteToolErrorTablesDoNotLeakInternals(t *testing.T) {
+	const marker = "SECRET-INTERNAL-oss-endpoint-10.0.0.9:3929"
+	boom := fmt.Errorf("wrapped %s detail", marker)
+
+	for name, txt := range map[string]string{
+		"suggest default":     suggestErrorText(boom),
+		"upload url internal": uploadURLErrorText(boom),
+		"publish default":     publishErrorText(fmt.Errorf("unknown: %w", boom)),
+	} {
+		if strings.Contains(txt, marker) {
+			t.Fatalf("%s leaked the raw error: %s", name, txt)
+		}
+	}
+
+	// 面向用户的校验文案（文件类型/大小白名单）允许透传。
+	got := uploadURLErrorText(&service.UploadValidationError{Message: "file_size must be greater than 0"})
+	if !strings.Contains(got, "file_size must be greater than 0") {
+		t.Fatalf("validation copy must pass through, got %q", got)
+	}
+	if got := uploadURLErrorText(service.ErrOSSNotConfigured); !strings.Contains(got, "file storage is not configured") {
+		t.Fatalf("oss-not-configured mapping missing, got %q", got)
+	}
+}
+
+func TestWriteToolInternalFailuresDoNotLeakIntoResponses(t *testing.T) {
+	const marker = "SECRET-INTERNAL-oss-endpoint-10.0.0.9:3929"
+	boom := fmt.Errorf("boom %s", marker)
+
+	t.Run("suggest", func(t *testing.T) {
+		session, _, suggest, _ := newWriteToolStack(t, []string{"upload"})
+		suggest.failWith = boom
+		text, ok := callToolRaw(t, session, "omnicraft_suggest_publish_metadata", map[string]any{
+			"file_name": "song.pdf", "content_type": "sheet_music",
+		})
+		if ok {
+			t.Fatal("expected error result")
+		}
+		if strings.Contains(text, marker) {
+			t.Fatalf("suggest response leaked internals: %.300s", text)
+		}
+		if !strings.Contains(text, "metadata suggestion unavailable") {
+			t.Fatalf("expected the safe word-table text, got %.300s", text)
+		}
+	})
+
+	t.Run("request_upload_url", func(t *testing.T) {
+		session, _, _, issuer := newWriteToolStack(t, []string{"upload"})
+		issuer.failWith = boom
+		text, ok := callToolRaw(t, session, "omnicraft_request_upload_url", map[string]any{
+			"file_name": "mod.zip", "file_type": "mod", "mime_type": "application/zip", "file_size": 1024,
+		})
+		if ok {
+			t.Fatal("expected error result")
+		}
+		if strings.Contains(text, marker) {
+			t.Fatalf("upload-url response leaked internals: %.300s", text)
+		}
+	})
 }
