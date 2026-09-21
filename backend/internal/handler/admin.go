@@ -579,7 +579,11 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	// id DESC 稳定排序——此前前端只过滤当前页 20 条，跨页命中不可能，且无
 	// ORDER BY 时翻页可能重复/漏。LOWER+LIKE 而非 ILIKE：sqlite 单测可执行。
 	base := func() *gorm.DB {
-		q := h.userRepo.DB().Table("users")
+		// 显式列投影（FR-02 中-6）：map 直查会绕过 model 的 json:"-"，
+		// 把 password_hash 等敏感列原样带进响应；只选 admin 管理必要列。
+		q := h.userRepo.DB().Table("users").Select(
+			"id, email, username, avatar_url, reputation, role, is_banned, ban_reason, email_verified_at, created_at",
+		)
 		if search := strings.TrimSpace(c.Query("search")); search != "" {
 			like := "%" + strings.ToLower(search) + "%"
 			q = q.Where("LOWER(username) LIKE ? OR LOWER(email) LIKE ?", like, like)
@@ -624,9 +628,17 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 	}
 	var appeals []map[string]interface{}
 	var total int64
-	applyStatus(h.userRepo.DB().Table("appeals")).Count(&total)
-	applyStatus(h.userRepo.DB().Table("appeals")).
-		Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals)
+	// FR-02（低-27 handler 位点）：Count/Find 均须检查错误——DB 故障返回 5xx，
+	// 不再吞错产出空列表 200。
+	if err := applyStatus(h.userRepo.DB().Table("appeals")).Count(&total).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if err := applyStatus(h.userRepo.DB().Table("appeals")).
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"appeals": appeals, "total": total})
 }
 
