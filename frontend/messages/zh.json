@@ -2485,8 +2485,8 @@
       "noPending": "暂无待处理事项"
     },
     "chart": {
-      "noViewsData": "数据不足，暂无法显示趋势",
-      "viewsTrendTitle": "访问量趋势（近 30 天）"
+      "noFollowerGainData": "暂无新增粉丝数据",
+      "followerGainTrendTitle": "新增粉丝趋势（近 30 天）"
     },
     "followers": {
       "title": "粉丝分析",
@@ -2494,6 +2494,7 @@
       "totalFollowers": "总粉丝数",
       "newThisMonth": "本月新增",
       "lostThisMonth": "本月流失",
+      "lostUnsupported": "暂不支持",
       "chartPlaceholder": "粉丝趋势图表将在数据充足时显示 (P1)",
       "noTrendData": "暂无粉丝趋势数据",
       "trendTitle": "粉丝增长趋势（近 30 天）",

@@ -20,7 +20,6 @@ export default function StudioFollowersPage() {
   const [stats, setStats] = useState({
     total: 0,
     newThisMonth: 0,
-    lostThisMonth: 0,
   });
   const [trend, setTrend] = useState<Array<{ date: string; newFollowers: number; netGrowth: number }>>([]);
   const [sources, setSources] = useState<Array<{ name: string; value: number }>>([]);
@@ -34,7 +33,6 @@ export default function StudioFollowersPage() {
           setStats({
             total: (res.total as number) ?? 0,
             newThisMonth: (res.new_this_month as number) ?? 0,
-            lostThisMonth: (res.lost_this_month as number) ?? 0,
           });
           const daily = res.daily as Array<{ date: string; count?: number; lost?: number }> | undefined;
           if (daily) {
@@ -92,10 +90,11 @@ export default function StudioFollowersPage() {
           change={stats.total > 0 ? Math.round((stats.newThisMonth / stats.total) * 100) : 0}
           icon={<UserPlus className="h-5 w-5" />}
         />
+        {/* 掉粉统计在 follows 硬删模型下不可推导（SP-25 D1：暂不支持）——
+            展示诚实标注而非恒 0 的伪数据；恢复需先落软删迁移。 */}
         <StatsCard
           label={t('studio.followers.lostThisMonth')}
-          value={stats.lostThisMonth.toLocaleString()}
-          change={stats.total > 0 ? -Math.round((stats.lostThisMonth / stats.total) * 100) : 0}
+          value={t('studio.followers.lostUnsupported')}
           icon={<UserMinus className="h-5 w-5" />}
         />
       </div>

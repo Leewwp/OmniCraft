@@ -250,6 +250,27 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	return items, total, nil
 }
 
+// AuthorContentTotals aggregates lifetime view/like sums across an author's
+// own contents (all statuses, soft-delete excluded — same scope as the
+// /users/me/contents self-service list). Serves the studio overview stats
+// cards so totals no longer reduce whatever the first page happened to load.
+func (r *ContentRepository) AuthorContentTotals(authorID int64, contentType string) (views int64, likes int64, err error) {
+	q := r.db.Model(&model.ContentItem{}).
+		Where("author_id = ? AND deleted_at IS NULL", authorID)
+	if contentType != "" {
+		q = q.Where("content_type = ?", contentType)
+	}
+	row := struct {
+		Views int64
+		Likes int64
+	}{}
+	if err := q.Select("COALESCE(SUM(view_count), 0) AS views, COALESCE(SUM(like_count), 0) AS likes").
+		Scan(&row).Error; err != nil {
+		return 0, 0, err
+	}
+	return row.Views, row.Likes, nil
+}
+
 // CountByTypeWithinIP returns per-content_type hit counts for the IP share
 // tab facet chips (#290). It mirrors the share-tab list semantics (public
 // fanworks of this IP, optional title search) but ignores the active type

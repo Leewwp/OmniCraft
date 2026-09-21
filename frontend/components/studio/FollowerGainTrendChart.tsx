@@ -11,17 +11,20 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-interface ViewsTrendChartProps {
-  data: Array<{ date: string; views: number }>;
+// 工作台概览的趋势图：数据源 = /users/me/followers/stats 的 daily[].count
+// （每日新增粉丝数），标题与数据语义一致（SP-25 中-10/D2——不再把涨粉数
+// 标注为访问量）。粉丝分析页的双线图见 FollowerTrendChart。
+interface FollowerGainTrendChartProps {
+  data: Array<{ date: string; count: number }>;
 }
 
-export function ViewsTrendChart({ data }: ViewsTrendChartProps) {
+export function FollowerGainTrendChart({ data }: FollowerGainTrendChartProps) {
   const t = useTranslations("studio");
 
   if (data.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-card text-sm text-muted-foreground">
-        {t("chart.noViewsData")}
+        {t("chart.noFollowerGainData")}
       </div>
     );
   }
@@ -29,7 +32,7 @@ export function ViewsTrendChart({ data }: ViewsTrendChartProps) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-medium text-foreground">
-        {t("chart.viewsTrendTitle")}
+        {t("chart.followerGainTrendTitle")}
       </h3>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
@@ -47,6 +50,7 @@ export function ViewsTrendChart({ data }: ViewsTrendChartProps) {
             tickLine={false}
             axisLine={false}
             width={40}
+            allowDecimals={false}
           />
           <Tooltip
             contentStyle={{
@@ -58,7 +62,7 @@ export function ViewsTrendChart({ data }: ViewsTrendChartProps) {
           />
           <Line
             type="monotone"
-            dataKey="views"
+            dataKey="count"
             stroke="var(--chart-1)"
             strokeWidth={2}
             dot={false}

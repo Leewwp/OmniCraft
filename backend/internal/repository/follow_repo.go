@@ -111,16 +111,19 @@ func (r *FollowRepository) GetFollowerStats(userID int64, days int) (*FollowerSt
 
 	// 每日曲线只承载真实的新增粉丝数（gained）；lost 子查询随 deleted_at
 	// 谓词一并移除，输出列 lost 恒 0 保持响应形状稳定。
+	// 注意：间隔构造必须用 make_interval(days => ?)——`( ? || ' days')::interval`
+	// 在 pgx 参数化下绑定类型为 bigint，`bigint || text` 无操作符，计划期即
+	// 报 42883（FR-03 follow-up，FR-06 浏览器验收实测发现）。
 	var daily []FollowerDailyStats
 	if err := r.db.Raw(`
 		SELECT d.dt::date::text AS date,
 			COALESCE(gained.cnt, 0) AS count,
 			0 AS lost
-		FROM generate_series(NOW() - (? || ' days')::interval, NOW(), '1 day') d(dt)
+		FROM generate_series(NOW() - make_interval(days => ?), NOW(), '1 day') d(dt)
 		LEFT JOIN (
 			SELECT created_at::date AS dt, COUNT(*) AS cnt
 			FROM follows
-			WHERE target_type = 'user' AND target_id = ? AND created_at >= NOW() - (? || ' days')::interval
+			WHERE target_type = 'user' AND target_id = ? AND created_at >= NOW() - make_interval(days => ?)
 			GROUP BY created_at::date
 		) gained ON gained.dt = d.dt::date
 		ORDER BY d.dt
@@ -129,10 +132,12 @@ func (r *FollowRepository) GetFollowerStats(userID int64, days int) (*FollowerSt
 	}
 
 	var sources []FollowerSourceStats
+	// FR-03 follow-up（FR-06 浏览器验收实测发现）：content_items 的作者列是
+	// author_id（无 user_id 列）；旧查询该列错误 + 吞错 → sources 恒 null。
 	if err := r.db.Raw(`
 		SELECT COALESCE(NULLIF(ips.name, ''), 'direct') AS name, COUNT(*) AS value
 		FROM follows f
-		LEFT JOIN content_items ci ON f.follower_id = ci.user_id
+		LEFT JOIN content_items ci ON f.follower_id = ci.author_id
 		LEFT JOIN ips ON ci.ip_id = ips.id
 		WHERE f.target_type = 'user' AND f.target_id = ?
 		GROUP BY ips.name
