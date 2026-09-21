@@ -128,7 +128,10 @@ func (r *DiscussionRepository) ListByUser(userID int64, page, pageSize int, view
 	)
 
 	var total int64
-	base.Model(&model.Discussion{}).Count(&total)
+	// SP-25 低-27：Count 吞错修复。
+	if err := base.Model(&model.Discussion{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	var discussions []model.Discussion
 	err := base.Preload("Author").

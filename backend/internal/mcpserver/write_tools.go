@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
@@ -239,7 +240,9 @@ func addSuggestPublishMetadataTool(server *sdkmcp.Server, deps Deps) {
 		_ = uid
 		result, err := deps.SuggestPublishMetadata(ctx, in.Title, in.Description, in.FileName, in.ContentType)
 		if err != nil {
-			return nil, nil, errors.New("metadata suggestion unavailable: " + err.Error())
+			// 中-3：LLM/OSS 内部错误不外泄（词表兜底），原始串进日志排障。
+			slog.WarnContext(ctx, "mcp suggest_publish_metadata failed", "error", err)
+			return nil, nil, errors.New(suggestErrorText(err))
 		}
 		return textResult(map[string]any{
 			"suggested_title":       result.SuggestedTitle,
@@ -349,7 +352,9 @@ func addCreateContentTool(server *sdkmcp.Server, deps Deps) {
 				Source:       "llm_assisted",
 			}
 			if serr := deps.GuideSvc.SaveSpecifics(ctx, uid, content.ID, gi); serr != nil {
-				return nil, nil, errors.New("content created but the usage guide was rejected: " + serr.Error())
+				slog.WarnContext(ctx, "mcp create_content usage guide rejected",
+					"content_id", content.ID, "error", serr)
+				return nil, nil, errors.New("content created but the usage guide was rejected; finish it in the web studio (the draft itself is intact)")
 			}
 		}
 		return textResult(map[string]any{
@@ -376,7 +381,33 @@ func publishErrorText(err error) string {
 		errors.Is(err, service.ErrArchiveScanPending):
 		return "the archive must pass the malware scan before publishing"
 	default:
-		return "publishing failed: " + err.Error()
+		return "publishing failed: check the draft fields and retry"
+	}
+}
+
+func suggestErrorText(err error) string {
+	switch {
+	case errors.Is(err, service.ErrOSSNotConfigured):
+		return "metadata suggestion unavailable: file storage is not configured on the server"
+	default:
+		return "metadata suggestion unavailable, please retry"
+	}
+}
+
+// uploadURLErrorText maps presign failures to agent-facing text.
+// *UploadValidationError carries hand-written user-facing validation copy
+// (file type/size/MIME whitelist), safe to relay; everything else (OSS SDK
+// internals) collapses to a fixed string — the raw error goes to slog.
+func uploadURLErrorText(err error) string {
+	var validation *service.UploadValidationError
+	if errors.As(err, &validation) {
+		return "upload URL rejected: " + validation.Message
+	}
+	switch {
+	case errors.Is(err, service.ErrOSSNotConfigured):
+		return "upload URL rejected: file storage is not configured on the server"
+	default:
+		return "upload URL rejected: check file_name/file_type/mime_type/file_size and retry"
 	}
 }
 
@@ -402,7 +433,8 @@ func addRequestUploadURLTool(server *sdkmcp.Server, deps Deps) {
 			return nil, nil, err
 		}
 		if err := deps.ConsumeUploadQuota(ctx, uid); err != nil {
-			return nil, nil, errors.New("upload quota exceeded, retry in the next hour: " + err.Error())
+			slog.WarnContext(ctx, "mcp request_upload_url quota rejected", "user_id", uid, "error", err)
+			return nil, nil, errors.New("upload quota exceeded, retry in the next hour")
 		}
 		resp, err := deps.IssueUploadURL(ctx, service.PresignUploadRequest{
 			FileName:    in.FileName,
@@ -412,7 +444,8 @@ func addRequestUploadURLTool(server *sdkmcp.Server, deps Deps) {
 			DurationSec: in.DurationSec,
 		}, uid)
 		if err != nil {
-			return nil, nil, errors.New("upload URL rejected: " + err.Error())
+			slog.WarnContext(ctx, "mcp request_upload_url presign failed", "user_id", uid, "error", err)
+			return nil, nil, errors.New(uploadURLErrorText(err))
 		}
 		return textResult(map[string]any{
 			"upload_url":  resp.UploadURL,

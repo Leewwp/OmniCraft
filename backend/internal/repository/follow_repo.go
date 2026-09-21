@@ -65,16 +65,21 @@ func (r *FollowRepository) IsFollowing(followerID int64, targetType string, targ
 }
 
 func (r *FollowRepository) GetFollowers(targetType string, targetID int64, page, pageSize int) ([]model.User, int64, error) {
+	// SP-25 低-27：Count/Find 双吞错修复——DB 故障显性报错，不返回伪 total/空页。
 	var total int64
-	r.db.Model(&model.Follow{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Count(&total)
+	if err := r.db.Model(&model.Follow{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	var users []model.User
-	r.db.Table("users").
+	if err := r.db.Table("users").
 		Joins("JOIN follows ON follows.follower_id = users.id").
 		Where("follows.target_type = ? AND follows.target_id = ?", targetType, targetID).
 		Order("follows.created_at DESC").
 		Offset((page-1)*pageSize).Limit(pageSize).
-		Find(&users)
+		Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
 
 	return users, total, nil
 }

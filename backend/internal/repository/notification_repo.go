@@ -75,7 +75,10 @@ func (r *NotificationRepository) List(userID int64, channel string, page, pageSi
 	if channel != "" {
 		q = q.Where("channel = ?", channel)
 	}
-	q.Count(&total)
+	// SP-25 低-27：Count 吞错修复。
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
 	var notifications []model.Notification
 	err := q.Order("created_at DESC").

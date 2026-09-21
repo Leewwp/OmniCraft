@@ -51,6 +51,10 @@ func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, 
 		q = q.Where("parent_id = ?", *parentID)
 	}
 	q.Count(&total)
+// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	offset := (page - 1) * pageSize
 	err := q.Preload("Author").Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&comments).Error
 	if err != nil {
@@ -72,6 +76,10 @@ func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int6
 			Where("target_type = ? AND target_id = ? AND parent_id IS NULL AND status = ?", targetType, targetID, "published")
 	}
 	q.Count(&total)
+// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	err := q.Preload("Author").Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&comments).Error
@@ -197,6 +205,10 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 			Where("content_item_id IN (SELECT id FROM content_items WHERE "+visSQL+")", visArgs...)
 	}
 	q.Count(&total)
+// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	offset := (page - 1) * pageSize
 	// SP-17/T1：同 FindDiscussion——讨论列表 author 需 Preload 才有真值。
 	err := q.Order("last_active_at DESC").Preload("Author").Offset(offset).Limit(pageSize).Find(&discussions).Error

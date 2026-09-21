@@ -25,8 +25,7 @@ func NewAdminFeedbackHandler(db *gorm.DB, feedbackSvc *service.FeedbackService, 
 }
 
 func (h *AdminFeedbackHandler) ListFeedback(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	filter := repository.AdminFeedbackFilter{
 		Status:   c.DefaultQuery("status", ""),

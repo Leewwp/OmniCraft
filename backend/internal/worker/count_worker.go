@@ -63,8 +63,10 @@ func (w *CountWorker) Handle(ctx context.Context, msg queue.Message) error {
 			return err
 		}
 	default:
+		// 低-15：对齐 inbox.go 契约——未知 action 是永久失败（返回错误走
+		// 重试→DLQ），不是静默 ACK（对照 review_worker/indexer_worker）。
 		slog.Warn("count_worker: unknown action", "action", payload.Action, "msg_id", msg.ID)
-		return nil
+		return fmt.Errorf("count_worker: unknown action %q", payload.Action)
 	}
 
 	if err := MarkConsumedInbox(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg)); err != nil {
