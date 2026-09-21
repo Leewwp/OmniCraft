@@ -100,8 +100,9 @@ func TestGeneratePresignUploadURLAvatarType(t *testing.T) {
 func TestGeneratePresignUploadURLKeepsOtherTypesOnTheirOwnContract(t *testing.T) {
 	svc := newTestOSSService(t)
 
+	dur := 60
 	if _, err := svc.GeneratePresignUploadURL(t.Context(), PresignUploadRequest{
-		FileName: "clip.mp4", FileType: "video", MimeType: "video/mp4", FileSize: 1024,
+		FileName: "clip.mp4", FileType: "video", MimeType: "video/mp4", FileSize: 1024, DurationSec: &dur,
 	}, 42); err != nil {
 		t.Fatalf("video/mp4 presign = %v, want nil", err)
 	}
@@ -116,9 +117,10 @@ func TestGeneratePresignUploadURLKeepsOtherTypesOnTheirOwnContract(t *testing.T)
 // 其他参数类错误保持无码（handler 兜底 VALIDATION_ERROR）。
 func TestGeneratePresignUploadURLOversizeCarriesFileTooLargeCode(t *testing.T) {
 	svc := newTestOSSService(t)
+	dur := 60
 
 	_, err := svc.GeneratePresignUploadURL(t.Context(), PresignUploadRequest{
-		FileName: "huge.mp4", FileType: "video", MimeType: "video/mp4", FileSize: 301 * 1024 * 1024,
+		FileName: "huge.mp4", FileType: "video", MimeType: "video/mp4", FileSize: 301 * 1024 * 1024, DurationSec: &dur,
 	}, 42)
 	validation, ok := err.(*UploadValidationError)
 	if !ok {

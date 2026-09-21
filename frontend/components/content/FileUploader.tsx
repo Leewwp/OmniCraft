@@ -240,12 +240,33 @@ function uploadWithXHR(
   });
 }
 
-async function requestUploadToken(file: File, fileType: string): Promise<OSSUploadToken> {
+async function requestUploadToken(file: File, fileType: string, durationSec?: number): Promise<OSSUploadToken> {
   return api.post<OSSUploadToken>("/api/v1/contents/oss-token", {
     file_name: file.name,
     file_type: fileType,
     mime_type: file.type || "application/octet-stream",
     file_size: file.size,
+    ...(durationSec !== undefined ? { duration_sec: durationSec } : {}),
+  });
+}
+
+// SP-25 低-19：服务端 presign 对 video 强制 duration_sec（防省略字段绕过
+// 时长上限），上传前从 <video> 元数据读取真实时长；读不到则不带字段，
+// 由后端校验信息兜底提示。
+async function readVideoDuration(file: File): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(video.duration) ? Math.max(1, Math.round(video.duration)) : undefined);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(undefined);
+    };
+    video.src = url;
   });
 }
 
@@ -371,7 +392,8 @@ export function FileUploader({
         }
 
         const resolvedFileType = fileType ?? contentType ?? "text";
-        const token = await requestUploadToken(file, resolvedFileType);
+        const duration = resolvedFileType === "video" ? await readVideoDuration(file) : undefined;
+        const token = await requestUploadToken(file, resolvedFileType, duration);
         await uploadWithXHR(token.upload_url, file, setProgress);
         let dimensions: Dimensions | undefined;
         if (file.type.startsWith("image/")) {
@@ -437,7 +459,8 @@ export function FileUploader({
       posterGrantId = posterToken.grant_id;
     }
 
-    const token = await requestUploadToken(item.file, contentType);
+    const videoDuration = contentType === "video" ? await readVideoDuration(item.file) : undefined;
+    const token = await requestUploadToken(item.file, contentType, videoDuration);
     await uploadWithXHR(token.upload_url, item.file, (value) => {
       updateItem(item.id, { progress: contentType === "video" ? 40 + Math.round(value * 0.6) : value });
     });

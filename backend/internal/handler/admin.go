@@ -947,6 +947,11 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 		entry.TargetID = strconv.FormatInt(r.ID, 10)
 		return nil
 	}); err != nil {
+		if errors.Is(err, service.ErrLLMKeyEncryptionSecretMissing) {
+			// SP-25 中-4：密钥链缺失是配置错误而非数据库故障，须可辨识。
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "LLM_KEY_ENCRYPTION_UNAVAILABLE", err)
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to create config") {
 			return
 		}
@@ -974,6 +979,10 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		return h.llmConfigSvc.UpdateConfigTx(c.Request.Context(), tx, id, req)
 	}); err != nil {
+		if errors.Is(err, service.ErrLLMKeyEncryptionSecretMissing) {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "LLM_KEY_ENCRYPTION_UNAVAILABLE", err)
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update config") {
 			return
 		}

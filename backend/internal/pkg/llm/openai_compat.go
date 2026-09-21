@@ -226,6 +226,9 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	// 低-12：单行 data: 可远超默认 64KB（一次性长 tool_call arguments），
+	// ErrTooLong 会整流失败并触发路由回退；上限 4MB。
+	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	finished := false
 	for scanner.Scan() {
 		line := scanner.Text()

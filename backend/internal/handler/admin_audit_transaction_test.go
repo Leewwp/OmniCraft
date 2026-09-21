@@ -181,6 +181,9 @@ func TestAdminCreateJudgeQuestionRollsBackWhenAuditWriteFails(t *testing.T) {
 }
 
 func TestAdminCreateLLMConfigRollsBackWhenAuditWriteFails(t *testing.T) {
+	// SP-25 中-4：api_key 落库走 AES-GCM 加密链，密钥缺失会在写库前
+	// fail-closed，测试须提供加密密钥才能到达审计写失败回滚路径。
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "audit-tx-test-secret-0123456789")
 	router, db := setupAdminLLMAuditRouter(t)
 	installFailingAdminAuditTrigger(t, db)
 

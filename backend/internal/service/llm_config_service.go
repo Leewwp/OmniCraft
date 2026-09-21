@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -23,6 +24,11 @@ import (
 
 var (
 	ErrConfigNotFound = errors.New("llm config not found")
+	// ErrLLMKeyEncryptionSecretMissing: the static-encryption key chain
+	// (LLM_KEY_ENCRYPTION_SECRET → JWT_SECRET) resolves to nothing. Refuse to
+	// derive a key from sha256("") — that public constant would fake-encrypt
+	// the stored api_key_enc rows (SP-25 中-4).
+	ErrLLMKeyEncryptionSecretMissing = errors.New("llm api key encryption secret is not configured (set LLM_KEY_ENCRYPTION_SECRET or JWT_SECRET)")
 )
 
 type LLMConfigService struct {
@@ -75,6 +81,12 @@ func (s *LLMConfigService) ListConfigs(ctx context.Context) ([]LLMConfigResponse
 	}
 	result := make([]LLMConfigResponse, 0, len(configs))
 	for _, c := range configs {
+		// 中-4 审计：无 v1: 前缀 = 存量明文落库（历史形态），逐行告警
+		// 提示管理员轮换（重新录入即走加密链）。
+		if strings.TrimSpace(c.APIKeyEnc) != "" && !strings.HasPrefix(c.APIKeyEnc, "v1:") {
+			slog.Warn("llm config stores api_key_enc without v1: prefix (plaintext legacy row); re-enter the key to encrypt",
+				"config_id", c.ID, "config_name", c.ConfigName)
+		}
 		result = append(result, toResponse(&c))
 	}
 	return result, nil
@@ -209,7 +221,11 @@ func encryptLLMAPIKey(apiKey string) (string, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return "", nil
 	}
-	block, err := aes.NewCipher(llmEncryptionKey())
+	key, err := llmEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
@@ -230,13 +246,18 @@ func decryptLLMAPIKey(apiKeyEnc string) (string, error) {
 		return "", nil
 	}
 	if !strings.HasPrefix(apiKeyEnc, "v1:") {
+		// 存量明文（该列历史上直接存过明文）：透传保持兼容；调用侧负责审计。
 		return apiKeyEnc, nil
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(apiKeyEnc, "v1:"))
 	if err != nil {
 		return "", err
 	}
-	block, err := aes.NewCipher(llmEncryptionKey())
+	key, err := llmEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
@@ -256,11 +277,21 @@ func decryptLLMAPIKey(apiKeyEnc string) (string, error) {
 	return string(plaintext), nil
 }
 
-func llmEncryptionKey() []byte {
+// llmEncryptionKey resolves the AES-GCM key for api_key_enc static
+// encryption. Both env vars missing is a hard error, never sha256("") —
+// that constant is publicly computable and would fake-encrypt stored
+// provider keys (SP-25 中-4). Release mode fails startup on this via
+// config.ValidateRelease. Note: the JWT_SECRET fallback couples key
+// rotation — rotating the JWT secret breaks decryption of historical
+// rows; rotate stored keys by re-entering them.
+func llmEncryptionKey() ([]byte, error) {
 	secret := os.Getenv("LLM_KEY_ENCRYPTION_SECRET")
 	if secret == "" {
 		secret = os.Getenv("JWT_SECRET")
 	}
+	if secret == "" {
+		return nil, ErrLLMKeyEncryptionSecretMissing
+	}
 	sum := sha256.Sum256([]byte(secret))
-	return sum[:]
+	return sum[:], nil
 }

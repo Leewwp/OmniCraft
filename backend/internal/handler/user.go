@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -180,7 +181,24 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	updates := map[string]interface{}{}
 	if req.Username != nil {
-		updates["username"] = *req.Username
+		// SP-25 低-25：与注册口径一致（2-64 runes）+ 基本字符集（字母数字下划线
+		// 连字符与 CJK），此前任意串可写入。
+		username := strings.TrimSpace(*req.Username)
+		runes := utf8.RuneCountInString(username)
+		if runes < 2 || runes > 64 {
+			response.ValidationError(c, "username must be 2-64 characters")
+			return
+		}
+		for _, r := range username {
+			switch {
+			case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+				r == '_', r == '-', r >= '\u4e00' && r <= '\u9fff':
+			default:
+				response.ValidationError(c, "username contains unsupported characters")
+				return
+			}
+		}
+		updates["username"] = username
 	}
 	if req.AvatarURL != nil {
 		avatarURL := strings.TrimSpace(*req.AvatarURL)
@@ -206,6 +224,10 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		updates["avatar_url"] = avatarURL
 	}
 	if req.Bio != nil {
+		if utf8.RuneCountInString(*req.Bio) > 500 {
+			response.ValidationError(c, "bio must be at most 500 characters")
+			return
+		}
 		updates["bio"] = *req.Bio
 	}
 	if req.PreferredLocale != nil {
@@ -481,8 +503,18 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
+	// SP-25 低-25：bcrypt 只认前 72 字节——超出即 400（单靠 max=128 rune
+	// 绑定不闭环：128 个 CJK 字符可达 384 字节）。
+	if len(req.NewPassword) > 72 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_LONG", "message": "password must be at most 72 bytes"})
+		return
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
+		if errors.Is(err, bcrypt.ErrPasswordTooLong) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_LONG", "message": "password must be at most 72 bytes"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to hash password"})
 		return
 	}
@@ -567,6 +599,21 @@ func (h *UserHandler) UpdateSupportInfo(c *gin.Context) {
 	if len(req.ExternalLinks) > 3 {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_ERROR", "message": "external_links maximum is 3"})
 		return
+	}
+	// SP-25 低-25：支持信息仅接受 https（含打赏图）；javascript:/data: 等
+	// 协议在展示层是 XSS 残余弱面。
+	httpsOnly := func(raw string) bool {
+		return strings.HasPrefix(strings.TrimSpace(strings.ToLower(raw)), "https://")
+	}
+	if strings.TrimSpace(req.DonationImageURL) != "" && !httpsOnly(req.DonationImageURL) {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_ERROR", "message": "donation_image_url must be an https URL"})
+		return
+	}
+	for _, link := range req.ExternalLinks {
+		if strings.TrimSpace(link) != "" && !httpsOnly(link) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_ERROR", "message": "external_links must be https URLs"})
+			return
+		}
 	}
 
 	info := model.JSONMap{
