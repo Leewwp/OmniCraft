@@ -79,8 +79,12 @@ func (r *CategoryRepository) HasLinkedContent(id int64) (bool, error) {
 	if err := r.db.First(&cat, id).Error; err != nil {
 		return false, err
 	}
+	// SP-25 低-27：Scan 吞错修复（fail-closed）——删除守卫依赖本结果，
+	// 查询故障必须显性报错，不得以 count=0 放行删除。
 	var count int64
-	r.db.Raw("SELECT COUNT(*) FROM content_items WHERE category = (SELECT slug FROM categories WHERE id = ?)", id).Scan(&count)
+	if err := r.db.Raw("SELECT COUNT(*) FROM content_items WHERE category = (SELECT slug FROM categories WHERE id = ?)", id).Scan(&count).Error; err != nil {
+		return false, err
+	}
 	return count > 0, nil
 }
 

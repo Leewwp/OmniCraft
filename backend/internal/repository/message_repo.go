@@ -85,23 +85,6 @@ func (r *MessageRepository) findOrCreateConversation(userA, userB int64) (int64,
 	return convID, r.db.Create(&p1).Create(&p2).Error
 }
 
-func (r *MessageRepository) ListConversations(userID int64, page, pageSize int) ([]model.Conversation, error) {
-	var convIDs []int64
-	r.db.Model(&model.ConversationParticipant{}).
-		Select("conversation_id").Where("user_id = ? AND left_at IS NULL", userID).
-		Pluck("conversation_id", &convIDs)
-
-	var conversations []model.Conversation
-	if len(convIDs) == 0 {
-		return conversations, nil
-	}
-	err := r.db.Where("id IN ?", convIDs).
-		Order("updated_at DESC").
-		Offset((page - 1) * pageSize).Limit(pageSize).
-		Find(&conversations).Error
-	return conversations, err
-}
-
 func (r *MessageRepository) ListConversationSummaries(userID int64, page, pageSize int) ([]ConversationSummary, error) {
 	var rows []struct {
 		ID          int64

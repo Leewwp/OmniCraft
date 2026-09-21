@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
@@ -93,8 +92,7 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 
 func (h *AppealHandler) GetMyAppeals(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	appeals, total, err := h.appealRepo.ListByUser(callerID, page, pageSize)
 	if err != nil {
