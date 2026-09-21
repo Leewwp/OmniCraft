@@ -1,4 +1,5 @@
 import { getServerApiBase, getBrowserApiBase } from "@/lib/server-api";
+import { absoluteUrl } from "@/lib/site-url";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
@@ -20,7 +21,7 @@ interface IPResponse {
   stats?: { follower_count?: number; discussion_count?: number; work_count?: number };
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
+const baseUrl = absoluteUrl(""); // SP-05 低-41：占位域出清，env 缺失走相对路径
 
 async function fetchIP(apiBase: string, ipId: string): Promise<IPResponse | null> {
   try {
