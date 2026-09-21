@@ -27,6 +27,8 @@ var (
 	ErrProposalAlreadyVoted = errors.New("user already voted on this proposal")
 	ErrProposalClosed       = errors.New("proposal is closed")
 	ErrProposalNotFound     = errors.New("proposal not found")
+	// SP-25 低-22：提案封面必须是平台 OSS 对象（提交与采纳双端校验）。
+	ErrProposalCoverNotPlatform = errors.New("proposed cover_url must be a platform OSS object URL")
 )
 
 // CreateIPProposalInput is the field-level change set of one proposal.
@@ -143,6 +145,15 @@ func (s *IPProposalService) CreateProposal(ctx context.Context, ipID, proposerID
 	}
 	if input.CoverURLChange != nil && *input.CoverURLChange == "" {
 		input.CoverURLChange = nil
+	}
+	// SP-25 低-22：提案封面平台域提交期校验。
+	if input.CoverURLChange != nil {
+		cover := strings.TrimSpace(*input.CoverURLChange)
+		if cover == "" {
+			input.CoverURLChange = nil
+		} else if s.cfg == nil || !aliyun.IsPlatformObjectURL(s.cfg.OSS.Domain, cover) {
+			return nil, ErrProposalCoverNotPlatform
+		}
 	}
 	hasChange := input.DescriptionChange != nil || input.CoverURLChange != nil ||
 		len(input.TagsAdd) > 0 || len(input.TagsRemove) > 0
@@ -581,6 +592,12 @@ func (s *IPProposalService) adoptTx(tx *gorm.DB, proposal *model.IPProposal, ado
 		updates["description"] = *proposal.DescriptionChange
 	}
 	if proposal.CoverURLChange != nil {
+		// SP-25 低-22：采纳时复验平台域（提案可能创建于旧规则之前，
+		// 落库前再挡一次外域图）。
+		cover := strings.TrimSpace(*proposal.CoverURLChange)
+		if s.cfg == nil || !aliyun.IsPlatformObjectURL(s.cfg.OSS.Domain, cover) {
+			return ErrProposalCoverNotPlatform
+		}
 		changes["cover_url"] = *proposal.CoverURLChange
 		updates["cover_url"] = *proposal.CoverURLChange
 	}
