@@ -388,10 +388,10 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var body struct {
 		Token       string `json:"token" binding:"required"`
-		NewPassword string `json:"new_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required,max=72"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "token and new_password required"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "token and new_password required (max 72 characters)"})
 		return
 	}
 
@@ -405,6 +405,10 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_SHORT", "message": "password does not meet minimum length requirement"})
 			return
 		}
+		if errors.Is(err, service.ErrPasswordTooLong) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_LONG", "message": "password exceeds the 72-byte maximum length"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to reset password"})
 		return
 	}
@@ -414,6 +418,10 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to establish session"})
 		return
 	}
+	// 忘记密码/重置是账号疑似被盗后的标准恢复动作——签发新会话前撤销该用户
+	// 全部旧会话（与 ChangePassword/DeleteAccount 同款基建），否则攻击者已持有的
+	// 旧 refresh token 在白名单内继续有效至 TTL。
+	invalidateUserTokens(h.rdb, int64(user.ID))
 	tokens, err := h.authService.IssueTokenPairForUser(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to establish session"})

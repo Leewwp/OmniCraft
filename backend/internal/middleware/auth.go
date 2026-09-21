@@ -14,6 +14,7 @@ import (
 
 	"omnicraft/backend/config"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
+	"omnicraft/backend/internal/pkg/rediskeys"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 )
@@ -139,7 +140,8 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 		}
 
 		if rdb != nil {
-			blacklistKey := fmt.Sprintf("blacklist:token:%s", tokenStr)
+			// 读侧与服务侧 Logout 写入共用 rediskeys.TokenBlacklistKey（token 摘要键）
+			blacklistKey := rediskeys.TokenBlacklistKey(tokenStr)
 			val, redisErr := rdb.Get(c.Request.Context(), blacklistKey).Result()
 			if redisErr == nil && val == "1" {
 				c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "token has been revoked"})
@@ -290,7 +292,7 @@ func OptionalAuth(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 		}
 
 		if rdb != nil {
-			blacklistKey := fmt.Sprintf("blacklist:token:%s", tokenStr)
+			blacklistKey := rediskeys.TokenBlacklistKey(tokenStr)
 			val, redisErr := rdb.Get(c.Request.Context(), blacklistKey).Result()
 			if redisErr == nil && val == "1" {
 				c.Set(UserIDKey, int64(0))

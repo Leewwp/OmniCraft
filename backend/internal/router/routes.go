@@ -100,11 +100,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.GET("/me", authReq, authHandler.Me)
 		auth.GET("/csrf", authHandler.CSRFToken)
-		auth.POST("/verify-email", authHandler.VerifyEmail)
-		auth.POST("/resend-verification", authHandler.ResendVerification)
+		auth.POST("/verify-email", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.VerifyEmail)
+		auth.POST("/resend-verification", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.ResendVerification)
 	}
 	auth.POST("/forgot-password", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.ForgotPassword)
-	auth.POST("/reset-password", authHandler.ResetPassword)
+	// 凭证级限流对齐 forgot-password（FR-01 低-14）：reset/verify 同为消费邮件
+	// token 的凭证面，resend 可跨地址低速扇出发信，均需 IP+账号双窗防护。
+	auth.POST("/reset-password", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.ResetPassword)
 
 	userHandler := handler.NewUserHandler(db, authService, rdb, cfg, ctr.ReviewService)
 	users := v1.Group("/users")
