@@ -73,6 +73,30 @@ func (c *OSSClient) DeleteObject(ossKey string) (err error) {
 }
 
 // Delete implements the archive scan object-store seam.
+// ListPrefix returns up to maxKeys object keys under a key prefix (used by
+// the agent conversation image cleanup, SP-25 低-6).
+func (c *OSSClient) ListPrefix(ossPrefix string, maxKeys int) ([]string, error) {
+	if maxKeys <= 0 || maxKeys > 1000 {
+		maxKeys = 100
+	}
+	keys := make([]string, 0, maxKeys)
+	marker := ""
+	for {
+		res, err := c.bucket.ListObjects(oss.Prefix(ossPrefix), oss.Marker(marker), oss.MaxKeys(maxKeys))
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range res.Objects {
+			keys = append(keys, obj.Key)
+		}
+		if !res.IsTruncated || len(keys) >= maxKeys {
+			break
+		}
+		marker = res.NextMarker
+	}
+	return keys, nil
+}
+
 func (c *OSSClient) Delete(ossKey string) error {
 	return c.DeleteObject(ossKey)
 }

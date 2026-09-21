@@ -24,4 +24,19 @@ func (s *ossAgentImageStore) SignedAgentImageURL(ctx context.Context, key string
 	return s.client.GetSignedURL(key, "GET", 24*time.Hour)
 }
 
+// DeleteAgentImagePrefix removes every object under the prefix (list + delete
+// loop; a conversation holds at most a handful of images).
+func (s *ossAgentImageStore) DeleteAgentImagePrefix(ctx context.Context, prefix string) error {
+	keys, err := s.client.ListPrefix(prefix, 1000)
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if err := s.client.DeleteObject(key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 var _ service.AgentImageStore = (*ossAgentImageStore)(nil)

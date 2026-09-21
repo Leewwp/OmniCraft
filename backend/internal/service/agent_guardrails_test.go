@@ -27,7 +27,7 @@ func TestFenceExternalResult(t *testing.T) {
 func TestSanitizeImageURLs(t *testing.T) {
 	own := "https://cdn.omnicraft.local"
 	answer := "封面见 ![cover](https://evil.example.com/x.png) 与自有图 ![ok](https://cdn.omnicraft.local/signed/a.png)，裸链 https://img.foreign.net/pic.jpg 和自有 https://cdn.omnicraft.local/signed/b.webp。"
-	out := SanitizeImageURLs(answer, nil, []string{own})
+	out := SanitizeImageURLs(answer, nil, []string{own}, "zh")
 	if containsStr(out, "evil.example.com") || containsStr(out, "img.foreign.net") {
 		t.Fatalf("foreign image hosts survived: %q", out)
 	}
@@ -38,7 +38,7 @@ func TestSanitizeImageURLs(t *testing.T) {
 		t.Fatalf("placeholder missing: %q", out)
 	}
 	// static allowlist also works
-	out2 := SanitizeImageURLs("![a](https://pics.example.org/i.png)", []string{"pics.example.org"}, nil)
+	out2 := SanitizeImageURLs("![a](https://pics.example.org/i.png)", []string{"pics.example.org"}, nil, "zh")
 	if !containsStr(out2, "pics.example.org") {
 		t.Fatalf("allowlisted host dropped: %q", out2)
 	}
@@ -102,12 +102,14 @@ func TestLoadConversationToolRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &AgentService{db: db}
-	rows := s.loadConversationToolRows(t.Context(), 5)
-	calls, turns := conversationToolUsage(rows)
+	calls, turns, err := s.conversationBudgetBaseline(t.Context(), 5)
+	if err != nil {
+		t.Fatalf("baseline load: %v", err)
+	}
 	if calls != 1 || turns != 1 {
 		t.Fatalf("loaded usage = %d/%d", calls, turns)
 	}
-	if s.loadConversationToolRows(t.Context(), 0) != nil {
-		t.Fatal("zero conversation must return nil")
+	if c, tr, err := s.conversationBudgetBaseline(t.Context(), 0); c != 0 || tr != 0 || err != nil {
+		t.Fatal("zero conversation must return zero usage without error")
 	}
 }
