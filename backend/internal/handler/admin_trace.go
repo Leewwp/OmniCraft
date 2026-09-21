@@ -84,9 +84,11 @@ func (h *AdminTraceHandler) parseRunFilter(c *gin.Context) (repository.AgentTrac
 	return f, true
 }
 
+// trimNonEmpty 按 rune 截断到 200 个字符：按字节切会劈开 UTF-8 多字节
+// 字符，产生非法序列（绑定到 PostgreSQL 更可能触发编码报错走 500）。
 func trimNonEmpty(s string) string {
-	if len(s) > 200 {
-		return s[:200]
+	if r := []rune(s); len(r) > 200 {
+		return string(r[:200])
 	}
 	return s
 }
