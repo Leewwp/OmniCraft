@@ -7,7 +7,7 @@ import { FileText, Eye, Heart, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { StatsCard } from "@/components/studio/StatsCard";
 import { PendingTasksCard } from "@/components/studio/PendingTasksCard";
-import { ViewsTrendChart } from "@/components/studio/ViewsTrendChart";
+import { FollowerGainTrendChart } from "@/components/studio/FollowerGainTrendChart";
 import { DataList } from "@/components/ui/data-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ export default function StudioOverviewPage() {
   const [topLoadingMore, setTopLoadingMore] = useState(false);
   const [topError, setTopError] = useState("");
   const [pendingTasks, setPendingTasks] = useState<Array<{ type: "pr" | "tag"; id: number; title: string }>>([]);
-  const [viewsTrend, setViewsTrend] = useState<Array<{ date: string; views: number }>>([]);
+  const [followerTrend, setFollowerTrend] = useState<Array<{ date: string; count: number }>>([]);
   const [trendError, setTrendError] = useState("");
   const topContentRef = useRef(topContent);
   topContentRef.current = topContent;
@@ -45,6 +45,9 @@ export default function StudioOverviewPage() {
       const meta = contentsRes?.meta as Record<string, unknown> | undefined;
       const total = (contentsRes?.total as number) ?? (meta?.total as number) ?? data.length;
       const pageSize = (contentsRes?.page_size as number) ?? (meta?.page_size as number) ?? 5;
+      // 概览卡的全量合计来自后端 totals 聚合（分页数据只覆盖当前页，
+      // reduce 首页 5 条会产出失真数字——SP-25 中-10①）。
+      const totals = contentsRes?.totals as { views?: number; likes?: number } | undefined;
       const incoming = data.map((c) => ({
         id: c.id as number,
         title: c.title as string,
@@ -60,8 +63,8 @@ export default function StudioOverviewPage() {
         setStats((current) => ({
           ...current,
           totalContents: total,
-          totalViews: data.reduce((a, c) => a + ((c.view_count as number) || 0), 0),
-          totalLikes: data.reduce((a, c) => a + ((c.like_count as number) || 0), 0),
+          totalViews: totals?.views ?? current.totalViews,
+          totalLikes: totals?.likes ?? current.totalLikes,
         }));
       }
     } catch {
@@ -85,15 +88,20 @@ export default function StudioOverviewPage() {
     }
   }, []);
 
+  // 粉丝分析端点一次供给两处数据：total → 粉丝卡（中-10②，不再恒 0）；
+  // daily[].count → 新增粉丝趋势（中-10④，标题与数据源一致）。
   const loadTrend = useCallback(async () => {
     setTrendError("");
     try {
       const trendRes = await api.get("/api/v1/users/me/followers/stats?days=30") as Record<string, unknown> | null;
+      if (trendRes) {
+        setStats((current) => ({ ...current, followers: (trendRes.total as number) ?? current.followers }));
+      }
       if (trendRes?.daily) {
-        setViewsTrend(
-          (trendRes.daily as Array<{ date: string; views?: number; count?: number }>).map((d) => ({
+        setFollowerTrend(
+          (trendRes.daily as Array<{ date: string; count?: number }>).map((d) => ({
             date: d.date,
-            views: d.views ?? d.count ?? 0,
+            count: d.count ?? 0,
           }))
         );
       }
@@ -154,7 +162,8 @@ export default function StudioOverviewPage() {
       <h1 className="mb-1 text-xl font-bold text-foreground">{t('studio.overview.title')}</h1>
       <p className="mb-6 text-sm text-muted-foreground">{t('studio.overview.subtitle')}</p>
 
-      {/* Stats cards */}
+      {/* Stats cards — change 徽标已移除（中-10③）：没有真实环比数据源，
+          硬编码的 +12%/+8% 是假增长率；接入真实环比时再恢复。 */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatsCard
           label={t('studio.overview.totalContents')}
@@ -164,13 +173,11 @@ export default function StudioOverviewPage() {
         <StatsCard
           label={t('studio.overview.totalViews')}
           value={stats.totalViews.toLocaleString()}
-          change={12}
           icon={<Eye className="h-5 w-5" />}
         />
         <StatsCard
           label={t('studio.overview.totalLikes')}
           value={stats.totalLikes.toLocaleString()}
-          change={8}
           icon={<Heart className="h-5 w-5" />}
         />
         <StatsCard
@@ -180,7 +187,7 @@ export default function StudioOverviewPage() {
         />
       </div>
 
-      {/* Views trend chart */}
+      {/* 新增粉丝趋势（数据源 = 粉丝分析端点 daily.count，标题一致） */}
       <div className="mb-6">
         {trendError ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-5" role="alert">
@@ -189,7 +196,7 @@ export default function StudioOverviewPage() {
               {t("common.retry")}
             </Button>
           </div>
-        ) : <ViewsTrendChart data={viewsTrend} />}
+        ) : <FollowerGainTrendChart data={followerTrend} />}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

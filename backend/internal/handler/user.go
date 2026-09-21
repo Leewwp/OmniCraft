@@ -444,7 +444,18 @@ func (h *UserHandler) GetMyContents(c *gin.Context) {
 		}
 		payloads = append(payloads, m)
 	}
-	c.JSON(http.StatusOK, gin.H{"contents": payloads, "total": total})
+	// 工作台概览卡的全量聚合（中-10）：分页数据只能覆盖当前页，totals 让
+	// totalViews/totalLikes 与全量一致（沿 admin dashboard 的 totals 模式）。
+	views, likes, err := h.contentRepo.AuthorContentTotals(callerID, contentType)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"contents": payloads,
+		"total":    total,
+		"totals":   gin.H{"views": views, "likes": likes},
+	})
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {
