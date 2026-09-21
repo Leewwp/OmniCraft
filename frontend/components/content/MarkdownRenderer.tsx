@@ -6,6 +6,7 @@ import rehypeHighlight from "rehype-highlight";
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { isAllowedImageSrc, useImageHostAllowlist } from "@/lib/image-guard";
 
 interface MarkdownRendererProps {
   content: string;
@@ -78,8 +79,26 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
   const t = useTranslations();
   const citationMode = onCitationRef !== undefined;
   const source = citationMode ? withCitationAnchors(content) : content;
+  // SP-25 FR-07（中-1）：流式窗口渲染层图片白名单——见 lib/image-guard.ts。
+  const ossDomain = useImageHostAllowlist();
 
   const renderers: Components = {
+    img({ src, alt, ...props }) {
+      if (!isAllowedImageSrc(typeof src === "string" ? src : undefined, ossDomain)) {
+        return (
+          <span
+            role="img"
+            aria-label={t("markdown.imageBlocked")}
+            className="inline-flex items-center rounded border border-border bg-muted/50 px-1.5 py-0.5 text-xs text-fg-muted"
+          >
+            {t("markdown.imageBlocked")}
+          </span>
+        );
+      }
+      // eslint-disable-next-line @next/next/no-img-element -- 模型输出的动态
+      // 图源不受 next/image 优化管线管理，白名单已在渲染层收紧。
+      return <img src={src} alt={alt} loading="lazy" {...props} />;
+    },
     code({ className, children, ...props }) {
       const isInline = !className;
       if (isInline) {

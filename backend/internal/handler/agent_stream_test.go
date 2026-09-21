@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -829,4 +830,55 @@ func TestAgentListModelsSingleProviderSurface(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"minimax"`) || strings.Contains(rec.Body.String(), "api_key") {
 		t.Fatalf("body = %s, want minimax option without credentials", rec.Body.String())
 	}
+}
+
+// FR-07（低-6）：会话删除（事务提交后）触发 agent-images/<convID>/ 前缀的
+// 异步 best-effort 清理；foreign/不存在的删除路径不得触发清理。
+func TestAgentConversationDeleteTriggersImageCleanup(t *testing.T) {
+	handler, _, db := newAgentStreamTestHandler(t, &recordingAgentHTTPProvider{}, nil)
+	store := &handlerCleanupRecordingStore{signal: make(chan string, 4)}
+	imageCfg := config.AgentImageConfig{Enabled: true, APIKey: "k"}
+	handler.agentSvc.SetImageTool(imageCfg, nil, store)
+
+	now := time.Now()
+	owned := model.AgentConversation{UserID: 7, ContextType: "general", CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&owned).Error; err != nil {
+		t.Fatalf("seed owned: %v", err)
+	}
+
+	router := gin.New()
+	router.DELETE("/agent/conversations/:id", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(7))
+		handler.DeleteConversation(c)
+	})
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/agent/conversations/%d", owned.ID), nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	select {
+	case prefix := <-store.signal:
+		if prefix != fmt.Sprintf("agent-images/%d/", owned.ID) {
+			t.Fatalf("cleanup prefix = %q, want agent-images/%d/", prefix, owned.ID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("committed delete must trigger async image cleanup")
+	}
+}
+
+type handlerCleanupRecordingStore struct {
+	signal chan string
+}
+
+func (s *handlerCleanupRecordingStore) PutAgentImage(ctx context.Context, key string, r io.Reader) error {
+	return nil
+}
+func (s *handlerCleanupRecordingStore) SignedAgentImageURL(ctx context.Context, key string) (string, error) {
+	return "https://cdn.omnicraft.local/signed/" + key, nil
+}
+func (s *handlerCleanupRecordingStore) DeleteAgentImagePrefix(ctx context.Context, prefix string) error {
+	s.signal <- prefix
+	return nil
 }
