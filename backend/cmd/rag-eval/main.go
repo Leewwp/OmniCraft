@@ -838,10 +838,3 @@ func rejudgeAndExit(outPath, summaryPath string, db *gorm.DB, all []model.EvalGo
 	os.Exit(0)
 }
 
-// rejudgeAndExit re-runs the deterministic judges over stored generation
-// rows (judge vocabulary refinements, title-echo handling) without touching
-// the provider, rewrites the checkpoint rows and refreshes the summary's
-// generation-side fields. Retrieval groups are carried over from the previous
-// summary: retrieval is not re-measured.
-func rejudgeAndExist(outPath, summaryPath string, all []model.EvalGoldenCase, publicIDs map[int64]bool) {
-}

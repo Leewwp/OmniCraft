@@ -10,20 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
-	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/imageinfo"
 )
-
-type STSToken struct {
-	AccessKeyID     string `json:"access_key_id"`
-	AccessKeySecret string `json:"-"`
-	SecurityToken   string `json:"security_token"`
-	Expiration      string `json:"expiration"`
-}
 
 type OSSClient struct {
 	client          *oss.Client
@@ -206,42 +197,6 @@ func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, wi
 	return c.bucket.SignURL(ossKey, oss.HTTPGet, expiresSec, oss.Process(process))
 }
 
-func (c *OSSClient) GetSTS(regionID, roleArn, sessionName string, durationSeconds int64) (token *STSToken, err error) {
-	started := time.Now()
-	defer func() { observability.ObserveExternalCall("oss", started, err) }()
-	if strings.TrimSpace(regionID) == "" || strings.TrimSpace(roleArn) == "" {
-		return nil, fmt.Errorf("region and role arn are required")
-	}
-	if strings.TrimSpace(sessionName) == "" {
-		sessionName = "omnicraft-upload"
-	}
-	if durationSeconds <= 0 {
-		durationSeconds = 3600
-	}
-
-	stsClient, err := sts.NewClientWithAccessKey(regionID, c.accessKeyID, c.accessKeySecret)
-	if err != nil {
-		return nil, err
-	}
-
-	req := sts.CreateAssumeRoleRequest()
-	req.Scheme = "https"
-	req.RoleArn = roleArn
-	req.RoleSessionName = sessionName
-	req.DurationSeconds = requests.Integer(strconv.FormatInt(durationSeconds, 10))
-
-	resp, err := stsClient.AssumeRole(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &STSToken{
-		AccessKeyID:     resp.Credentials.AccessKeyId,
-		AccessKeySecret: resp.Credentials.AccessKeySecret,
-		SecurityToken:   resp.Credentials.SecurityToken,
-		Expiration:      resp.Credentials.Expiration,
-	}, nil
-}
 
 // IsPlatformObjectURL reports whether rawURL is a platform-verified OSS object:
 // only URLs carrying the configured delivery-domain prefix (trimmed domain +

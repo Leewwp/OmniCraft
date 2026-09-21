@@ -1,6 +1,7 @@
 package diffengine
 
 import (
+	"fmt"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
@@ -17,7 +18,14 @@ func ApplyPatch(base, patchText string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	result, _ := dmp.PatchApply(patches, base)
+	// SP-25 低-34：PatchApply 逐 patch 返回成功位，丢弃 []bool 会把
+	// 「补丁没打上」伪装成成功——失败显性化（带版本号由调用方拼装）。
+	result, oks := dmp.PatchApply(patches, base)
+	for i, ok := range oks {
+		if !ok {
+			return "", fmt.Errorf("patch %d/%d failed to apply (base content diverged)", i+1, len(patches))
+		}
+	}
 	return result, nil
 }
 

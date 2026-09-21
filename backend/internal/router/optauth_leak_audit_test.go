@@ -71,16 +71,16 @@ func TestOptAuthAnonymousSurfaceZeroLeak(t *testing.T) {
 	assertNoLeak := func(t *testing.T, label string, rec *httptest.ResponseRecorder, allowControl bool) {
 		t.Helper()
 		body := rec.Body.String()
-		for _, m := range leakMarkers {
-			if strings.Contains(body, m) {
-				t.Errorf("[%s] anonymous response leaked non-public marker %q (status=%d, body=%.400s)", label, m, rec.Code, body)
-			}
-		}
+		// 低-16：allowControl=false 时连公共 fixture 标记也断言不泄露——
+		// 原来的 `_ = controlMarkers` 是死参数占位，断言从未真正生效。
+		markers := leakMarkers
 		if !allowControl {
-			// endpoints with no fixture-bearing payloads at all still must
-			// not echo control markers unless they legitimately list the
-			// published fixture; callers opt in per endpoint.
-			_ = controlMarkers
+			markers = append(append([]string{}, leakMarkers...), controlMarkers...)
+		}
+		for _, m := range markers {
+			if strings.Contains(body, m) {
+				t.Errorf("[%s] anonymous response leaked marker %q (status=%d, body=%.400s)", label, m, rec.Code, body)
+			}
 		}
 	}
 

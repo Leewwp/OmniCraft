@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log/slog"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -177,6 +178,17 @@ func (s *AgentAccessTokenService) Issue(ctx context.Context, userID int64, name 
 	}
 	if err := s.repo.Create(ctx, row); err != nil {
 		return nil, fmt.Errorf("persist agent token: %w", err)
+	}
+	// SP-25 低-2：count-then-create 竞态收紧——并发签发可短暂越限（上限≠
+	// 唯一约束可表达的基数），落库后复核并回滚越限行：竞态窗口最多多签
+	// 「并发数」个瞬时 token，最终持久态回到限内（自愈，等价收紧）。
+	postCount, err := s.repo.CountActiveByUser(ctx, userID)
+	if err == nil && int(postCount) > limit {
+		if delErr := s.repo.DeleteByID(ctx, row.ID); delErr != nil {
+			slog.ErrorContext(ctx, "agent token limit race: rollback of overshoot failed",
+				"user_id", userID, "token_id", row.ID, "error", delErr)
+		}
+		return nil, ErrAgentTokenLimitReached
 	}
 
 	return &IssuedAgentAccessToken{

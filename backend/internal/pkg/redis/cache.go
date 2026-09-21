@@ -5,7 +5,10 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func SetJSON(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
@@ -17,11 +20,23 @@ func SetJSON(ctx context.Context, key string, value interface{}, ttl time.Durati
 }
 
 func GetJSON(ctx context.Context, key string, dest interface{}) (bool, error) {
+	// SP-25 低-33：nil 守卫对称（SetJSON 路径也依赖 Client，DeleteByPattern
+	// 已守卫）；Redis 故障吞错当 miss 保留降级语义，但必须留 WARN——
+	// 否则缓存层整体宕机与「冷缓存」不可区分。
+	if Client == nil {
+		return false, nil
+	}
 	data, err := Client.Get(ctx, key).Bytes()
 	if err != nil {
+		if err != redis.Nil {
+			slog.WarnContext(ctx, "cache get failed, degrading to miss",
+				"key", key, "error", err)
+		}
 		return false, nil
 	}
 	if err := json.Unmarshal(data, dest); err != nil {
+		slog.WarnContext(ctx, "cache value unmarshal failed, degrading to miss",
+			"key", key, "error", err)
 		return false, fmt.Errorf("unmarshal cache value: %w", err)
 	}
 	return true, nil

@@ -117,7 +117,8 @@ func (s *VersionService) GetVersionContent(versionID int64) (string, error) {
 		} else if cv.StorageType == "diff" && cv.StorageKey != "" {
 			result, err := diffengine.ApplyPatch(content, cv.StorageKey)
 			if err != nil {
-				return "", err
+				// 低-34：补丁失败显性化带版本号（排障定位到具体版本链节点）。
+				return "", fmt.Errorf("content version %d (v%d): %w", cv.ID, cv.VersionNumber, err)
 			}
 			content = result
 		}

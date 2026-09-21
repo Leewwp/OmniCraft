@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PRCard, PRCardData } from "@/components/pr/PRCard";
@@ -52,33 +52,30 @@ function PRRequestsPageInner() {
 
   const openCount = useMemo(() => prs.filter((item) => item.status === "open").length, [prs]);
 
-  useEffect(() => {
+  // SP-25 低-44：聚合端点单请求取代按内容 N+1（原 50 并发）；刷新重拉。
+  const loadPRs = useCallback(async () => {
     if (!user) {
       return;
     }
-
-    void (async () => {
-      setError("");
-      try {
-        const contentData = await api.get<{ contents?: ContentItem[] }>(
-          `/api/v1/contents?author_id=${user.id}&page=1&page_size=50&sort=newest&time_range=all`
-        );
-
-        const contents = contentData.contents || [];
-        const allPRs = await Promise.all(
-          contents.map(async (content) => {
-            const data = await api.get<{ prs?: PRCardData[] }>(`/api/v1/contents/${content.id}/prs?status=open`);
-            return (data.prs || []).map((pr) => ({ ...pr, contentTitle: content.title }));
-          })
-        );
-
-        setPRs(allPRs.flat().sort((a, b) => b.id - a.id));
-      } catch (e) {
-        silentError(e, { component: 'PRRequestsPage', action: 'loadPRs' });
-        setError(t(getUserFacingErrorKey(e, "dashboard.pr.loadFailed")));
-      }
-    })();
+    setError("");
+    try {
+      const data = await api.get<{ prs?: (PRCardData & { content_title?: string })[] }>(
+        "/api/v1/users/me/pr-requests?status=open"
+      );
+      setPRs(
+        (data.prs || [])
+          .map((pr) => ({ ...pr, contentTitle: pr.content_title }))
+          .sort((a, b) => b.id - a.id)
+      );
+    } catch (e) {
+      silentError(e, { component: 'PRRequestsPage', action: 'loadPRs' });
+      setError(t(getUserFacingErrorKey(e, "dashboard.pr.loadFailed")));
+    }
   }, [user, t]);
+
+  useEffect(() => {
+    void loadPRs();
+  }, [loadPRs]);
 
   async function loadPRDetail(prID: number) {
     setError("");
@@ -208,7 +205,7 @@ function PRRequestsPageInner() {
       </section>
 
       <div className="flex justify-end">
-        <Button variant="outline" onClick={() => window.location.reload()}>
+        <Button variant="outline" onClick={() => void loadPRs()}>
           {t('dashboard.pr.refresh')}
         </Button>
       </div>
