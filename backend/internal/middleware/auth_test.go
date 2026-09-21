@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/redis/go-redis/v9"
@@ -16,6 +18,7 @@ import (
 
 	"omnicraft/backend/config"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
+	"omnicraft/backend/internal/pkg/rediskeys"
 )
 
 func setupTestRouter() *gin.Engine {
@@ -253,4 +256,40 @@ func TestOptionalAuthConfirmsStatusFromDB(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &body)
 	assert.Equal(t, float64(1), body["user_id"])
 	assert.Equal(t, "admin", body["role"])
+}
+
+// FR-01（低-18）：auth 中间件必须按服务侧 Logout 写入的摘要键读取黑名单
+// （键构造统一走 rediskeys.TokenBlacklistKey），保证读写两侧一致。
+func TestAuthRequiredRejectsTokenBlacklistedViaDigestKey(t *testing.T) {
+	cfg := makeTestConfig()
+	db := setupTestDB(t)
+	insertTestUser(db, 1, "user", false, true, 10, nil)
+	token := makeTestToken(cfg, 1, "user")
+
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	t.Cleanup(mr.Close)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	// 模拟服务侧 Logout 的黑名单写入（摘要键，不含原始 token）
+	if err := rdb.Set(context.Background(), rediskeys.TokenBlacklistKey(token), "1", time.Hour).Err(); err != nil {
+		t.Fatalf("seed blacklist: %v", err)
+	}
+
+	r := setupTestRouter()
+	r.Use(AuthRequired(cfg, rdb, db))
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, 401, w.Code)
+	assert.Contains(t, w.Body.String(), "token has been revoked")
 }

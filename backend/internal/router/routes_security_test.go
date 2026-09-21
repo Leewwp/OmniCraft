@@ -38,6 +38,17 @@ func TestCredentialRoutesAreRateLimitedWhileCSRFRouteIsNot(t *testing.T) {
 	t.Run("forgot-password", func(t *testing.T) {
 		assertCredentialRouteRateLimited(t, "/api/v1/auth/forgot-password", `{"email":"forgot-rate@example.com"}`)
 	})
+	// FR-01（低-14）：reset/verify/resend 与 forgot-password 同为凭证路由，
+	// 必须挂同级的凭证级限流（IP+账号双窗）。
+	t.Run("reset-password", func(t *testing.T) {
+		assertCredentialRouteRateLimited(t, "/api/v1/auth/reset-password", `{"token":"x","new_password":"whatever123"}`)
+	})
+	t.Run("verify-email", func(t *testing.T) {
+		assertCredentialRouteRateLimited(t, "/api/v1/auth/verify-email", `{"token":"x"}`)
+	})
+	t.Run("resend-verification", func(t *testing.T) {
+		assertCredentialRouteRateLimitedStatus(t, "/api/v1/auth/resend-verification", `{"email":"resend-rate@example.com","captcha_token":"x"}`, []int{http.StatusOK, http.StatusBadRequest})
+	})
 
 	router, _, cleanup := buildRoutesSecurityRouter(t)
 	defer cleanup()
@@ -200,6 +211,13 @@ func TestDisabledDesktopAndPaymentRoutesReturnExistingContract(t *testing.T) {
 
 func assertCredentialRouteRateLimited(t *testing.T, path, body string) {
 	t.Helper()
+	assertCredentialRouteRateLimitedStatus(t, path, body, []int{http.StatusBadRequest})
+}
+
+// assertCredentialRouteRateLimitedStatus 允许调用方声明首个请求的合法状态码
+// （例如 resend-verification 对未知邮箱返回 200），第二发必须命中 429。
+func assertCredentialRouteRateLimitedStatus(t *testing.T, path, body string, firstOK []int) {
+	t.Helper()
 
 	router, _, cleanup := buildRoutesSecurityRouter(t)
 	defer cleanup()
@@ -212,8 +230,15 @@ func assertCredentialRouteRateLimited(t *testing.T, path, body string) {
 		router.ServeHTTP(rec, req)
 
 		if i == 0 {
-			if rec.Code != http.StatusBadRequest {
-				t.Fatalf("%s first request status = %d, want 400; body = %s", path, rec.Code, rec.Body.String())
+			firstAllowed := false
+			for _, code := range firstOK {
+				if rec.Code == code {
+					firstAllowed = true
+					break
+				}
+			}
+			if !firstAllowed {
+				t.Fatalf("%s first request status = %d, want one of %v; body = %s", path, rec.Code, firstOK, rec.Body.String())
 			}
 			continue
 		}
