@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Shield, ShieldAlert, ShieldCheck, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 
 interface ComplianceResult {
@@ -49,7 +50,9 @@ export function AgentComplianceCheckBadge({
       setResult(res);
       onResult?.(res);
     } catch (e) {
-      setError((e as Error).message || "Check failed");
+      // SP-25 低-40：错误位走统一 i18n 映射（对齐 UploadAssistPanel），后端
+      // 内部英文文案不再直出中文站点。
+      setError(t(getUserFacingErrorKey(e)));
       silentError(e, { component: 'ComplianceCheckBadge', action: 'check' });
     } finally {
       setLoading(false);

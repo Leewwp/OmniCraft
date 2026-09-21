@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { BookOpen, ChevronDown, ChevronUp, Loader2, RotateCcw, HelpCircle, Flag } from "lucide-react";
-import { useSSE } from "@/lib/useSSE";
+import { streamUsageGuide } from "@/lib/usage-guide-stream";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,25 +19,15 @@ export function UsageGuidePanel({ contentId, className }: UsageGuidePanelProps) 
   const [expanded, setExpanded] = useState(false);
   const [content, setContent] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState("");
   const contentRef = useRef("");
+  const abortRef = useRef<AbortController | null>(null);
 
-  const { streaming, start, stop } = useSSE({
-    onMessage: (delta) => {
-      contentRef.current += delta;
-      setContent(contentRef.current);
-    },
-    onClose: () => {
-      setLoaded(true);
-      setError("");
-    },
-    onError: () => {
-      setError(t("agent.guideError"));
-    },
-  });
-
+  // SP-25 中-9：改 GET 流式（后端路由为 GET-only，旧 useSSE 硬编码 POST →
+  // 自上线即 404 死链）；行缓冲与双形态（JSON/SSE）收口在 usage-guide-stream。
   function toggle() {
-    if (!expanded && !loaded) {
+    if (!expanded && !loaded && !streaming) {
       fetchGuide();
     }
     setExpanded(!expanded);
@@ -45,8 +35,32 @@ export function UsageGuidePanel({ contentId, className }: UsageGuidePanelProps) 
 
   function fetchGuide() {
     setError("");
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setStreaming(true);
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-    start(`${apiUrl}/api/v1/agent/usage-guide/${contentId}?stream=true`);
+    void streamUsageGuide(
+      fetch,
+      `${apiUrl}/api/v1/agent/usage-guide/${contentId}?stream=true`,
+      {
+        onDelta: (delta) => {
+          contentRef.current += delta;
+          setContent(contentRef.current);
+        },
+        onDone: () => {
+          setLoaded(true);
+          setError("");
+        },
+        onError: () => {
+          setError(t("agent.guideError"));
+        },
+        onClose: () => {
+          setStreaming(false);
+        },
+      },
+      controller.signal,
+    );
   }
 
   function handleRetry() {
