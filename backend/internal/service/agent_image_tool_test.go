@@ -49,6 +49,10 @@ func (f *fakeImageStore) SignedAgentImageURL(ctx context.Context, key string) (s
 	return "https://cdn.omnicraft.local/signed/" + key, nil
 }
 
+func (f *fakeImageStore) DeleteAgentImagePrefix(ctx context.Context, prefix string) error {
+	return nil
+}
+
 func newImageTestService(t *testing.T, gen llm.AgentImageGenerator, store AgentImageStore, db *gorm.DB, limit int) *AgentService {
 	t.Helper()
 	cfg := &config.Config{}

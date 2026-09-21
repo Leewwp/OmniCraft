@@ -640,5 +640,10 @@ func (h *AgentHandler) DeleteConversation(c *gin.Context) {
 		return
 	}
 	committed = true
+	// SP-25 低-6（D3）：删除已提交后异步 best-effort 清理该会话的 OSS 生图
+	// 对象（agent-images/<convID>/ 前缀）；失败仅日志，不影响 204 响应。
+	if h.agentSvc != nil {
+		h.agentSvc.CleanupConversationImages(conv.ID)
+	}
 	c.Status(http.StatusNoContent)
 }
