@@ -121,4 +121,19 @@ Content-Type: application/json
 }
 ```
 
+#### 创作者粉丝分析（GET /api/v1/users/me/followers/stats?days=30）
+
+```json
+// Response 200
+{
+  "total": 128,
+  "new_this_month": 12,
+  "lost_this_month": 0,
+  "daily": [{ "date": "2026-09-21", "count": 3, "lost": 0 }],
+  "sources": [{ "name": "原神", "value": 45 }]
+}
+```
+
+> `lost_this_month` 与 `daily[].lost` **暂不支持**：follows 为硬删模型（取关即物理删除，无 `deleted_at` 列），掉粉数不可推导，响应中恒为 `0`；每日曲线只承载真实的新增粉丝数（`count`）。恢复掉粉统计需先引入 follows 软删迁移（SP-25 明确不在本轮范围）。
+
 ---

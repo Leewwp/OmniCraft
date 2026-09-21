@@ -93,23 +93,29 @@ type FollowerStatsResult struct {
 
 func (r *FollowRepository) GetFollowerStats(userID int64, days int) (*FollowerStatsResult, error) {
 	var total int64
-	r.db.Model(&model.Follow{}).Where("target_type = 'user' AND target_id = ?", userID).Count(&total)
+	if err := r.db.Model(&model.Follow{}).Where("target_type = 'user' AND target_id = ?", userID).Count(&total).Error; err != nil {
+		return nil, err
+	}
 
 	var newThisMonth int64
-	r.db.Model(&model.Follow{}).
+	if err := r.db.Model(&model.Follow{}).
 		Where("target_type = 'user' AND target_id = ? AND created_at >= NOW() - INTERVAL '30 days'", userID).
-		Count(&newThisMonth)
+		Count(&newThisMonth).Error; err != nil {
+		return nil, err
+	}
 
+	// 掉粉统计在 follows 硬删模型下不可推导（无 deleted_at 列，Unfollow 即
+	// 物理删除——SP-25 D1 裁决诚实缺失）：lost 恒 0，docs/reference/api.md
+	// 标注「暂不支持」；恢复能力须先落 follows 软删迁移，本轮明确不做。
 	var lostThisMonth int64
-	r.db.Table("follows").
-		Where("target_type = 'user' AND target_id = ? AND deleted_at IS NOT NULL AND deleted_at >= NOW() - INTERVAL '30 days'", userID).
-		Count(&lostThisMonth)
 
+	// 每日曲线只承载真实的新增粉丝数（gained）；lost 子查询随 deleted_at
+	// 谓词一并移除，输出列 lost 恒 0 保持响应形状稳定。
 	var daily []FollowerDailyStats
-	r.db.Raw(`
+	if err := r.db.Raw(`
 		SELECT d.dt::date::text AS date,
 			COALESCE(gained.cnt, 0) AS count,
-			COALESCE(lost.cnt, 0) AS lost
+			0 AS lost
 		FROM generate_series(NOW() - (? || ' days')::interval, NOW(), '1 day') d(dt)
 		LEFT JOIN (
 			SELECT created_at::date AS dt, COUNT(*) AS cnt
@@ -117,17 +123,13 @@ func (r *FollowRepository) GetFollowerStats(userID int64, days int) (*FollowerSt
 			WHERE target_type = 'user' AND target_id = ? AND created_at >= NOW() - (? || ' days')::interval
 			GROUP BY created_at::date
 		) gained ON gained.dt = d.dt::date
-		LEFT JOIN (
-			SELECT deleted_at::date AS dt, COUNT(*) AS cnt
-			FROM follows
-			WHERE target_type = 'user' AND target_id = ? AND deleted_at IS NOT NULL AND deleted_at >= NOW() - (? || ' days')::interval
-			GROUP BY deleted_at::date
-		) lost ON lost.dt = d.dt::date
 		ORDER BY d.dt
-	`, days, userID, days, userID, days).Scan(&daily)
+	`, days, userID, days).Scan(&daily).Error; err != nil {
+		return nil, err
+	}
 
 	var sources []FollowerSourceStats
-	r.db.Raw(`
+	if err := r.db.Raw(`
 		SELECT COALESCE(NULLIF(ips.name, ''), 'direct') AS name, COUNT(*) AS value
 		FROM follows f
 		LEFT JOIN content_items ci ON f.follower_id = ci.user_id
@@ -136,7 +138,9 @@ func (r *FollowRepository) GetFollowerStats(userID int64, days int) (*FollowerSt
 		GROUP BY ips.name
 		ORDER BY value DESC
 		LIMIT 5
-	`, userID).Scan(&sources)
+	`, userID).Scan(&sources).Error; err != nil {
+		return nil, err
+	}
 
 	return &FollowerStatsResult{
 		Total:         total,

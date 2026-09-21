@@ -201,3 +201,34 @@ func TestGenerateImageProviderFailure(t *testing.T) {
 		t.Fatalf("provider failure must surface, got %v", err)
 	}
 }
+
+// FR-03（低-4）：会话生图配额的持久化计数只数成功调用——供应商失败的步骤
+// 不得消耗用户额度（live 轮 agent_stream 只数成功，两侧对齐）。
+func TestConversationImageCountCountsOnlySuccessfulSteps(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&model.AgentMessage{}, &model.AgentConversation{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.AgentMessage{
+		ConversationID: 42, Role: "assistant",
+		ToolCalls: model.JSONMap{"phase": "tools", "steps": []any{
+			map[string]any{"name": ToolGenerateImage, "status": "success"},
+			map[string]any{"name": ToolGenerateImage, "status": "error"},
+			map[string]any{"name": ToolSearchContent, "status": "success"},
+		}},
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	s := newImageTestService(t, &fakeImageGenerator{}, newFakeImageStore(), db, 5)
+
+	got, err := s.conversationImageCount(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("conversationImageCount: %v", err)
+	}
+	if got != 1 {
+		t.Fatalf("only successful generate_image steps count toward the budget: got %d, want 1", got)
+	}
+}

@@ -159,8 +159,12 @@ func (s *AgentService) conversationImageCount(ctx context.Context, conversationI
 			if !ok {
 				continue
 			}
+			// 只数成功调用：供应商失败的步骤不消耗会话额度（与
+			// agent_stream live 轮只数成功的口径对齐）。
 			if name, _ := m["name"].(string); name == ToolGenerateImage {
-				count++
+				if status, _ := m["status"].(string); status == AgentToolStatusSuccess {
+					count++
+				}
 			}
 		}
 	}
