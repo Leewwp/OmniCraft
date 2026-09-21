@@ -30,7 +30,9 @@ export function FollowerTrendChart({ data }: FollowerTrendChartProps) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-medium text-foreground">
-        {t("followers.trendTitle")}
+        {/* D2 决策（#631 评论 5760171920）：趋势图标题改「新增粉丝趋势」——
+            数据源是 daily 新增粉丝而非净增长，旧标题语义失真。 */}
+        {t("chart.followerGainTrendTitle")}
       </h3>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
