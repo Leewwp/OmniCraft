@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Brush } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 // SP-17/T2 (#491)：/login 页与 LoginModal 共用 LoginForm；顺带补齐此前缺失
 // 的验证码分支（CAPTCHA_REQUIRED 动态插入 CaptchaWidget，超阈值不再卡死）。
@@ -30,8 +31,9 @@ function LoginPageContent() {
           <LoginForm
             showRememberMe
             onSuccess={() => {
-              const redirect = searchParams.get("redirect") || "/";
-              router.push(redirect);
+              // SP-25 中-11：redirect 只放行站内路径（防协议相对/绝对外域
+              // 开放重定向），其余回退 "/"。
+              router.push(safeRedirectPath(searchParams.get("redirect")));
             }}
           />
         </div>

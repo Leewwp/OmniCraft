@@ -1,8 +1,6 @@
 import { getServerApiBase } from "@/lib/server-api";
+import { absoluteUrl } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
-
-
-const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
 interface ContentItem {
   id: number;
@@ -15,66 +13,80 @@ interface IPItem {
   updated_at?: string;
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+/**
+ * SP-25 低-41：列表端点在 repo 层把 page_size 钳制到 ≤100（超限静默重置为
+ * 20），此前 sitemap 只拉一页 1000/500 → 每类实收 20 条且无告警。现按
+ * page_size=100（钳制上限内）以响应 total 为准翻页拉全量；60 页保险上限
+ * 防御 total 异常值。
+ */
+async function fetchAllPages<T>(path: string, listKey: string): Promise<T[]> {
   const apiBase = getServerApiBase();
+  const out: T[] = [];
+  let page = 1;
+  for (;;) {
+    const sep = path.includes("?") ? "&" : "?";
+    let res: Response;
+    try {
+      res = await fetch(`${apiBase}${path}${sep}page=${page}&page_size=100`);
+    } catch {
+      return out;
+    }
+    if (!res.ok) {
+      return out;
+    }
+    const data = await res.json();
+    const items = (data[listKey] || []) as T[];
+    out.push(...items);
+    const total = typeof data.total === "number" ? data.total : out.length;
+    if (items.length === 0 || out.length >= total || page >= 60) {
+      return out;
+    }
+    page++;
+  }
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [];
 
   // Static pages
   entries.push(
-    { url: baseUrl, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
-    { url: `${baseUrl}/original`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
-    { url: `${baseUrl}/home`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
+    { url: absoluteUrl("/"), lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
+    { url: absoluteUrl("/original"), lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
+    { url: absoluteUrl("/home"), lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
   );
 
-  // Published content pages
-  try {
-    const res = await fetch(`${apiBase}/contents?zone=original&page=1&page_size=1000&sort=newest`);
-    if (res.ok) {
-      const data = await res.json();
-      const contents = (data.contents || []) as ContentItem[];
-      for (const c of contents) {
-        entries.push({
-          url: `${baseUrl}/original/${c.id}`,
-          lastModified: c.updated_at ? new Date(c.updated_at) : new Date(),
-          changeFrequency: "weekly" as const,
-          priority: 0.8,
-        });
-      }
-    }
-  } catch { /* skip on build — will be regenerated on next deploy */ }
+  // Published original content pages (paged to total, see fetchAllPages)
+  const originals = await fetchAllPages<ContentItem>("/contents?zone=original&sort=newest", "contents");
+  for (const c of originals) {
+    entries.push({
+      url: absoluteUrl(`/original/${c.id}`),
+      lastModified: c.updated_at ? new Date(c.updated_at) : new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    });
+  }
 
-  try {
-    const res2 = await fetch(`${apiBase}/contents?zone=fanwork&page=1&page_size=1000&sort=newest`);
-    if (res2.ok) {
-      const data2 = await res2.json();
-      const fanworks = (data2.contents || []) as ContentItem[];
-      for (const c of fanworks) {
-        entries.push({
-          url: `${baseUrl}/content/${c.id}`,
-          lastModified: c.updated_at ? new Date(c.updated_at) : new Date(),
-          changeFrequency: "weekly" as const,
-          priority: 0.8,
-        });
-      }
-    }
-  } catch { /* skip */ }
+  // Published fanwork pages
+  const fanworks = await fetchAllPages<ContentItem>("/contents?zone=fanwork&sort=newest", "contents");
+  for (const c of fanworks) {
+    entries.push({
+      url: absoluteUrl(`/content/${c.id}`),
+      lastModified: c.updated_at ? new Date(c.updated_at) : new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    });
+  }
 
   // IP pages
-  try {
-    const res3 = await fetch(`${apiBase}/ips?page=1&page_size=500`);
-    if (res3.ok) {
-      const data3 = await res3.json();
-      const ips = (data3.ips || []) as IPItem[];
-      for (const ip of ips) {
-        entries.push({
-          url: `${baseUrl}/ip/${ip.slug}`,
-          lastModified: ip.updated_at ? new Date(ip.updated_at) : new Date(),
-          changeFrequency: "weekly" as const,
-          priority: 0.7,
-        });
-      }
-    }
-  } catch { /* skip */ }
+  const ips = await fetchAllPages<IPItem>("/ips", "ips");
+  for (const ip of ips) {
+    entries.push({
+      url: absoluteUrl(`/ip/${ip.slug}`),
+      lastModified: ip.updated_at ? new Date(ip.updated_at) : new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    });
+  }
 
   return entries;
 }
