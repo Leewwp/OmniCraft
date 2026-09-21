@@ -94,8 +94,7 @@ func (h *FollowHandler) UnfollowIP(c *gin.Context) {
 
 func (h *FollowHandler) GetFollowers(c *gin.Context) {
 	targetID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 	users, total, err := h.followRepo.GetFollowers("user", targetID, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
@@ -107,8 +106,7 @@ func (h *FollowHandler) GetFollowers(c *gin.Context) {
 
 func (h *FollowHandler) GetFollowing(c *gin.Context) {
 	targetID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 	follows, total, err := h.followRepo.GetFollowing(targetID, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})

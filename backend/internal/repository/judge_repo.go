@@ -95,9 +95,14 @@ func (r *JudgeRepository) HasVoted(caseID int64, judgeID int64) (bool, error) {
 }
 
 func (r *JudgeRepository) GetVoteStats(caseID int64) (approve, reject int64, err error) {
-	r.db.Model(&model.JudgeVote{}).Where("case_id = ? AND vote = ?", caseID, "approve").Count(&approve)
-	r.db.Model(&model.JudgeVote{}).Where("case_id = ? AND vote = ?", caseID, "reject").Count(&reject)
-	return
+	// SP-25 低-27：双 Count 吞错修复——故障时零票统计可能误导判官结算。
+	if err = r.db.Model(&model.JudgeVote{}).Where("case_id = ? AND vote = ?", caseID, "approve").Count(&approve).Error; err != nil {
+		return 0, 0, err
+	}
+	if err = r.db.Model(&model.JudgeVote{}).Where("case_id = ? AND vote = ?", caseID, "reject").Count(&reject).Error; err != nil {
+		return 0, 0, err
+	}
+	return approve, reject, nil
 }
 
 func (r *JudgeRepository) CloseCase(id int64, status string, approve, reject int) error {

@@ -23,8 +23,7 @@ func NewNotificationHandler(db *gorm.DB) *NotificationHandler {
 func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	channel := c.Query("channel")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	notifications, total, err := h.notifRepo.ListDecorated(callerID, channel, page, pageSize)
 	if err != nil {

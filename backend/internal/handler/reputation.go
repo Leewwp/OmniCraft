@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
@@ -24,8 +23,7 @@ func NewReputationHandler(db *gorm.DB) *ReputationHandler {
 
 func (h *ReputationHandler) GetMyReputationLogs(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	logs, total, err := h.reputationSvc.GetLogs(callerID, page, pageSize)
 	if err != nil {

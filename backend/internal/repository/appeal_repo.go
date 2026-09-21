@@ -32,7 +32,9 @@ func (r *AppealRepository) FindByID(id int64) (*model.Appeal, error) {
 
 func (r *AppealRepository) ListByUser(userID int64, page, pageSize int) ([]model.Appeal, int64, error) {
 	var total int64
-	r.db.Model(&model.Appeal{}).Where("user_id = ?", userID).Count(&total)
+	if err := r.db.Model(&model.Appeal{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	var appeals []model.Appeal
 	err := r.db.Where("user_id = ?", userID).
 		Order("created_at DESC").
@@ -43,7 +45,9 @@ func (r *AppealRepository) ListByUser(userID int64, page, pageSize int) ([]model
 
 func (r *AppealRepository) ListPending(page, pageSize int) ([]model.Appeal, int64, error) {
 	var total int64
-	r.db.Model(&model.Appeal{}).Where("status = 'pending'").Count(&total)
+	if err := r.db.Model(&model.Appeal{}).Where("status = 'pending'").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	var appeals []model.Appeal
 	err := r.db.Where("status = 'pending'").
 		Order("created_at ASC").

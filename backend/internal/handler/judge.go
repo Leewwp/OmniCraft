@@ -126,8 +126,7 @@ func (h *JudgeHandler) GetQueue(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 	cases, total, err := h.judgeSvc.GetJudgeQueue(callerID, page, pageSize)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)

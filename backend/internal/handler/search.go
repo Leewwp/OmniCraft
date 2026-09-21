@@ -80,7 +80,7 @@ func (h *SearchHandler) SearchContents(c *gin.Context) {
 		tagFilters = strings.Split(tags, ",")
 	}
 
-	page := clampPage(c.DefaultQuery("page", "1"), h.maxSearchPage())
+	page := clampSearchPage(c.DefaultQuery("page", "1"), h.maxSearchPage())
 	pageSize := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 
 	// Get viewerID from context (0 if anonymous)
@@ -126,7 +126,7 @@ func (h *SearchHandler) SearchUsers(c *gin.Context) {
 	if rejectLongQuery(c, q, h.maxQueryChars()) {
 		return
 	}
-	page := clampPage(c.DefaultQuery("page", "1"), h.maxSearchPage())
+	page := clampSearchPage(c.DefaultQuery("page", "1"), h.maxSearchPage())
 	pageSize := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 
 	users, total, err := h.searchSvc.SearchUsers(q, page, pageSize)
@@ -174,7 +174,7 @@ func rejectLongQuery(c *gin.Context, q string, max int) bool {
 	return false
 }
 
-func clampPage(raw string, max int) int {
+func clampSearchPage(raw string, max int) int {
 	n, err := strconv.Atoi(raw)
 	if err != nil || n <= 0 {
 		return 1
