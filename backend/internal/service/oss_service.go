@@ -261,7 +261,12 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 		if !strings.HasPrefix(mimeType, "video/") {
 			return &UploadValidationError{Message: "mime_type must be video/*"}
 		}
-		if durationSec != nil && *durationSec > s.cfg.Limits.VideoMaxSec {
+		// SP-25 低-19：duration_sec 必填——省略即跳过上限校验，等于用
+		// 客户端「忘记带字段」绕开视频时长预算。
+		if durationSec == nil || *durationSec <= 0 {
+			return &UploadValidationError{Message: "duration_sec is required for video uploads"}
+		}
+		if *durationSec > s.cfg.Limits.VideoMaxSec {
 			return &UploadValidationError{Message: fmt.Sprintf("video duration exceeds %d seconds", s.cfg.Limits.VideoMaxSec)}
 		}
 	case "image":

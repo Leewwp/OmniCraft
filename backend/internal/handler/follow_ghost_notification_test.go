@@ -26,6 +26,8 @@ func TestFollowIPDoesNotEmitGhostNotification(t *testing.T) {
 
 	follower := &model.User{Email: "f@t.local", Username: "follower", PasswordHash: "x", Reputation: 10}
 	require.NoError(t, db.Create(follower).Error)
+	// SP-25 低-24：FollowIP 现校验目标存在性，测试须种真实 IP。
+	require.NoError(t, db.Create(&model.IP{Name: "ghost-ip", Slug: "ghost-ip", Status: "published"}).Error)
 
 	notifSvc := service.NewNotificationService(repository.NewNotificationRepository(db))
 	h := NewFollowHandler(db)
@@ -34,7 +36,7 @@ func TestFollowIPDoesNotEmitGhostNotification(t *testing.T) {
 	r := gin.New()
 	r.POST("/ips/:id/follow", func(c *gin.Context) { c.Set("userID", follower.ID); c.Next() }, h.FollowIP)
 
-	req := httptest.NewRequest(http.MethodPost, "/ips/210/follow", nil)
+	req := httptest.NewRequest(http.MethodPost, "/ips/"+itoa64(dbFindFirstIPID(t, db))+"/follow", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -82,4 +84,11 @@ func TestFollowUserStillNotifiesTheRealTarget(t *testing.T) {
 	}
 	require.Len(t, notifs, 1, "real follow notification must still land")
 	require.Equal(t, target.ID, notifs[0].UserID)
+}
+
+func dbFindFirstIPID(t *testing.T, db *gorm.DB) int64 {
+	t.Helper()
+	var ip model.IP
+	require.NoError(t, db.First(&ip).Error)
+	return ip.ID
 }

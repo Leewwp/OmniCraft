@@ -108,6 +108,17 @@ func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
 		response.ValidationError(c, "invalid request parameters")
 		return
 	}
+	// SP-25 低-23：admin 面同款收口——显式白名单过滤，未知字段 400
+	// （对照 series/collection validate*AllowedFields 黄金模式）。
+	allowed := map[string]struct{}{
+		"name_i18n": {}, "slug": {}, "sort_order": {}, "is_active": {}, "parent_id": {},
+	}
+	for field := range updates {
+		if _, ok := allowed[field]; !ok {
+			response.ValidationError(c, "unsupported field: "+field)
+			return
+		}
+	}
 	entry := h.auditEntry(c, "category_update", "category", strconv.FormatInt(id, 10), map[string]any{"category_id": id})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		var cat model.Category

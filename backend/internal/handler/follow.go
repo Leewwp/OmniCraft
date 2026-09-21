@@ -39,6 +39,25 @@ func (h *FollowHandler) FollowUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
 		return
 	}
+	// SP-25 低-24：self-follow 拒绝；目标必须存在且未封禁（此前
+	// FirstOrCreate 无条件落行，可关注不存在/封禁用户留下悬挂关系）。
+	if callerID == targetID {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "SELF_FOLLOW_NOT_ALLOWED", "message": "cannot follow yourself"})
+		return
+	}
+	exists, banned, err := h.followRepo.FollowTargetStatus("user", targetID)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "target user not found"})
+		return
+	}
+	if banned {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "USER_BANNED", "message": "target user is banned"})
+		return
+	}
 	if err := h.followRepo.Follow(callerID, "user", targetID); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -68,6 +87,16 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		return
+	}
+	// SP-25 低-24：IP 目标存在性校验（防悬挂关注关系）。
+	ipExists, _, err := h.followRepo.FollowTargetStatus("ip", ipID)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if !ipExists {
+		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "target ip not found"})
 		return
 	}
 	if err := h.followRepo.Follow(callerID, "ip", ipID); err != nil {
