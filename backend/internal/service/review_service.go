@@ -742,7 +742,9 @@ func MergeReviewResult(current, incoming string) string {
 
 // NormalizeReviewResult maps a raw review result value onto the application
 // review vocabulary ("pass", "review" or "block"). Unknown, empty or
-// otherwise unexpected values fail closed to "pass".
+// otherwise unexpected values fail closed to MANUAL REVIEW ("review"):
+// an unrecognized verdict must never auto-pass content (SP-25 低-21 —
+// the previous default→pass was fail-open despite this comment).
 func NormalizeReviewResult(result string) string {
 	r := strings.ToLower(strings.TrimSpace(result))
 	switch r {
@@ -750,8 +752,10 @@ func NormalizeReviewResult(result string) string {
 		return "block"
 	case "review", "pending":
 		return "review"
-	default:
+	case "pass", "approved", "ok", "":
 		return "pass"
+	default:
+		return "review"
 	}
 }
 

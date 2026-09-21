@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
@@ -28,6 +30,10 @@ type IPHandler struct {
 	// categories outside it. Empty slice (legacy constructors/tests) skips the
 	// check rather than blocking every creation.
 	ipCategories   []string
+	// cfg gates cover-image URLs onto the platform OSS domain (SP-25 低-22);
+	// nil (legacy constructors/tests) keeps the category allowlist inert and
+	// fails the cover gate closed.
+	cfg            *config.Config
 }
 
 func NewIPHandler(db *gorm.DB) *IPHandler {
@@ -47,6 +53,7 @@ func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *
 		discussionRepo: repository.NewDiscussionRepository(db),
 		displaySigner:  service.NewDisplayURLSigner(cfg),
 		ipCategories:   cfg.IPCategories,
+		cfg:            cfg,
 	}
 }
 
@@ -134,6 +141,15 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 	if !h.ipCategoryAllowed(input.Category) {
 		response.ValidationError(c, "invalid ip category")
 		return
+	}
+
+	// SP-25 低-22：封面必须为平台 OSS 对象（对齐内容域 resolveCoverScanURL
+	// 语义；此前任意 URL 直存，成为外链/外域图残余面）。空 = 无封面，允许。
+	if coverURL := strings.TrimSpace(input.CoverURL); coverURL != "" {
+		if h.cfg == nil || !aliyun.IsPlatformObjectURL(h.cfg.OSS.Domain, coverURL) {
+			response.Error(c, http.StatusBadRequest, "COVER_NOT_PLATFORM_OSS_OBJECT", "cover_url must be a platform OSS object URL")
+			return
+		}
 	}
 
 	ip, err := h.ipSvc.CreateIP(c.Request.Context(), input, callerID)

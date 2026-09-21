@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"errors"
+	"fmt"
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
@@ -12,6 +14,31 @@ type FollowRepository struct {
 
 func NewFollowRepository(db *gorm.DB) *FollowRepository {
 	return &FollowRepository{db: db}
+}
+
+// FollowTargetStatus reports whether a follow target exists and (for users)
+// is not banned (SP-25 低-24): follows against nonexistent or banned targets
+// must be rejected before the FirstOrCreate lands a dangling row.
+func (r *FollowRepository) FollowTargetStatus(targetType string, targetID int64) (exists bool, banned bool, err error) {
+	switch targetType {
+	case "user":
+		var user model.User
+		if err = r.db.Select("id", "is_banned").First(&user, targetID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, false, nil
+			}
+			return false, false, err
+		}
+		return true, user.IsBanned, nil
+	case "ip":
+		var count int64
+		if err = r.db.Model(&model.IP{}).Where("id = ?", targetID).Count(&count).Error; err != nil {
+			return false, false, err
+		}
+		return count > 0, false, nil
+	default:
+		return false, false, fmt.Errorf("unsupported follow target type %q", targetType)
+	}
 }
 
 func (r *FollowRepository) Follow(followerID int64, targetType string, targetID int64) error {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/redis/go-redis/v9"
 	"omnicraft/backend/config"
@@ -182,10 +183,34 @@ func (h *TagHandler) UpdateTagGroup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid group id"})
 		return
 	}
-	var updates map[string]interface{}
-	if err := c.ShouldBindJSON(&updates); err != nil {
+	// SP-25 低-23：显式字段白名单（name/tags），未知字段 400——任意 map
+	// 直穿 Updates 曾可改写 user_id 等受保护列（mass-assignment）。
+	var body struct {
+		Name *string   `json:"name"`
+		Tags *[]string `json:"tags"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
 		response.ValidationError(c, "invalid request parameters")
 		return
+	}
+	if body.Name == nil && body.Tags == nil {
+		response.ValidationError(c, "no updatable field provided")
+		return
+	}
+	updates := map[string]interface{}{}
+	if body.Name != nil {
+		name := strings.TrimSpace(*body.Name)
+		if name == "" || utf8.RuneCountInString(name) > 100 {
+			response.ValidationError(c, "invalid group name")
+			return
+		}
+		updates["name"] = name
+	}
+	if body.Tags != nil && len(*body.Tags) > 50 {
+		response.ValidationError(c, "too many tags")
+		return
+	} else if body.Tags != nil {
+		updates["tags"] = *body.Tags
 	}
 	if err := h.tagSvc.UpdateTagGroup(id, callerID, updates); err != nil {
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
