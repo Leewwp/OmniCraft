@@ -157,8 +157,7 @@ func (h *SocialHandler) ListComments(c *gin.Context) {
 			parentID = &v
 		}
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 	comments, total, err := h.socialSvc.ListComments(contentID, parentID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -176,8 +175,7 @@ func (h *SocialHandler) ListDiscussions(c *gin.Context) {
 	if v, err := strconv.ParseInt(c.Query("content_id"), 10, 64); err == nil {
 		contentID = &v
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 	discussions, total, err := h.socialSvc.ListDiscussions(ipID, contentID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -385,8 +383,7 @@ func (h *SocialHandler) ListMyReports(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
 
 	searchRepo := repository.NewSearchRepository(h.db)
 	reports, total, err := searchRepo.ListReportsByReporter(callerID, page, pageSize)

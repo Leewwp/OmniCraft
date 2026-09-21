@@ -67,14 +67,7 @@ func (h *MessageHandler) SetReviewService(cfg *config.Config, reviewSvc service.
 
 func (h *MessageHandler) ListConversations(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
+	page, pageSize := pageQuery(c, 20)
 
 	summaries, err := h.msgRepo.ListConversationSummaries(callerID, page, pageSize)
 	if err != nil {
@@ -172,8 +165,7 @@ func (h *MessageHandler) ListMessages(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+	page, pageSize := pageQuery(c, 50)
 
 	messages, total, err := h.msgRepo.ListMessages(convID, page, pageSize)
 	if err != nil {
