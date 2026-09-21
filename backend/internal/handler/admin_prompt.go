@@ -141,6 +141,12 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 		CreatedBy:            &adminID,
 	}
 	if err := h.repo.CreateVersion(c.Request.Context(), row); err != nil {
+		// 并发创建同名下一版本（LatestVersion→CreateVersion 窗口）撞唯一约束：
+		// 版本行不可变、重试即可成功——语义是冲突而非故障，映射 409。
+		if errors.Is(err, repository.ErrPromptVersionExists) {
+			c.JSON(http.StatusConflict, gin.H{"code": "PROMPT_VERSION_EXISTS", "message": "prompt version already exists, retry to re-resolve next version"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to create prompt version"})
 		return
 	}
