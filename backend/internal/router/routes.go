@@ -127,7 +127,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		users.DELETE("/me/agent-tokens/:id", authReq, middleware.RequireJWTChannel(), agentTokenHandler.Revoke)
 	}
 
-	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg)
+	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg, ctr.ReviewService)
 	ips := v1.Group("/ips")
 	{
 		ips.GET("", optAuth, cacheable, ipHandler.ListIPs)
@@ -410,6 +410,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	adminHandler := handler.NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService)
 	adminHandler.SetNotificationService(notifSvc)
+	// #658 漂移①修复：恢复路径的内容发布事件重发此前从未接线（outbox 恒
+	// nil，同事务重发被静默跳过）——恢复的内容不重新进入检索投影。
+	adminHandler.SetContentOutbox(ctr.OutboxRepo)
 	adminFeedbackHandler := handler.NewAdminFeedbackHandler(db, ctr.FeedbackService, ctr.AdminAuditService)
 	adminAuditHandler := handler.NewAdminAuditHandler(ctr.AdminAuditService)
 	adminRAGHandler := handler.NewAdminRAGHandler(cfg, ctr.RAGProjection, ctr.AdminAuditService)
@@ -488,7 +491,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/archive-scan-jobs/:id/retry", archiveScanAdminRateLimit, adminArchiveScanHandler.Retry)
 	}
 
-	internalHandler := handler.NewInternalHandler(db, rdb, cfg)
+	internalHandler := handler.NewInternalHandler(ctr.ReviewService, cfg)
 	internalHandler.SetQueueProducer(ctr.QueueProducer)
 	internal := v1.Group("/internal")
 	{

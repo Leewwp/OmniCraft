@@ -413,6 +413,9 @@ func buildAICallbackRouter(t *testing.T, producer queue.Producer, contentStartSt
 	userRepo := repository.NewUserRepository(db)
 	authSvc := service.NewAuthService(userRepo, rdb, cfg)
 	verificationSvc := service.NewVerificationService(userRepo, rdb, mail.NewLoggerSender(), cfg)
+	// #658 后 internal handler 消费容器审核服务；本测试的部分容器镜像生产
+	// 语义提供一份（outbox/通知留给专门的行为测试断言）。
+	reviewSvc := service.NewReviewService(db, rdb, cfg, service.NewReputationService(db))
 	ctr := &container.ServiceContainer{
 		DB:                  db,
 		RDB:                 rdb,
@@ -420,6 +423,7 @@ func buildAICallbackRouter(t *testing.T, producer queue.Producer, contentStartSt
 		UserRepo:            userRepo,
 		AuthService:         authSvc,
 		VerificationService: verificationSvc,
+		ReviewService:       reviewSvc,
 		QueueProducer:       producer,
 		AgentService: service.NewAgentService(
 			&routeFakeAgentProvider{},

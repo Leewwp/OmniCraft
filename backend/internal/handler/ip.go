@@ -44,9 +44,9 @@ func NewIPHandler(db *gorm.DB) *IPHandler {
 	}
 }
 
-func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *IPHandler {
-	reputSvc := service.NewReputationService(db)
-	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
+func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reviewSvc *service.ReviewService) *IPHandler {
+	// #658 漂移④修复：IP 路径消费容器审核服务（outbox + 归档扫描门 +
+	// 作者通知全接），不再自建裸实例。
 	return &IPHandler{
 		ipSvc:          service.NewIPServiceWithReview(repository.NewIPRepository(db), rdb, &cfg.Cache, reviewSvc),
 		contentRepo:    repository.NewContentRepository(db),
