@@ -309,12 +309,13 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	contentSvc := service.NewContentService(h.contentRepo)
-	contents, total, err := contentSvc.ListContents(repository.ListContentsFilter{
+	// #658：原每次请求自建裸 ContentService 只为这一个查询；裸构造无
+	// rdb/缓存配置，等价于 repo 直查（viewer=0），改直查消除构造点。
+	contents, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
 		Status:   "under_review",
 		Page:     page,
 		PageSize: pageSize,
-	}, 0)
+	})
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
