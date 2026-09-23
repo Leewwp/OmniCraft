@@ -121,7 +121,7 @@ func TestUpdateMeValidation(t *testing.T) {
 
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "fr11-test-secret"
-	h := NewUserHandler(db, nil, nil, cfg)
+	h := newUserHandlerForTest(db, nil, nil, cfg)
 	r := gin.New()
 	r.PATCH("/users/:id", func(c *gin.Context) { c.Set(middleware.UserIDKey, user.ID); c.Next() }, h.UpdateUser)
 

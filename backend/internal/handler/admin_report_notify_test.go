@@ -55,7 +55,7 @@ func (p *t53CaptureProducer) reportResultNotifies() []map[string]interface{} {
 }
 
 func newT53ResolveRouter(db *gorm.DB, notifSvc *service.NotificationService) *gin.Engine {
-	handler := NewAdminHandler(db, &config.Config{}, nil, service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db))
+	handler := newAdminHandlerForTest(db, &config.Config{}, nil, service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db))
 	handler.SetNotificationService(notifSvc)
 	router := gin.New()
 	router.PATCH("/admin/reports/:id", func(c *gin.Context) {

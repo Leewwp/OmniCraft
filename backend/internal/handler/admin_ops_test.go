@@ -39,7 +39,7 @@ func setupAdminOpsRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	cfg.JWT.Secret = "admin-ops-secret"
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, nil, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, nil, auditSvc)
 	adminAuditHandler := NewAdminAuditHandler(auditSvc)
 
 	router := gin.New()

@@ -61,7 +61,7 @@ func setupT10ContentCacheRouters(t *testing.T) (*gin.Engine, *gin.Engine, *gorm.
 	cfg.Cache.ContentListTTL = 300
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, rdb, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, rdb, auditSvc)
 	adminHandler.SetContentOutbox(repository.NewOutboxRepository(db))
 
 	// 公共读路径按 routes.go 同款装配（NewContentHandler 携带 redis 与

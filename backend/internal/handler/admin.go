@@ -114,22 +114,32 @@ func isSensitivePatchKey(key string) bool {
 	return false
 }
 
-func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSvc *service.AdminAuditService) *AdminHandler {
-	var dlqWorker *worker.DLQWorker
-	if rdb != nil {
-		dlqWorker = worker.NewDLQWorker(rdb)
-	}
+// AdminDeps carries the container-resolved modules the admin surface needs
+// (#658 PR-3：构造收口组合根，handler 不再自建第二套 repo/service).
+type AdminDeps struct {
+	IPAdminSvc    *service.IPService
+	UserRepo      *repository.UserRepository
+	ContentRepo   *repository.ContentRepository
+	SocialRepo    *repository.SocialRepository
+	LLMConfigSvc  *service.LLMConfigService
+	DLQWorker     *worker.DLQWorker
+	DisplaySigner *service.DisplayURLSigner
+}
+
+// NewAdminHandler receives the container-owned dependencies; the raw db and
+// rdb stay for the admin file's transactional and cache-invalidation needs.
+func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSvc *service.AdminAuditService, deps AdminDeps) *AdminHandler {
 	return &AdminHandler{
-		ipSvc:         service.NewIPServiceWithInvalidation(repository.NewIPRepository(db), rdb),
-		contentRepo:   repository.NewContentRepository(db),
-		userRepo:      repository.NewUserRepository(db),
-		socialRepo:    repository.NewSocialRepository(db),
-		llmConfigSvc:  service.NewLLMConfigService(repository.NewLLMConfigRepository(db), cfg),
+		ipSvc:         deps.IPAdminSvc,
+		contentRepo:   deps.ContentRepo,
+		userRepo:      deps.UserRepo,
+		socialRepo:    deps.SocialRepo,
+		llmConfigSvc:  deps.LLMConfigSvc,
 		auditSvc:      auditSvc,
 		cfg:           cfg,
 		rdb:           rdb,
-		dlqWorker:     dlqWorker,
-		displaySigner: service.NewDisplayURLSigner(cfg),
+		dlqWorker:     deps.DLQWorker,
+		displaySigner: deps.DisplaySigner,
 	}
 }
 

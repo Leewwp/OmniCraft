@@ -108,7 +108,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// token 的凭证面，resend 可跨地址低速扇出发信，均需 IP+账号双窗防护。
 	auth.POST("/reset-password", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.ResetPassword)
 
-	userHandler := handler.NewUserHandler(db, authService, rdb, cfg, ctr.ReviewService)
+	userHandler := handler.NewUserHandler(userRepo, ctr.ReputationService, ctr.ContentRepo, ctr.FollowRepo, authService, rdb, cfg, ctr.ReviewService)
 	users := v1.Group("/users")
 	{
 		users.GET("/:id", optAuth, cacheable, userHandler.GetUser)
@@ -409,7 +409,15 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		rehab.GET("/my-progress", rehabHandler.GetMyProgress)
 	}
 
-	adminHandler := handler.NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService)
+	adminHandler := handler.NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService, handler.AdminDeps{
+		IPAdminSvc:    ctr.IPAdminService,
+		UserRepo:      ctr.UserRepo,
+		ContentRepo:   ctr.ContentRepo,
+		SocialRepo:    ctr.SocialRepo,
+		LLMConfigSvc:  ctr.LLMConfigService,
+		DLQWorker:     ctr.DLQWorker,
+		DisplaySigner: ctr.DisplayURLSigner,
+	})
 	adminHandler.SetNotificationService(notifSvc)
 	// #658 漂移①修复：恢复路径的内容发布事件重发此前从未接线（outbox 恒
 	// nil，同事务重发被静默跳过）——恢复的内容不重新进入检索投影。

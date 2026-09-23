@@ -38,7 +38,7 @@ func setupReplayRouter(t *testing.T) (*gin.Engine, *gorm.DB, *redis.Client, stri
 	cfg.JWT.Secret = "replay-contract-secret"
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, rdb, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, rdb, auditSvc)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 
 	adminUser := model.User{Email: "replay-admin@example.com", Username: "replay-admin", PasswordHash: "hash", Reputation: 10, Role: "admin"}

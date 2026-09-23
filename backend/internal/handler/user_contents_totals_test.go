@@ -43,7 +43,7 @@ func TestMyContentsReturnsAuthorTotals(t *testing.T) {
 		Status: "published", ViewCount: 9999, LikeCount: 9999,
 	}).Error)
 
-	userHandler := NewUserHandler(db, nil, nil, &config.Config{})
+	userHandler := newUserHandlerForTest(db, nil, nil, &config.Config{})
 	router := gin.New()
 	router.GET("/api/v1/users/me/contents", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, author.ID)

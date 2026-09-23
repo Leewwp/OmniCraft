@@ -14,9 +14,9 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
-	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/repository"
 )
 
 func TestBrowseHistoryGetReturnsCompatibleItemsAndRetentionDays(t *testing.T) {

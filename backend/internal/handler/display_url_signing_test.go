@@ -294,7 +294,7 @@ func TestAdminPendingIPListSignsPlatformCoverURLs(t *testing.T) {
 	const pendingKey = "uploads/7/image/pending-cover.png"
 	seedDisplaySigningIP(t, db, 71, aliyun.ObjectURL(cfg.OSS.Domain, pendingKey), "pending")
 
-	handler := NewAdminHandler(db, cfg, nil, nil)
+	handler := newAdminHandlerForTest(db, cfg, nil, nil)
 	router := gin.New()
 	router.GET("/api/v1/admin/ips", handler.ListPendingIPs)
 

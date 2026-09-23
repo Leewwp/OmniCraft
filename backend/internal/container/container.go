@@ -102,6 +102,12 @@ type ServiceContainer struct {
 	OSSInitErr   error
 	UploadGrants *service.UploadGrantService
 	IPService    *service.IPService
+	// IPAdminService is the invalidation-equipped IP service for admin
+	// actions; LLMConfigService backs the admin LLM config surface; both
+	// previously lived inside handler constructors (#658 PR-3).
+	IPAdminService   *service.IPService
+	LLMConfigService *service.LLMConfigService
+	DLQWorker        *worker.DLQWorker
 	// CategoryService / CollectionService / SeriesService / TagService /
 	// RehabService back their HTTP surfaces from the container (#658 PR-3).
 	CategoryService     *service.CategoryService
@@ -266,6 +272,11 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	c.SeriesService = service.NewSeriesService(c.SeriesRepo)
 	c.TagService = service.NewTagService(c.TagRepo, c.ContentRepo, rdb, &cfg.Cache)
 	c.RehabService = service.NewRehabService(db, service.NewRuntimeStatusCache(rdb, cfg))
+	c.IPAdminService = service.NewIPServiceWithInvalidation(c.IPRepo, rdb)
+	c.LLMConfigService = service.NewLLMConfigService(c.LLMConfigRepo, cfg)
+	if rdb != nil {
+		c.DLQWorker = worker.NewDLQWorker(rdb)
+	}
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)
 	c.ReviewService.SetOutboxRepository(c.OutboxRepo)
@@ -591,6 +602,8 @@ func (c *ServiceContainer) ValidateWiring() error {
 		{"service.series", c.SeriesService},
 		{"service.tag", c.TagService},
 		{"service.rehab", c.RehabService},
+		{"service.ip_admin", c.IPAdminService},
+		{"service.llm_config", c.LLMConfigService},
 		{"service.social", c.SocialService},
 		{"service.reputation", c.ReputationService},
 		{"service.review", c.ReviewService},

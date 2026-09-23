@@ -42,7 +42,7 @@ func setupAdminGuardRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	cfg.JWT.Secret = "admin-guard-secret"
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, nil, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, nil, auditSvc)
 	adminHandler.SetContentOutbox(repository.NewOutboxRepository(db))
 
 	router := gin.New()

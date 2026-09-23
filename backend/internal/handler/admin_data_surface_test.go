@@ -35,7 +35,7 @@ func setupAdminDataSurfaceRouter(t *testing.T) (*gin.Engine, *gorm.DB, string) {
 	cfg.JWT.Secret = "admin-data-surface-secret"
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, nil, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, nil, auditSvc)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 
 	admin := model.User{

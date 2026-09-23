@@ -17,11 +17,11 @@ import (
 	"gorm.io/gorm/logger"
 
 	"omnicraft/backend/config"
-	"omnicraft/backend/internal/repository"
-	"omnicraft/backend/internal/service"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 )
 
 func TestCollectionPublicDetailAccessibleWithoutAuthAndFiltersItems(t *testing.T) {

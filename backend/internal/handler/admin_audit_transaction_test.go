@@ -277,7 +277,7 @@ func setupAdminAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	}
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	handler := NewAdminHandler(db, &config.Config{}, nil, auditSvc)
+	handler := newAdminHandlerForTest(db, &config.Config{}, nil, auditSvc)
 	router := gin.New()
 	router.POST("/admin/contents/:id/ban", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(99))
@@ -299,7 +299,7 @@ func setupAdminReportAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	}
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	handler := NewAdminHandler(db, &config.Config{}, nil, auditSvc)
+	handler := newAdminHandlerForTest(db, &config.Config{}, nil, auditSvc)
 	router := gin.New()
 	router.POST("/admin/reports/:id/resolve", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(99))
@@ -321,7 +321,7 @@ func setupAdminLLMAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	}
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	handler := NewAdminHandler(db, &config.Config{}, nil, auditSvc)
+	handler := newAdminHandlerForTest(db, &config.Config{}, nil, auditSvc)
 	router := gin.New()
 	router.POST("/admin/llm-configs", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(99))
