@@ -379,8 +379,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	repHandler := handler.NewReputationHandler(db)
 	v1.GET("/reputation-logs/me", authReq, repHandler.GetMyReputationLogs)
 
+	// #658 收拢：AgentService 的 queue producer 只在容器接线一次，路由层
+	// 不再重复转发。
 	agentHandler := handler.NewAgentHandlerWithService(db, cfg, rdb, ctr.AgentService)
-	agentHandler.SetQueueProducer(ctr.QueueProducer)
 	// Quota for Provider-consuming routes is reserved inside each handler
 	// right before the first Provider call (feature/schema/visibility checks
 	// precede it and never consume quota). Conversation history and deletion

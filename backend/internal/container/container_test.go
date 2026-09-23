@@ -3,7 +3,9 @@ package container
 import (
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -18,7 +20,14 @@ func TestNewContainerOwnsRouteLevelDomainServices(t *testing.T) {
 		t.Fatalf("open sqlite: %v", err)
 	}
 
-	ctr := NewContainer(db, nil, &config.Config{})
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	ctr, err := NewContainer(db, rdb, &config.Config{})
+	if err != nil {
+		t.Fatalf("NewContainer: %v", err)
+	}
 	if ctr.StatsService == nil {
 		t.Fatal("NewContainer must construct StatsService for the HTTP composition root")
 	}
