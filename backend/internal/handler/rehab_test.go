@@ -17,6 +17,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/service"
 )
 
 func TestCompleteCourseReturnsRecoveredReputation(t *testing.T) {
@@ -49,7 +50,7 @@ func TestCompleteCourseReturnsRecoveredReputation(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer rdb.Close()
 	cfg := &config.Config{Reputation: config.ReputationConfig{MinScoreForInteraction: 3}, Cache: config.CacheConfig{UserStatusTTL: 300}}
-	handler := NewRehabHandler(db, rdb, cfg)
+	handler := NewRehabHandler(service.NewRehabService(db, service.NewRuntimeStatusCache(rdb, cfg)))
 
 	r := gin.New()
 	r.POST("/rehab/courses/:id/complete", func(c *gin.Context) {
@@ -100,7 +101,7 @@ func TestCompleteCourseRetryReturnsCommittedResultAfterCacheRecovers(t *testing.
 	}
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer rdb.Close()
-	handler := NewRehabHandler(db, rdb, &config.Config{Cache: config.CacheConfig{UserStatusTTL: 300}})
+	handler := NewRehabHandler(service.NewRehabService(db, service.NewRuntimeStatusCache(rdb, &config.Config{Cache: config.CacheConfig{UserStatusTTL: 300}})))
 	r := gin.New()
 	r.POST("/rehab/courses/:id/complete", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, user.ID)

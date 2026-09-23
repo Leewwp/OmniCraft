@@ -114,7 +114,7 @@ func setupDiscussionModerationCase(t *testing.T, reviewer service.TextReviewer) 
 	)
 	socialSvc.SetNotificationService(service.NewNotificationService(repository.NewNotificationRepository(db)))
 
-	h := NewDiscussionHandler(db, socialSvc)
+	h := NewDiscussionHandler(repository.NewDiscussionRepository(db), repository.NewSocialRepository(db), repository.NewIPRepository(db), socialSvc)
 
 	r := gin.New()
 	setUID := func(id int64) gin.HandlerFunc {

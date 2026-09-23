@@ -80,7 +80,7 @@ func TestMyContentsCarryBanReasonForAuthor(t *testing.T) {
 		c.Set("userID", author.ID)
 		c.Next()
 	}, func(c *gin.Context) {
-		handler := NewUserHandler(db, nil, nil, cfg)
+		handler := newUserHandlerForTest(db, nil, nil, cfg)
 		handler.GetMyContents(c)
 	})
 

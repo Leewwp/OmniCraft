@@ -39,7 +39,7 @@ func setupT16RejectRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 	cfg := &config.Config{}
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, nil, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, nil, auditSvc)
 	adminHandler.SetNotificationService(service.NewNotificationService(repository.NewNotificationRepository(db)))
 
 	router := gin.New()

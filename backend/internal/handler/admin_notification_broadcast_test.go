@@ -161,7 +161,7 @@ func setupAdminNotificationBroadcastRouter(t *testing.T) (*gin.Engine, *gorm.DB,
 	notifSvc := service.NewNotificationService(repository.NewNotificationRepository(db))
 	notifSvc.SetAdminAuditService(auditSvc)
 
-	adminHandler := NewAdminHandler(db, cfg, nil, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, nil, auditSvc)
 	adminHandler.SetNotificationService(notifSvc)
 
 	adminUser := createAdminBroadcastRouteUser(t, db, "admin-broadcast", "admin", false, nil)

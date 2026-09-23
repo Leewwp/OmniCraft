@@ -65,7 +65,7 @@ func setupCollabInviteHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB, *redis.C
 		cfg,
 	)
 	collabHandler := NewCollabInviteHandler(svc)
-	userHandler := NewUserHandler(db, service.NewAuthService(userRepo, rdb, cfg), rdb, cfg)
+	userHandler := newUserHandlerForTest(db, service.NewAuthService(userRepo, rdb, cfg), rdb, cfg)
 	authHandler := NewAuthHandler(
 		service.NewAuthService(userRepo, rdb, cfg),
 		service.NewVerificationService(userRepo, rdb, nil, cfg),

@@ -84,7 +84,7 @@ func setupT11AdminNotifyRouter(t *testing.T) (*gin.Engine, *gorm.DB, *t11AdminCa
 	notifSvc.SetQueueProducer(producer)
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, rdb, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, rdb, auditSvc)
 	adminHandler.SetNotificationService(notifSvc)
 
 	router := gin.New()

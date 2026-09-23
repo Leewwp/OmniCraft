@@ -42,7 +42,7 @@ func setupT50ContributorsRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`).Error)
 
-	userHandler := NewUserHandler(db, nil, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), &config.Config{})
+	userHandler := newUserHandlerForTest(db, nil, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), &config.Config{})
 
 	router := gin.New()
 	router.Handle(http.MethodGet, "/users/me/contributors", func(c *gin.Context) {

@@ -61,7 +61,7 @@ func setupUserPrivacyRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	userRepo := repository.NewUserRepository(db)
 	authSvc := service.NewAuthService(userRepo, rdb, cfg)
 	verificationSvc := service.NewVerificationService(userRepo, rdb, noopMailSender{}, cfg)
-	userHandler := NewUserHandler(db, authSvc, rdb, cfg)
+	userHandler := newUserHandlerForTest(db, authSvc, rdb, cfg)
 	authHandler := NewAuthHandler(authSvc, verificationSvc, userRepo, nil, rdb, cfg)
 
 	r := gin.New()

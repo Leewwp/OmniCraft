@@ -18,7 +18,6 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
-	"omnicraft/backend/internal/testutil/studio"
 )
 
 // #74: 内容详情 `is_favorited` 的唯一事实源是收藏成员关系 —— 当前用户至少
@@ -185,8 +184,7 @@ func setupContentDetailFavoritedRouter(t *testing.T) (*gin.Engine, *gorm.DB, *co
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "content-detail-favorited-secret"
 
-	studio := studio.NewStack(db, cfg, nil)
-	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	handler, _ := newContentHandlerForTest(db, cfg, nil)
 	optAuth := middleware.OptionalAuth(cfg, nil, db)
 
 	router := gin.New()

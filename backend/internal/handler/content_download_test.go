@@ -18,7 +18,6 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
-	"omnicraft/backend/internal/testutil/studio"
 )
 
 func TestContentDownload_ReturnsJSONNotRedirect(t *testing.T) {
@@ -344,8 +343,7 @@ func setupArchiveGateDownloadRouter(t *testing.T, _ string) (*gin.Engine, *gorm.
 			DownloadURLTTL:  300,
 		},
 	}
-	studio := studio.NewStack(db, cfg, nil)
-	h := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	h, _ := newContentHandlerForTest(db, cfg, nil)
 	router = gin.New()
 	router.GET("/contents/:id/download", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(999))
@@ -389,8 +387,7 @@ func setupDownloadRouterWithDB(t *testing.T, db *gorm.DB, userID int64, withOSS 
 		cfg.OSS.BucketName = "test-bucket"
 		cfg.OSS.DownloadURLTTL = 300
 	}
-	studio := studio.NewStack(db, cfg, nil)
-	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	handler, _ := newContentHandlerForTest(db, cfg, nil)
 	router := gin.New()
 	router.GET("/contents/:id/download", func(c *gin.Context) {
 		if userID > 0 {
@@ -427,8 +424,7 @@ func setupProtectedDownloadRoute(t *testing.T, state downloadRouteUserState) (*g
 	cfg.OSS.BucketName = "test-bucket"
 	cfg.OSS.DownloadURLTTL = 300
 
-	studio := studio.NewStack(db, cfg, nil)
-	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	handler, _ := newContentHandlerForTest(db, cfg, nil)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 	downloadsGuard := middleware.InteractionRequired(cfg, db, nil, middleware.InteractionPolicy{
 		RequireVerifiedEmail: true,

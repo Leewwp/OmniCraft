@@ -569,7 +569,7 @@ func setupMessageRouterWithOptions(t *testing.T, cfg *config.Config, reviewer se
 		t.Fatalf("migrate messages: %v", err)
 	}
 
-	handler := NewMessageHandler(db)
+	handler := NewMessageHandler(repository.NewMessageRepository(db))
 	handler.SetReviewService(cfg, reviewer)
 	if wireNotifications {
 		handler.SetNotificationService(service.NewNotificationService(repository.NewNotificationRepository(db)))

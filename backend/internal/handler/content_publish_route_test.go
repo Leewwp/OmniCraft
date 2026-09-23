@@ -21,7 +21,6 @@ import (
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
 	"omnicraft/backend/internal/pkg/rediskeys"
-	"omnicraft/backend/internal/testutil/studio"
 )
 
 func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing.T) {
@@ -499,8 +498,7 @@ func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, 
 	cfg.Reputation.MinScoreForInteraction = 3
 	cfg.Cache.PublishFreezeTTL = 604800
 
-	studio := studio.NewStack(db, cfg, nil)
-	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	handler, _ := newContentHandlerForTest(db, cfg, nil)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 	mr, err := miniredis.Run()
 	if err != nil {
@@ -610,8 +608,7 @@ func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
 	cfg.Reputation.MinScoreForInteraction = 3
 	cfg.Cache.PublishFreezeTTL = 604800
 
-	studio := studio.NewStack(db, cfg, nil)
-	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	handler, studio := newContentHandlerForTest(db, cfg, nil)
 	producer := &recordingQueueProducer{topics: make(chan string, 4)}
 	studio.ContentService.SetQueueProducer(producer)
 

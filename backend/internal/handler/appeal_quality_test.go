@@ -82,9 +82,9 @@ func setupT31AppealQualityRouter(t *testing.T) (*gin.Engine, *gin.Engine, *gorm.
 	cfg.Cache.UserStatusTTL = 300
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, rdb, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, rdb, auditSvc)
 
-	appealHandler := NewAppealHandler(db)
+	appealHandler := NewAppealHandler(repository.NewAppealRepository(db), repository.NewContentRepository(db), repository.NewSocialRepository(db))
 	appealRouter := gin.New()
 	appealReq := middleware.AuthRequired(cfg, rdb, db)
 	v1 := appealRouter.Group("/api/v1")

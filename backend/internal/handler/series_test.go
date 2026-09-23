@@ -16,7 +16,8 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/testutil/studio"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 )
 
 func TestSeriesRoutesHappyPathAndCompactDetail(t *testing.T) {
@@ -334,7 +335,7 @@ func setupSeriesHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.Conf
 	cfg.Reputation.MinScoreForInteraction = 3
 	cfg.Cache.UserStatusTTL = 300
 
-	handler := NewSeriesHandler(db)
+	handler := NewSeriesHandler(service.NewSeriesService(repository.NewSeriesRepository(db)))
 	optAuth := middleware.OptionalAuth(cfg, nil, db)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 	guard := middleware.InteractionRequired(cfg, db, nil, middleware.InteractionPolicy{RequireVerifiedEmail: true, RequireReputation: true})
@@ -349,8 +350,7 @@ func setupSeriesHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.Conf
 	v1.POST("/series/:id/items", authReq, guard, handler.AddItem)
 	v1.DELETE("/series/:id/items/:itemId", authReq, guard, handler.RemoveItem)
 	v1.PUT("/series/:id/items/reorder", authReq, guard, handler.ReorderItems)
-	studio := studio.NewStack(db, cfg, nil)
-	contentHandler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	contentHandler, _ := newContentHandlerForTest(db, cfg, nil)
 	v1.GET("/contents/:id", optAuth, contentHandler.GetContent)
 	return router, db, cfg
 }

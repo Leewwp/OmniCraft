@@ -30,7 +30,7 @@ func setupT49PendingRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.TagSuggestion{}, &model.PullRequest{}))
 
-	userHandler := NewUserHandler(db, nil, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), &config.Config{})
+	userHandler := newUserHandlerForTest(db, nil, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), &config.Config{})
 
 	router := gin.New()
 	router.Handle(http.MethodGet, "/users/me/pending-tasks", func(c *gin.Context) {

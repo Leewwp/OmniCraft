@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
@@ -63,9 +62,9 @@ type seriesContentResponse struct {
 	Status        string `json:"status"`
 }
 
-func NewSeriesHandler(db *gorm.DB) *SeriesHandler {
-	repo := repository.NewSeriesRepository(db)
-	return &SeriesHandler{seriesSvc: service.NewSeriesService(repo)}
+// NewSeriesHandler receives the container-owned SeriesService (#658 PR-3).
+func NewSeriesHandler(seriesSvc *service.SeriesService) *SeriesHandler {
+	return &SeriesHandler{seriesSvc: seriesSvc}
 }
 
 // SetDisplayURLSigner wires display URL signing for series cover and item
