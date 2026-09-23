@@ -188,14 +188,22 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		return err
 	}
 
+	// #661：回合编排器一次构造（纯装配无 IO），chitchat 短路与完整回合
+	// 共用同一终局收口。
+	runner := s.newTurnRunner(userID, turn, conv, traceID, turnStarted, resolved.Surface, hadAssistantBefore, firstUserMessage(history), turnRecorder, handler)
+
 	// SP-15 A1 rule-layer shortcut: an exact-match chitchat message replays a
 	// server-owned template without any Provider call. The turn already
 	// passed the moderation input gate and consumed its reserved quota (both
 	// happen in the handler before ChatStream), and the user row is already
 	// stored by resolveChatConversation — the shortcut only skips the LLM.
 	if template, ok := s.chitchatShortcutReply(turn.Message); ok {
-		s.recordChitchatTurn(turnRecorder, turnStarted, conv)
-		return s.emitChitchatTemplateTurn(traceID, turnRecorder, conv, template, handler)
+		recordShortcutRun(turnRecorder, turnStarted, conv)
+		if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: template}); err != nil {
+			runner.streamErr = err
+			return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
+		}
+		return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeShortcut, template: template})
 	}
 
 	policy := s.ToolPolicy()
@@ -222,56 +230,13 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 
 	// #661：回合编排下沉 turnRunner——ChatStream 只做装配（上下文解析 →
 	// chitchat 短路 → 循环 → 终局收口），回合状态与流循环住 runner。
-	runner := s.newTurnRunner(userID, turn, conv, traceID, turnRecorder, handler)
 	runner.run(ctx, &req)
 
-	// #661 ③保持原语义：循环内的连接中断/内部中止出口（skipFinalize）
-	// 此前不经终局四件套直接返回；④的 finalizeTurn 收口接手前先原样复现。
-	if runner.skipFinalize {
-		return runner.streamErr
-	}
-
+	// #661：错误终局（provider 失败/超时/取消/连接中断/内部中止）统一走
+	// finalizeTurn 收口——终局四件套（部分落库+trace 终行+metrics+终局事件）
+	// 只在此一处发生。
 	if runner.streamErr != nil {
-		traceAgentEvent(traceID, "chat_failed", "safe_error", safeAgentStreamCode(runner.streamErr))
-		var code AgentStreamEventType = AgentErrorCodeProvider
-		switch {
-		case errors.Is(runner.streamErr, context.Canceled):
-			code = AgentErrorCodeCancelled
-		case errors.Is(runner.streamErr, context.DeadlineExceeded):
-			code = AgentErrorCodeProviderTimeout
-		}
-		providerFallback := code != AgentErrorCodeCancelled
-		degradedReason := ""
-		if providerFallback {
-			degradedReason = "provider_error"
-		}
-		if emitErr := handler(AgentStreamEvent{
-			Type:           AgentEventError,
-			Degraded:       providerFallback,
-			DegradedReason: degradedReason,
-			ErrorCode:      string(code),
-			ErrorMessage:   safeAgentStreamMessage(code),
-		}); emitErr != nil {
-			runner.streamErr = errors.Join(runner.streamErr, emitErr)
-		}
-		// A-01: stop/failure keeps the conversation and whatever partial
-		// content already streamed out; deletion happens only on the user's
-		// explicit DELETE. The request context is commonly canceled on client
-		// disconnect, so persistence runs on a detached bounded context.
-		if conv != nil {
-			s.persistPartialTurn(conv.ID, runner.answerBuf.String(), runner.ownImagePrefixes, 0, runner.answerLang)
-		}
-		turnRecorder.RecordRunEnd(agenttrace.RunEnd{
-			Status:            runTerminalStatus(runner.streamErr),
-			ErrorCode:         safeAgentStreamCode(runner.streamErr),
-			StartedAt:         turnStarted,
-			FirstDisplayDelta: runner.firstDisplayDelta,
-			Model:             s.servingModel(turnRecorder, turn.Model),
-		})
-		// SP-24 R7: run-level SLA metrics fire for every terminal turn,
-		// independent of the recorder's sampling gate.
-		recordAgentRunMetrics(runTerminalStatus(runner.streamErr), "", runner.firstDisplayDelta, turnStarted)
-		return runner.streamErr
+		return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
 	}
 
 	// SP-21 T2: citation revalidation and exit classification close the
@@ -289,7 +254,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		NodeName:         "classify",
 		CompletionDigest: answer,
 	})
-	// SP-15 B join (#435): only a grounded, non-runner.degraded turn waits for the
+	// SP-15 B join (#435): only a grounded, non-degraded turn waits for the
 	// speculative follow-up call. A result already sitting in the buffered
 	// channel is taken non-blockingly even when the budget has elapsed; only a
 	// still-missing result waits, bounded by what remains of followUpBudget
@@ -327,8 +292,8 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	answer = stripOrphanCitationMarkers(answer, len(citations))
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
-			s.persistPartialTurn(conv.ID, runner.answerBuf.String(), runner.ownImagePrefixes, len(citations), runner.answerLang)
-			return err
+			runner.streamErr = err
+			return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
 		}
 	}
 
@@ -337,122 +302,36 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		usage = &AgentUsage{PromptTokens: runner.lastUsage.PromptTokens, CompletionTokens: runner.lastUsage.CompletionTokens}
 	}
 	if err := handler(AgentStreamEvent{Type: AgentEventUsage, Usage: usage}); err != nil {
-		s.persistPartialTurn(conv.ID, runner.answerBuf.String(), runner.ownImagePrefixes, len(citations), runner.answerLang)
-		return err
+		runner.streamErr = err
+		return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
 	}
 
 	if kind == AgentAnswerNoEvidence || runner.degraded {
 		answer = ""
 	}
-	answerMessageID := int64(0)
-	if s.db != nil {
-		// The provider already finished; the client may disconnect at any
-		// moment, so the final answer persists on a detached bounded context.
-		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if think := runner.thinkingBuf.String(); think != "" {
-			// A-02: the reasoning block persists as its own phase-marked row
-			// (tool_calls = {"phase":"think"}) ahead of the answer row, for
-			// history replay and audit; readers treat it as display-only.
-			if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
-				ConversationID: conv.ID,
-				Role:           "assistant",
-				Content:        &think,
-				ToolCalls:      model.JSONMap{"phase": "think"},
-				CreatedAt:      time.Now(),
-			}).Error; err != nil {
-				cancel()
-				slog.Error("failed to persist agent thinking message", "error", err)
-				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-			}
-		}
-		if len(runner.executedTools) > 0 {
-			// #538: the turn's tool-step summary persists as its own phase row
-			// (tool_calls = {"phase":"tools","steps":[...]}) between the think
-			// row and the answer row, so history replay shows the same tool
-			// steps the live stream emitted. Steps carry only the server-derived
-			// summary shape (name/args_summary/hits/status/duration_ms) — raw
-			// tool arguments never reach storage.
-			if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
-				ConversationID: conv.ID,
-				Role:           "assistant",
-				ToolCalls:      model.JSONMap{"phase": "tools", "steps": runner.executedTools},
-				CreatedAt:      time.Now(),
-			}).Error; err != nil {
-				cancel()
-				slog.Error("failed to persist agent tool steps message", "error", err)
-				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-			}
-		}
-		answerRow := model.AgentMessage{
-			ConversationID: conv.ID,
-			Role:           "assistant",
-			Content:        &answer,
-			// N4：引用随答案行落库（完整 9 字段形态，含 RAG 溯源），历史端点
-			// 直接回放跳转入口；think 行不落引用。
-			Citations: citationsToModel(citations),
-			CreatedAt: time.Now(),
-		}
-		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
-			cancel()
-			slog.Error("failed to persist agent assistant message", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		answerMessageID = answerRow.ID
-		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
-			cancel()
-			slog.Error("failed to update agent conversation timestamp", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		cancel()
-		if !hadAssistantBefore {
-			s.scheduleAutoTitle(traceID, turnRecorder, conv.ID, firstUserMessage(history))
-		}
-		// A-05: the persisted answer is audited asynchronously after the
-		// turn; a flagged row is redacted by the history endpoint.
-		s.scheduleOutputModeration(traceID, answerMessageID, answer)
-	}
-
-	// SP-21 T2: terminal run row — TTFT measured to the first forwarded
-	// display delta, model attribution honors routing events, and the
-	// message id links the trace back into the conversation history.
-	msgID := answerMessageID
-	turnRecorder.RecordRunEnd(agenttrace.RunEnd{
-		Status:            model.AgentTraceStatusSuccess,
-		StartedAt:         turnStarted,
-		FirstDisplayDelta: runner.firstDisplayDelta,
-		AnswerKind:        string(kind),
-		Model:             s.servingModel(turnRecorder, turn.Model),
-		MessageID:         &msgID,
+	// #661：成功终局统一走 finalizeTurn——终局四件套（think/tools/答案行
+	// 落库+trace 终行+metrics+done 事件）只在此一处发生；done 装配（终稿、
+	// 引用、follow-ups、usage、kind）留本成功路径。
+	return runner.finalizeTurn(ctx, turnFinalizeInput{
+		outcome:   outcomeSuccess,
+		answer:    answer,
+		think:     runner.thinkingBuf.String(),
+		kind:      kind,
+		citations: citations,
+		followUps: followUps,
+		usage:     usage,
 	})
-	recordAgentRunMetrics(model.AgentTraceStatusSuccess, string(kind), runner.firstDisplayDelta, turnStarted)
-
-	if err := handler(AgentStreamEvent{
-		Type:           AgentEventDone,
-		TraceID:        traceID,
-		ConversationID: convID,
-		MessageID:      answerMessageID,
-		AnswerKind:     kind,
-		Answer:         answer,
-		Citations:      citations,
-		Tools:          runner.executedTools,
-		Usage:          usage,
-		Degraded:       runner.degraded,
-		FollowUps:      followUps,
-	}); err != nil {
-		return err
-	}
-
-	traceAgentEvent(traceID, "chat_done", "conversation_id", convID, "surface", resolved.Surface, "answer_kind", kind, "tools", len(runner.executedTools))
-	return nil
 }
 
 // ---------------------------------------------------------------------------
 // SP-21 T2 trace instrumentation helpers
 // ---------------------------------------------------------------------------
 
-// recordChitchatTurn closes a rule-layer shortcut turn: one chitchat node
-// (no LLM ran) and a conversational terminal run row.
-func (s *AgentService) recordChitchatTurn(rec *agenttrace.TurnRecorder, started time.Time, conv *model.AgentConversation) {
+// recordShortcutRun shapes the trace run row for the rule-layer shortcut
+// (chitchat): a simplified RunStart (the prelude already recorded one with
+// the full turn shape; this re-shapes it as conversational) plus the
+// chitchat node. The terminal quartet fires in finalizeTurn.
+func recordShortcutRun(rec *agenttrace.TurnRecorder, started time.Time, conv *model.AgentConversation) {
 	if rec == nil {
 		return
 	}
@@ -465,12 +344,6 @@ func (s *AgentService) recordChitchatTurn(rec *agenttrace.TurnRecorder, started 
 	if span := rec.StartNode(agenttrace.NodeTypeChitchat, "chitchat_shortcut", nil, ""); span != nil {
 		span.End(agenttrace.NodeEndOptions{NodeName: "chitchat_shortcut"})
 	}
-	rec.RecordRunEnd(agenttrace.RunEnd{
-		Status:     model.AgentTraceStatusSuccess,
-		StartedAt:  started,
-		AnswerKind: string(AgentAnswerConversational),
-	})
-	recordAgentRunMetrics(model.AgentTraceStatusSuccess, string(AgentAnswerConversational), time.Time{}, started)
 }
 
 // recordAgentRunMetrics mirrors the run-end trace row into the label-free
@@ -607,47 +480,6 @@ func firstLine(s string) string {
 // worth a title call and the title-IS-NUL semantics let the first real
 // question name the conversation later. Output moderation is skipped too: the
 // text is a server-owned constant, not model- or user-generated content.
-func (s *AgentService) emitChitchatTemplateTurn(traceID string, turnRecorder *agenttrace.TurnRecorder, conv *model.AgentConversation, template string, handler func(ev AgentStreamEvent) error) error {
-	if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: template}); err != nil {
-		return err
-	}
-	messageID := int64(0)
-	if s.db != nil {
-		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		answerRow := model.AgentMessage{
-			ConversationID: conv.ID,
-			Role:           "assistant",
-			Content:        &template,
-			CreatedAt:      time.Now(),
-		}
-		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
-			cancel()
-			slog.Error("failed to persist agent chitchat template message", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		messageID = answerRow.ID
-		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
-			cancel()
-			slog.Error("failed to update agent conversation timestamp", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		cancel()
-	}
-	if err := handler(AgentStreamEvent{
-		Type:           AgentEventDone,
-		TraceID:        traceID,
-		ConversationID: conv.ID,
-		MessageID:      messageID,
-		AnswerKind:     AgentAnswerConversational,
-		Answer:         template,
-		Usage:          &AgentUsage{},
-	}); err != nil {
-		return err
-	}
-	traceAgentEvent(traceID, "chat_done", "conversation_id", conv.ID, "answer_kind", AgentAnswerConversational, "shortcut", "chitchat")
-	return nil
-}
-
 // conversationalMaxRunes guards against a nil cfg (DB-less service seams).
 func (s *AgentService) conversationalMaxRunes() int {
 	if s.cfg == nil {

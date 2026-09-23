@@ -34,7 +34,12 @@ type turnRunner struct {
 	turn    ChatTurnInput
 	conv    *model.AgentConversation
 	traceID string
-	policy  AgentToolPolicy
+	started time.Time
+	surface model.AgentChatSurface
+	// hadAssistantBefore/firstUserMsg feed the post-answer auto title.
+	hadAssistantBefore bool
+	firstUserMsg       string
+	policy             AgentToolPolicy
 	// answerLang picks the image-removal placeholder language (chitchat
 	// containsCJK convention, 低-1).
 	answerLang string
@@ -74,7 +79,7 @@ type turnRunner struct {
 
 // newTurnRunner assembles the per-turn orchestrator. No IO happens here; the
 // budget baseline loads at the head of run.
-func (s *AgentService) newTurnRunner(userID int64, turn ChatTurnInput, conv *model.AgentConversation, traceID string, recorder *agenttrace.TurnRecorder, handler func(AgentStreamEvent) error) *turnRunner {
+func (s *AgentService) newTurnRunner(userID int64, turn ChatTurnInput, conv *model.AgentConversation, traceID string, started time.Time, surface model.AgentChatSurface, hadAssistantBefore bool, firstUserMsg string, recorder *agenttrace.TurnRecorder, handler func(AgentStreamEvent) error) *turnRunner {
 	answerLang := "en"
 	if containsCJK(turn.Message) {
 		answerLang = "zh"
@@ -85,6 +90,10 @@ func (s *AgentService) newTurnRunner(userID int64, turn ChatTurnInput, conv *mod
 		turn:               turn,
 		conv:               conv,
 		traceID:            traceID,
+		started:            started,
+		surface:            surface,
+		hadAssistantBefore: hadAssistantBefore,
+		firstUserMsg:       firstUserMsg,
 		policy:             s.ToolPolicy(),
 		answerLang:         answerLang,
 		handler:            handler,
@@ -359,20 +368,15 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 			})
 			r.executedTools = append(r.executedTools, execution)
 			if err := r.handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
-				// Handler（SSE 写端）失败 = 连接已断：按 #661 前语义保留部分
-				// 落库并直接终止（终局四件套由 finalizeTurn 的 handlerAbort
-				// outcome 收口）。
-				r.svc.persistPartialTurn(r.conv.ID, r.answerBuf.String(), r.ownImagePrefixes, 0, r.answerLang)
+				// Handler（SSE 写端）失败 = 连接已断：错误统一交 finalizeTurn
+				// 收口（部分落库 + 终局四件套）。
 				r.streamErr = err
-				r.skipFinalize = true
 				return
 			}
 			resultJSON, marshalErr := json.Marshal(result)
 			if marshalErr != nil {
-				// 服务端自建结构 marshal 失败属内部中止：按 #661 前语义直接
-				// 终止（无终局四件套），finalizeTurn 的 skipFinalize 出口收口。
+				// 服务端自建结构 marshal 失败属内部中止：统一交 finalizeTurn。
 				r.streamErr = fmt.Errorf("marshal agent tool result: %w", marshalErr)
-				r.skipFinalize = true
 				return
 			}
 			toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: string(resultJSON)})
