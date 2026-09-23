@@ -15,8 +15,6 @@ import (
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
-	"github.com/redis/go-redis/v9"
-
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -44,14 +42,15 @@ func NewIPHandler(db *gorm.DB) *IPHandler {
 	}
 }
 
-func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reviewSvc *service.ReviewService) *IPHandler {
-	// #658 漂移④修复：IP 路径消费容器审核服务（outbox + 归档扫描门 +
-	// 作者通知全接），不再自建裸实例。
+// NewIPHandlerWithCache consumes the container-owned publish IP service
+// (review-wired: outbox + 归档扫描门 + 作者通知全接，#658 漂移④) and the
+// repos it reads directly.
+func NewIPHandlerWithCache(ipSvc *service.IPService, contentRepo *repository.ContentRepository, discussionRepo *repository.DiscussionRepository, displaySigner *service.DisplayURLSigner, cfg *config.Config) *IPHandler {
 	return &IPHandler{
-		ipSvc:          service.NewIPServiceWithReview(repository.NewIPRepository(db), rdb, &cfg.Cache, reviewSvc),
-		contentRepo:    repository.NewContentRepository(db),
-		discussionRepo: repository.NewDiscussionRepository(db),
-		displaySigner:  service.NewDisplayURLSigner(cfg),
+		ipSvc:          ipSvc,
+		contentRepo:    contentRepo,
+		discussionRepo: discussionRepo,
+		displaySigner:  displaySigner,
 		ipCategories:   cfg.IPCategories,
 		cfg:            cfg,
 	}

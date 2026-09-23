@@ -108,6 +108,12 @@ type ServiceContainer struct {
 	IPAdminService   *service.IPService
 	LLMConfigService *service.LLMConfigService
 	DLQWorker        *worker.DLQWorker
+	// IPPublishService is the review-wired IP service behind IP creation
+	// (cache + 审核全接)；AgentQuotaReserver backs the agent chat quota
+	// gates；ArchiveGate backs the download orchestration (#658 PR-3).
+	IPPublishService    *service.IPService
+	AgentQuotaReserver  *middleware.AgentQuotaReserver
+	DownloadArchiveGate *service.ArchiveScanGate
 	// CategoryService / CollectionService / SeriesService / TagService /
 	// RehabService back their HTTP surfaces from the container (#658 PR-3).
 	CategoryService     *service.CategoryService
@@ -277,6 +283,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	if rdb != nil {
 		c.DLQWorker = worker.NewDLQWorker(rdb)
 	}
+	c.IPPublishService = service.NewIPServiceWithReview(c.IPRepo, rdb, &cfg.Cache, c.ReviewService)
+	c.AgentQuotaReserver = middleware.NewAgentQuotaReserver(rdb, cfg)
+	c.DownloadArchiveGate = service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled)
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)
 	c.ReviewService.SetOutboxRepository(c.OutboxRepo)
@@ -603,6 +612,9 @@ func (c *ServiceContainer) ValidateWiring() error {
 		{"service.tag", c.TagService},
 		{"service.rehab", c.RehabService},
 		{"service.ip_admin", c.IPAdminService},
+		{"service.ip_publish", c.IPPublishService},
+		{"agent.quota_reserver", c.AgentQuotaReserver},
+		{"gate.download_archive", c.DownloadArchiveGate},
 		{"service.llm_config", c.LLMConfigService},
 		{"service.social", c.SocialService},
 		{"service.reputation", c.ReputationService},

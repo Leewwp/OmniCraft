@@ -127,7 +127,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		users.DELETE("/me/agent-tokens/:id", authReq, middleware.RequireJWTChannel(), agentTokenHandler.Revoke)
 	}
 
-	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg, ctr.ReviewService)
+	ipHandler := handler.NewIPHandlerWithCache(ctr.IPPublishService, ctr.ContentRepo, ctr.DiscussionRepo, ctr.DisplayURLSigner, cfg)
 	ips := v1.Group("/ips")
 	{
 		ips.GET("", optAuth, cacheable, ipHandler.ListIPs)
@@ -154,7 +154,20 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// #658: the studio stack (full-featured content service shared with the
 	// MCP write channel, OSS presign, upload grants) is container-owned;
 	// the handler only consumes it.
-	contentHandler := handler.NewContentHandler(db, cfg, rdb, ctr.StudioContentService, ctr.OSSService, ctr.OSSInitErr, ctr.UploadGrants)
+	contentHandler := handler.NewContentHandler(cfg, handler.ContentHandlerDeps{
+		ContentService: ctr.StudioContentService,
+		OSS:            ctr.OSSService,
+		OSSErr:         ctr.OSSInitErr,
+		UploadGrants:   ctr.UploadGrants,
+		ContentRepo:    ctr.ContentRepo,
+		JudgeRepo:      ctr.JudgeRepo,
+		FollowRepo:     ctr.FollowRepo,
+		SeriesSvc:      ctr.SeriesService,
+		BrowseHistory:  ctr.BrowseHistoryRepo,
+		CollectionRepo: ctr.CollectionRepo,
+		ArchiveGate:    ctr.DownloadArchiveGate,
+		DisplaySigner:  ctr.DisplayURLSigner,
+	})
 	contents := v1.Group("/contents")
 	{
 		contents.GET("", optAuth, cacheable, contentHandler.ListContents)
@@ -381,7 +394,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	// #658 收拢：AgentService 的 queue producer 只在容器接线一次，路由层
 	// 不再重复转发。
-	agentHandler := handler.NewAgentHandlerWithService(db, cfg, rdb, ctr.AgentService)
+	agentHandler := handler.NewAgentHandlerWithService(db, cfg, ctr.AgentService, ctr.AgentQuotaReserver)
 	// Quota for Provider-consuming routes is reserved inside each handler
 	// right before the first Provider call (feature/schema/visibility checks
 	// precede it and never consume quota). Conversation history and deletion
