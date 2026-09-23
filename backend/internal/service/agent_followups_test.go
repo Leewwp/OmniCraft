@@ -203,3 +203,42 @@ func TestParseFollowUpItems(t *testing.T) {
 		t.Fatalf("21-rune line over the cap must drop, got %v", got)
 	}
 }
+
+// #661 join 预算语义补钉：预算已耗尽、但结果已就绪在缓冲通道里时，仍非
+// 阻塞取走（default 前的 channel 探测）——慢网络下已完成的投机调用不因
+// 预算时钟归零而被丢弃。
+func TestFollowUpsReadyResultTakenEvenWhenBudgetElapsed(t *testing.T) {
+	original := followUpBudget
+	followUpBudget = time.Millisecond
+	t.Cleanup(func() { followUpBudget = original })
+
+	provider := &followUpTestProvider{
+		rounds:    followUpGroundedRounds(),
+		chatReply: "Follow-Up-A\nFollow-Up-B",
+		chatDelay: 20 * time.Millisecond, // 结果在 join 前落进缓冲通道
+	}
+	svc := followUpTestService(t, provider)
+
+	var done *AgentStreamEvent
+	err := svc.ChatStream(context.Background(), 7, ChatTurnInput{Message: "站内有哪些配色练习内容？"},
+		resolveGlobalChatContext(t, svc, 7),
+		func(ev AgentStreamEvent) error {
+			if ev.Type == AgentEventDelta {
+				// 把回合拖过预算窗口：join 时预算早已耗尽，但通道里有结果。
+				time.Sleep(60 * time.Millisecond)
+			}
+			if ev.Type == AgentEventDone {
+				done = &ev
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+	if done == nil {
+		t.Fatal("done event missing")
+	}
+	if len(done.FollowUps) != 2 {
+		t.Fatalf("follow_ups = %v, want the ready result taken non-blockingly despite elapsed budget", done.FollowUps)
+	}
+}
