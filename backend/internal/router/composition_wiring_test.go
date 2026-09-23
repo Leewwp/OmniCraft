@@ -69,7 +69,8 @@ func setupCompositionWiringStack(t *testing.T) (*gin.Engine, *gorm.DB, *config.C
 		// Queue 关闭：回调走同步 ProcessAICallback，通知走直写 DB 路径。
 		Green: config.GreenConfig{Seed: "composition-seed", UID: "composition-uid"},
 	}
-	ctr := container.NewContainer(db, rdb, cfg)
+	ctr, err := container.NewContainer(db, rdb, cfg)
+	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
