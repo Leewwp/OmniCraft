@@ -342,6 +342,9 @@ func buildRoutesSecurityRouter(t *testing.T) (*gin.Engine, *config.Config, func(
 		UserRepo:            userRepo,
 		AuthService:         authSvc,
 		VerificationService: verificationSvc,
+		// #658 PR-3：RegisterRoutes 装配期消费 TagService（tagHandler
+		// 的通知接线在构造时解引用），部分容器须随构造面补齐。
+		TagService: service.NewTagService(repository.NewTagRepository(db), repository.NewContentRepository(db), rdb, &cfg.Cache),
 		QueueProducer:       queue.NewNoopProducer(),
 		AgentService: service.NewAgentService(
 			&routeFakeAgentProvider{},

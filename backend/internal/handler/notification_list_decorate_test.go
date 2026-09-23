@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/model"
 )
 
@@ -78,7 +79,7 @@ func setupNotificationDecorateRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		t.Fatalf("create discussions: %v", err)
 	}
 
-	handler := NewNotificationHandler(db)
+	handler := NewNotificationHandler(repository.NewNotificationRepository(db))
 	router := gin.New()
 	router.GET("/api/v1/notifications", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(1))

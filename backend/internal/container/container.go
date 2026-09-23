@@ -79,6 +79,11 @@ type ServiceContainer struct {
 	// RagEvaluationRepo owns the golden-set / eval-run tables (SP-22 E5
 	// admin evals surface; the rag-eval grid runner records through it too).
 	RagEvaluationRepo *repository.RagEvaluationRepository
+	// CollectionRepo / SeriesRepo / IPVisitHistoryRepo back their HTTP
+	// surfaces (#658 PR-3：handler 不再自建).
+	CollectionRepo     *repository.CollectionRepository
+	SeriesRepo         *repository.SeriesRepository
+	IPVisitHistoryRepo *repository.IPVisitHistoryRepository
 
 	// Services
 	AuthService         *service.AuthService
@@ -93,10 +98,17 @@ type ServiceContainer struct {
 	// OSSService is the single shared presign service for studio uploads,
 	// MCP write tools and feedback screenshots (#658 收拢：原 3 份); nil
 	// with OSSInitErr set keeps each surface's fail-open behavior.
-	OSSService          *service.OSSService
-	OSSInitErr          error
-	UploadGrants        *service.UploadGrantService
-	IPService           *service.IPService
+	OSSService   *service.OSSService
+	OSSInitErr   error
+	UploadGrants *service.UploadGrantService
+	IPService    *service.IPService
+	// CategoryService / CollectionService / SeriesService / TagService /
+	// RehabService back their HTTP surfaces from the container (#658 PR-3).
+	CategoryService     *service.CategoryService
+	CollectionService   *service.CollectionService
+	SeriesService       *service.SeriesService
+	TagService          *service.TagService
+	RehabService        *service.RehabService
 	SocialService       *service.SocialService
 	ReputationService   *service.ReputationService
 	ReviewService       *service.ReviewService
@@ -188,6 +200,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	// stays explicit; recording call sites arrive with T2.
 	c.AgentTraceRepo = repository.NewAgentTraceRepository(db)
 	c.RagEvaluationRepo = repository.NewRagEvaluationRepository(db)
+	c.CollectionRepo = repository.NewCollectionRepository(db)
+	c.SeriesRepo = repository.NewSeriesRepository(db)
+	c.IPVisitHistoryRepo = repository.NewIPVisitHistoryRepository(db)
 	c.AgentTraceWriter = agenttrace.NewWriter(c.AgentTraceRepo, agenttrace.Options{
 		Enabled:        cfg.Observability.AgentTrace.Enabled,
 		SampleRatio:    cfg.Observability.AgentTrace.SampleRatio,
@@ -246,6 +261,11 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	c.VerificationService = service.NewVerificationService(c.UserRepo, rdb, mailSender, cfg)
 
 	c.IPService = service.NewIPService(c.IPRepo)
+	c.CategoryService = service.NewCategoryService(c.CategoryRepo)
+	c.CollectionService = service.NewCollectionService(c.CollectionRepo, c.ContentRepo)
+	c.SeriesService = service.NewSeriesService(c.SeriesRepo)
+	c.TagService = service.NewTagService(c.TagRepo, c.ContentRepo, rdb, &cfg.Cache)
+	c.RehabService = service.NewRehabService(db, service.NewRuntimeStatusCache(rdb, cfg))
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)
 	c.ReviewService.SetOutboxRepository(c.OutboxRepo)
@@ -557,12 +577,20 @@ func (c *ServiceContainer) ValidateWiring() error {
 		{"repo.archive_scan", c.ArchiveScanRepo},
 		{"repo.agent_trace", c.AgentTraceRepo},
 		{"repo.rag_evaluation", c.RagEvaluationRepo},
+		{"repo.collection", c.CollectionRepo},
+		{"repo.series", c.SeriesRepo},
+		{"repo.ip_visit_history", c.IPVisitHistoryRepo},
 		{"agenttrace.writer", c.AgentTraceWriter},
 		{"service.auth", c.AuthService},
 		{"service.verification", c.VerificationService},
 		{"service.content", c.ContentService},
 		{"service.studio_content", c.StudioContentService},
 		{"service.ip", c.IPService},
+		{"service.category", c.CategoryService},
+		{"service.collection", c.CollectionService},
+		{"service.series", c.SeriesService},
+		{"service.tag", c.TagService},
+		{"service.rehab", c.RehabService},
 		{"service.social", c.SocialService},
 		{"service.reputation", c.ReputationService},
 		{"service.review", c.ReviewService},

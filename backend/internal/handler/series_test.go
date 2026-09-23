@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm/logger"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/testutil/studio"
@@ -334,7 +336,7 @@ func setupSeriesHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.Conf
 	cfg.Reputation.MinScoreForInteraction = 3
 	cfg.Cache.UserStatusTTL = 300
 
-	handler := NewSeriesHandler(db)
+	handler := NewSeriesHandler(service.NewSeriesService(repository.NewSeriesRepository(db)))
 	optAuth := middleware.OptionalAuth(cfg, nil, db)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 	guard := middleware.InteractionRequired(cfg, db, nil, middleware.InteractionPolicy{RequireVerifiedEmail: true, RequireReputation: true})

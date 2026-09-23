@@ -7,23 +7,20 @@ import (
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
-	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type VersionHandler struct {
 	versionSvc *service.VersionService
 }
 
-func NewVersionHandler(db *gorm.DB) *VersionHandler {
+// NewVersionHandler receives the container-owned VersionService (#658 PR-3：
+// handler 不再自建服务图).
+func NewVersionHandler(versionSvc *service.VersionService) *VersionHandler {
 	return &VersionHandler{
-		versionSvc: service.NewVersionService(
-			repository.NewVersionRepository(db),
-			repository.NewContentRepository(db),
-		),
+		versionSvc: versionSvc,
 	}
 }
 

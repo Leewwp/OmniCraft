@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
@@ -40,11 +39,12 @@ var (
 	}
 )
 
-func NewCollectionHandler(db *gorm.DB) *CollectionHandler {
-	collectionRepo := repository.NewCollectionRepository(db)
+// NewCollectionHandler receives the container-owned repository and service
+// (#658 PR-3：handler 不再自建).
+func NewCollectionHandler(collectionRepo *repository.CollectionRepository, collectionSvc *service.CollectionService) *CollectionHandler {
 	return &CollectionHandler{
 		collectionRepo: collectionRepo,
-		collectionSvc:  service.NewCollectionService(collectionRepo, repository.NewContentRepository(db)),
+		collectionSvc:  collectionSvc,
 	}
 }
 

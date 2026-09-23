@@ -9,15 +9,15 @@ import (
 	"omnicraft/backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type NotificationHandler struct {
 	notifRepo *repository.NotificationRepository
 }
 
-func NewNotificationHandler(db *gorm.DB) *NotificationHandler {
-	return &NotificationHandler{notifRepo: repository.NewNotificationRepository(db)}
+// NewNotificationHandler receives the container-owned repository (#658 PR-3).
+func NewNotificationHandler(notifRepo *repository.NotificationRepository) *NotificationHandler {
+	return &NotificationHandler{notifRepo: notifRepo}
 }
 
 func (h *NotificationHandler) ListNotifications(c *gin.Context) {

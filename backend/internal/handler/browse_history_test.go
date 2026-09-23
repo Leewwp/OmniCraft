@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 )
@@ -231,7 +232,7 @@ func setupBrowseHistoryHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	}
 	cfg := &config.Config{}
 	cfg.BrowseHistory.RetentionDays = 7
-	handler := NewBrowseHistoryHandler(db, cfg)
+	handler := NewBrowseHistoryHandler(repository.NewBrowseHistoryRepository(db), cfg)
 	router := gin.New()
 	router.GET("/api/v1/users/me/history", func(c *gin.Context) {
 		setBrowseHistoryTestUserID(t, c)

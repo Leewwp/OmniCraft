@@ -16,7 +16,6 @@ import (
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type BrowseHistoryHandler struct {
@@ -25,8 +24,10 @@ type BrowseHistoryHandler struct {
 	displaySigner *service.DisplayURLSigner
 }
 
-func NewBrowseHistoryHandler(db *gorm.DB, cfg *config.Config) *BrowseHistoryHandler {
-	return &BrowseHistoryHandler{histRepo: repository.NewBrowseHistoryRepository(db), cfg: cfg, displaySigner: service.NewDisplayURLSigner(cfg)}
+// NewBrowseHistoryHandler receives the container-owned repository (#658
+// PR-3；display signer 仍为处理器内配置派生，非共享态).
+func NewBrowseHistoryHandler(histRepo *repository.BrowseHistoryRepository, cfg *config.Config) *BrowseHistoryHandler {
+	return &BrowseHistoryHandler{histRepo: histRepo, cfg: cfg, displaySigner: service.NewDisplayURLSigner(cfg)}
 }
 
 func (h *BrowseHistoryHandler) RecordView(c *gin.Context) {

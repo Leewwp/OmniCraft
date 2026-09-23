@@ -17,6 +17,8 @@ import (
 	"gorm.io/gorm/logger"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
@@ -314,7 +316,7 @@ func setupCollectionHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.
 	cfg.Reputation.MinScoreForInteraction = 3
 	cfg.Cache.UserStatusTTL = 300
 
-	collectionHandler := NewCollectionHandler(db)
+	collectionHandler := NewCollectionHandler(repository.NewCollectionRepository(db), service.NewCollectionService(repository.NewCollectionRepository(db), repository.NewContentRepository(db)))
 	optAuth := middleware.OptionalAuth(cfg, nil, db)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 	interactionGuard := middleware.InteractionRequired(cfg, db, nil, middleware.InteractionPolicy{

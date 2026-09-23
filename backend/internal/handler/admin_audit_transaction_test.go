@@ -388,7 +388,7 @@ func setupCategoryAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	}
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	handler := NewCategoryHandler(db, auditSvc)
+	handler := NewCategoryHandler(service.NewCategoryService(repository.NewCategoryRepository(db)), auditSvc, db)
 	router := gin.New()
 	router.POST("/admin/categories", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(99))

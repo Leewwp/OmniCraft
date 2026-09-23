@@ -30,7 +30,7 @@ func TestFollowIPDoesNotEmitGhostNotification(t *testing.T) {
 	require.NoError(t, db.Create(&model.IP{Name: "ghost-ip", Slug: "ghost-ip", Status: "published"}).Error)
 
 	notifSvc := service.NewNotificationService(repository.NewNotificationRepository(db))
-	h := NewFollowHandler(db)
+	h := NewFollowHandler(repository.NewFollowRepository(db))
 	h.SetNotificationService(notifSvc)
 
 	r := gin.New()
@@ -66,7 +66,7 @@ func TestFollowUserStillNotifiesTheRealTarget(t *testing.T) {
 	require.NoError(t, db.Create(target).Error)
 
 	notifSvc := service.NewNotificationService(repository.NewNotificationRepository(db))
-	h := NewFollowHandler(db)
+	h := NewFollowHandler(repository.NewFollowRepository(db))
 	h.SetNotificationService(notifSvc)
 
 	r := gin.New()

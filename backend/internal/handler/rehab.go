@@ -4,23 +4,22 @@ import (
 	"net/http"
 	"strconv"
 
-	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
 type RehabHandler struct {
 	rehabSvc *service.RehabService
 }
 
-func NewRehabHandler(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *RehabHandler {
+// NewRehabHandler receives the container-owned RehabService (#658 PR-3：
+// 构造与接线收口组合根，路由钉行测试随迁).
+func NewRehabHandler(rehabSvc *service.RehabService) *RehabHandler {
 	return &RehabHandler{
-		rehabSvc: service.NewRehabService(db, service.NewRuntimeStatusCache(rdb, cfg)),
+		rehabSvc: rehabSvc,
 	}
 }
 

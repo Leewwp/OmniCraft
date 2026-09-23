@@ -257,7 +257,7 @@ func setupAdminContractRouter(t *testing.T) (*gin.Engine, *gorm.DB, string, stri
 	cfg.JWT.Secret = "admin-contract-secret"
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	categoryHandler := NewCategoryHandler(db, auditSvc)
+	categoryHandler := NewCategoryHandler(service.NewCategoryService(repository.NewCategoryRepository(db)), auditSvc, db)
 	feedbackSvc := service.NewFeedbackService(repository.NewFeedbackRepository(db), repository.NewUserRepository(db), nil, nil, 300)
 	adminFeedbackHandler := NewAdminFeedbackHandler(db, feedbackSvc, auditSvc)
 	adminHandler := NewAdminHandler(db, cfg, nil, auditSvc)

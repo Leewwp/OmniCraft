@@ -167,7 +167,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		contents.GET("/:id", optAuth, cacheable, contentHandler.GetContent)
 		contents.PATCH("/:id", authReq, editDeleteGuard, contentHandler.UpdateContent)
 		contents.DELETE("/:id", authReq, editDeleteGuard, contentHandler.DeleteContent)
-		contents.GET("/:id/versions", optAuth, cacheable, handler.NewVersionHandler(db).ListVersions)
+		contents.GET("/:id/versions", optAuth, cacheable, handler.NewVersionHandler(ctr.VersionService).ListVersions)
 		contents.GET("/:id/prs", optAuth, prHandler.ListPRs)
 		contents.GET("/:id/guide", optAuth, usageGuideHandler.GetGuide)
 		contents.GET("/:id/guide/specifics", authReq, editDeleteGuard, usageGuideHandler.GetAuthorGuide)
@@ -177,7 +177,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		contents.GET("/:id/download", authReq, middleware.RequireScopeForPAT("download"), downloadsGuard, contentHandler.DownloadContent)
 	}
 
-	versionHandler := handler.NewVersionHandler(db)
+	versionHandler := handler.NewVersionHandler(ctr.VersionService)
 	versions := v1.Group("/versions")
 	{
 		versions.GET("/:id", optAuth, versionHandler.GetVersion)
@@ -222,7 +222,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.POST("/collab-invites/:id/accept", authReq, collabInviteHandler.AcceptInvite)
 	v1.POST("/collab-invites/:id/decline", authReq, collabInviteHandler.DeclineInvite)
 
-	collectionHandler := handler.NewCollectionHandler(db)
+	collectionHandler := handler.NewCollectionHandler(ctr.CollectionRepo, ctr.CollectionService)
 	collectionHandler.SetDisplayURLSigner(displaySigner)
 	v1.GET("/collections", optAuth, collectionHandler.ListCollections)
 	v1.GET("/collections/:id", optAuth, collectionHandler.GetCollection)
@@ -233,7 +233,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.DELETE("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.RemoveItem)
 	v1.PUT("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.UpdateItem)
 
-	seriesHandler := handler.NewSeriesHandler(db)
+	seriesHandler := handler.NewSeriesHandler(ctr.SeriesService)
 	seriesHandler.SetDisplayURLSigner(displaySigner)
 	v1.POST("/series", authReq, seriesGuard, seriesHandler.CreateSeries)
 	v1.GET("/series", authReq, seriesHandler.ListSeries)
@@ -264,10 +264,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	ipStatsHandler := handler.NewIPStatsHandler(ctr.IPStatsService)
 	v1.GET("/ips/stats/category_counts", optAuth, ipStatsHandler.GetCategoryCounts)
 
-	catHandler := handler.NewCategoryHandler(db, ctr.AdminAuditService)
+	catHandler := handler.NewCategoryHandler(ctr.CategoryService, ctr.AdminAuditService, db)
 	v1.GET("/categories", optAuth, cacheable, catHandler.ListCategories)
 
-	tagHandler := handler.NewTagHandler(db, rdb, &cfg.Cache, cfg.RateLimit.MaxQueryChars)
+	tagHandler := handler.NewTagHandler(ctr.TagService, cfg.RateLimit.MaxQueryChars)
 	tagHandler.SetNotificationService(notifSvc)
 	v1.GET("/tags/faceted", optAuth, cacheable, tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
@@ -275,7 +275,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	dashboard.GET("/tag-suggestions", tagHandler.ListTagSuggestions)
 	dashboard.PATCH("/tag-suggestions/:id", tagHandler.UpdateTagSuggestion)
 
-	followHandler := handler.NewFollowHandler(db)
+	followHandler := handler.NewFollowHandler(ctr.FollowRepo)
 	followHandler.SetDisplayURLSigner(displaySigner)
 	followHandler.SetNotificationService(notifSvc)
 
@@ -323,11 +323,11 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		feedback.GET("/:id", authReq, feedbackHandler.GetTicket)
 	}
 
-	appealHandler := handler.NewAppealHandler(db)
+	appealHandler := handler.NewAppealHandler(ctr.AppealRepo, ctr.ContentRepo, ctr.SocialRepo)
 	v1.POST("/appeals", authReq, appealHandler.SubmitAppeal)
 	v1.GET("/appeals/me", authReq, appealHandler.GetMyAppeals)
 
-	notifHandler := handler.NewNotificationHandler(db)
+	notifHandler := handler.NewNotificationHandler(ctr.NotificationRepo)
 	notif := v1.Group("/notifications", authReq)
 	{
 		notif.GET("", notifHandler.ListNotifications)
@@ -336,7 +336,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		notif.GET("/unread-count", notifHandler.UnreadCount)
 	}
 
-	msgHandler := handler.NewMessageHandler(db)
+	msgHandler := handler.NewMessageHandler(ctr.MessageRepo)
 	msgHandler.SetNotificationService(notifSvc)
 	msgHandler.SetReviewService(cfg, ctr.ReviewService)
 	messages := v1.Group("/messages", authReq)
@@ -348,12 +348,12 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		messages.DELETE("/conversations/:id", msgHandler.LeaveConversation)
 	}
 
-	histHandler := handler.NewBrowseHistoryHandler(db, cfg)
+	histHandler := handler.NewBrowseHistoryHandler(ctr.BrowseHistoryRepo, cfg)
 	me.POST("/history", histHandler.RecordView)
 	me.GET("/history", histHandler.GetHistory)
 	me.DELETE("/history", histHandler.ClearHistory)
 
-	ipVisitHistoryHandler := handler.NewIPVisitHistoryHandler(db)
+	ipVisitHistoryHandler := handler.NewIPVisitHistoryHandler(ctr.IPVisitHistoryRepo)
 	ipVisitHistoryHandler.SetDisplayURLSigner(displaySigner)
 	me.GET("/ip-visits", ipVisitHistoryHandler.ListRecent)
 	me.PUT("/ip-visits/:ipId", ipVisitHistoryHandler.RecordVisit)
@@ -361,7 +361,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	// T12（FIX-18）：注入共享 SocialService——讨论发帖/回复统一走信誉门 +
 	// Green 审核 + 楼主通知，与 /social 路由同一套治理。
-	discHandler := handler.NewDiscussionHandler(db, socialSvc)
+	discHandler := handler.NewDiscussionHandler(ctr.DiscussionRepo, ctr.SocialRepo, ctr.IPRepo, socialSvc)
 	discHandler.SetDisplayURLSigner(displaySigner)
 	discHandler.SetConfig(cfg)
 	ips.GET("/:id/discussions", optAuth, discHandler.ListDiscussions)
@@ -376,7 +376,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		discussions.PATCH("/:id/pin", authReq, middleware.AdminRequired(), discHandler.PinDiscussion)
 	}
 
-	repHandler := handler.NewReputationHandler(db)
+	repHandler := handler.NewReputationHandler(ctr.ReputationService)
 	v1.GET("/reputation-logs/me", authReq, repHandler.GetMyReputationLogs)
 
 	// #658 收拢：AgentService 的 queue producer 只在容器接线一次，路由层
@@ -399,7 +399,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.DELETE("/conversations/:id", agentHandler.DeleteConversation)
 	}
 
-	rehabHandler := handler.NewRehabHandler(db, rdb, cfg)
+	rehabHandler := handler.NewRehabHandler(ctr.RehabService)
 	rehab := v1.Group("/rehab", authReq)
 	{
 		rehab.GET("/courses", rehabHandler.ListCourses)

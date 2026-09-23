@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/testutil"
 )
 
@@ -28,7 +29,7 @@ func setupIPVisitHistoryHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB) {
 	createIPVisitHistoryBaseSchema(t, db)
 	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "migrations", "066_ip_visit_history.sql"))
 
-	h := NewIPVisitHistoryHandler(db)
+	h := NewIPVisitHistoryHandler(repository.NewIPVisitHistoryRepository(db))
 	router := gin.New()
 	testAuth := func(c *gin.Context) {
 		if raw := c.GetHeader("X-Test-User-ID"); raw != "" {
