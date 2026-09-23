@@ -3,8 +3,10 @@ package container
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -82,6 +84,18 @@ type ServiceContainer struct {
 	AuthService         *service.AuthService
 	VerificationService *service.VerificationService
 	ContentService      *service.ContentService
+	// StudioContentService is the full-featured content service the HTTP
+	// studio routes and the MCP write channel share (#658): upload grants,
+	// object verification, archive scanning, versions, recommendation and
+	// the transactional outbox. ContentService above stays the read-only
+	// scheduler copy (recommendation base, no upload surface).
+	StudioContentService *service.ContentService
+	// OSSService is the single shared presign service for studio uploads,
+	// MCP write tools and feedback screenshots (#658 收拢：原 3 份); nil
+	// with OSSInitErr set keeps each surface's fail-open behavior.
+	OSSService          *service.OSSService
+	OSSInitErr          error
+	UploadGrants        *service.UploadGrantService
 	IPService           *service.IPService
 	SocialService       *service.SocialService
 	ReputationService   *service.ReputationService
@@ -119,7 +133,10 @@ type ServiceContainer struct {
 	DisplayURLSigner *service.DisplayURLSigner
 }
 
-func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
+// NewContainer builds the single source of truth for the dependency graph
+// and validates its own wiring before returning (#658): any missing
+// REQUIRED dependency fails construction with the complete list.
+func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceContainer, error) {
 	c := &ServiceContainer{
 		DB:  db,
 		RDB: rdb,
@@ -195,6 +212,20 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
 	c.DisplayURLSigner = service.NewDisplayURLSigner(cfg)
 
+	// One shared OSS presign instance serves the studio upload surface, the
+	// MCP write channel and feedback screenshots (#658 收拢：原 3 份).
+	c.OSSService, c.OSSInitErr = service.NewOSSService(cfg)
+	if c.OSSInitErr != nil {
+		slog.Warn("OSS presign is unavailable", "error", c.OSSInitErr)
+	}
+	// One shared per-user upload-grant store (same redis keys for web studio
+	// uploads and MCP writes; TTL contract unchanged).
+	grantTTL := 5 * time.Minute
+	if cfg.Feedback.UploadGrantTTLSec > 0 {
+		grantTTL = time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
+	}
+	c.UploadGrants = service.NewUploadGrantService(rdb, grantTTL)
+
 	var mailSender mail.MailSender
 	var feedbackMailSender service.FeedbackMailSender
 	if cfg.SMTP.Mode == "smtp" {
@@ -250,11 +281,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	if cfg.Feedback.UploadGrantTTLSec > 0 {
 		uploadGrantTTL = cfg.Feedback.UploadGrantTTLSec
 	}
-	feedbackOSSSigner, err := service.NewOSSService(cfg)
-	if err != nil {
-		slog.Warn("Feedback screenshot OSS presign is unavailable", "error", err)
-	}
-	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, c.CaptchaVerifier, uploadGrantTTL, feedbackOSSSigner)
+	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, c.CaptchaVerifier, uploadGrantTTL, c.OSSService)
 	c.FeedbackService.SetNotificationService(c.NotificationService)
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
 	c.FeedbackService.SetReviewService(c.ReviewService)
@@ -279,6 +306,22 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPService.SetQueueProducer(c.QueueProducer)
 	c.NotificationService.SetQueueProducer(c.QueueProducer)
 
+	// #658 内容服务收敛 ×2：调度器只读份（上方 c.ContentService）+ 这份
+	// HTTP/MCP 共用全功能份。MCP 写路径由此补上事务性发件箱——外部 Agent
+	// 写入的内容与 HTTP 发布产生相同的索引事件（本批唯一预期行为变更）。
+	c.StudioContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, c.OSSService).
+		WithUploadGrantService(c.UploadGrants).
+		WithUploadedObjectVerifier(c.OSSService).
+		WithArchiveScanConfig(&cfg.ArchiveScan).
+		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
+		WithImageDimensionsResolver(c.OSSService).
+		WithUploadConfig(&cfg.Upload)
+	c.StudioContentService.SetVersionService(c.VersionService)
+	c.StudioContentService.SetOutboxRepository(c.OutboxRepo)
+	c.StudioContentService.SetQueueProducer(c.QueueProducer)
+	c.StudioContentService.SetArchiveScanRepository(c.ArchiveScanRepo, cfg.Features.ArchiveMalwareScanEnabled)
+	c.StudioContentService.SetRecommendationService(c.RecommendationSvc)
+
 	// Usage-guide merged view (SP-16 #447): constructed before AgentService
 	// so the in-site agent can read structured guides first.
 	c.UsageGuideService = service.NewUsageGuideService(
@@ -288,29 +331,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 
 	// MCP server surface (SP-16 #449/#451): the four anonymous read-only
 	// tools close over the same repos as the public REST surface; the
-	// PAT-scoped write tools reuse the studio publish/download chains. The
-	// content service here mirrors NewContentHandler's construction (OSS
-	// presign, upload grants, object verifier, archive gate) so external
-	// agents hit byte-identical validation.
-	mcpOSS, mcpOSSErr := service.NewOSSService(cfg)
-	if mcpOSSErr != nil {
-		slog.Warn("MCP upload/download presign is unavailable", "error", mcpOSSErr)
-	}
-	mcpGrantTTL := time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
-	if mcpGrantTTL <= 0 {
-		mcpGrantTTL = 5 * time.Minute
-	}
-	mcpUploadGrants := service.NewUploadGrantService(rdb, mcpGrantTTL)
-	mcpContentSvc := service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, mcpOSS).
-		WithUploadGrantService(mcpUploadGrants).
-		WithUploadedObjectVerifier(mcpOSS).
-		WithArchiveScanConfig(&cfg.ArchiveScan).
-		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
-		WithImageDimensionsResolver(mcpOSS).
-		WithUploadConfig(&cfg.Upload)
-	mcpContentSvc.SetVersionService(c.VersionService)
-	mcpContentSvc.SetQueueProducer(c.QueueProducer)
-	mcpContentSvc.SetArchiveScanRepository(c.ArchiveScanRepo, cfg.Features.ArchiveMalwareScanEnabled)
+	// PAT-scoped write tools consume the shared StudioContentService and
+	// OSS/grant instances so external agents hit byte-identical validation
+	// and event semantics (#658).
 	c.MCPHandler = mcpserver.NewHandler(mcpserver.Deps{
 		DB:            db,
 		SearchRepo:    c.SearchRepo,
@@ -319,7 +342,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		GuideSvc:      c.UsageGuideService,
 		DisplaySigner: c.DisplayURLSigner,
 		Cfg:           cfg,
-		ContentSvc:    mcpContentSvc,
+		ContentSvc:    c.StudioContentService,
 		// SuggestPublishMetadata reuses the in-chat upload-assist LLM;
 		// AgentService is constructed below, hence the late-bound closure.
 		SuggestPublishMetadata: func(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error) {
@@ -328,11 +351,11 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		// IssueUploadURL mirrors POST /contents/oss-token: presign then
 		// register the grant the later create call consumes.
 		IssueUploadURL: func(ctx context.Context, req service.PresignUploadRequest, userID int64) (*service.PresignUploadResponse, error) {
-			resp, err := mcpOSS.GeneratePresignUploadURL(ctx, req, userID)
+			resp, err := c.OSSService.GeneratePresignUploadURL(ctx, req, userID)
 			if err != nil {
 				return nil, err
 			}
-			grant, err := mcpUploadGrants.Issue(ctx, service.UploadGrant{
+			grant, err := c.UploadGrants.Issue(ctx, service.UploadGrant{
 				UserID:   userID,
 				Purpose:  "content",
 				OSSKey:   resp.OSSKey,
@@ -487,10 +510,115 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.SocialService.SetJudgeCaseEnsurer(c.ReviewService)
 	c.PRService.SetNotificationService(c.NotificationService)
 
-	// Wire agent service with queue producer
-	c.AgentService.SetQueueProducer(c.QueueProducer)
+	return c, c.ValidateWiring()
+}
 
-	return c
+// ValidateWiring asserts every REQUIRED dependency of the composition root
+// resolved non-nil (#658). Wiring drift previously failed silently through
+// nil-tolerant Set* seams; now a missing REQUIRED dependency fails startup
+// with the COMPLETE list in one boot instead of one deploy per finding.
+//
+// OPTIONAL by design and therefore not asserted: QueueBroker (nil when the
+// queue is disabled; QueueProducer falls back to the no-op producer),
+// OSSService (unconfigured deployments keep per-surface fail-open 503s with
+// OSSInitErr), ArchiveObjectStore/ArchiveScanner (gated behind
+// features.archive_malware_scan_enabled).
+func (c *ServiceContainer) ValidateWiring() error {
+	required := []struct {
+		name string
+		val  any
+	}{
+		{"db", c.DB},
+		{"redis", c.RDB},
+		{"config", c.Cfg},
+		{"queue.producer", c.QueueProducer},
+		{"repo.user", c.UserRepo},
+		{"repo.content", c.ContentRepo},
+		{"repo.ip", c.IPRepo},
+		{"repo.social", c.SocialRepo},
+		{"repo.follow", c.FollowRepo},
+		{"repo.judge", c.JudgeRepo},
+		{"repo.tag", c.TagRepo},
+		{"repo.category", c.CategoryRepo},
+		{"repo.pr", c.PRRepo},
+		{"repo.version", c.VersionRepo},
+		{"repo.appeal", c.AppealRepo},
+		{"repo.notification", c.NotificationRepo},
+		{"repo.browse_history", c.BrowseHistoryRepo},
+		{"repo.discussion", c.DiscussionRepo},
+		{"repo.message", c.MessageRepo},
+		{"repo.rehab", c.RehabRepo},
+		{"repo.embedding", c.EmbeddingRepo},
+		{"repo.llm_config", c.LLMConfigRepo},
+		{"repo.search", c.SearchRepo},
+		{"repo.feedback", c.FeedbackRepo},
+		{"repo.admin_audit", c.AdminAuditRepo},
+		{"repo.outbox", c.OutboxRepo},
+		{"repo.archive_scan", c.ArchiveScanRepo},
+		{"repo.agent_trace", c.AgentTraceRepo},
+		{"repo.rag_evaluation", c.RagEvaluationRepo},
+		{"agenttrace.writer", c.AgentTraceWriter},
+		{"service.auth", c.AuthService},
+		{"service.verification", c.VerificationService},
+		{"service.content", c.ContentService},
+		{"service.studio_content", c.StudioContentService},
+		{"service.ip", c.IPService},
+		{"service.social", c.SocialService},
+		{"service.reputation", c.ReputationService},
+		{"service.review", c.ReviewService},
+		{"service.judge", c.JudgeService},
+		{"service.recommendation", c.RecommendationSvc},
+		{"service.stats", c.StatsService},
+		{"service.ip_stats", c.IPStatsService},
+		{"service.agent", c.AgentService},
+		{"service.agent_token", c.AgentTokenService},
+		{"service.notification", c.NotificationService},
+		{"service.pr", c.PRService},
+		{"service.version", c.VersionService},
+		{"service.usage_guide", c.UsageGuideService},
+		{"service.search", c.SearchService},
+		{"service.ip_proposal", c.IPProposalService},
+		{"service.feedback", c.FeedbackService},
+		{"service.admin_audit", c.AdminAuditService},
+		{"service.collab_invite", c.CollabInviteService},
+		{"service.prompt_registry", c.PromptRegistryService},
+		{"upload.grants", c.UploadGrants},
+		{"captcha.verifier", c.CaptchaVerifier},
+		{"captcha.provider", c.CaptchaProvider},
+		{"captcha.tickets", c.CaptchaTickets},
+		{"display.signer", c.DisplayURLSigner},
+		{"mcp.handler", c.MCPHandler},
+		{"opensearch.repo", c.OpenSearchRepo},
+		{"hybrid.retriever", c.HybridRetriever},
+		{"rag.projection", c.RAGProjection},
+	}
+	var missing []string
+	for _, dep := range required {
+		if isNilValue(dep.val) {
+			missing = append(missing, dep.name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("composition root wiring incomplete; missing REQUIRED dependencies: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+// isNilValue reports whether an any-wrapped dependency is nil, unwrapping
+// interfaces so a typed-nil pointer inside an interface field also counts.
+func isNilValue(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return rv.IsNil()
+	case reflect.Interface:
+		return rv.IsNil() || isNilValue(rv.Elem().Interface())
+	default:
+		return false
+	}
 }
 
 // StartWorkers starts all queue consumers and the outbox relay. It is the
@@ -514,9 +642,10 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 	notificationWorker := worker.NewNotificationWorker(c.NotificationRepo, c.DB)
 	countWorker := worker.NewCountWorker(c.RDB, c.DB)
 	embeddingWorker := worker.NewEmbeddingWorker(c.AgentService, c.DB)
-	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB), nil)
+	// #658 收拢：worker 复用容器的 EmbeddingRepo（原两处自建）。
+	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, c.EmbeddingRepo, nil)
 	if c.Cfg.Features.RAGHybridEnabled {
-		indexerWorker = worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB), c.RAGProjection)
+		indexerWorker = worker.NewIndexerWorker(c.DB, c.AgentService, c.EmbeddingRepo, c.RAGProjection)
 	}
 
 	subscriptions := []struct {

@@ -183,7 +183,11 @@ func runRebuild(cfg *config.Config, db *gorm.DB) {
 
 	rdb := redisclient.Init(cfg)
 	defer rdb.Close()
-	ctr := container.NewContainer(db, rdb, cfg)
+	ctr, err := container.NewContainer(db, rdb, cfg)
+	if err != nil {
+		slog.Error("composition root wiring incomplete", "error", err)
+		os.Exit(1)
+	}
 
 	started := time.Now()
 	slog.Info("contextual rebuild starting",

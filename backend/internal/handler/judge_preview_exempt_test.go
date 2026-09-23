@@ -15,6 +15,7 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/testutil"
+	"omnicraft/backend/internal/testutil/studio"
 )
 
 func setupT40VisibilityHandler(t *testing.T) *ContentHandler {
@@ -26,7 +27,8 @@ func setupT40VisibilityHandler(t *testing.T) *ContentHandler {
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.JudgeQualification{}))
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "t40-visibility-secret"
-	return NewContentHandler(db, cfg, nil)
+	studio := studio.NewStack(db, cfg, nil)
+	return NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 }
 
 func seedT40Qualification(t *testing.T, h *ContentHandler, userID int64, contentType string) {

@@ -7,13 +7,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/archivezip"
-	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -35,78 +33,35 @@ type ContentHandler struct {
 	uploadGrants      *service.UploadGrantService
 	rdb               *redis.Client
 	cfg               *config.Config
-	queueProducer     queue.Producer
 	archiveGate       *service.ArchiveScanGate
 	displaySigner     *service.DisplayURLSigner
 	judgeRepo         *repository.JudgeRepository
 	followRepo        *repository.FollowRepository
 }
 
-func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
-	repo := repository.NewContentRepository(db)
-	ossSvc, ossErr := service.NewOSSService(cfg)
-	reputSvc := service.NewReputationService(db)
-	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
-
-	grantTTL := time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
-	if grantTTL <= 0 {
-		grantTTL = 5 * time.Minute
-	}
-	uploadGrants := service.NewUploadGrantService(rdb, grantTTL)
-	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc).
-		WithUploadGrantService(uploadGrants).
-		WithUploadedObjectVerifier(ossSvc).
-		WithArchiveScanConfig(&cfg.ArchiveScan).
-		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
-		WithImageDimensionsResolver(ossSvc).
-		WithUploadConfig(&cfg.Upload)
-
-	embeddingRepo := repository.NewEmbeddingRepository(db)
-	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
-	contentSvc.SetRecommendationService(recSvc)
-
-	// FIX-42: this handler-local service instance is the one wired to
-	// POST /contents (routes.go builds its own handlers), so publish-time
-	// initial version creation must bind here too, not only on the container.
-	contentSvc.SetVersionService(service.NewVersionService(repository.NewVersionRepository(db), repo))
-
+// NewContentHandler receives the container-owned studio stack (#658): the
+// full-featured ContentService shared with the MCP write channel, the shared
+// OSS presign service (nil + ossInitErr = unconfigured, per-surface 503)
+// and the shared upload-grant store. The handler no longer builds a second
+// review/content/recommendation graph — tests compose the same stack through
+// testutil.NewStudioStack.
+func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, contentSvc *service.ContentService, ossSvc *service.OSSService, ossInitErr error, uploadGrants *service.UploadGrantService) *ContentHandler {
 	return &ContentHandler{
 		contentSvc:        contentSvc,
-		contentRepo:       repo,
+		contentRepo:       repository.NewContentRepository(db),
 		judgeRepo:         repository.NewJudgeRepository(db),
 		followRepo:        repository.NewFollowRepository(db),
 		seriesSvc:         service.NewSeriesService(repository.NewSeriesRepository(db)),
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		collectionRepo:    repository.NewCollectionRepository(db),
 		ossSvc:            ossSvc,
-		ossInitErr:        ossErr,
+		ossInitErr:        ossInitErr,
 		uploadGrants:      uploadGrants,
 		rdb:               rdb,
 		cfg:               cfg,
-		queueProducer:     queue.NewNoopProducer(),
 		archiveGate:       service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled),
 		displaySigner:     service.NewDisplayURLSigner(cfg),
 	}
-}
-
-func (h *ContentHandler) SetQueueProducer(p queue.Producer) {
-	h.queueProducer = p
-	// #321: the producer must reach the content service too — without the
-	// propagation every publish took the synchronous review fallback and
-	// submit_ai_review messages never reached the worker queue.
-	h.contentSvc.SetQueueProducer(p)
-}
-
-// SetOutboxRepository wires the transactional outbox into the content
-// service used by this handler. The route builder owns the shared repository
-// instance so HTTP edits and the standalone relay observe the same rows.
-func (h *ContentHandler) SetOutboxRepository(outbox repository.OutboxWriter) {
-	h.contentSvc.SetOutboxRepository(outbox)
-}
-
-func (h *ContentHandler) SetArchiveScanRepository(repo *repository.ArchiveScanRepository) {
-	h.contentSvc.SetArchiveScanRepository(repo, h.cfg.Features.ArchiveMalwareScanEnabled)
-	h.archiveGate = service.NewArchiveScanGate(h.contentRepo.DB(), h.cfg.Features.ArchiveMalwareScanEnabled)
 }
 
 func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
@@ -743,6 +698,7 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		"expires_in":   res.ExpiresIn,
 	})
 }
+
 // isAdminRole reports whether the caller holds the admin role.
 func isAdminRole(c *gin.Context) bool {
 	role, exists := c.Get(middleware.UserRoleKey)

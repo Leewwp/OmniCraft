@@ -53,7 +53,11 @@ func main() {
 	db := database.Init(cfg)
 	rdb := redisclient.Init(cfg)
 
-	ctr := container.NewContainer(db, rdb, cfg)
+	ctr, err := container.NewContainer(db, rdb, cfg)
+	if err != nil {
+		logger.Error("composition root wiring incomplete", "error", err)
+		os.Exit(1)
+	}
 	// SP-21 T1: the worker shares the agent trace writer (auto-title and
 	// other agent side calls may record nodes from this process).
 	ctr.AgentTraceWriter.Start(context.Background())
