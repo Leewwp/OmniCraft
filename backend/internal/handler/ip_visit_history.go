@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
@@ -24,8 +23,9 @@ type IPVisitHistoryHandler struct {
 	displaySigner *service.DisplayURLSigner
 }
 
-func NewIPVisitHistoryHandler(db *gorm.DB) *IPVisitHistoryHandler {
-	return &IPVisitHistoryHandler{repo: repository.NewIPVisitHistoryRepository(db)}
+// NewIPVisitHistoryHandler receives the container-owned repository (#658 PR-3).
+func NewIPVisitHistoryHandler(repo *repository.IPVisitHistoryRepository) *IPVisitHistoryHandler {
+	return &IPVisitHistoryHandler{repo: repo}
 }
 
 // SetDisplayURLSigner wires display URL signing for the IP cover summaries

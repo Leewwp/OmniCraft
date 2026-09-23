@@ -54,15 +54,15 @@ func NewAgentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AgentH
 	}
 }
 
-// NewAgentHandlerWithService builds the handler around a shared AgentService
-// (e.g. the one wired in the service container), which also keeps the search
-// repository fallback and queue producer consistent.
-func NewAgentHandlerWithService(db *gorm.DB, cfg *config.Config, rdb *redis.Client, agentSvc *service.AgentService) *AgentHandler {
+// NewAgentHandlerWithService builds the handler around the shared container
+// AgentService and the container-owned quota reserver (#658 PR-3); the raw
+// db stays for the conversation-history queries.
+func NewAgentHandlerWithService(db *gorm.DB, cfg *config.Config, agentSvc *service.AgentService, quota *middleware.AgentQuotaReserver) *AgentHandler {
 	return &AgentHandler{
 		agentSvc: agentSvc,
 		cfg:      cfg,
 		db:       db,
-		quota:    middleware.NewAgentQuotaReserver(rdb, cfg),
+		quota:    quota,
 	}
 }
 

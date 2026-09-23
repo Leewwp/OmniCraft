@@ -12,7 +12,6 @@ import (
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type DiscussionHandler struct {
@@ -27,11 +26,13 @@ type DiscussionHandler struct {
 // NewDiscussionHandler takes the shared SocialService so discussion creation
 // and replies go through the same reputation gate, Green text moderation and
 // owner notification as /social routes (T12/FIX-18 route duality fix).
-func NewDiscussionHandler(db *gorm.DB, socialSvc *service.SocialService) *DiscussionHandler {
+// NewDiscussionHandler receives the container-owned repositories plus the
+// shared SocialService (#658 PR-3).
+func NewDiscussionHandler(discRepo *repository.DiscussionRepository, socialRepo *repository.SocialRepository, ipRepo *repository.IPRepository, socialSvc *service.SocialService) *DiscussionHandler {
 	return &DiscussionHandler{
-		discRepo:   repository.NewDiscussionRepository(db),
-		socialRepo: repository.NewSocialRepository(db),
-		ipRepo:     repository.NewIPRepository(db),
+		discRepo:   discRepo,
+		socialRepo: socialRepo,
+		ipRepo:     ipRepo,
 		socialSvc:  socialSvc,
 	}
 }

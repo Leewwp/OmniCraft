@@ -22,6 +22,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/container"
+	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/mail"
 	"omnicraft/backend/internal/pkg/queue"
@@ -423,8 +424,13 @@ func buildAICallbackRouter(t *testing.T, producer queue.Producer, contentStartSt
 		UserRepo:            userRepo,
 		AuthService:         authSvc,
 		VerificationService: verificationSvc,
-		ReviewService:       reviewSvc,
-		QueueProducer:       producer,
+		// #658 PR-3：RegisterRoutes 装配期消费 TagService（tagHandler
+		// 的通知接线在构造时解引用），部分容器须随构造面补齐。
+		TagService: service.NewTagService(repository.NewTagRepository(db), repository.NewContentRepository(db), rdb, &cfg.Cache),
+		// agent chat 配额门 fail-closed，部分容器须随构造面补齐。
+		AgentQuotaReserver: middleware.NewAgentQuotaReserver(rdb, cfg),
+		ReviewService:      reviewSvc,
+		QueueProducer:      producer,
 		AgentService: service.NewAgentService(
 			&routeFakeAgentProvider{},
 			nil,

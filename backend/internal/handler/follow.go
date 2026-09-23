@@ -10,7 +10,6 @@ import (
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type FollowHandler struct {
@@ -19,8 +18,9 @@ type FollowHandler struct {
 	displaySigner *service.DisplayURLSigner
 }
 
-func NewFollowHandler(db *gorm.DB) *FollowHandler {
-	return &FollowHandler{followRepo: repository.NewFollowRepository(db)}
+// NewFollowHandler receives the container-owned FollowRepository (#658 PR-3).
+func NewFollowHandler(followRepo *repository.FollowRepository) *FollowHandler {
+	return &FollowHandler{followRepo: followRepo}
 }
 
 func (h *FollowHandler) SetNotificationService(ns *service.NotificationService) {

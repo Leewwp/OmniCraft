@@ -8,16 +8,17 @@ import (
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type ReputationHandler struct {
 	reputationSvc *service.ReputationService
 }
 
-func NewReputationHandler(db *gorm.DB) *ReputationHandler {
+// NewReputationHandler receives the container-owned ReputationService
+// (#658 PR-3).
+func NewReputationHandler(reputationSvc *service.ReputationService) *ReputationHandler {
 	return &ReputationHandler{
-		reputationSvc: service.NewReputationService(db),
+		reputationSvc: reputationSvc,
 	}
 }
 

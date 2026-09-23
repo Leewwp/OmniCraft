@@ -32,9 +32,11 @@ type categoryCreateRequest struct {
 	IsActive  bool          `json:"is_active"`
 }
 
-func NewCategoryHandler(db *gorm.DB, auditSvc *service.AdminAuditService) *CategoryHandler {
+// NewCategoryHandler receives the container-owned CategoryService; the raw
+// db stays for the admin mutation transaction (#658 PR-3).
+func NewCategoryHandler(catSvc *service.CategoryService, auditSvc *service.AdminAuditService, db *gorm.DB) *CategoryHandler {
 	return &CategoryHandler{
-		catSvc:   service.NewCategoryService(repository.NewCategoryRepository(db)),
+		catSvc:   catSvc,
 		auditSvc: auditSvc,
 		db:       db,
 	}

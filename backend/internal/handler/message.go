@@ -16,7 +16,6 @@ import (
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type MessageHandler struct {
@@ -51,8 +50,9 @@ type ConversationDTO struct {
 	UpdatedAt    string                       `json:"updated_at"`
 }
 
-func NewMessageHandler(db *gorm.DB) *MessageHandler {
-	return &MessageHandler{msgRepo: repository.NewMessageRepository(db)}
+// NewMessageHandler receives the container-owned repository (#658 PR-3).
+func NewMessageHandler(msgRepo *repository.MessageRepository) *MessageHandler {
+	return &MessageHandler{msgRepo: msgRepo}
 }
 
 func (h *MessageHandler) SetNotificationService(ns *service.NotificationService) {

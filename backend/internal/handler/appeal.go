@@ -9,7 +9,6 @@ import (
 	"omnicraft/backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type AppealHandler struct {
@@ -18,11 +17,12 @@ type AppealHandler struct {
 	socialRepo  *repository.SocialRepository
 }
 
-func NewAppealHandler(db *gorm.DB) *AppealHandler {
+// NewAppealHandler receives the container-owned repositories (#658 PR-3).
+func NewAppealHandler(appealRepo *repository.AppealRepository, contentRepo *repository.ContentRepository, socialRepo *repository.SocialRepository) *AppealHandler {
 	return &AppealHandler{
-		appealRepo:  repository.NewAppealRepository(db),
-		contentRepo: repository.NewContentRepository(db),
-		socialRepo:  repository.NewSocialRepository(db),
+		appealRepo:  appealRepo,
+		contentRepo: contentRepo,
+		socialRepo:  socialRepo,
 	}
 }
 

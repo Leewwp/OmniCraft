@@ -47,7 +47,7 @@ func setupAdminConfigRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.Config
 	cfg.Reputation.RepeatViolationExtraPenalty = -1
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, nil, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, nil, auditSvc)
 
 	router := gin.New()
 	admin := router.Group("/api/v1/admin")

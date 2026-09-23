@@ -13,7 +13,6 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/testutil/studio"
 )
 
 // GAP #17 route contract：GET /api/v1/contents?sort=recommended（不带 zone，
@@ -136,8 +135,7 @@ func setupRecommendedSortRoute(t *testing.T) (*gin.Engine, *gorm.DB) {
 	}
 
 	cfg := &config.Config{}
-	studio := studio.NewStack(db, cfg, nil)
-	h := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	h, _ := newContentHandlerForTest(db, cfg, nil)
 
 	router := gin.New()
 	router.GET("/api/v1/contents", h.ListContents)

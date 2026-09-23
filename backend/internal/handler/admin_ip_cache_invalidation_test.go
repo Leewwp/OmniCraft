@@ -44,7 +44,7 @@ func setupAdminIPCacheRouter(t *testing.T) (*gin.Engine, *gorm.DB, *miniredis.Mi
 
 	cfg := &config.Config{Cache: config.CacheConfig{IPListTTL: 300, IPDetailTTL: 300}}
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, rdb, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, rdb, auditSvc)
 
 	// 公共读路径按 routes.go 的 NewIPHandlerWithCache 装配缓存，用它预热。
 	readSvc := service.NewIPServiceWithCache(repository.NewIPRepository(db), rdb, &cfg.Cache)

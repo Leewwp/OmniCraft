@@ -7,16 +7,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/redis/go-redis/v9"
-	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
-	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type TagHandler struct {
@@ -24,14 +20,11 @@ type TagHandler struct {
 	maxQueryChars int
 }
 
-func NewTagHandler(db *gorm.DB, rdb *redis.Client, cacheCfg *config.CacheConfig, maxQueryChars int) *TagHandler {
+// NewTagHandler receives the container-owned TagService (#658 PR-3：handler
+// 不再自建；maxQueryChars 是路由层配置转发).
+func NewTagHandler(tagSvc *service.TagService, maxQueryChars int) *TagHandler {
 	return &TagHandler{
-		tagSvc: service.NewTagService(
-			repository.NewTagRepository(db),
-			repository.NewContentRepository(db),
-			rdb,
-			cacheCfg,
-		),
+		tagSvc:        tagSvc,
 		maxQueryChars: maxQueryChars,
 	}
 }

@@ -60,7 +60,7 @@ func setupAppealBannedTestRouter(t *testing.T) (*gin.Engine, *gin.Engine, *gorm.
 	cfg.Cache.UserStatusTTL = 300
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, rdb, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, rdb, auditSvc)
 
 	appealRouter := gin.New()
 	appealReq := middleware.AuthRequired(cfg, rdb, db)

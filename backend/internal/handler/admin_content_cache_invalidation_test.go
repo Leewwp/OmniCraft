@@ -20,7 +20,6 @@ import (
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
-	"omnicraft/backend/internal/testutil/studio"
 )
 
 // T10（FIX-38）：审核写点（admin ban/restore、申诉批准）绕过 ContentService
@@ -61,14 +60,13 @@ func setupT10ContentCacheRouters(t *testing.T) (*gin.Engine, *gin.Engine, *gorm.
 	cfg.Cache.ContentListTTL = 300
 
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
-	adminHandler := NewAdminHandler(db, cfg, rdb, auditSvc)
+	adminHandler := newAdminHandlerForTest(db, cfg, rdb, auditSvc)
 	adminHandler.SetContentOutbox(repository.NewOutboxRepository(db))
 
 	// 公共读路径按 routes.go 同款装配（NewContentHandler 携带 redis 与
 	// cache 配置，详情缓存行为与线上一致）。
 	readRouter := gin.New()
-	studio := studio.NewStack(db, cfg, rdb)
-	contentHandler := NewContentHandler(db, cfg, rdb, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
+	contentHandler, _ := newContentHandlerForTest(db, cfg, rdb)
 	optAuth := middleware.OptionalAuth(cfg, nil, db)
 	readRouter.GET("/api/v1/contents/:id", optAuth, contentHandler.GetContent)
 

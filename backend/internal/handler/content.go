@@ -16,10 +16,7 @@ import (
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
-	"github.com/redis/go-redis/v9"
-
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type ContentHandler struct {
@@ -31,7 +28,6 @@ type ContentHandler struct {
 	ossSvc            *service.OSSService
 	ossInitErr        error
 	uploadGrants      *service.UploadGrantService
-	rdb               *redis.Client
 	cfg               *config.Config
 	archiveGate       *service.ArchiveScanGate
 	displaySigner     *service.DisplayURLSigner
@@ -39,28 +35,44 @@ type ContentHandler struct {
 	followRepo        *repository.FollowRepository
 }
 
-// NewContentHandler receives the container-owned studio stack (#658): the
+// ContentHandlerDeps carries the container-resolved modules the content
+// surface needs (#658 PR-3：构造全部收口组合根，handler 只消费).
+type ContentHandlerDeps struct {
+	ContentService *service.ContentService
+	OSS            *service.OSSService
+	OSSErr         error
+	UploadGrants   *service.UploadGrantService
+	ContentRepo    *repository.ContentRepository
+	JudgeRepo      *repository.JudgeRepository
+	FollowRepo     *repository.FollowRepository
+	SeriesSvc      *service.SeriesService
+	BrowseHistory  *repository.BrowseHistoryRepository
+	CollectionRepo *repository.CollectionRepository
+	ArchiveGate    *service.ArchiveScanGate
+	DisplaySigner  *service.DisplayURLSigner
+}
+
+// NewContentHandler consumes the container-owned studio stack (the
 // full-featured ContentService shared with the MCP write channel, the shared
-// OSS presign service (nil + ossInitErr = unconfigured, per-surface 503)
-// and the shared upload-grant store. The handler no longer builds a second
-// review/content/recommendation graph — tests compose the same stack through
-// testutil.NewStudioStack.
-func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, contentSvc *service.ContentService, ossSvc *service.OSSService, ossInitErr error, uploadGrants *service.UploadGrantService) *ContentHandler {
+// OSS presign service — nil + OSSErr = unconfigured, per-surface 503 — and
+// the shared upload-grant store) plus the repos it reads directly. Tests
+// compose the same wiring through the handler test seam / testutil studio
+// stack.
+func NewContentHandler(cfg *config.Config, deps ContentHandlerDeps) *ContentHandler {
 	return &ContentHandler{
-		contentSvc:        contentSvc,
-		contentRepo:       repository.NewContentRepository(db),
-		judgeRepo:         repository.NewJudgeRepository(db),
-		followRepo:        repository.NewFollowRepository(db),
-		seriesSvc:         service.NewSeriesService(repository.NewSeriesRepository(db)),
-		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
-		collectionRepo:    repository.NewCollectionRepository(db),
-		ossSvc:            ossSvc,
-		ossInitErr:        ossInitErr,
-		uploadGrants:      uploadGrants,
-		rdb:               rdb,
+		contentSvc:        deps.ContentService,
+		contentRepo:       deps.ContentRepo,
+		judgeRepo:         deps.JudgeRepo,
+		followRepo:        deps.FollowRepo,
+		seriesSvc:         deps.SeriesSvc,
+		browseHistoryRepo: deps.BrowseHistory,
+		collectionRepo:    deps.CollectionRepo,
+		ossSvc:            deps.OSS,
+		ossInitErr:        deps.OSSErr,
+		uploadGrants:      deps.UploadGrants,
 		cfg:               cfg,
-		archiveGate:       service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled),
-		displaySigner:     service.NewDisplayURLSigner(cfg),
+		archiveGate:       deps.ArchiveGate,
+		displaySigner:     deps.DisplaySigner,
 	}
 }
 

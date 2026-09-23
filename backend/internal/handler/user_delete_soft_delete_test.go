@@ -55,7 +55,7 @@ func setupT30DeleteRouter(t *testing.T) (*gin.Engine, *gin.Engine, *gorm.DB, *co
 	userRepo := repository.NewUserRepository(db)
 	authSvc := service.NewAuthService(userRepo, rdb, cfg)
 	verificationSvc := service.NewVerificationService(userRepo, rdb, noopMailSender{}, cfg)
-	userHandler := NewUserHandler(db, authSvc, rdb, cfg)
+	userHandler := newUserHandlerForTest(db, authSvc, rdb, cfg)
 	authHandler := NewAuthHandler(authSvc, verificationSvc, userRepo, nil, rdb, cfg)
 
 	authReq := middleware.AuthRequired(cfg, rdb, db)

@@ -69,7 +69,7 @@ func setupUserUpdateTest(t *testing.T, mode, ossDomain string, reviewer avatarRe
 		OSS:    config.OSSConfig{Domain: ossDomain},
 		JWT:    config.JWTConfig{Secret: "user-update-test-secret"},
 	}
-	userHandler := NewUserHandler(db, nil, rdb, cfg, reviewer)
+	userHandler := newUserHandlerForTest(db, nil, rdb, cfg, reviewer)
 
 	router := gin.New()
 	router.PATCH("/api/v1/users/:id", func(c *gin.Context) {

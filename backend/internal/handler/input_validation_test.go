@@ -12,6 +12,8 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 )
@@ -40,7 +42,7 @@ func TestFollowGuards(t *testing.T) {
 	require.NoError(t, db.Create(me).Error)
 	require.NoError(t, db.Create(banned).Error)
 
-	h := NewFollowHandler(db)
+	h := NewFollowHandler(repository.NewFollowRepository(db))
 	r := gin.New()
 	r.POST("/users/:id/follow", func(c *gin.Context) { c.Set(middleware.UserIDKey, me.ID); c.Next() }, h.FollowUser)
 
@@ -68,7 +70,7 @@ func TestUpdateTagGroupRejectsUnknownFields(t *testing.T) {
 	group := &model.TagGroup{UserID: owner.ID, Name: "g", Tags: []string{"a"}}
 	require.NoError(t, db.Create(group).Error)
 
-	h := NewTagHandler(db, nil, nil, 200)
+	h := NewTagHandler(service.NewTagService(repository.NewTagRepository(db), repository.NewContentRepository(db), nil, nil), 200)
 	r := gin.New()
 	r.PATCH("/me/tag-groups/:id", func(c *gin.Context) { c.Set(middleware.UserIDKey, owner.ID); c.Next() }, h.UpdateTagGroup)
 
@@ -95,7 +97,7 @@ func TestAdminUpdateCategoryRejectsUnknownFields(t *testing.T) {
 	cat := &model.Category{Zone: "original", Level: "primary", Slug: "fr11cat", NameI18n: model.JSONMap{"zh": "分类"}, IsActive: true}
 	require.NoError(t, db.Create(cat).Error)
 
-	h := NewCategoryHandler(db, nil)
+	h := NewCategoryHandler(service.NewCategoryService(repository.NewCategoryRepository(db)), nil, db)
 	r := gin.New()
 	r.PATCH("/admin/categories/:id", h.AdminUpdateCategory)
 
@@ -119,7 +121,7 @@ func TestUpdateMeValidation(t *testing.T) {
 
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "fr11-test-secret"
-	h := NewUserHandler(db, nil, nil, cfg)
+	h := newUserHandlerForTest(db, nil, nil, cfg)
 	r := gin.New()
 	r.PATCH("/users/:id", func(c *gin.Context) { c.Set(middleware.UserIDKey, user.ID); c.Next() }, h.UpdateUser)
 

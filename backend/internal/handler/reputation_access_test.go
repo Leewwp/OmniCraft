@@ -43,7 +43,7 @@ func setupT33ReputationRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.Conf
 		Reputation: config.ReputationConfig{MinScoreForInteraction: 3},
 		Cache:      config.CacheConfig{UserStatusTTL: 300},
 	}
-	userHandler := NewUserHandler(db, nil, rdb, cfg)
+	userHandler := newUserHandlerForTest(db, nil, rdb, cfg)
 
 	r := gin.New()
 	authReq := middleware.AuthRequired(cfg, rdb, db)

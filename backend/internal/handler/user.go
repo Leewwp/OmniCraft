@@ -54,12 +54,14 @@ type UserHandler struct {
 	displaySigner  *service.DisplayURLSigner
 }
 
-func NewUserHandler(db *gorm.DB, authSvc *service.AuthService, rdb *redis.Client, cfg *config.Config, reviewers ...avatarReviewer) *UserHandler {
+// NewUserHandler receives the container-owned repositories and services
+// (#658 PR-3：handler 不再自建).
+func NewUserHandler(userRepo *repository.UserRepository, reputSvc *service.ReputationService, contentRepo *repository.ContentRepository, followRepo *repository.FollowRepository, authSvc *service.AuthService, rdb *redis.Client, cfg *config.Config, reviewers ...avatarReviewer) *UserHandler {
 	h := &UserHandler{
-		userRepo:      repository.NewUserRepository(db),
-		reputSvc:      service.NewReputationService(db),
-		contentRepo:   repository.NewContentRepository(db),
-		followRepo:    repository.NewFollowRepository(db),
+		userRepo:      userRepo,
+		reputSvc:      reputSvc,
+		contentRepo:   contentRepo,
+		followRepo:    followRepo,
 		authSvc:       authSvc,
 		rdb:           rdb,
 		cfg:           cfg,
