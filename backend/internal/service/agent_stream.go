@@ -4,13 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 	"time"
 
-	"omnicraft/backend/internal/agentmcp"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/observability/agenttrace"
@@ -18,77 +15,6 @@ import (
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/service/promptregistry"
 )
-
-// AgentStreamEventType is the server-owned SSE event name set for the chat
-// stream contract: start, tool_status, delta, citation, usage, done, error.
-type AgentStreamEventType string
-
-const (
-	AgentEventStart      AgentStreamEventType = "start"
-	AgentEventThinkDelta AgentStreamEventType = "think_delta"
-	AgentEventToolStatus AgentStreamEventType = "tool_status"
-	AgentEventDelta      AgentStreamEventType = "delta"
-	AgentEventCitation   AgentStreamEventType = "citation"
-	AgentEventUsage      AgentStreamEventType = "usage"
-	AgentEventDone       AgentStreamEventType = "done"
-	AgentEventError      AgentStreamEventType = "error"
-
-	// AgentErrorCodeProvider is the safe code for Provider-side failures; raw
-	// Provider errors are never serialized into the stream.
-	AgentErrorCodeProvider = "AGENT_PROVIDER_ERROR"
-	// AgentErrorCodeProviderTimeout marks a Provider-side deadline exceeded.
-	// It is distinct from client cancellation so the UI can degrade to keyword
-	// search instead of treating it as an aborted stream.
-	AgentErrorCodeProviderTimeout = "AGENT_PROVIDER_TIMEOUT"
-	// AgentErrorCodeCancelled marks a client-cancelled stream. The request
-	// still consumed its reserved quota and emitted an outcome.
-	AgentErrorCodeCancelled = "STREAM_CANCELLED"
-	// AgentErrorCodeStorage marks a persistence failure without exposing the
-	// underlying database error to the client.
-	AgentErrorCodeStorage = "AGENT_STORAGE_ERROR"
-)
-
-var (
-	// ErrAgentInputBlocked is returned by ModerateChatInput when Green flags
-	// the chat input; the handler maps it to a 422 CONTENT_BLOCKED rejection.
-	ErrAgentInputBlocked = errors.New("agent chat input rejected by content moderation")
-	// ErrAgentModerationUnavailable is returned when the input gate cannot run
-	// and the A4 environment semantics require fail-closed (release mode).
-	ErrAgentModerationUnavailable = errors.New("agent content moderation unavailable")
-)
-
-// AgentStreamEvent is the typed stream event. Only the fields relevant to the
-// event Type are populated; there are no raw prompts, raw tool arguments
-// (tool steps carry a server-derived summary only), internal reasoning
-// verbatim into non-think channels, or Provider errors in any event. The
-// think_delta event is display-only reasoning forwarded per A-02.
-type AgentStreamEvent struct {
-	Type           AgentStreamEventType `json:"type"`
-	TraceID        string               `json:"trace_id,omitempty"`
-	ConversationID int64                `json:"conversation_id,omitempty"`
-	// MessageID identifies the persisted assistant answer row; it is set on
-	// the done event so clients can reference the stored message.
-	MessageID  int64                `json:"message_id,omitempty"`
-	AnswerKind AgentAnswerKind      `json:"answer_kind,omitempty"`
-	Delta      string               `json:"delta,omitempty"`
-	Tool       *AgentToolExecution  `json:"tool,omitempty"`
-	Citation   *AgentCitation       `json:"citation,omitempty"`
-	Usage      *AgentUsage          `json:"usage,omitempty"`
-	Answer     string               `json:"answer,omitempty"`
-	Citations  []AgentCitation      `json:"citations,omitempty"`
-	Tools      []AgentToolExecution `json:"tools,omitempty"`
-	// FollowUps carries 2-3 suggested next questions (SP-15 B #435). Only the
-	// done event of a grounded_content turn may carry them; generation is a
-	// speculative non-streaming call started at the first answer delta and
-	// joined before done assembly with a bounded budget — a miss, timeout or
-	// parse failure leaves the field empty (progressive enhancement, never a
-	// stream failure). v1 does not persist follow-ups.
-	FollowUps      []string `json:"follow_ups,omitempty"`
-	Degraded       bool     `json:"degraded"`
-	DegradedReason string   `json:"degraded_reason,omitempty"`
-	ErrorCode      string   `json:"error_code,omitempty"`
-	ErrorMessage   string   `json:"error_message,omitempty"`
-}
 
 // ResolvedChatContext is the viewer-preloaded, server-owned chat context. The
 // client only submits a surface enum and an optional content ID; the service
@@ -262,25 +188,29 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		return err
 	}
 
+	// #661：回合编排器一次构造（纯装配无 IO），chitchat 短路与完整回合
+	// 共用同一终局收口。
+	runner := s.newTurnRunner(userID, turn, conv, traceID, turnStarted, resolved.Surface, hadAssistantBefore, firstUserMessage(history), turnRecorder, handler)
+
 	// SP-15 A1 rule-layer shortcut: an exact-match chitchat message replays a
 	// server-owned template without any Provider call. The turn already
 	// passed the moderation input gate and consumed its reserved quota (both
 	// happen in the handler before ChatStream), and the user row is already
 	// stored by resolveChatConversation — the shortcut only skips the LLM.
 	if template, ok := s.chitchatShortcutReply(turn.Message); ok {
-		s.recordChitchatTurn(turnRecorder, turnStarted, conv)
-		return s.emitChitchatTemplateTurn(traceID, turnRecorder, conv, template, handler)
+		recordShortcutRun(turnRecorder, turnStarted, conv)
+		if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: template}); err != nil {
+			runner.streamErr = err
+			return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
+		}
+		return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeShortcut, template: template})
 	}
 
 	policy := s.ToolPolicy()
 	systemMsg := s.serverOwnedSystemPrompt(ctx, resolved.Surface, resolved.Content)
-	tools := s.ToolDefinitions()
-	// SP-23 M3: configured MCP servers append their namespaced tools; a
-	// dead server contributes none (never blocks the loop). Unwired seams
-	// (tests, minimal constructors) contribute nothing.
-	if s.mcpBridge != nil {
-		tools = append(tools, s.mcpBridge.ToolDefinitions(ctx)...)
-	}
+	// #661: tool surface and execution ride the ToolRuntime seam (local
+	// registry + MCP bridge dispatch in production, fake in unit tests).
+	tools := s.toolRuntimeOrFallback().ToolDefinitions(ctx)
 	req := llm.ChatRequest{
 		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
 		Tools:     tools,
@@ -298,355 +228,28 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	}
 	req.ModelPref = turn.Model
 
-	// 低-1：图片移除占位文案按会话语言输出（chitchat containsCJK 同款约定）。
-	answerLang := "en"
-	if containsCJK(turn.Message) {
-		answerLang = "zh"
-	}
-	var answerBuf strings.Builder
-	var thinkingBuf strings.Builder
-	var executedTools []AgentToolExecution
-	// SP-23 M4: conversation-level budget baseline (persisted #538 rows)
-	// and this conversation's own signed-image URL prefixes (the piece-2
-	// allowlist is dynamic: only hosts we ourselves issued survive).
-	// SP-25 中-2：预算基线加载失败时保守拦截（视为已达预算）+ Warn——
-	// 护栏在 DB 故障窗口静默放行等于成本护栏失效。
-	persistedToolCalls, persistedToolTurns, budgetLoadErr := s.conversationBudgetBaseline(ctx, convIDForTools(conv))
-	if budgetLoadErr != nil {
-		slog.Warn("session budget baseline load failed; failing closed for this turn", "conversation_id", convIDForTools(conv), "error", budgetLoadErr)
-		persistedToolCalls, persistedToolTurns = budgetExhaustedSentinel, budgetExhaustedSentinel
-	}
-	ownImagePrefixes := []string{}
-	citationCandidates := make([]AgentCitation, 0, policy.CitationMaxCount)
-	seenCitationKeys := make(map[string]bool, policy.CitationMaxCount)
-	retrievalSources := make(map[string]string)
-	degraded := false
-	streamErr := error(nil)
-	// SP-21 T2: user-perceived time to first forwarded display delta
-	// (thinking or answer) — polyu USER_TTFT as a first-class run metric.
-	firstDisplayDelta := time.Time{}
-	var lastUsage *llm.TokenUsage
-	// SP-15 B speculative follow-up generation (#435): started at the first
-	// answer delta of a turn that already executed a tool (grounded answers
-	// always have one; chitchat/clarification turns never start a call), joined
-	// below with the remaining budget before done assembly.
-	followUpCh := make(chan []string, 1)
-	followUpStarted := false
-	followUpStartedAt := time.Time{}
+	// #661：回合编排下沉 turnRunner——ChatStream 只做装配（上下文解析 →
+	// chitchat 短路 → 循环 → 终局收口），回合状态与流循环住 runner。
+	runner.run(ctx, &req)
 
-	roundIndex := 0
-loop:
-	for {
-		acc := newStreamedToolCallAccumulator()
-		if s.chatStreamer == nil {
-			streamErr = errors.New("agent streaming provider unavailable")
-			break loop
-		}
-		roundIndex++
-		roundSpan := turnRecorder.StartNode(agenttrace.NodeTypeLLMRound, fmt.Sprintf("llm_round_%d", roundIndex), nil, turn.Model)
-		roundUsage := (*llm.TokenUsage)(nil)
-		roundAnswer := strings.Builder{}
-		err := s.chatStreamer.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
-			if len(delta.ToolCalls) > 0 {
-				acc.add(delta.ToolCalls)
-			}
-			if delta.Usage != nil {
-				lastUsage = delta.Usage
-				roundUsage = delta.Usage
-			}
-			// A-02 real streaming: reasoning and body increments are
-			// forwarded as they arrive. Thinking is display-only; it never
-			// enters the answer buffer, tool results or citation revalidation.
-			if delta.Thinking != "" {
-				thinkingBuf.WriteString(delta.Thinking)
-				if firstDisplayDelta.IsZero() {
-					firstDisplayDelta = time.Now()
-				}
-				if err := handler(AgentStreamEvent{Type: AgentEventThinkDelta, Delta: delta.Thinking}); err != nil {
-					return err
-				}
-			}
-			if delta.Content != "" {
-				answerBuf.WriteString(delta.Content)
-				roundAnswer.WriteString(delta.Content)
-				if firstDisplayDelta.IsZero() {
-					firstDisplayDelta = time.Now()
-				}
-				if !followUpStarted && len(executedTools) > 0 && s.llmProvider != nil {
-					followUpStarted = true
-					followUpStartedAt = time.Now()
-					question := turn.Message
-					titles := followUpTitles(citationCandidates)
-					prefix := delta.Content
-					provider := s.llmProvider
-					resolver := s.prompts
-					sid := traceID
-					followUpRec := turnRecorder
-					recovery.GoSafe(func() {
-						ctx, cancel := context.WithTimeout(context.Background(), followUpBudget)
-						defer cancel()
-						followUpCh <- generateFollowUps(ctx, followUpRec, resolver, provider, sid, question, titles, prefix)
-					})
-				}
-				if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content}); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			streamErr = err
-			roundSpan.EndWithError(safeAgentStreamCode(err), "")
-			break loop
-		}
-		roundSpan.End(agenttrace.NodeEndOptions{
-			TokensIn:  usagePtr(roundUsage, func(u *llm.TokenUsage) int64 { return int64(u.PromptTokens) }),
-			TokensOut: usagePtr(roundUsage, func(u *llm.TokenUsage) int64 { return int64(u.CompletionTokens) }),
-			// SP-21 T7: attribute the round to the model that actually served
-			// it — the failover target once a routing event fired, else the
-			// pinned preference, else the configured primary. Known only now,
-			// after the (possibly retried) stream call returned.
-			Model: s.servingModel(turnRecorder, turn.Model),
-		})
-		roundCalls := acc.calls()
-		if len(roundCalls) == 0 {
-			break loop
-		}
-		if !policy.AllowToolCall(len(executedTools)) {
-			traceAgentEvent(traceID, "tool_limit_reached", "executed", len(executedTools))
-			break loop
-		}
-
-		// OpenAI-compatible protocol order: the assistant message carrying the
-		// tool_calls must precede the tool result messages, and every tool
-		// message references its call by tool_call_id. Strict providers reject
-		// tool messages that appear without the assistant tool_calls message.
-		assistantMsg := llm.ChatMessage{Role: "assistant", ToolCalls: roundCalls}
-		req.Messages = append(req.Messages, assistantMsg)
-
-		toolMessages := make([]llm.ChatMessage, 0, len(roundCalls))
-		for _, tc := range roundCalls {
-			toolStartedAt := time.Now()
-			// SP-21 T2: one node per tool execution (#538 step shape:
-			// server-derived summary only, raw arguments never recorded).
-			toolSpan := turnRecorder.StartNode(agenttrace.NodeTypeTool,
-				fmt.Sprintf("tool_%s_%d", agentToolNodeKey(tc.Function.Name), len(executedTools)+1), roundSpan, "")
-			turnImages := 0
-			for _, et := range executedTools {
-				if et.Name == ToolGenerateImage && et.Status == AgentToolStatusSuccess {
-					turnImages++
-				}
-			}
-			// SP-23 M4 pieces 3/4: conversation-level budgets gate every
-			// tool call; the degradation result stops the loop from
-			// burning more rounds against a capped session.
-			if exceeded := s.SessionBudgetExceeded(persistedToolCalls, persistedToolTurns, len(executedTools), 1); exceeded != "" {
-				execution := AgentToolExecution{Name: tc.Function.Name, Status: AgentToolStatusError, ArgsSummary: "[session-budget]"}
-				executedTools = append(executedTools, execution)
-				_ = handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution})
-				toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: `{"ok":false,"error":"session_budget_exceeded","detail":` + strconv.Quote(exceeded) + `}`})
-				continue
-			}
-			outcome, toolErr := s.ExecuteToolInConversation(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), userID, convIDForTools(conv), turnImages, nil)
-			execution := AgentToolExecution{
-				Name:        tc.Function.Name,
-				ArgsSummary: agentToolArgsSummary(tc.Function.Name, json.RawMessage(tc.Function.Arguments)),
-				Status:      AgentToolStatusSuccess,
-				DurationMs:  time.Since(toolStartedAt).Milliseconds(),
-			}
-			// #610 部署冒烟热修（2026-09-20 实机）：external 归属跟工具名而非
-			// outcome——generate_image 首调失败（invalid args 等，outcome=nil →
-			// External=false）会毒化 allToolsExternal，重试成功的生图轮转述被
-			// 引用门清空（用户已付费的图不可见）。外部工具的失败步同样计入
-			// 外部车道。
-			execution.External = tc.Function.Name == ToolGenerateImage ||
-				strings.HasPrefix(tc.Function.Name, agentmcp.ToolNamePrefix)
-			result := agentToolResult{OK: true}
-			if toolErr != nil {
-				execution.Status = AgentToolStatusError
-				if errors.Is(toolErr, ErrAgentToolUnknown) {
-					execution.Name = "(unknown)"
-					result = agentToolResult{OK: false, Error: "tool_error"}
-				} else if errors.Is(toolErr, ErrAgentToolInvalidArgs) {
-					result = agentToolResult{OK: false, Error: "invalid_args"}
-				} else if errors.Is(toolErr, ErrContentNotFound) {
-					result = agentToolResult{OK: false, Error: "content_not_found"}
-				} else if errors.Is(toolErr, ErrAgentImageQuotaExceeded) {
-					// M1 quota contract (live regression 2026-09-18: with the
-					// generic tool_error the model retried 5x and the strict
-					// citation gate then cleared its relay to an empty bubble):
-					// relay a stable code + hint so the model tells the user the
-					// cap is reached instead of retrying (external 归属已由上方
-					// 工具名判定统一覆盖).
-					result = agentToolResult{OK: false, Error: "image_quota_exceeded",
-						Message: "本会话配图额度已用完。请直接告知用户额度已满、勿再调用 generate_image。"}
-				} else {
-					result = agentToolResult{OK: false, Error: "tool_error"}
-				}
-				traceAgentEvent(traceID, "tool_error", "tool", tc.Function.Name, "safe_error", result.Error)
-			} else if outcome != nil {
-				execution.Hits = agentToolHitCount(outcome)
-				// SP-23 M5: external tools badge + their specifics land in
-				// the trace node extra (cost for images, server/tool and
-				// truncation for MCP). External 归属已在上方按工具名统一判定。
-				result.Detail = outcome.Detail
-				result.Guide = outcome.Guide
-				result.Search = outcome.Search
-				result.IPs = outcome.IPs
-				result.Suggest = outcome.Suggest
-				result.Image = outcome.Image
-				result.MCP = outcome.MCP
-				// SP-23 M4 piece 1: external payloads carry the
-				// not-instructions fence; piece 2 prereq: remember this
-				// conversation's own signed URL prefixes.
-				if outcome.MCP != nil {
-					result.MCP.Result = FenceExternalResult(outcome.MCP.Result, s.cfg.Agent.Guardrails.FenceExternalToolResults)
-				}
-				if outcome.Image != nil && outcome.Image.URL != "" {
-					ownImagePrefixes = append(ownImagePrefixes, urlPrefixOf(outcome.Image.URL))
-				}
-				for chunkKey, source := range outcome.RetrievalSources {
-					retrievalSources[chunkKey] = source
-				}
-				if outcome.Degraded {
-					degraded = true
-					traceAgentEvent(traceID, "retrieval_degraded", "tool", tc.Function.Name)
-				}
-				for _, summary := range outcome.Search {
-					citation, ok := citationFromSearchSummary(summary)
-					if !ok || seenCitationKeys[citation.ChunkKey] {
-						continue
-					}
-					seenCitationKeys[citation.ChunkKey] = true
-					citationCandidates = append(citationCandidates, citation)
-				}
-				// SP-19 G2-1: search_ips results join the same citation
-				// candidate pool; the "ip:{id}" dedupe key cannot collide
-				// with 64-hex chunk keys.
-				for _, ipSummary := range outcome.IPs {
-					citation, ok := citationFromIPSummary(ipSummary)
-					if !ok {
-						continue
-					}
-					key := fmt.Sprintf("ip:%d", citation.ContentID)
-					if seenCitationKeys[key] {
-						continue
-					}
-					seenCitationKeys[key] = true
-					citationCandidates = append(citationCandidates, citation)
-				}
-				if outcome.Detail != nil {
-					if !s.ragHybridEnabled() {
-						legacyKey := fmt.Sprintf("content:%d", outcome.Detail.ID)
-						if !seenCitationKeys[legacyKey] {
-							seenCitationKeys[legacyKey] = true
-							citationCandidates = append(citationCandidates, AgentCitation{
-								ContentID: outcome.Detail.ID,
-								Title:     outcome.Detail.Title,
-								Zone:      outcome.Detail.Zone,
-								Excerpt:   outcome.Detail.Excerpt,
-							})
-						}
-					} else {
-						citation, err := s.citationForContent(ctx, userID, outcome.Detail.ID)
-						if err != nil {
-							traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", "citation_truth_unavailable")
-						} else if source, ok := retrievalSources[citation.ChunkKey]; !ok {
-							traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", "citation_source_unavailable")
-						} else if !seenCitationKeys[citation.ChunkKey] {
-							citation.Source = source
-							seenCitationKeys[citation.ChunkKey] = true
-							citationCandidates = append(citationCandidates, citation)
-						}
-					}
-				}
-			}
-			// A-03: expansion terms surface in the tool step summary so the
-			// process panel can show what the retrieval fanned out to. The
-			// outcome is nil when the tool itself failed. #619: a truncated
-			// over-length query is marked so "why did it find nothing"
-			// investigations can see the cut.
-			if outcome != nil && outcome.QueryTruncated {
-				execution.ArgsSummary += " [query-truncated]"
-			}
-			if outcome != nil && len(outcome.ExpandedQueries) > 0 {
-				execution.ArgsSummary += " +expanded: " + strings.Join(outcome.ExpandedQueries, " / ")
-			}
-			toolSpan.End(agenttrace.NodeEndOptions{
-				NodeName:     tc.Function.Name,
-				Status:       toolNodeStatus(toolErr),
-				ErrorCode:    result.Error,
-				PromptDigest: execution.ArgsSummary,
-				Extra:        model.JSONB(agentToolExtraJSON(execution, outcome)),
-			})
-			executedTools = append(executedTools, execution)
-			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
-				s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, 0, answerLang)
-				return err
-			}
-			resultJSON, err := json.Marshal(result)
-			if err != nil {
-				return fmt.Errorf("marshal agent tool result: %w", err)
-			}
-			toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: string(resultJSON)})
-		}
-		req.Messages = append(req.Messages, toolMessages...)
-	}
-
-	if streamErr != nil {
-		traceAgentEvent(traceID, "chat_failed", "safe_error", safeAgentStreamCode(streamErr))
-		var code AgentStreamEventType = AgentErrorCodeProvider
-		switch {
-		case errors.Is(streamErr, context.Canceled):
-			code = AgentErrorCodeCancelled
-		case errors.Is(streamErr, context.DeadlineExceeded):
-			code = AgentErrorCodeProviderTimeout
-		}
-		providerFallback := code != AgentErrorCodeCancelled
-		degradedReason := ""
-		if providerFallback {
-			degradedReason = "provider_error"
-		}
-		if emitErr := handler(AgentStreamEvent{
-			Type:           AgentEventError,
-			Degraded:       providerFallback,
-			DegradedReason: degradedReason,
-			ErrorCode:      string(code),
-			ErrorMessage:   safeAgentStreamMessage(code),
-		}); emitErr != nil {
-			streamErr = errors.Join(streamErr, emitErr)
-		}
-		// A-01: stop/failure keeps the conversation and whatever partial
-		// content already streamed out; deletion happens only on the user's
-		// explicit DELETE. The request context is commonly canceled on client
-		// disconnect, so persistence runs on a detached bounded context.
-		if conv != nil {
-			s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, 0, answerLang)
-		}
-		turnRecorder.RecordRunEnd(agenttrace.RunEnd{
-			Status:            runTerminalStatus(streamErr),
-			ErrorCode:         safeAgentStreamCode(streamErr),
-			StartedAt:         turnStarted,
-			FirstDisplayDelta: firstDisplayDelta,
-			Model:             s.servingModel(turnRecorder, turn.Model),
-		})
-		// SP-24 R7: run-level SLA metrics fire for every terminal turn,
-		// independent of the recorder's sampling gate.
-		recordAgentRunMetrics(runTerminalStatus(streamErr), "", firstDisplayDelta, turnStarted)
-		return streamErr
+	// #661：错误终局（provider 失败/超时/取消/连接中断/内部中止）统一走
+	// finalizeTurn 收口——终局四件套（部分落库+trace 终行+metrics+终局事件）
+	// 只在此一处发生。
+	if runner.streamErr != nil {
+		return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
 	}
 
 	// SP-21 T2: citation revalidation and exit classification close the
 	// grounded path before the answer is finalized.
 	citeSpan := turnRecorder.StartNode(agenttrace.NodeTypeCitations, "citation_revalidation", nil, "")
-	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
+	citations := s.revalidateCitations(ctx, userID, runner.citationCandidates, traceID)
 	citeSpan.End(agenttrace.NodeEndOptions{NodeName: "citation_revalidation", Extra: model.JSONB(agentCitationExtraJSON(citations))})
-	answer := answerBuf.String()
+	answer := runner.answerBuf.String()
 	// SP-23 M4 piece 2: image URLs in the model answer survive only on the
 	// platform's own hosts (or a host this conversation's tools issued).
-	answer = SanitizeImageURLs(answer, s.cfg.Agent.Guardrails.ImageURLAllowHosts, ownImagePrefixes, answerLang)
+	answer = SanitizeImageURLs(answer, s.cfg.Agent.Guardrails.ImageURLAllowHosts, runner.ownImagePrefixes, runner.answerLang)
 	classifySpan := turnRecorder.StartNode(agenttrace.NodeTypeClassify, "classify", nil, "")
-	kind := ClassifyStreamAnswerWithExternal(citations, executedTools, answer, degraded, s.conversationalMaxRunes(), s.cfg.Agent.MCP.ExternalAnswerMaxRunes, s.cfg.RAG.Refusal.MinSurvivingCitations)
+	kind := ClassifyStreamAnswerWithExternal(citations, runner.executedTools, answer, runner.degraded, s.conversationalMaxRunes(), s.cfg.Agent.MCP.ExternalAnswerMaxRunes, s.cfg.RAG.Refusal.MinSurvivingCitations)
 	classifySpan.End(agenttrace.NodeEndOptions{
 		NodeName:         "classify",
 		CompletionDigest: answer,
@@ -657,20 +260,20 @@ loop:
 	// still-missing result waits, bounded by what remains of followUpBudget
 	// since the first delta. A miss or timeout attaches nothing.
 	followUps := []string(nil)
-	if followUpStarted && kind == AgentAnswerGroundedContent && !degraded {
+	if runner.followUpStarted && kind == AgentAnswerGroundedContent && !runner.degraded {
 		received := false
 		select {
-		case items := <-followUpCh:
+		case items := <-runner.followUpCh:
 			followUps = items
 			received = true
 		default:
 		}
 		if !received {
-			remaining := followUpBudget - time.Since(followUpStartedAt)
+			remaining := followUpBudget - time.Since(runner.followUpStartedAt)
 			if remaining > 0 {
 				timer := time.NewTimer(remaining)
 				select {
-				case items := <-followUpCh:
+				case items := <-runner.followUpCh:
 					followUps = items
 				case <-timer.C:
 					traceAgentEvent(traceID, "follow_ups_missed", "reason", "timeout")
@@ -689,132 +292,46 @@ loop:
 	answer = stripOrphanCitationMarkers(answer, len(citations))
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
-			s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, len(citations), answerLang)
-			return err
+			runner.streamErr = err
+			return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
 		}
 	}
 
 	usage := &AgentUsage{}
-	if lastUsage != nil {
-		usage = &AgentUsage{PromptTokens: lastUsage.PromptTokens, CompletionTokens: lastUsage.CompletionTokens}
+	if runner.lastUsage != nil {
+		usage = &AgentUsage{PromptTokens: runner.lastUsage.PromptTokens, CompletionTokens: runner.lastUsage.CompletionTokens}
 	}
 	if err := handler(AgentStreamEvent{Type: AgentEventUsage, Usage: usage}); err != nil {
-		s.persistPartialTurn(conv.ID, answerBuf.String(), ownImagePrefixes, len(citations), answerLang)
-		return err
+		runner.streamErr = err
+		return runner.finalizeTurn(ctx, turnFinalizeInput{outcome: outcomeStreamError})
 	}
 
-	if kind == AgentAnswerNoEvidence || degraded {
+	if kind == AgentAnswerNoEvidence || runner.degraded {
 		answer = ""
 	}
-	answerMessageID := int64(0)
-	if s.db != nil {
-		// The provider already finished; the client may disconnect at any
-		// moment, so the final answer persists on a detached bounded context.
-		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if think := thinkingBuf.String(); think != "" {
-			// A-02: the reasoning block persists as its own phase-marked row
-			// (tool_calls = {"phase":"think"}) ahead of the answer row, for
-			// history replay and audit; readers treat it as display-only.
-			if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
-				ConversationID: conv.ID,
-				Role:           "assistant",
-				Content:        &think,
-				ToolCalls:      model.JSONMap{"phase": "think"},
-				CreatedAt:      time.Now(),
-			}).Error; err != nil {
-				cancel()
-				slog.Error("failed to persist agent thinking message", "error", err)
-				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-			}
-		}
-		if len(executedTools) > 0 {
-			// #538: the turn's tool-step summary persists as its own phase row
-			// (tool_calls = {"phase":"tools","steps":[...]}) between the think
-			// row and the answer row, so history replay shows the same tool
-			// steps the live stream emitted. Steps carry only the server-derived
-			// summary shape (name/args_summary/hits/status/duration_ms) — raw
-			// tool arguments never reach storage.
-			if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
-				ConversationID: conv.ID,
-				Role:           "assistant",
-				ToolCalls:      model.JSONMap{"phase": "tools", "steps": executedTools},
-				CreatedAt:      time.Now(),
-			}).Error; err != nil {
-				cancel()
-				slog.Error("failed to persist agent tool steps message", "error", err)
-				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-			}
-		}
-		answerRow := model.AgentMessage{
-			ConversationID: conv.ID,
-			Role:           "assistant",
-			Content:        &answer,
-			// N4：引用随答案行落库（完整 9 字段形态，含 RAG 溯源），历史端点
-			// 直接回放跳转入口；think 行不落引用。
-			Citations: citationsToModel(citations),
-			CreatedAt: time.Now(),
-		}
-		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
-			cancel()
-			slog.Error("failed to persist agent assistant message", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		answerMessageID = answerRow.ID
-		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
-			cancel()
-			slog.Error("failed to update agent conversation timestamp", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		cancel()
-		if !hadAssistantBefore {
-			s.scheduleAutoTitle(traceID, turnRecorder, conv.ID, firstUserMessage(history))
-		}
-		// A-05: the persisted answer is audited asynchronously after the
-		// turn; a flagged row is redacted by the history endpoint.
-		s.scheduleOutputModeration(traceID, answerMessageID, answer)
-	}
-
-	// SP-21 T2: terminal run row — TTFT measured to the first forwarded
-	// display delta, model attribution honors routing events, and the
-	// message id links the trace back into the conversation history.
-	msgID := answerMessageID
-	turnRecorder.RecordRunEnd(agenttrace.RunEnd{
-		Status:            model.AgentTraceStatusSuccess,
-		StartedAt:         turnStarted,
-		FirstDisplayDelta: firstDisplayDelta,
-		AnswerKind:        string(kind),
-		Model:             s.servingModel(turnRecorder, turn.Model),
-		MessageID:         &msgID,
+	// #661：成功终局统一走 finalizeTurn——终局四件套（think/tools/答案行
+	// 落库+trace 终行+metrics+done 事件）只在此一处发生；done 装配（终稿、
+	// 引用、follow-ups、usage、kind）留本成功路径。
+	return runner.finalizeTurn(ctx, turnFinalizeInput{
+		outcome:   outcomeSuccess,
+		answer:    answer,
+		think:     runner.thinkingBuf.String(),
+		kind:      kind,
+		citations: citations,
+		followUps: followUps,
+		usage:     usage,
 	})
-	recordAgentRunMetrics(model.AgentTraceStatusSuccess, string(kind), firstDisplayDelta, turnStarted)
-
-	if err := handler(AgentStreamEvent{
-		Type:           AgentEventDone,
-		TraceID:        traceID,
-		ConversationID: convID,
-		MessageID:      answerMessageID,
-		AnswerKind:     kind,
-		Answer:         answer,
-		Citations:      citations,
-		Tools:          executedTools,
-		Usage:          usage,
-		Degraded:       degraded,
-		FollowUps:      followUps,
-	}); err != nil {
-		return err
-	}
-
-	traceAgentEvent(traceID, "chat_done", "conversation_id", convID, "surface", resolved.Surface, "answer_kind", kind, "tools", len(executedTools))
-	return nil
 }
 
 // ---------------------------------------------------------------------------
 // SP-21 T2 trace instrumentation helpers
 // ---------------------------------------------------------------------------
 
-// recordChitchatTurn closes a rule-layer shortcut turn: one chitchat node
-// (no LLM ran) and a conversational terminal run row.
-func (s *AgentService) recordChitchatTurn(rec *agenttrace.TurnRecorder, started time.Time, conv *model.AgentConversation) {
+// recordShortcutRun shapes the trace run row for the rule-layer shortcut
+// (chitchat): a simplified RunStart (the prelude already recorded one with
+// the full turn shape; this re-shapes it as conversational) plus the
+// chitchat node. The terminal quartet fires in finalizeTurn.
+func recordShortcutRun(rec *agenttrace.TurnRecorder, started time.Time, conv *model.AgentConversation) {
 	if rec == nil {
 		return
 	}
@@ -827,12 +344,6 @@ func (s *AgentService) recordChitchatTurn(rec *agenttrace.TurnRecorder, started 
 	if span := rec.StartNode(agenttrace.NodeTypeChitchat, "chitchat_shortcut", nil, ""); span != nil {
 		span.End(agenttrace.NodeEndOptions{NodeName: "chitchat_shortcut"})
 	}
-	rec.RecordRunEnd(agenttrace.RunEnd{
-		Status:     model.AgentTraceStatusSuccess,
-		StartedAt:  started,
-		AnswerKind: string(AgentAnswerConversational),
-	})
-	recordAgentRunMetrics(model.AgentTraceStatusSuccess, string(AgentAnswerConversational), time.Time{}, started)
 }
 
 // recordAgentRunMetrics mirrors the run-end trace row into the label-free
@@ -969,47 +480,6 @@ func firstLine(s string) string {
 // worth a title call and the title-IS-NUL semantics let the first real
 // question name the conversation later. Output moderation is skipped too: the
 // text is a server-owned constant, not model- or user-generated content.
-func (s *AgentService) emitChitchatTemplateTurn(traceID string, turnRecorder *agenttrace.TurnRecorder, conv *model.AgentConversation, template string, handler func(ev AgentStreamEvent) error) error {
-	if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: template}); err != nil {
-		return err
-	}
-	messageID := int64(0)
-	if s.db != nil {
-		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		answerRow := model.AgentMessage{
-			ConversationID: conv.ID,
-			Role:           "assistant",
-			Content:        &template,
-			CreatedAt:      time.Now(),
-		}
-		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
-			cancel()
-			slog.Error("failed to persist agent chitchat template message", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		messageID = answerRow.ID
-		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
-			cancel()
-			slog.Error("failed to update agent conversation timestamp", "error", err)
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
-		}
-		cancel()
-	}
-	if err := handler(AgentStreamEvent{
-		Type:           AgentEventDone,
-		TraceID:        traceID,
-		ConversationID: conv.ID,
-		MessageID:      messageID,
-		AnswerKind:     AgentAnswerConversational,
-		Answer:         template,
-		Usage:          &AgentUsage{},
-	}); err != nil {
-		return err
-	}
-	traceAgentEvent(traceID, "chat_done", "conversation_id", conv.ID, "answer_kind", AgentAnswerConversational, "shortcut", "chitchat")
-	return nil
-}
-
 // conversationalMaxRunes guards against a nil cfg (DB-less service seams).
 func (s *AgentService) conversationalMaxRunes() int {
 	if s.cfg == nil {
