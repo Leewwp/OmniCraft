@@ -160,7 +160,11 @@ func main() {
 		os.Exit(3)
 	}
 
-	ctr := container.NewContainer(db, rdb, cfg)
+	ctr, err := container.NewContainer(db, rdb, cfg)
+	if err != nil {
+		slog.Error("composition root wiring incomplete", "error", err)
+		os.Exit(1)
+	}
 
 	// ---- case loading + split gate
 	ctx := context.Background()

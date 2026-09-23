@@ -13,8 +13,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/queue"
@@ -29,9 +27,10 @@ type InternalHandler struct {
 	queueProducer queue.Producer
 }
 
-func NewInternalHandler(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *InternalHandler {
-	reputSvc := service.NewReputationService(db)
-	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
+// NewInternalHandler receives the container-owned ReviewService (#658 漂移②
+// 修复)：此前自建裸审核服务缺事务性发件箱与作者通知，异步扫描结果回调
+// 达成终态时既不发索引事件也不通知作者。
+func NewInternalHandler(reviewSvc *service.ReviewService, cfg *config.Config) *InternalHandler {
 	return &InternalHandler{reviewSvc: reviewSvc, cfg: cfg, queueProducer: queue.NewNoopProducer()}
 }
 

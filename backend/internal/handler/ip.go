@@ -1,16 +1,16 @@
 package handler
 
 import (
-	"strings"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
-	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -29,11 +29,11 @@ type IPHandler struct {
 	// ipCategories is the config allowlist (SP-19 G1-3); IP creation rejects
 	// categories outside it. Empty slice (legacy constructors/tests) skips the
 	// check rather than blocking every creation.
-	ipCategories   []string
+	ipCategories []string
 	// cfg gates cover-image URLs onto the platform OSS domain (SP-25 低-22);
 	// nil (legacy constructors/tests) keeps the category allowlist inert and
 	// fails the cover gate closed.
-	cfg            *config.Config
+	cfg *config.Config
 }
 
 func NewIPHandler(db *gorm.DB) *IPHandler {
@@ -44,9 +44,9 @@ func NewIPHandler(db *gorm.DB) *IPHandler {
 	}
 }
 
-func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *IPHandler {
-	reputSvc := service.NewReputationService(db)
-	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
+func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reviewSvc *service.ReviewService) *IPHandler {
+	// #658 漂移④修复：IP 路径消费容器审核服务（outbox + 归档扫描门 +
+	// 作者通知全接），不再自建裸实例。
 	return &IPHandler{
 		ipSvc:          service.NewIPServiceWithReview(repository.NewIPRepository(db), rdb, &cfg.Cache, reviewSvc),
 		contentRepo:    repository.NewContentRepository(db),

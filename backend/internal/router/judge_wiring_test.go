@@ -58,7 +58,8 @@ func setupJudgeWiringStack(t *testing.T) (*gin.Engine, *gorm.DB, *miniredis.Mini
 		Reputation: config.ReputationConfig{MinScoreForInteraction: 1},
 		// Queue 保持关闭：Notify 走直写 DB 路径，集成测试可直接断言通知落库。
 	}
-	ctr := container.NewContainer(db, rdb, cfg)
+	ctr, err := container.NewContainer(db, rdb, cfg)
+	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

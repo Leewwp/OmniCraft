@@ -14,7 +14,6 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
-	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -65,10 +64,6 @@ func NewAgentHandlerWithService(db *gorm.DB, cfg *config.Config, rdb *redis.Clie
 		db:       db,
 		quota:    middleware.NewAgentQuotaReserver(rdb, cfg),
 	}
-}
-
-func (h *AgentHandler) SetQueueProducer(p queue.Producer) {
-	h.agentSvc.SetQueueProducer(p)
 }
 
 // requireAgentFeature is the shared feature-flag guard. Provider-consuming
@@ -523,7 +518,7 @@ type agentConversationMessageDTO struct {
 	// Tools carries the persisted tool-step summaries of a phase="tools" row
 	// (#538) so history replay renders the same steps the live stream showed.
 	Tools     []service.AgentToolExecution `json:"tools,omitempty"`
-	CreatedAt time.Time                     `json:"created_at"`
+	CreatedAt time.Time                    `json:"created_at"`
 }
 
 func agentMessageHistoryDTO(m model.AgentMessage) agentConversationMessageDTO {

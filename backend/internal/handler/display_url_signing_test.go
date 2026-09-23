@@ -22,6 +22,8 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	redisclient "omnicraft/backend/internal/pkg/redis"
+	"omnicraft/backend/internal/service"
+	"omnicraft/backend/internal/testutil/studio"
 )
 
 // B-002: display media (IP covers, content covers, avatars, gallery
@@ -136,7 +138,7 @@ func TestGetIPResponseSignsPlatformCoverURLEveryTime(t *testing.T) {
 	const coverKey = "uploads/7/image/ip-cover.png"
 	seedDisplaySigningIP(t, db, 11, aliyun.ObjectURL(cfg.OSS.Domain, coverKey), "approved")
 
-	handler := NewIPHandlerWithCache(db, rdb, cfg)
+	handler := NewIPHandlerWithCache(db, rdb, cfg, service.NewReviewService(db, nil, cfg, nil))
 	router := gin.New()
 	router.GET("/api/v1/ips/:id", middleware.OptionalAuth(cfg, rdb, db), handler.GetIP)
 
@@ -169,7 +171,7 @@ func TestListIPsSignsOnlyPlatformCoverURLs(t *testing.T) {
 	seedDisplaySigningIP(t, db, 22, externalURL, "approved")
 	seedDisplaySigningIP(t, db, 23, "", "approved")
 
-	handler := NewIPHandlerWithCache(db, rdb, cfg)
+	handler := NewIPHandlerWithCache(db, rdb, cfg, service.NewReviewService(db, nil, cfg, nil))
 	router := gin.New()
 	router.GET("/api/v1/ips", middleware.OptionalAuth(cfg, rdb, db), handler.ListIPs)
 
@@ -230,7 +232,8 @@ func TestGetContentSignsCoverAvatarAndAttachmentURLs(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&attachment).Error)
 
-	handler := NewContentHandler(db, cfg, nil)
+	studio := studio.NewStack(db, cfg, nil)
+	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 	router := gin.New()
 	router.GET("/api/v1/contents/:id", middleware.OptionalAuth(cfg, nil, db), handler.GetContent)
 
@@ -268,7 +271,7 @@ func TestDisplayURLSigningFailsOpenWhenOSSUnconfigured(t *testing.T) {
 	seedDisplaySigningIP(t, db, 61, bareURL, "approved")
 
 	rdb := openDisplaySigningRedis(t)
-	handler := NewIPHandlerWithCache(db, rdb, cfg)
+	handler := NewIPHandlerWithCache(db, rdb, cfg, service.NewReviewService(db, nil, cfg, nil))
 	router := gin.New()
 	router.GET("/api/v1/ips/:id", middleware.OptionalAuth(cfg, rdb, db), handler.GetIP)
 

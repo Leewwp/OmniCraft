@@ -23,14 +23,18 @@ type SocialHandler struct {
 	displaySigner *service.DisplayURLSigner
 }
 
-func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *SocialHandler {
+// NewSocialHandler is the test-composition constructor; production routes
+// compose from the container-owned SocialService via
+// NewSocialHandlerWithService. The ReviewService arrives as a parameter
+// (#658)：handler 层不再自建第二份审核服务，测试侧经 testutil seam 供给。
+func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, reviewSvc *service.ReviewService) *SocialHandler {
 	h := NewSocialHandlerWithService(service.NewSocialServiceWithRedis(
 		repository.NewSocialRepository(db),
 		repository.NewContentRepository(db),
 		repository.NewUserRepository(db),
 		cfg,
 		rdb,
-		service.NewReviewService(db, rdb, cfg, nil),
+		reviewSvc,
 	), db)
 	h.SetDisplayURLSigner(service.NewDisplayURLSigner(cfg))
 	return h

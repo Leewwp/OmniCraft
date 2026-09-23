@@ -127,7 +127,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		users.DELETE("/me/agent-tokens/:id", authReq, middleware.RequireJWTChannel(), agentTokenHandler.Revoke)
 	}
 
-	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg)
+	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg, ctr.ReviewService)
 	ips := v1.Group("/ips")
 	{
 		ips.GET("", optAuth, cacheable, ipHandler.ListIPs)
@@ -151,10 +151,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// SP-16 #447: public usage-guide surface (merged template+specifics).
 	usageGuideHandler := handler.NewUsageGuideHandler(ctr.UsageGuideService, ctr.ContentRepo)
 
-	contentHandler := handler.NewContentHandler(db, cfg, rdb)
-	contentHandler.SetQueueProducer(ctr.QueueProducer)
-	contentHandler.SetOutboxRepository(ctr.OutboxRepo)
-	contentHandler.SetArchiveScanRepository(ctr.ArchiveScanRepo)
+	// #658: the studio stack (full-featured content service shared with the
+	// MCP write channel, OSS presign, upload grants) is container-owned;
+	// the handler only consumes it.
+	contentHandler := handler.NewContentHandler(db, cfg, rdb, ctr.StudioContentService, ctr.OSSService, ctr.OSSInitErr, ctr.UploadGrants)
 	contents := v1.Group("/contents")
 	{
 		contents.GET("", optAuth, cacheable, contentHandler.ListContents)
@@ -379,8 +379,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	repHandler := handler.NewReputationHandler(db)
 	v1.GET("/reputation-logs/me", authReq, repHandler.GetMyReputationLogs)
 
+	// #658 收拢：AgentService 的 queue producer 只在容器接线一次，路由层
+	// 不再重复转发。
 	agentHandler := handler.NewAgentHandlerWithService(db, cfg, rdb, ctr.AgentService)
-	agentHandler.SetQueueProducer(ctr.QueueProducer)
 	// Quota for Provider-consuming routes is reserved inside each handler
 	// right before the first Provider call (feature/schema/visibility checks
 	// precede it and never consume quota). Conversation history and deletion
@@ -410,6 +411,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	adminHandler := handler.NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService)
 	adminHandler.SetNotificationService(notifSvc)
+	// #658 漂移①修复：恢复路径的内容发布事件重发此前从未接线（outbox 恒
+	// nil，同事务重发被静默跳过）——恢复的内容不重新进入检索投影。
+	adminHandler.SetContentOutbox(ctr.OutboxRepo)
 	adminFeedbackHandler := handler.NewAdminFeedbackHandler(db, ctr.FeedbackService, ctr.AdminAuditService)
 	adminAuditHandler := handler.NewAdminAuditHandler(ctr.AdminAuditService)
 	adminRAGHandler := handler.NewAdminRAGHandler(cfg, ctr.RAGProjection, ctr.AdminAuditService)
@@ -488,7 +492,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/archive-scan-jobs/:id/retry", archiveScanAdminRateLimit, adminArchiveScanHandler.Retry)
 	}
 
-	internalHandler := handler.NewInternalHandler(db, rdb, cfg)
+	internalHandler := handler.NewInternalHandler(ctr.ReviewService, cfg)
 	internalHandler.SetQueueProducer(ctr.QueueProducer)
 	internal := v1.Group("/internal")
 	{

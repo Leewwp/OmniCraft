@@ -418,7 +418,10 @@ func buildOptAuthLeakAuditStack(t *testing.T) (*gin.Engine, *gorm.DB, *config.Co
 	cfg.RateLimit.SearchPerMinute = 1000
 	cfg.RateLimit.MaxQueryChars = 200
 
-	ctr := container.NewContainer(db, rdb, cfg)
+	ctr, err := container.NewContainer(db, rdb, cfg)
+	if err != nil {
+		t.Fatalf("NewContainer: %v", err)
+	}
 
 	router := gin.New()
 	v1 := router.Group("/api/v1")

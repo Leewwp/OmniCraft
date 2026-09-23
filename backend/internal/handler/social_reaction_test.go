@@ -15,7 +15,14 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/service"
 )
+
+// newReactionHandler 组装测试用 SocialHandler：审核服务经参数注入
+// （#658 后 handler 层不再自建审核服务）。
+func newReactionHandler(db *gorm.DB) *SocialHandler {
+	return NewSocialHandler(db, &config.Config{}, nil, service.NewReviewService(db, nil, &config.Config{}, nil))
+}
 
 type reactionPayload struct {
 	Counts struct {
@@ -136,7 +143,7 @@ func TestListReactionsReturnsAggregatesAndViewerReaction(t *testing.T) {
 		t.Fatalf("seed third dislike: %v", err)
 	}
 
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := gin.New()
 	router.GET("/reactions", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(7))
@@ -180,7 +187,7 @@ func TestListReactionsAnonymousViewerReactionIsNull(t *testing.T) {
 	if err := db.AutoMigrate(&model.Reaction{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := gin.New()
 	router.GET("/reactions", h.ListReactions)
 	rec := httptest.NewRecorder()
@@ -203,7 +210,7 @@ func TestReactCreateSetsViewerReactionAndCounts(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newReactionTestDB(t)
 	seedReactionUsers(t, db)
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := newReactionRouter(h)
 
 	out := postReaction(t, router, 7, "content", 47, "like")
@@ -230,7 +237,7 @@ func TestReactRepeatRemovesReaction(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newReactionTestDB(t)
 	seedReactionUsers(t, db)
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := newReactionRouter(h)
 
 	if out := postReaction(t, router, 7, "content", 47, "like"); out.Action != "created" {
@@ -257,7 +264,7 @@ func TestReactSwitchUpdatesAtomically(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newReactionTestDB(t)
 	seedReactionUsers(t, db)
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := newReactionRouter(h)
 
 	if out := postReaction(t, router, 7, "content", 47, "like"); out.Action != "created" {
@@ -302,7 +309,7 @@ func TestReactSwitchUpdatesAtomically(t *testing.T) {
 func TestReactAnonymousUnauthorized(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newReactionTestDB(t)
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := newReactionRouter(h)
 
 	rec := httptest.NewRecorder()
@@ -318,7 +325,7 @@ func TestReactLowReputationForbidden(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newReactionTestDB(t)
 	seedReactionUsers(t, db)
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := newReactionRouter(h)
 
 	rec := httptest.NewRecorder()
@@ -334,7 +341,7 @@ func TestReactLowReputationForbidden(t *testing.T) {
 func TestListReactionsValidationErrors(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := newReactionTestDB(t)
-	h := NewSocialHandler(db, &config.Config{}, nil)
+	h := newReactionHandler(db)
 	router := newReactionRouter(h)
 
 	for _, tc := range []struct {

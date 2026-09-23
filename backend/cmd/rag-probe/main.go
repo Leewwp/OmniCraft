@@ -93,7 +93,11 @@ func main() {
 	}
 	slog.Info("embedder self-check ok", "model", embModel, "dims", len(probeVec))
 
-	ctr := container.NewContainer(db, rdb, cfg)
+	ctr, err := container.NewContainer(db, rdb, cfg)
+	if err != nil {
+		slog.Error("composition root wiring incomplete", "error", err)
+		os.Exit(1)
+	}
 
 	fh, err := os.Create(*out)
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/testutil/studio"
 )
 
 // TestNewContentHandlerWiresImageDimensionsResolver proves the production
@@ -28,7 +29,8 @@ func TestNewContentHandlerWiresImageDimensionsResolver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	h := NewContentHandler(db, testOSSUploadConfig(), nil)
+	studio := studio.NewStack(db, testOSSUploadConfig(), nil)
+	h := NewContentHandler(db, testOSSUploadConfig(), nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 
 	svcVal := reflect.ValueOf(h.contentSvc).Elem()
 	field := svcVal.FieldByName("imageDimensions")
@@ -56,7 +58,8 @@ func TestGenerateOSSTokenReturnsUploadGrant(t *testing.T) {
 	defer rdb.Close()
 
 	cfg := testOSSUploadConfig()
-	h := NewContentHandler(db, cfg, rdb)
+	studio := studio.NewStack(db, cfg, rdb)
+	h := NewContentHandler(db, cfg, rdb, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 	r := gin.New()
 	r.POST("/contents/oss-token", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(42))
@@ -105,7 +108,8 @@ func TestGenerateOSSTokenRejectsUnsupportedImageMIME(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer rdb.Close()
 
-	h := NewContentHandler(db, testOSSUploadConfig(), rdb)
+	studio := studio.NewStack(db, testOSSUploadConfig(), rdb)
+	h := NewContentHandler(db, testOSSUploadConfig(), rdb, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 	r := gin.New()
 	r.POST("/contents/oss-token", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(42))

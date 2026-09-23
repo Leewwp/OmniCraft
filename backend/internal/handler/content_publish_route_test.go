@@ -21,6 +21,7 @@ import (
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
 	"omnicraft/backend/internal/pkg/rediskeys"
+	"omnicraft/backend/internal/testutil/studio"
 )
 
 func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing.T) {
@@ -498,7 +499,8 @@ func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, 
 	cfg.Reputation.MinScoreForInteraction = 3
 	cfg.Cache.PublishFreezeTTL = 604800
 
-	handler := NewContentHandler(db, cfg, nil)
+	studio := studio.NewStack(db, cfg, nil)
+	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 	authReq := middleware.AuthRequired(cfg, nil, db)
 	mr, err := miniredis.Run()
 	if err != nil {
@@ -590,8 +592,9 @@ func (p *recordingQueueProducer) Publish(ctx context.Context, topic string, payl
 	return nil
 }
 
-// #321: ContentHandler.SetQueueProducer 必须透传 contentSvc——否则服务层恒见
-// NoopProducer，发布永远走同步审核兜底，submit_ai_review 消息从不入流。
+// #321（#658 后语义保持）：内容服务的 queue producer 必须在服务实例上接线
+// ——否则服务层恒见 NoopProducer，发布永远走同步审核兜底，submit_ai_review
+// 消息从不入流。组合根收口后该接线发生在容器，测试在 seam 实例上同位接线。
 func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -607,9 +610,10 @@ func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
 	cfg.Reputation.MinScoreForInteraction = 3
 	cfg.Cache.PublishFreezeTTL = 604800
 
-	handler := NewContentHandler(db, cfg, nil)
+	studio := studio.NewStack(db, cfg, nil)
+	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 	producer := &recordingQueueProducer{topics: make(chan string, 4)}
-	handler.SetQueueProducer(producer)
+	studio.ContentService.SetQueueProducer(producer)
 
 	authReq := middleware.AuthRequired(cfg, nil, db)
 	mr, err := miniredis.Run()
@@ -660,7 +664,7 @@ func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
 			}
 		case <-time.After(50 * time.Millisecond):
 			if time.Now().After(deadline) {
-				t.Fatal("content.review was never published: SetQueueProducer did not propagate to the content service (#321)")
+				t.Fatal("content.review was never published: the content service never saw the wired producer (#321)")
 			}
 		}
 	}
