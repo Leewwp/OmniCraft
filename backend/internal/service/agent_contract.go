@@ -2,9 +2,91 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 
 	"omnicraft/backend/internal/model"
 )
+
+// ---------------------------------------------------------------------------
+// Stream event vocabulary (chat turn SSE contract)
+// ---------------------------------------------------------------------------
+
+// AgentStreamEventType is the server-owned SSE event name set for the chat
+// stream contract: start, tool_status, delta, citation, usage, done, error.
+//
+// done 顺序语义（契约固化）：done 事件携带的终稿 Answer 替换此前 delta 流
+// 累积的正文——delta 阶段已流出、终稿阶段被剥离或清空的字符（超出引用上限
+// 的 [n] 死角标、no_evidence/degraded 的清空）由 done 终稿回收；FollowUps
+// 只挂 grounded 且非 degraded 的 done；done 之后的 error 事件不存在——
+// 终局之后流即关闭。
+type AgentStreamEventType string
+
+const (
+	AgentEventStart      AgentStreamEventType = "start"
+	AgentEventThinkDelta AgentStreamEventType = "think_delta"
+	AgentEventToolStatus AgentStreamEventType = "tool_status"
+	AgentEventDelta      AgentStreamEventType = "delta"
+	AgentEventCitation   AgentStreamEventType = "citation"
+	AgentEventUsage      AgentStreamEventType = "usage"
+	AgentEventDone       AgentStreamEventType = "done"
+	AgentEventError      AgentStreamEventType = "error"
+
+	// AgentErrorCodeProvider is the safe code for Provider-side failures; raw
+	// Provider errors are never serialized into the stream.
+	AgentErrorCodeProvider = "AGENT_PROVIDER_ERROR"
+	// AgentErrorCodeProviderTimeout marks a Provider-side deadline exceeded.
+	// It is distinct from client cancellation so the UI can degrade to keyword
+	// search instead of treating it as an aborted stream.
+	AgentErrorCodeProviderTimeout = "AGENT_PROVIDER_TIMEOUT"
+	// AgentErrorCodeCancelled marks a client-cancelled stream. The request
+	// still consumed its reserved quota and emitted an outcome.
+	AgentErrorCodeCancelled = "STREAM_CANCELLED"
+	// AgentErrorCodeStorage marks a persistence failure without exposing the
+	// underlying database error to the client.
+	AgentErrorCodeStorage = "AGENT_STORAGE_ERROR"
+)
+
+var (
+	// ErrAgentInputBlocked is returned by ModerateChatInput when Green flags
+	// the chat input; the handler maps it to a 422 CONTENT_BLOCKED rejection.
+	ErrAgentInputBlocked = errors.New("agent chat input rejected by content moderation")
+	// ErrAgentModerationUnavailable is returned when the input gate cannot run
+	// and the A4 environment semantics require fail-closed (release mode).
+	ErrAgentModerationUnavailable = errors.New("agent content moderation unavailable")
+)
+
+// AgentStreamEvent is the typed stream event. Only the fields relevant to the
+// event Type are populated; there are no raw prompts, raw tool arguments
+// (tool steps carry a server-derived summary only), internal reasoning
+// verbatim into non-think channels, or Provider errors in any event. The
+// think_delta event is display-only reasoning forwarded per A-02.
+type AgentStreamEvent struct {
+	Type           AgentStreamEventType `json:"type"`
+	TraceID        string               `json:"trace_id,omitempty"`
+	ConversationID int64                `json:"conversation_id,omitempty"`
+	// MessageID identifies the persisted assistant answer row; it is set on
+	// the done event so clients can reference the stored message.
+	MessageID  int64                `json:"message_id,omitempty"`
+	AnswerKind AgentAnswerKind      `json:"answer_kind,omitempty"`
+	Delta      string               `json:"delta,omitempty"`
+	Tool       *AgentToolExecution  `json:"tool,omitempty"`
+	Citation   *AgentCitation       `json:"citation,omitempty"`
+	Usage      *AgentUsage          `json:"usage,omitempty"`
+	Answer     string               `json:"answer,omitempty"`
+	Citations  []AgentCitation      `json:"citations,omitempty"`
+	Tools      []AgentToolExecution `json:"tools,omitempty"`
+	// FollowUps carries 2-3 suggested next questions (SP-15 B #435). Only the
+	// done event of a grounded_content turn may carry them; generation is a
+	// speculative non-streaming call started at the first answer delta and
+	// joined before done assembly with a bounded budget — a miss, timeout or
+	// parse failure leaves the field empty (progressive enhancement, never a
+	// stream failure). v1 does not persist follow-ups.
+	FollowUps      []string `json:"follow_ups,omitempty"`
+	Degraded       bool     `json:"degraded"`
+	DegradedReason string   `json:"degraded_reason,omitempty"`
+	ErrorCode      string   `json:"error_code,omitempty"`
+	ErrorMessage   string   `json:"error_message,omitempty"`
+}
 
 // AgentAnswerKind is a server-owned enum that determines whether an answer
 // must carry citations. The model never chooses citation requirements; the

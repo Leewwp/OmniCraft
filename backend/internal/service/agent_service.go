@@ -61,6 +61,10 @@ type AgentService struct {
 	// mcpBridge exposes configured MCP servers as mcp_<server>_<tool>
 	// tools (SP-23 M3). nil = no bridged tools; every method is nil-safe.
 	mcpBridge AgentMCPBridge
+	// toolRuntime is the answer-turn tool seam (#661): local registry + MCP
+	// bridge dispatch in production, fake in unit tests. nil falls back to
+	// the dispatch runtime at use time (legacy constructors stay supported).
+	toolRuntime ToolRuntime
 	// titleCache reuses auto titles for identical opening messages
 	// (SP-24 R6). nil or disabled = every title generation calls the LLM,
 	// exactly the pre-R6 behavior.
@@ -186,6 +190,9 @@ func newAgentServiceWithChatStreamer(provider llm.LLMProvider, chatStreamer agen
 	if embeddingRepo != nil {
 		svc.vectorSearch = embeddingRepo.VectorSearch
 	}
+	// #661: the dispatch tool runtime (local registry + MCP bridge) is the
+	// production seam; tests may swap it via SetToolRuntime.
+	svc.toolRuntime = newDispatchToolRuntime(svc)
 	return svc
 }
 
