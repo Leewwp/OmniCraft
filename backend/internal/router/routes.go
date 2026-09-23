@@ -151,10 +151,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// SP-16 #447: public usage-guide surface (merged template+specifics).
 	usageGuideHandler := handler.NewUsageGuideHandler(ctr.UsageGuideService, ctr.ContentRepo)
 
-	contentHandler := handler.NewContentHandler(db, cfg, rdb)
-	contentHandler.SetQueueProducer(ctr.QueueProducer)
-	contentHandler.SetOutboxRepository(ctr.OutboxRepo)
-	contentHandler.SetArchiveScanRepository(ctr.ArchiveScanRepo)
+	// #658: the studio stack (full-featured content service shared with the
+	// MCP write channel, OSS presign, upload grants) is container-owned;
+	// the handler only consumes it.
+	contentHandler := handler.NewContentHandler(db, cfg, rdb, ctr.StudioContentService, ctr.OSSService, ctr.OSSInitErr, ctr.UploadGrants)
 	contents := v1.Group("/contents")
 	{
 		contents.GET("", optAuth, cacheable, contentHandler.ListContents)

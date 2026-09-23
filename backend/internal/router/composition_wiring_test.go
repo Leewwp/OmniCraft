@@ -10,8 +10,10 @@ package router
 // 契约先例：judge_wiring_test.go（F-A001 防再犯集成门）。
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +21,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
@@ -29,13 +33,14 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/container"
+	"omnicraft/backend/internal/mcpserver"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/testutil"
 )
 
-func setupCompositionWiringStack(t *testing.T) (*gin.Engine, *gorm.DB, *config.Config) {
+func setupCompositionWiringStack(t *testing.T) (*gin.Engine, *gorm.DB, *config.Config, *container.ServiceContainer) {
 	t.Helper()
 
 	db := testutil.OpenEphemeralPostgres(t)
@@ -43,6 +48,8 @@ func setupCompositionWiringStack(t *testing.T) (*gin.Engine, *gorm.DB, *config.C
 	require.NoError(t, db.AutoMigrate(
 		&model.User{}, &model.ContentItem{}, &model.ContentAttachment{}, &model.Notification{}, &model.OutboxEvent{},
 		&model.AdminAuditLog{}, &model.AIReviewRecord{}, &model.ReputationLog{}, &model.JudgeCase{},
+		&model.ContentTag{}, &model.Tag{}, &model.Category{}, &model.ContentUsageGuide{}, &model.IP{},
+		&model.ContentVersion{},
 	))
 	// 迁移 068 的唯一索引是 recordAIReview ON CONFLICT 子句的绑定目标，
 	// AutoMigrate 不声明它（ai_callback_test.go 同款补建）。
@@ -67,7 +74,7 @@ func setupCompositionWiringStack(t *testing.T) (*gin.Engine, *gorm.DB, *config.C
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	RegisterRoutes(engine.Group("/api/v1"), cfg, ctr)
-	return engine, db, cfg
+	return engine, db, cfg, ctr
 }
 
 func seedCompositionUser(t *testing.T, db *gorm.DB, id int64, role string) {
@@ -100,7 +107,7 @@ func countOutboxEvents(t *testing.T, db *gorm.DB, eventType string) int64 {
 
 // 漂移①：管理员恢复非 published 内容 → 同事务补发 content.published。
 func TestAdminRestoreReemitsContentPublishedEvent(t *testing.T) {
-	engine, db, cfg := setupCompositionWiringStack(t)
+	engine, db, cfg, _ := setupCompositionWiringStack(t)
 	const adminID int64 = 6501
 	const authorID int64 = 6502
 	seedCompositionUser(t, db, adminID, "admin")
@@ -144,7 +151,7 @@ func TestAdminRestoreReemitsContentPublishedEvent(t *testing.T) {
 
 // 漂移②：扫描结果回调 → 审核终态落发件箱事件 + 作者通知。
 func TestAICallbackWritesOutboxEventAndNotifiesAuthor(t *testing.T) {
-	engine, db, cfg := setupCompositionWiringStack(t)
+	engine, db, cfg, _ := setupCompositionWiringStack(t)
 	const authorID int64 = 6512
 	seedCompositionUser(t, db, authorID, "user")
 
@@ -192,4 +199,69 @@ func compositionSha256Hex(s string) string {
 	// 复用 internal.go 的 sha256Hex 语义（handler 包未导出）。
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
+}
+
+// MCP 写路径（#658 唯一预期行为变更点）：容器 StudioContentService 被 MCP
+// 写通道与 HTTP 共用（含事务性发件箱）。外部 Agent 经 omnicraft_create_content
+// 写入的内容走同一审核终态链路——回调 pass 后落 content.published 索引事件，
+// 与 HTTP 发布通道一致。
+func TestMCPWritePathEmitsIndexEvents(t *testing.T) {
+	engine, db, cfg, ctr := setupCompositionWiringStack(t)
+	const agentAuthorID int64 = 6522
+	seedCompositionUser(t, db, agentAuthorID, "user")
+
+	// upload-scope PAT 身份直挂 MCP handler（routes.go mcpIdentity 中间件
+	// 的等价物），真 Streamable HTTP 会话驱动工具调用。
+	mcpRoot := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := mcpserver.Identity{UserID: agentAuthorID, Scopes: []string{"upload"}}
+		ctr.MCPHandler.ServeHTTP(w, r.WithContext(mcpserver.WithIdentity(r.Context(), id)))
+	})
+	srv := httptest.NewServer(mcpRoot)
+	t.Cleanup(srv.Close)
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "composition-wiring-test", Version: "v1"}, nil)
+	session, err := client.Connect(context.Background(), &sdkmcp.StreamableClientTransport{Endpoint: srv.URL}, nil)
+	require.NoError(t, err, "MCP connect")
+	t.Cleanup(func() { _ = session.Close() })
+
+	args, _ := json.Marshal(map[string]any{
+		"title": "mcp wiring draft", "description": "via mcp", "zone": "original",
+		"content_type": "article", "category": "game", "is_public": true, "allow_copy": true,
+	})
+	res, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "omnicraft_create_content", Arguments: json.RawMessage(args),
+	})
+	require.NoError(t, err, "create_content call")
+	require.False(t, res.IsError, "create_content errored")
+	var text string
+	for _, c := range res.Content {
+		if tc, ok := c.(*sdkmcp.TextContent); ok {
+			text += tc.Text
+		}
+	}
+	var created struct {
+		ContentID int64  `json:"content_id"`
+		Status    string `json:"status"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(text), &created), "decode %q", text)
+	require.NotZero(t, created.ContentID)
+	require.Equal(t, "pending", created.Status, "外部上传走审核，无豁免")
+
+	// 审核终态：回调 pass → published + 同事务索引事件（共享发件箱）。
+	callbackContent := fmt.Sprintf(
+		`{"dataId":"content:%d","taskId":"task-composition-mcp-1","code":200,"message":"OK","results":[{"scene":"text","label":"normal","suggestion":"pass"}]}`,
+		created.ContentID,
+	)
+	form := url.Values{"checksum": {compositionSha256Hex(cfg.Green.UID + cfg.Green.Seed + callbackContent)}, "content": {callbackContent}}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/ai-callback", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "ai-callback after mcp create: %s", rec.Body.String())
+
+	var published model.ContentItem
+	require.NoError(t, db.First(&published, created.ContentID).Error)
+	require.Equal(t, "published", published.Status)
+	require.Equal(t, int64(1), countOutboxEvents(t, db, "content.published"),
+		"MCP 写入内容的审核终态必须落索引事件（与 HTTP 通道一致）")
 }

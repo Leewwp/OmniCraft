@@ -17,6 +17,7 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
+	"omnicraft/backend/internal/testutil/studio"
 )
 
 // SP-17/T1 (#490)：内容详情 author.is_following 为登录视角字段——
@@ -25,7 +26,7 @@ import (
 
 type contentAuthorFollowingPayload struct {
 	Content struct {
-		ID int64 `json:"id"`
+		ID     int64 `json:"id"`
 		Author struct {
 			ID          int64  `json:"id"`
 			Username    string `json:"username"`
@@ -110,7 +111,8 @@ func setupAuthorFollowingRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.Co
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "content-author-following-secret"
 
-	handler := NewContentHandler(db, cfg, nil)
+	studio := studio.NewStack(db, cfg, nil)
+	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 	optAuth := middleware.OptionalAuth(cfg, nil, db)
 
 	router := gin.New()

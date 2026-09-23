@@ -15,6 +15,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/testutil/studio"
 )
 
 // T43（FIX-13）handler 层：banned 内容 PATCH → 403 CONTENT_BANNED（终态禁改，
@@ -28,7 +29,8 @@ func TestUpdateBannedContentReturns403(t *testing.T) {
 
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "t43-banned-secret"
-	contentHandler := NewContentHandler(db, cfg, nil)
+	studio := studio.NewStack(db, cfg, nil)
+	contentHandler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 
 	router := gin.New()
 	router.PATCH("/api/v1/contents/:id", func(c *gin.Context) {

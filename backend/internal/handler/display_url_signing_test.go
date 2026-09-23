@@ -23,6 +23,7 @@ import (
 	"omnicraft/backend/internal/pkg/aliyun"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/service"
+	"omnicraft/backend/internal/testutil/studio"
 )
 
 // B-002: display media (IP covers, content covers, avatars, gallery
@@ -231,7 +232,8 @@ func TestGetContentSignsCoverAvatarAndAttachmentURLs(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&attachment).Error)
 
-	handler := NewContentHandler(db, cfg, nil)
+	studio := studio.NewStack(db, cfg, nil)
+	handler := NewContentHandler(db, cfg, nil, studio.ContentService, studio.OSS, studio.OSSErr, studio.UploadGrants)
 	router := gin.New()
 	router.GET("/api/v1/contents/:id", middleware.OptionalAuth(cfg, nil, db), handler.GetContent)
 

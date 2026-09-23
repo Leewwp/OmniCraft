@@ -82,7 +82,19 @@ type ServiceContainer struct {
 	AuthService         *service.AuthService
 	VerificationService *service.VerificationService
 	ContentService      *service.ContentService
-	IPService           *service.IPService
+	// StudioContentService is the full-featured content service the HTTP
+	// studio routes and the MCP write channel share (#658): upload grants,
+	// object verification, archive scanning, versions, recommendation and
+	// the transactional outbox. ContentService above stays the read-only
+	// scheduler copy (recommendation base, no upload surface).
+	StudioContentService *service.ContentService
+	// OSSService is the single shared presign service for studio uploads,
+	// MCP write tools and feedback screenshots (#658 收拢：原 3 份); nil
+	// with OSSInitErr set keeps each surface's fail-open behavior.
+	OSSService   *service.OSSService
+	OSSInitErr   error
+	UploadGrants *service.UploadGrantService
+	IPService    *service.IPService
 	SocialService       *service.SocialService
 	ReputationService   *service.ReputationService
 	ReviewService       *service.ReviewService
@@ -195,6 +207,20 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
 	c.DisplayURLSigner = service.NewDisplayURLSigner(cfg)
 
+	// One shared OSS presign instance serves the studio upload surface, the
+	// MCP write channel and feedback screenshots (#658 收拢：原 3 份).
+	c.OSSService, c.OSSInitErr = service.NewOSSService(cfg)
+	if c.OSSInitErr != nil {
+		slog.Warn("OSS presign is unavailable", "error", c.OSSInitErr)
+	}
+	// One shared per-user upload-grant store (same redis keys for web studio
+	// uploads and MCP writes; TTL contract unchanged).
+	grantTTL := 5 * time.Minute
+	if cfg.Feedback.UploadGrantTTLSec > 0 {
+		grantTTL = time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
+	}
+	c.UploadGrants = service.NewUploadGrantService(rdb, grantTTL)
+
 	var mailSender mail.MailSender
 	var feedbackMailSender service.FeedbackMailSender
 	if cfg.SMTP.Mode == "smtp" {
@@ -250,11 +276,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	if cfg.Feedback.UploadGrantTTLSec > 0 {
 		uploadGrantTTL = cfg.Feedback.UploadGrantTTLSec
 	}
-	feedbackOSSSigner, err := service.NewOSSService(cfg)
-	if err != nil {
-		slog.Warn("Feedback screenshot OSS presign is unavailable", "error", err)
-	}
-	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, c.CaptchaVerifier, uploadGrantTTL, feedbackOSSSigner)
+	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, c.CaptchaVerifier, uploadGrantTTL, c.OSSService)
 	c.FeedbackService.SetNotificationService(c.NotificationService)
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
 	c.FeedbackService.SetReviewService(c.ReviewService)
@@ -279,6 +301,22 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPService.SetQueueProducer(c.QueueProducer)
 	c.NotificationService.SetQueueProducer(c.QueueProducer)
 
+	// #658 内容服务收敛 ×2：调度器只读份（上方 c.ContentService）+ 这份
+	// HTTP/MCP 共用全功能份。MCP 写路径由此补上事务性发件箱——外部 Agent
+	// 写入的内容与 HTTP 发布产生相同的索引事件（本批唯一预期行为变更）。
+	c.StudioContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, c.OSSService).
+		WithUploadGrantService(c.UploadGrants).
+		WithUploadedObjectVerifier(c.OSSService).
+		WithArchiveScanConfig(&cfg.ArchiveScan).
+		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
+		WithImageDimensionsResolver(c.OSSService).
+		WithUploadConfig(&cfg.Upload)
+	c.StudioContentService.SetVersionService(c.VersionService)
+	c.StudioContentService.SetOutboxRepository(c.OutboxRepo)
+	c.StudioContentService.SetQueueProducer(c.QueueProducer)
+	c.StudioContentService.SetArchiveScanRepository(c.ArchiveScanRepo, cfg.Features.ArchiveMalwareScanEnabled)
+	c.StudioContentService.SetRecommendationService(c.RecommendationSvc)
+
 	// Usage-guide merged view (SP-16 #447): constructed before AgentService
 	// so the in-site agent can read structured guides first.
 	c.UsageGuideService = service.NewUsageGuideService(
@@ -288,29 +326,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 
 	// MCP server surface (SP-16 #449/#451): the four anonymous read-only
 	// tools close over the same repos as the public REST surface; the
-	// PAT-scoped write tools reuse the studio publish/download chains. The
-	// content service here mirrors NewContentHandler's construction (OSS
-	// presign, upload grants, object verifier, archive gate) so external
-	// agents hit byte-identical validation.
-	mcpOSS, mcpOSSErr := service.NewOSSService(cfg)
-	if mcpOSSErr != nil {
-		slog.Warn("MCP upload/download presign is unavailable", "error", mcpOSSErr)
-	}
-	mcpGrantTTL := time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
-	if mcpGrantTTL <= 0 {
-		mcpGrantTTL = 5 * time.Minute
-	}
-	mcpUploadGrants := service.NewUploadGrantService(rdb, mcpGrantTTL)
-	mcpContentSvc := service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, mcpOSS).
-		WithUploadGrantService(mcpUploadGrants).
-		WithUploadedObjectVerifier(mcpOSS).
-		WithArchiveScanConfig(&cfg.ArchiveScan).
-		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
-		WithImageDimensionsResolver(mcpOSS).
-		WithUploadConfig(&cfg.Upload)
-	mcpContentSvc.SetVersionService(c.VersionService)
-	mcpContentSvc.SetQueueProducer(c.QueueProducer)
-	mcpContentSvc.SetArchiveScanRepository(c.ArchiveScanRepo, cfg.Features.ArchiveMalwareScanEnabled)
+	// PAT-scoped write tools consume the shared StudioContentService and
+	// OSS/grant instances so external agents hit byte-identical validation
+	// and event semantics (#658).
 	c.MCPHandler = mcpserver.NewHandler(mcpserver.Deps{
 		DB:            db,
 		SearchRepo:    c.SearchRepo,
@@ -319,7 +337,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		GuideSvc:      c.UsageGuideService,
 		DisplaySigner: c.DisplayURLSigner,
 		Cfg:           cfg,
-		ContentSvc:    mcpContentSvc,
+		ContentSvc:    c.StudioContentService,
 		// SuggestPublishMetadata reuses the in-chat upload-assist LLM;
 		// AgentService is constructed below, hence the late-bound closure.
 		SuggestPublishMetadata: func(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error) {
@@ -328,11 +346,11 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		// IssueUploadURL mirrors POST /contents/oss-token: presign then
 		// register the grant the later create call consumes.
 		IssueUploadURL: func(ctx context.Context, req service.PresignUploadRequest, userID int64) (*service.PresignUploadResponse, error) {
-			resp, err := mcpOSS.GeneratePresignUploadURL(ctx, req, userID)
+			resp, err := c.OSSService.GeneratePresignUploadURL(ctx, req, userID)
 			if err != nil {
 				return nil, err
 			}
-			grant, err := mcpUploadGrants.Issue(ctx, service.UploadGrant{
+			grant, err := c.UploadGrants.Issue(ctx, service.UploadGrant{
 				UserID:   userID,
 				Purpose:  "content",
 				OSSKey:   resp.OSSKey,
