@@ -203,13 +203,9 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 
 	policy := s.ToolPolicy()
 	systemMsg := s.serverOwnedSystemPrompt(ctx, resolved.Surface, resolved.Content)
-	tools := s.ToolDefinitions()
-	// SP-23 M3: configured MCP servers append their namespaced tools; a
-	// dead server contributes none (never blocks the loop). Unwired seams
-	// (tests, minimal constructors) contribute nothing.
-	if s.mcpBridge != nil {
-		tools = append(tools, s.mcpBridge.ToolDefinitions(ctx)...)
-	}
+	// #661: tool surface and execution ride the ToolRuntime seam (local
+	// registry + MCP bridge dispatch in production, fake in unit tests).
+	tools := s.toolRuntimeOrFallback().ToolDefinitions(ctx)
 	req := llm.ChatRequest{
 		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
 		Tools:     tools,
@@ -376,7 +372,11 @@ loop:
 				toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: `{"ok":false,"error":"session_budget_exceeded","detail":` + strconv.Quote(exceeded) + `}`})
 				continue
 			}
-			outcome, toolErr := s.ExecuteToolInConversation(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), userID, convIDForTools(conv), turnImages, nil)
+			outcome, toolErr := s.toolRuntimeOrFallback().ExecuteTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), ToolScope{
+				ViewerID:       userID,
+				ConversationID: convIDForTools(conv),
+				TurnImages:     turnImages,
+			})
 			execution := AgentToolExecution{
 				Name:        tc.Function.Name,
 				ArgsSummary: agentToolArgsSummary(tc.Function.Name, json.RawMessage(tc.Function.Arguments)),

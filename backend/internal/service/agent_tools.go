@@ -1,7 +1,6 @@
 package service
 
 import (
-	"omnicraft/backend/internal/agentmcp"
 
 	"bytes"
 	"context"
@@ -314,28 +313,26 @@ func (s *AgentService) ExecuteTool(ctx context.Context, name string, rawArgs jso
 	return s.ExecuteToolInConversation(ctx, name, rawArgs, viewerID, 0, 0, snapshot)
 }
 
-// ExecuteToolInConversation additionally binds the conversation id and the
-// live-turn image count for per-conversation budgets (SP-23 M1 image quota).
+// toolRuntimeOrFallback returns the tool seam, rebuilding the dispatch
+// runtime for legacy constructions that predate constructor wiring.
+func (s *AgentService) toolRuntimeOrFallback() ToolRuntime {
+	if s.toolRuntime == nil {
+		s.toolRuntime = newDispatchToolRuntime(s)
+	}
+	return s.toolRuntime
+}
+
+// ExecuteToolInConversation is the legacy positional wrapper over the
+// ToolRuntime seam (#661 kept it for existing callers); it maps the flat
+// arguments onto ToolScope and dispatches through the same runtime the
+// answer turn uses.
 func (s *AgentService) ExecuteToolInConversation(ctx context.Context, name string, rawArgs json.RawMessage, viewerID, conversationID int64, turnImages int, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
-	start := time.Now()
-	// SP-23 M3: bridged external tools route through the MCP seam before
-	// the local registry (the mcp_ namespace cannot collide with it).
-	if strings.HasPrefix(name, agentmcp.ToolNamePrefix) {
-		if s.mcpBridge == nil {
-			return nil, withToolError(nil, name, ErrAgentToolUnknown, start)
-		}
-		outcome, err := s.mcpToolOutcome(ctx, name, rawArgs)
-		return outcome, withToolError(outcome, name, err, start)
-	}
-	handler, ok := s.toolRegistry()[name]
-	if !ok {
-		return nil, ErrAgentToolUnknown
-	}
-	outcome, err := handler(ctx, rawArgs, agentToolScope{
-		ViewerID: viewerID, ConversationID: conversationID,
-		TurnImages: turnImages, Snapshot: snapshot,
+	return s.toolRuntimeOrFallback().ExecuteTool(ctx, name, rawArgs, ToolScope{
+		ViewerID:       viewerID,
+		ConversationID: conversationID,
+		TurnImages:     turnImages,
+		Snapshot:       snapshot,
 	})
-	return outcome, withToolError(outcome, name, err, start)
 }
 
 func withToolError(outcome *AgentToolOutcome, name string, err error, start time.Time) error {
