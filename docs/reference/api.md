@@ -12,7 +12,9 @@ Base URL: /api/v1
 Content-Type: application/json
 认证: Authorization: Bearer <JWT>
 错误格式: { "code": "ERROR_CODE", "message": "描述", "details": {} }
-分页: ?page=1&page_size=20  →  { "data": [], "total": 100, "page": 1, "page_size": 20 }
+分页（标准列表）: ?page=1&page_size=20  →  { "data": [], "total": 100, "page": 1, "page_size": 20 }
+  - 标准列表统一经 handler 层 pageQuery 钳制：page<1 → 1；page_size<1 或 >100 → 20（回落而非钳到 100）；响应回显的 page/page_size 即实际生效值（#668）。
+  - 登记例外（独立契约）：搜索（clampSearchPage + config 翻页上限）、Agent 会话列表（可选 page）、admin trace 列表（非法 page 400 快败）、浏览历史/收藏集条目/相关内容（parsePositiveInt 家族，limit 双参数或钳上界 100）。
 ```
 
 ### 5.2 关键接口示例
