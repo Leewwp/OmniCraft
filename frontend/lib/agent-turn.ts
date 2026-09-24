@@ -1,3 +1,4 @@
+import { normalizeAgentCitation } from "@/lib/agent";
 import type { AgentStreamCitation, AgentStreamEvent, AgentStreamTool } from "@/lib/agent-stream";
 
 /**
@@ -44,8 +45,6 @@ export interface AgentTurn {
   streaming: boolean;
   /** 终局已到（done/error/stop/关流）：续问轮在终局后 commit 进树、清空活动轮。 */
   settled: boolean;
-  /** 过渡形态标记：轮的提问行/相块/正文已由消息树行接管，活动轮只剩终态尾部。 */
-  treeOwned?: boolean;
   /** 首轮（发起时会话 id 尚未产生）：done 后活到历史回载替换树；续问轮 done 即 commit。 */
   firstRound: boolean;
   terminal: AgentTurnTerminal;
@@ -236,4 +235,154 @@ export function applyKeywordFallbackCitations(
   citations: AgentStreamCitation[],
 ): AgentTurn {
   return withTerminal(turn, { citations });
+}
+
+/* ---------- 历史入口（#538 起为纯函数，#663 自 lib/agent-history.ts 整体迁入） ---------- */
+
+/** 历史端点消息行（GET /api/v1/agent/conversations/:id 的 messages[]）。
+ *  #538：phase="tools" 行带持久化工具步骤摘要（tools[]），与流式
+ *  tool_status 事件同构；moderation 行由端点做内容脱敏（content 省略）。 */
+export interface AgentHistoryMessageDTO {
+  id: number;
+  role: string;
+  content?: string | null;
+  phase?: string;
+  moderation?: string;
+  /** 端点原始引用（可能畸形；由 normalizeAgentCitation 剔除后才进渲染行）。 */
+  citations?: unknown[];
+  tools?: AgentStreamTool[];
+}
+
+/** 行级渲染形态（历史回放与既有测试复用；think/tools phase 行按序保留）。 */
+export interface AgentHistoryWorkspaceMessage {
+  id: number | string;
+  role: "user" | "assistant";
+  content: string;
+  /** A-02：think 行独立成消息（仅展示层）；#538：tools 行回放工具步骤条。 */
+  phase?: "think" | "tools";
+  moderationBlocked?: boolean;
+  /** 2026-09-06 实测修复：引用随答案消息持久化（历史回放的跳转入口）。 */
+  citations?: AgentStreamCitation[];
+  /** #538：phase="tools" 行的步骤摘要（AgentToolStatus live=false 渲染）。 */
+  tools?: AgentStreamTool[];
+}
+
+/** 服务端历史行 → 行级渲染行（原 lib/agent-history.ts 逐字迁入）。
+ *  - think/tools phase 行按原顺序保留（与流式轮内渲染同构）；
+ *  - blocked 行替换为占位文案（moderationBlocked 标记）；
+ *  - 空内容非 phase 行剔除（no_evidence/degraded 撤答不留空泡）。 */
+export function mapAgentHistoryMessages(
+  messages: AgentHistoryMessageDTO[],
+  moderationPlaceholder: string,
+): AgentHistoryWorkspaceMessage[] {
+  return messages
+    .filter(
+      (message) =>
+        message.role === "user" ||
+        message.phase === "think" ||
+        message.phase === "tools" ||
+        message.moderation === "blocked" ||
+        (message.content ?? "").trim() !== "",
+    )
+    .map((message): AgentHistoryWorkspaceMessage => {
+      if (message.moderation === "blocked") {
+        return {
+          id: message.id,
+          role: "assistant",
+          content: moderationPlaceholder,
+          moderationBlocked: true,
+        };
+      }
+      if (message.phase === "think") {
+        return {
+          id: message.id,
+          role: "assistant",
+          content: message.content ?? "",
+          phase: "think",
+        };
+      }
+      if (message.phase === "tools") {
+        return {
+          id: message.id,
+          role: "assistant",
+          content: "",
+          phase: "tools",
+          tools: message.tools ?? [],
+        };
+      }
+      const validCitations = (message.citations ?? []).filter(
+        (citation): citation is AgentStreamCitation => normalizeAgentCitation(citation) !== null,
+      );
+      return {
+        id: message.id,
+        role: message.role === "user" ? "user" : "assistant",
+        content: message.content ?? "",
+        ...(validCitations.length > 0 ? { citations: validCitations } : {}),
+      };
+    });
+}
+
+function historyTurn(id: string, query: string): AgentTurn {
+  return { ...createAgentTurn(query, { id, firstRound: false }), streaming: false, settled: true };
+}
+
+/** 历史入口：服务端历史行 → 回合树。行经 mapAgentHistoryMessages 过滤后按
+ *  user 行分轮：think/tools 行入相块（连续同类行合并，与 live 入口同构）、
+ *  blocked 行占位、正文行置答案（含随行持久化引用）。终态字段（追问/用量/
+ *  trace/answer_kind 等）不落库，历史轮保持缺省——两入口的内容形状同一，
+ *  终态差异是落库契约而非装配漂移。 */
+export function mapAgentHistoryToTurns(
+  messages: AgentHistoryMessageDTO[],
+  moderationPlaceholder: string,
+): AgentTurn[] {
+  const rows = mapAgentHistoryMessages(messages, moderationPlaceholder);
+  const turns: AgentTurn[] = [];
+  let current: AgentTurn | null = null;
+  const replaceCurrent = (turn: AgentTurn) => {
+    current = turn;
+    if (turns.length > 0) turns[turns.length - 1] = turn;
+  };
+  for (const row of rows) {
+    if (row.role === "user") {
+      current = historyTurn(String(row.id), row.content);
+      turns.push(current);
+      continue;
+    }
+    if (!current) {
+      /* 防御：无提问行的头部行（服务端契约下不出现）归入空提问轮。 */
+      current = historyTurn(`head-${row.id}`, "");
+      turns.push(current);
+    }
+    if (row.phase === "think") {
+      replaceCurrent(appendThink(current, row.content));
+    } else if (row.phase === "tools") {
+      for (const tool of row.tools ?? []) {
+        current = appendTool(current, tool);
+      }
+      replaceCurrent(current);
+    } else if (row.moderationBlocked) {
+      replaceCurrent({ ...current, moderationBlocked: true, answer: row.content });
+    } else {
+      const answer = current.answer === "" ? row.content : `${current.answer}\n\n${row.content}`;
+      replaceCurrent({
+        ...current,
+        answer,
+        ...(!current.answerCitations && row.citations && row.citations.length > 0
+          ? { answerCitations: row.citations }
+          : {}),
+      });
+    }
+  }
+  return turns;
+}
+
+/** 首轮活动轮活到历史回载落地后的终态并入：把 live 轮的终态字段（追问/
+ *  用量/trace/通知旗标）并入树尾轮——跨重载存活的语义等价旧轮级状态。 */
+export function mergeTerminalIntoLastTurn(
+  turns: AgentTurn[],
+  terminal: AgentTurnTerminal,
+): AgentTurn[] {
+  if (turns.length === 0) return turns;
+  const last = turns[turns.length - 1];
+  return [...turns.slice(0, -1), { ...last, terminal: { ...last.terminal, ...terminal } }];
 }
