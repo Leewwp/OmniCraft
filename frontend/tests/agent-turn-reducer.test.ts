@@ -202,9 +202,11 @@ test("provider_error 降级：撤答、置降级、不置错误态", () => {
   assert.equal(turn.answer, "", "provider 降级撤答");
   assert.equal(turn.terminal.degraded, true);
   assert.equal(turn.terminal.error, false);
+  assert.equal(turn.terminal.needsKeywordFallback, true, "provider 降级置待回退标记");
 
   const withFallback = applyKeywordFallbackCitations(turn, [citation]);
   assert.deepEqual(withFallback.terminal.citations, [citation], "关键词回退写轮级引用");
+  assert.equal(withFallback.terminal.needsKeywordFallback, false, "回退落轮清除标记");
 });
 
 test("普通错误：置错误态与安全码", () => {
@@ -256,6 +258,7 @@ test("createAgentTurn 初始形状：仅提问行，streaming、firstRound 就�
     usage: null,
     traceId: null,
     emptyNoEvidence: false,
+    needsKeywordFallback: false,
     stopped: false,
     error: false,
     errorCode: null,

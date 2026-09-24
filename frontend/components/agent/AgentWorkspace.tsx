@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Loader2, Menu, RotateCw } from "lucide-react";
+import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Menu, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/ui/composer";
@@ -127,8 +127,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
-  /** provider 降级关键词回退的当前查询与请求代（防过期响应写回新轮）。 */
-  const activeQueryRef = useRef("");
+  /** provider 降级关键词回退的请求代（防过期响应写回新轮）。 */
   const fallbackRequestRef = useRef(0);
   const atBottomRef = useRef(true);
 
@@ -484,7 +483,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   }, []);
 
   /* live 事件：形状归约进 TurnModel reducer（纯函数）；此处只留回合策略副作用
-     （会话 id 写入/会话列表刷新/关键词回退/AbortController）。 */
+     （会话 id 写入/会话列表刷新/AbortController）。 */
   const handleStreamEvent = useCallback(
     (event: AgentStreamEvent) => {
       setActiveTurn((previous) => (previous ? reduceAgentTurn(previous, event) : previous));
@@ -496,14 +495,18 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         return;
       }
       if (event.type === "error") {
-        if (event.degraded && event.degraded_reason === "provider_error") {
-          void loadKeywordFallback(activeQueryRef.current, fallbackRequestRef.current);
-        }
         controllerRef.current?.abort();
       }
     },
-    [loadConversations, loadKeywordFallback],
+    [loadConversations],
   );
+
+  /* provider 降级关键词回退：由轮终态的待回退标记驱动（标记随回退结果落轮
+     清除）；查询取自轮自身，无跨状态查询 ref。 */
+  useEffect(() => {
+    if (!activeTurn?.terminal.needsKeywordFallback) return;
+    void loadKeywordFallback(activeTurn.query, fallbackRequestRef.current);
+  }, [activeTurn, loadKeywordFallback]);
 
   /* 发起一轮对话（A-01 续写契约）：上下文由服务端组装，客户端只带
      conversation_id + message。regenerate 复用同一入口且不重复落提问行。
@@ -516,7 +519,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     };
     if (modelPref) body.model = modelPref;
     if (activeId !== null) body.conversation_id = activeId;
-    activeQueryRef.current = query;
     fallbackRequestRef.current += 1;
     if (activeTurn) {
       setTurns((previous) => [...previous, activeTurn]);

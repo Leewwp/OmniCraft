@@ -25,6 +25,9 @@ export interface AgentTurnTerminal {
   traceId: string | null;
   /** #610 空轮：no_evidence 且零成功工具（零调用或全部失败）。 */
   emptyNoEvidence: boolean;
+  /** provider 降级待关键词回退：由回退结果落轮（applyKeywordFallbackCitations）
+      清除——回退触发完全由轮终态驱动，无跨状态查询 ref。 */
+  needsKeywordFallback: boolean;
   stopped: boolean;
   error: boolean;
   errorCode: string | null;
@@ -70,6 +73,7 @@ export function createAgentTurn(
       usage: null,
       traceId: null,
       emptyNoEvidence: false,
+      needsKeywordFallback: false,
       stopped: false,
       error: false,
       errorCode: null,
@@ -208,7 +212,7 @@ function applyError(turn: AgentTurn, event: ErrorEvent): AgentTurn {
       streaming: false,
       settled: true,
       answer: "",
-      terminal: { ...turn.terminal, error: false, degraded: true },
+      terminal: { ...turn.terminal, error: false, degraded: true, needsKeywordFallback: true },
     };
   }
   return {
@@ -229,12 +233,12 @@ export function closeAgentStream(turn: AgentTurn): AgentTurn {
   return { ...turn, streaming: false, settled: true };
 }
 
-/** provider 降级关键词回退结果写轮级引用（纯函数；请求由调用方发起）。 */
+/** provider 降级关键词回退结果写轮级引用并清除待回退标记（纯函数）。 */
 export function applyKeywordFallbackCitations(
   turn: AgentTurn,
   citations: AgentStreamCitation[],
 ): AgentTurn {
-  return withTerminal(turn, { citations });
+  return withTerminal(turn, { citations, needsKeywordFallback: false });
 }
 
 /* ---------- 历史入口（#538 起为纯函数，#663 自 lib/agent-history.ts 整体迁入） ---------- */
