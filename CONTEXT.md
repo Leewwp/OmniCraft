@@ -4,6 +4,8 @@
 
 ## Domain map
 
+- **列表分页契约（#668）**: 标准列表端点的 page/page_size 解析唯一住所 = `backend/internal/handler/pagination.go` 的 `pageQuery`（page<1→1；page_size<1 或 >100→20 回落）；响应回显生效值。裸 `Query("page")` 解析由 `pagination_gate_test.go` 守门拦截，例外（搜索/Agent 会话/admin trace/parsePositiveInt 家族）在 helper 注释与守门白名单登记理由。
+
 - 内容发现：推荐流、原创/二创分区、IP 库与 IP 详情页；决策入口见 `docs/GLOSSARY.md` 和 `docs/working/2026-08-04-content-discovery-gap-plan.md`。
 - 内容浏览：所有卡片入口最终复用内容详情浮层，完整详情页保留给直达 URL；媒体集/媒体查看器/连续浏览/相关内容规范见 `docs/superpowers/specs/2026-08-08-omnicraft-media-experience-design.md`；路由决策见 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md`。
 - Web Agent：顶部导航进入受保护的 `/agent` 全页工作台，全站搜索保持关键词职责；见 `docs/adr/0003-web-agent-dedicated-workspace.md`。

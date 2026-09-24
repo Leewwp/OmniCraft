@@ -70,8 +70,8 @@ func (h *IPHandler) ipCategoryAllowed(category string) bool {
 }
 
 func (h *IPHandler) ListIPs(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 
 	filter := repository.ListIPsFilter{
 		Search:   c.Query("q"),
@@ -106,8 +106,8 @@ func (h *IPHandler) GetMyIPs(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 
 	ips, total, err := h.ipSvc.ListMyIPs(c.Request.Context(), callerID, page, pageSize)
 	if err != nil {
@@ -259,11 +259,8 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}

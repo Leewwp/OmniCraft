@@ -14,8 +14,17 @@ const (
 
 // clampPage normalizes page/page_size to the platform-wide list contract:
 // page ≥ 1; 1 ≤ page_size ≤ 100, out-of-range (or unparseable → 0) page_size
-// falls back to defaultPageSize. Every list endpoint clamps through this
-// helper so `page_size=100000` can never dump a full table.
+// falls back to defaultPageSize. Every STANDARD list endpoint clamps through
+// this helper so `page_size=100000` can never dump a full table (#668 收口：
+// 标准列表裸 page 解析由 pagination_gate_test.go 守门）。
+//
+// 登记例外（独立契约，非标准列表钳制，勿迁 pageQuery）：
+//   - search.go：clampSearchPage + maxSearchPage（config 驱动搜索翻页上限，
+//     成本门契约）；
+//   - agent.go：会话列表可选 page（缺省=近期全量，语义不同于标准列表）；
+//   - admin_trace.go：非法 page → 400 快败（显式校验契约，非静默归一）；
+//   - browse_history.go / collection.go / content.go 相关内容：parsePositiveInt
+//     家族（0/limit 双参数或钳上界 100 而非回落 20 的历史契约）。
 func clampPage(page, pageSize int) (int, int) {
 	if page < 1 {
 		page = 1

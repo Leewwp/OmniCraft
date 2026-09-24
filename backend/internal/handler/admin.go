@@ -204,8 +204,8 @@ func (h *AdminHandler) BroadcastNotification(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	ips, total, err := h.ipSvc.ListIPs(repository.ListIPsFilter{
 		Status:   "pending",
 		Page:     page,
@@ -317,8 +317,8 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	// #658：原每次请求自建裸 ContentService 只为这一个查询；裸构造无
 	// rdb/缓存配置，等价于 repo 直查（viewer=0），改直查消除构造点。
 	contents, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
@@ -335,11 +335,8 @@ func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListTrashedContents(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
@@ -578,11 +575,8 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListUsers(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
@@ -616,11 +610,8 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListAppeals(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
@@ -1073,8 +1064,8 @@ func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
 func (h *AdminHandler) ListReports(c *gin.Context) {
 	status := c.Query("status")
 	targetType := c.Query("target_type")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 
 	searchRepo := repository.NewSearchRepository(h.contentRepo.DB())
 	reports, total, err := searchRepo.ListReports(status, targetType, page, pageSize)
