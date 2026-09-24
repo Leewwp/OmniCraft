@@ -1,0 +1,413 @@
+{
+  "first-round-grounded-full": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "first question",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "text": "Thought process",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Thought process",
+            "expanded": "false"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "text": "1 tool steps",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "1 tool steps",
+            "expanded": "false"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "hello world",
+        "attrs": {}
+      },
+      {
+        "tag": "section",
+        "cls": "mt-1 max-w-[85%]",
+        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginalexcerpt line",
+        "attrs": {
+          "aria-label": "Site references"
+        },
+        "toggles": [
+          {
+            "name": "Collapse citations",
+            "expanded": "true"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "flex flex-wrap gap-2",
+        "text": "追问一追问二",
+        "attrs": {
+          "role": "group",
+          "aria-label": "Suggested follow-ups"
+        }
+      },
+      {
+        "tag": "details",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
+        "text": "Turn detailsToken usage: 10 in / 20 outTrace ID: t1",
+        "attrs": {}
+      }
+    ]
+  },
+  "continuation-commit": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "旧问题",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "旧回答",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "second question",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "second answer",
+        "attrs": {}
+      },
+      {
+        "tag": "section",
+        "cls": "mt-1 max-w-[85%]",
+        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
+        "attrs": {
+          "aria-label": "Site references"
+        },
+        "toggles": [
+          {
+            "name": "Collapse citations",
+            "expanded": "true"
+          }
+        ]
+      },
+      {
+        "tag": "details",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
+        "text": "Turn detailsTrace ID: t2",
+        "attrs": {}
+      }
+    ]
+  },
+  "no-evidence-retrieval-miss": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "Find beginner-friendly furniture mods",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "flex max-w-[85%] items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default",
+        "text": "Not enough evidenceNo public content supports this answer.Search site content",
+        "attrs": {},
+        "links": [
+          "/search?q=Find%20beginner-friendly%20furniture%20mods"
+        ]
+      }
+    ]
+  },
+  "no-evidence-empty-turn": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "Draw another one in portrait",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "flex max-w-[85%] items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default",
+        "text": "No content this turnThis turn completed no search or tool and produced no answer.",
+        "attrs": {}
+      }
+    ]
+  },
+  "provider-error-keyword-fallback": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "Find beginner-friendly furniture mods",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "flex max-w-[85%] items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default",
+        "text": "Search fallback activeThe answer was not generated. Review the available site references.Search site content",
+        "attrs": {},
+        "links": [
+          "/search?q=Find%20beginner-friendly%20furniture%20mods"
+        ]
+      },
+      {
+        "tag": "section",
+        "cls": "mt-1 max-w-[85%]",
+        "text": "Site references2 verified referencesCollapse citations01Keyword fallback resultOriginalMatched by keyword search02Second keyword hitFanworkAnother match",
+        "attrs": {
+          "aria-label": "Site references"
+        },
+        "toggles": [
+          {
+            "name": "Collapse citations",
+            "expanded": "true"
+          }
+        ]
+      }
+    ]
+  },
+  "moderation-blocked-history": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "历史提问",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "text": "Thought process",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Thought process",
+            "expanded": "false"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-muted",
+        "text": "This reply was hidden after failing a safety check",
+        "attrs": {}
+      }
+    ]
+  },
+  "error-banner": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "Find beginner-friendly furniture mods",
+        "attrs": {}
+      },
+      {
+        "tag": "details",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
+        "text": "Turn detailsTrace ID: t-err",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "flex items-start gap-2 rounded-md border border-border-destructive bg-card px-3 py-2 text-sm text-fg-default",
+        "text": "This request was not completedTrace ID: t-errResend",
+        "attrs": {}
+      }
+    ]
+  },
+  "stop-partial-answer": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "Find beginner-friendly furniture mods",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "text": "Thought process",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Thought process",
+            "expanded": "false"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "partial answer",
+        "attrs": {}
+      },
+      {
+        "tag": "p",
+        "cls": "text-xs text-fg-muted",
+        "text": "Stopped generating",
+        "attrs": {}
+      }
+    ]
+  },
+  "history-replay-only": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "history question",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "text": "Thought process",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Thought process",
+            "expanded": "false"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "text": "1 tool steps",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "1 tool steps",
+            "expanded": "false"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "历史正式回答",
+        "attrs": {}
+      },
+      {
+        "tag": "section",
+        "cls": "mt-1 max-w-[85%]",
+        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginalexcerpt line",
+        "attrs": {
+          "aria-label": "Site references"
+        },
+        "toggles": [
+          {
+            "name": "Collapse citations",
+            "expanded": "true"
+          }
+        ]
+      }
+    ]
+  },
+  "multi-turn-static-history": {
+    "children": [
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "first question",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "first answer",
+        "attrs": {}
+      },
+      {
+        "tag": "section",
+        "cls": "mt-1 max-w-[85%]",
+        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginal",
+        "attrs": {
+          "aria-label": "Site references"
+        },
+        "toggles": [
+          {
+            "name": "Collapse citations",
+            "expanded": "true"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "second question",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "second answer",
+        "attrs": {}
+      },
+      {
+        "tag": "section",
+        "cls": "mt-1 max-w-[85%]",
+        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
+        "attrs": {
+          "aria-label": "Site references"
+        },
+        "toggles": [
+          {
+            "name": "Collapse citations",
+            "expanded": "true"
+          }
+        ]
+      },
+      {
+        "tag": "div",
+        "cls": "ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground",
+        "text": "second question",
+        "attrs": {}
+      },
+      {
+        "tag": "div",
+        "cls": "group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm",
+        "text": "second answer",
+        "attrs": {}
+      },
+      {
+        "tag": "section",
+        "cls": "mt-1 max-w-[85%]",
+        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
+        "attrs": {
+          "aria-label": "Site references"
+        },
+        "toggles": [
+          {
+            "name": "Collapse citations",
+            "expanded": "true"
+          }
+        ]
+      },
+      {
+        "tag": "details",
+        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
+        "text": "Turn detailsTrace ID: t2",
+        "attrs": {}
+      }
+    ]
+  }
+}
