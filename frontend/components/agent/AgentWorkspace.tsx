@@ -483,9 +483,9 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   }, []);
 
   /* live 事件：形状归约进 TurnModel reducer（纯函数）；此处只留回合策略副作用
-     （会话 id 写入/会话列表刷新/AbortController）。 */
+     （会话 id 写入/会话列表刷新/AbortController/关键词回退发起）。 */
   const handleStreamEvent = useCallback(
-    (event: AgentStreamEvent) => {
+    (event: AgentStreamEvent, turnQuery: string) => {
       setActiveTurn((previous) => (previous ? reduceAgentTurn(previous, event) : previous));
       if (event.type === "done") {
         if (event.conversation_id) {
@@ -496,17 +496,16 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       }
       if (event.type === "error") {
         controllerRef.current?.abort();
+        /* provider 降级撤答：关键词回退与降级终态同 tick 发起（旧语义，agent-turn.ts
+           applyError 契约「回退请求由调用方副作用发起」）。改由 effect 驱动会晚一拍——
+           降级文案先渲染而回退引用未落，依赖同步断言的既有测试稳定红（#663 后时序回归）。 */
+        if (event.degraded && event.degraded_reason === "provider_error") {
+          void loadKeywordFallback(turnQuery, fallbackRequestRef.current);
+        }
       }
     },
-    [loadConversations],
+    [loadConversations, loadKeywordFallback],
   );
-
-  /* provider 降级关键词回退：由轮终态的待回退标记驱动（标记随回退结果落轮
-     清除）；查询取自轮自身，无跨状态查询 ref。 */
-  useEffect(() => {
-    if (!activeTurn?.terminal.needsKeywordFallback) return;
-    void loadKeywordFallback(activeTurn.query, fallbackRequestRef.current);
-  }, [activeTurn, loadKeywordFallback]);
 
   /* 发起一轮对话（A-01 续写契约）：上下文由服务端组装，客户端只带
      conversation_id + message。regenerate 复用同一入口且不重复落提问行。
@@ -528,7 +527,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     const controller = new AbortController();
     controllerRef.current = controller;
     void startAgentStream(fetch, `${apiBase}/agent/chat/stream`, body, {
-      onEvent: handleStreamEvent,
+      onEvent: (event) => handleStreamEvent(event, query),
       onError: (error) => {
         const code = error instanceof AgentStreamError ? error.code : undefined;
         setActiveTurn((previous) =>
