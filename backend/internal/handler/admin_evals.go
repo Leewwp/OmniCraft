@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -43,7 +44,7 @@ func NewAdminEvalHandler(
 func (h *AdminEvalHandler) ListRuns(c *gin.Context) {
 	runs, err := h.evalRepo.ListEvalRuns(c.Request.Context(), 100)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load eval runs"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load eval runs")
 		return
 	}
 	if runs == nil {
@@ -56,7 +57,7 @@ func (h *AdminEvalHandler) ListRuns(c *gin.Context) {
 func (h *AdminEvalHandler) ListDrafts(c *gin.Context) {
 	drafts, err := h.evalRepo.ListGoldenDrafts(c.Request.Context(), 100)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load golden drafts"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load golden drafts")
 		return
 	}
 	if drafts == nil {
@@ -82,22 +83,22 @@ type traceMessageRow struct {
 func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 	var in createDraftInput
 	if err := c.ShouldBindJSON(&in); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "trace_id is required"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "trace_id is required")
 		return
 	}
 	traceID := strings.TrimSpace(in.TraceID)
 	if len(traceID) < 8 || len(traceID) > 64 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "invalid trace id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "invalid trace id")
 		return
 	}
 
 	run, err := h.traceRepo.GetRunByTraceID(c.Request.Context(), traceID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "TRACE_NOT_FOUND", "message": "trace run not found"})
+		response.Error(c, http.StatusNotFound, "TRACE_NOT_FOUND", "trace run not found")
 		return
 	}
 	if run.ConversationID == nil || run.MessageID == nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "TRACE_NOT_LINKED", "message": "trace has no conversation/message link"})
+		response.Error(c, http.StatusUnprocessableEntity, "TRACE_NOT_LINKED", "trace has no conversation/message link")
 		return
 	}
 
@@ -107,19 +108,19 @@ func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 	if err := h.db.WithContext(c.Request.Context()).
 		Where("id = ? AND conversation_id = ?", *run.MessageID, *run.ConversationID).
 		First(&answerMsg).Error; err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "TRACE_ANSWER_MISSING", "message": "answer message not found for trace"})
+		response.Error(c, http.StatusUnprocessableEntity, "TRACE_ANSWER_MISSING", "answer message not found for trace")
 		return
 	}
 	var questionMsg model.AgentMessage
 	if err := h.db.WithContext(c.Request.Context()).
 		Where("conversation_id = ? AND role = ? AND id < ?", *run.ConversationID, "user", answerMsg.ID).
 		Order("id DESC").First(&questionMsg).Error; err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "TRACE_QUESTION_MISSING", "message": "no user question before the traced answer"})
+		response.Error(c, http.StatusUnprocessableEntity, "TRACE_QUESTION_MISSING", "no user question before the traced answer")
 		return
 	}
 	question := strings.TrimSpace(derefString(questionMsg.Content))
 	if question == "" {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "TRACE_QUESTION_MISSING", "message": "traced user message is empty"})
+		response.Error(c, http.StatusUnprocessableEntity, "TRACE_QUESTION_MISSING", "traced user message is empty")
 		return
 	}
 
@@ -130,7 +131,7 @@ func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 		return
 	}
 	if err != nil && !errors.Is(err, repository.ErrRagEvalNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to check existing draft"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to check existing draft")
 		return
 	}
 
@@ -155,7 +156,7 @@ func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 	})
 	classification, _ := json.Marshal(map[string]string{
 		"primary_layer": "draft", "split": "",
-		"note":          "trace feedback draft (SP-22 E5); assign layer on curation",
+		"note": "trace feedback draft (SP-22 E5); assign layer on curation",
 	})
 
 	draft := model.EvalGoldenCase{
@@ -174,7 +175,7 @@ func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 		SourceTraceID:       traceID,
 	}
 	if err := h.evalRepo.CreateGoldenDraft(c.Request.Context(), &draft); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to create golden draft"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to create golden draft")
 		return
 	}
 	adminID := middleware.GetUserID(c)
@@ -200,15 +201,15 @@ func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 func (h *AdminEvalHandler) DeleteDraft(c *gin.Context) {
 	caseKey := strings.TrimSpace(c.Param("case_key"))
 	if caseKey == "" || len(caseKey) > 128 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "invalid case key"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "invalid case key")
 		return
 	}
 	if err := h.evalRepo.DeleteGoldenDraft(c.Request.Context(), caseKey); err != nil {
 		if errors.Is(err, repository.ErrRagEvalNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "DRAFT_NOT_FOUND", "message": "golden draft not found"})
+			response.Error(c, http.StatusNotFound, "DRAFT_NOT_FOUND", "golden draft not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to delete golden draft"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to delete golden draft")
 		return
 	}
 	if h.auditSvc != nil {

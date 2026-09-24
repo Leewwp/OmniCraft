@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"strconv"
 	"time"
 
@@ -36,7 +37,7 @@ func (h *AdminTraceHandler) parseRunFilter(c *gin.Context) (repository.AgentTrac
 	if raw := trimNonEmpty(c.Query("conversation_id")); raw != "" {
 		v, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || v <= 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "conversation_id must be a positive integer"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "conversation_id must be a positive integer")
 			return f, false
 		}
 		f.ConversationID = &v
@@ -44,7 +45,7 @@ func (h *AdminTraceHandler) parseRunFilter(c *gin.Context) (repository.AgentTrac
 	if raw := trimNonEmpty(c.Query("user_id")); raw != "" {
 		v, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || v <= 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "user_id must be a positive integer"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "user_id must be a positive integer")
 			return f, false
 		}
 		f.UserID = &v
@@ -52,7 +53,7 @@ func (h *AdminTraceHandler) parseRunFilter(c *gin.Context) (repository.AgentTrac
 	if raw := trimNonEmpty(c.Query("page")); raw != "" {
 		v, err := strconv.Atoi(raw)
 		if err != nil || v < 1 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "page must be a positive integer"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "page must be a positive integer")
 			return f, false
 		}
 		f.Page = v
@@ -60,7 +61,7 @@ func (h *AdminTraceHandler) parseRunFilter(c *gin.Context) (repository.AgentTrac
 	if raw := trimNonEmpty(c.Query("page_size")); raw != "" {
 		v, err := strconv.Atoi(raw)
 		if err != nil || v < 1 || v > 100 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "page_size must be between 1 and 100"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "page_size must be between 1 and 100")
 			return f, false
 		}
 		f.PageSize = v
@@ -68,7 +69,7 @@ func (h *AdminTraceHandler) parseRunFilter(c *gin.Context) (repository.AgentTrac
 	if raw := trimNonEmpty(c.Query("from")); raw != "" {
 		t, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "from must be RFC3339"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "from must be RFC3339")
 			return f, false
 		}
 		f.From = &t
@@ -76,7 +77,7 @@ func (h *AdminTraceHandler) parseRunFilter(c *gin.Context) (repository.AgentTrac
 	if raw := trimNonEmpty(c.Query("to")); raw != "" {
 		t, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "to must be RFC3339"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "to must be RFC3339")
 			return f, false
 		}
 		f.To = &t
@@ -101,7 +102,7 @@ func (h *AdminTraceHandler) ListTraces(c *gin.Context) {
 	}
 	items, total, err := h.repo.ListRuns(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load trace runs"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load trace runs")
 		return
 	}
 	if items == nil {
@@ -115,17 +116,17 @@ func (h *AdminTraceHandler) ListTraces(c *gin.Context) {
 func (h *AdminTraceHandler) GetTraceDetail(c *gin.Context) {
 	traceID := c.Param("trace_id")
 	if len(traceID) < 8 || len(traceID) > 64 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "invalid trace id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "invalid trace id")
 		return
 	}
 	run, err := h.repo.GetRunByTraceID(c.Request.Context(), traceID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "TRACE_NOT_FOUND", "message": "trace run not found"})
+		response.Error(c, http.StatusNotFound, "TRACE_NOT_FOUND", "trace run not found")
 		return
 	}
 	nodes, err := h.repo.ListNodesByTrace(c.Request.Context(), traceID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load trace nodes"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load trace nodes")
 		return
 	}
 	if nodes == nil {
@@ -142,7 +143,7 @@ func (h *AdminTraceHandler) Stats(c *gin.Context) {
 	if raw := c.Query("from"); raw != "" {
 		t, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "from must be RFC3339"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "from must be RFC3339")
 			return
 		}
 		from = t
@@ -150,7 +151,7 @@ func (h *AdminTraceHandler) Stats(c *gin.Context) {
 	if raw := c.Query("to"); raw != "" {
 		t, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "to must be RFC3339"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "to must be RFC3339")
 			return
 		}
 		to = t
@@ -164,7 +165,7 @@ func (h *AdminTraceHandler) Stats(c *gin.Context) {
 	}
 	stats, err := h.repo.Stats(c.Request.Context(), fromPtr, toPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to aggregate trace stats"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to aggregate trace stats")
 		return
 	}
 	c.JSON(http.StatusOK, stats)

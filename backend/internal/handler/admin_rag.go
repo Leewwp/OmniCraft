@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -37,27 +38,27 @@ func NewAdminRAGHandler(cfg *config.Config, rebuilder RAGRebuilder, auditSvc Adm
 func (h *AdminRAGHandler) Rebuild(c *gin.Context) {
 	operationID, err := newRAGRebuildOperationID()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 		return
 	}
 	if h.cfg == nil || !h.cfg.Features.RAGHybridEnabled {
 		if err := h.recordAudit(c.Request.Context(), c, operationID, "failed", "FEATURE_DISABLED"); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 			return
 		}
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "RAG hybrid search is disabled"})
+		response.Error(c, http.StatusServiceUnavailable, "FEATURE_DISABLED", "RAG hybrid search is disabled")
 		return
 	}
 	if h.rebuilder == nil {
 		if err := h.recordAudit(c.Request.Context(), c, operationID, "failed", "RAG_REBUILD_UNAVAILABLE"); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 			return
 		}
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "RAG_REBUILD_UNAVAILABLE", "message": "RAG rebuild is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "RAG_REBUILD_UNAVAILABLE", "RAG rebuild is unavailable")
 		return
 	}
 	if err := h.recordAudit(c.Request.Context(), c, operationID, "started", ""); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 		return
 	}
 	if err := h.rebuilder.Rebuild(c.Request.Context()); err != nil {
@@ -66,7 +67,7 @@ func (h *AdminRAGHandler) Rebuild(c *gin.Context) {
 		if auditErr := h.recordAudit(auditCtx, c, operationID, "failed", "RAG_REBUILD_UNAVAILABLE"); auditErr != nil {
 			h.logAuditDegradation(c, operationID, "failed", auditErr)
 		}
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "RAG_REBUILD_UNAVAILABLE", "message": "RAG rebuild is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "RAG_REBUILD_UNAVAILABLE", "RAG rebuild is unavailable")
 		return
 	}
 	auditCtx, cancel := h.terminalAuditContext(c)

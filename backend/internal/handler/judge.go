@@ -63,18 +63,18 @@ func (h *JudgeHandler) GetExam(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
 		// T37：抽题会话按 用户+类型 绑定，匿名不可抽题。
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	category := c.Param("category")
 	questions, err := h.judgeSvc.GetExam(category, callerID)
 	if err != nil {
 		if err == service.ErrAlreadyQualified {
-			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_QUALIFIED", "message": "you already hold the qualification for this content type"})
+			response.Error(c, http.StatusConflict, "ALREADY_QUALIFIED", "you already hold the qualification for this content type")
 			return
 		}
 		if err == service.ErrInsufficientQuestions {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "INSUFFICIENT_QUESTIONS", "message": "not enough questions available for this category"})
+			response.Error(c, http.StatusServiceUnavailable, "INSUFFICIENT_QUESTIONS", "not enough questions available for this category")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -91,7 +91,7 @@ func (h *JudgeHandler) GetExam(c *gin.Context) {
 func (h *JudgeHandler) SubmitExam(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	var input service.SubmitExamInput
@@ -102,16 +102,16 @@ func (h *JudgeHandler) SubmitExam(c *gin.Context) {
 	record, passed, err := h.judgeSvc.SubmitExam(input, callerID)
 	if err != nil {
 		if err == service.ErrAlreadyQualified {
-			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_QUALIFIED", "message": "you already hold the qualification for this content type"})
+			response.Error(c, http.StatusConflict, "ALREADY_QUALIFIED", "you already hold the qualification for this content type")
 			return
 		}
 		if err == service.ErrExamSessionExpired {
 			// T37：会话缺失/TTL 过期——必须重新抽题，不得按新题集评分。
-			c.JSON(http.StatusConflict, gin.H{"code": "EXAM_SESSION_EXPIRED", "message": "exam session expired, please draw questions again"})
+			response.Error(c, http.StatusConflict, "EXAM_SESSION_EXPIRED", "exam session expired, please draw questions again")
 			return
 		}
 		if err == service.ErrInsufficientQuestions {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "INSUFFICIENT_QUESTIONS", "message": "not enough questions available for this category"})
+			response.Error(c, http.StatusServiceUnavailable, "INSUFFICIENT_QUESTIONS", "not enough questions available for this category")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
@@ -123,7 +123,7 @@ func (h *JudgeHandler) SubmitExam(c *gin.Context) {
 func (h *JudgeHandler) GetQueue(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	page, pageSize := pageQuery(c, 20)
@@ -138,7 +138,7 @@ func (h *JudgeHandler) GetQueue(c *gin.Context) {
 func (h *JudgeHandler) SubmitVote(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	var input service.SubmitVoteInput
@@ -160,12 +160,12 @@ func (h *JudgeHandler) SubmitVote(c *gin.Context) {
 func (h *JudgeHandler) GetVerdictDetail(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid case id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid case id")
 		return
 	}
 	judgeCase, votes, err := h.judgeSvc.GetVerdictDetail(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "case not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "case not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"case": judgeCase, "votes": votes})
@@ -174,12 +174,12 @@ func (h *JudgeHandler) GetVerdictDetail(c *gin.Context) {
 func (h *JudgeHandler) VoteReason(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	voteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid vote id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid vote id")
 		return
 	}
 	var body struct {
@@ -194,11 +194,11 @@ func (h *JudgeHandler) VoteReason(c *gin.Context) {
 	if err := h.judgeSvc.VoteReason(voteID, callerID, body.VoteType); err != nil {
 		switch err {
 		case service.ErrReasonVoteNotFound:
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "reason target vote not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "reason target vote not found")
 		case service.ErrReasonSelfVote:
-			c.JSON(http.StatusConflict, gin.H{"code": "REASON_SELF_VOTE", "message": "cannot vote on your own reason"})
+			response.Error(c, http.StatusConflict, "REASON_SELF_VOTE", "cannot vote on your own reason")
 		case service.ErrJudgeQualificationRequired:
-			c.JSON(http.StatusForbidden, gin.H{"code": "JUDGE_QUALIFICATION_REQUIRED", "message": "judge qualification required"})
+			response.Error(c, http.StatusForbidden, "JUDGE_QUALIFICATION_REQUIRED", "judge qualification required")
 		default:
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}
@@ -238,7 +238,7 @@ func (h *JudgeHandler) CreateQuestions(c *gin.Context) {
 		return nil
 	}); err != nil {
 		if err == errAdminAuditWriteFailed {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)

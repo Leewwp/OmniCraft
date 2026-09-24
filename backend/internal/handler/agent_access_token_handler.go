@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -26,12 +27,12 @@ func NewAgentAccessTokenHandler(svc *service.AgentAccessTokenService) *AgentAcce
 func (h *AgentAccessTokenHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "authentication required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
 		return
 	}
 	tokens, err := h.svc.List(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to list tokens"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to list tokens")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"tokens": tokens})
@@ -47,12 +48,12 @@ type createAgentTokenRequest struct {
 func (h *AgentAccessTokenHandler) Create(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "authentication required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
 		return
 	}
 	var req createAgentTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid request body"})
+		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
 		return
 	}
 	issued, err := h.svc.Issue(c.Request.Context(), userID, req.Name, req.Scopes)
@@ -60,11 +61,11 @@ func (h *AgentAccessTokenHandler) Create(c *gin.Context) {
 		switch {
 		case errors.Is(err, service.ErrAgentTokenNameInvalid),
 			errors.Is(err, service.ErrAgentTokenScopesInvalid):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "AGENT_TOKEN_INVALID", "message": "invalid token name or scopes"})
+			response.Error(c, http.StatusBadRequest, "AGENT_TOKEN_INVALID", "invalid token name or scopes")
 		case errors.Is(err, service.ErrAgentTokenLimitReached):
-			c.JSON(http.StatusConflict, gin.H{"code": "AGENT_TOKEN_LIMIT_REACHED", "message": "too many active tokens, revoke one first"})
+			response.Error(c, http.StatusConflict, "AGENT_TOKEN_LIMIT_REACHED", "too many active tokens, revoke one first")
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to create token"})
+			response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to create token")
 		}
 		return
 	}
@@ -78,20 +79,20 @@ func (h *AgentAccessTokenHandler) Create(c *gin.Context) {
 func (h *AgentAccessTokenHandler) Revoke(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "authentication required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
 		return
 	}
 	tokenID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid token id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid token id")
 		return
 	}
 	if err := h.svc.Revoke(c.Request.Context(), userID, tokenID); err != nil {
 		if errors.Is(err, service.ErrAgentTokenNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "AGENT_TOKEN_NOT_FOUND", "message": "token not found"})
+			response.Error(c, http.StatusNotFound, "AGENT_TOKEN_NOT_FOUND", "token not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to revoke token"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to revoke token")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "revoked"})

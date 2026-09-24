@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 	"strconv"
 
@@ -34,7 +35,7 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 		} `json:"attachment_grants"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": "Invalid request body"})
+		response.Error(c, http.StatusBadRequest, "INVALID_BODY", "Invalid request body")
 		return
 	}
 
@@ -70,28 +71,28 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFeedbackInvalidCategory):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_CATEGORY", "message": "Invalid feedback category"})
+			response.Error(c, http.StatusBadRequest, "INVALID_CATEGORY", "Invalid feedback category")
 		case errors.Is(err, service.ErrFeedbackTitleAndDescriptionReq):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Title and description are required"})
+			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Title and description are required")
 		case errors.Is(err, service.ErrFeedbackTitleTooLong):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Title must not exceed 160 characters"})
+			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Title must not exceed 160 characters")
 		case errors.Is(err, service.ErrFeedbackContactEmailRequired):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "CONTACT_EMAIL_REQUIRED", "message": "Contact email is required for anonymous submissions"})
+			response.Error(c, http.StatusBadRequest, "CONTACT_EMAIL_REQUIRED", "Contact email is required for anonymous submissions")
 		case errors.Is(err, service.ErrFeedbackCaptchaRequired):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_REQUIRED", "message": "Captcha verification is required for anonymous submissions"})
+			response.Error(c, http.StatusBadRequest, "CAPTCHA_REQUIRED", "Captcha verification is required for anonymous submissions")
 		case errors.Is(err, service.ErrFeedbackCaptchaFailed):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_FAILED", "message": "Captcha verification failed"})
+			response.Error(c, http.StatusBadRequest, "CAPTCHA_FAILED", "Captcha verification failed")
 		case errors.Is(err, service.ErrFeedbackUploadGrantInvalid):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "UPLOAD_GRANT_INVALID", "message": "Screenshot upload grant is invalid or has already been used"})
+			response.Error(c, http.StatusBadRequest, "UPLOAD_GRANT_INVALID", "Screenshot upload grant is invalid or has already been used")
 		case errors.Is(err, service.ErrFeedbackAttachmentBlocked):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_BLOCKED", "message": "Attachment image was rejected by content moderation"})
+			response.Error(c, http.StatusBadRequest, "ATTACHMENT_BLOCKED", "Attachment image was rejected by content moderation")
 		case errors.Is(err, service.ErrFeedbackAttachmentModerationUnavailable):
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "ATTACHMENT_MODERATION_UNAVAILABLE", "message": "Attachment image moderation is temporarily unavailable, please retry without attachments"})
+			response.Error(c, http.StatusServiceUnavailable, "ATTACHMENT_MODERATION_UNAVAILABLE", "Attachment image moderation is temporarily unavailable, please retry without attachments")
 		case errors.Is(err, service.ErrUploadGrantUnavailable):
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "UPLOAD_GRANT_UNAVAILABLE", "message": "Screenshot upload grants are temporarily unavailable"})
+			response.Error(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", "Screenshot upload grants are temporarily unavailable")
 		default:
 			slog.Error("failed to submit feedback", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to submit feedback"})
+			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to submit feedback")
 		}
 		return
 	}
@@ -107,7 +108,7 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 		CaptchaToken string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": "Invalid request body"})
+		response.Error(c, http.StatusBadRequest, "INVALID_BODY", "Invalid request body")
 		return
 	}
 
@@ -131,21 +132,21 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFeedbackCaptchaRequired):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_REQUIRED", "message": "Captcha verification is required for anonymous uploads"})
+			response.Error(c, http.StatusBadRequest, "CAPTCHA_REQUIRED", "Captcha verification is required for anonymous uploads")
 		case errors.Is(err, service.ErrFeedbackCaptchaFailed):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_FAILED", "message": "Captcha verification failed"})
+			response.Error(c, http.StatusBadRequest, "CAPTCHA_FAILED", "Captcha verification failed")
 		case errors.Is(err, service.ErrFeedbackInvalidMimeType):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_MIME_TYPE", "message": "Only image uploads are supported for feedback screenshots"})
+			response.Error(c, http.StatusBadRequest, "INVALID_MIME_TYPE", "Only image uploads are supported for feedback screenshots")
 		case errors.Is(err, service.ErrFeedbackFileTooLarge):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "FILE_TOO_LARGE", "message": "Screenshot must be smaller than 20MB"})
+			response.Error(c, http.StatusBadRequest, "FILE_TOO_LARGE", "Screenshot must be smaller than 20MB")
 		case errors.Is(err, service.ErrUploadGrantUnavailable):
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "UPLOAD_GRANT_UNAVAILABLE", "message": "Screenshot upload grants are temporarily unavailable"})
+			response.Error(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", "Screenshot upload grants are temporarily unavailable")
 		default:
 			if errors.Is(err, service.ErrOSSNotConfigured) {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "OSS upload is not configured"})
+				response.Error(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", "OSS upload is not configured")
 			} else {
 				slog.Error("failed to generate upload grant", "error", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to generate upload grant"})
+				response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to generate upload grant")
 			}
 		}
 		return
@@ -162,7 +163,7 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
 	userID, exists := c.Get(middleware.UserIDKey)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "Authentication required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
@@ -171,7 +172,7 @@ func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
 
 	tickets, total, err := h.feedbackService.ListUserTickets(c.Request.Context(), userID.(int64), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to list feedback tickets"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list feedback tickets")
 		return
 	}
 
@@ -186,13 +187,13 @@ func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
 func (h *FeedbackHandler) GetTicket(c *gin.Context) {
 	userID, exists := c.Get(middleware.UserIDKey)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "Authentication required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "Invalid ticket ID"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
 		return
 	}
 
@@ -200,12 +201,12 @@ func (h *FeedbackHandler) GetTicket(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrFeedbackTicketNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "Feedback ticket not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
 		case errors.Is(err, service.ErrFeedbackForbidden):
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "You can only view your own tickets"})
+			response.Error(c, http.StatusForbidden, "FORBIDDEN", "You can only view your own tickets")
 		default:
 			slog.Error("failed to get feedback ticket", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to get feedback ticket"})
+			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get feedback ticket")
 		}
 		return
 	}

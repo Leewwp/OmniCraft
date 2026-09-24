@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"strconv"
 	"strings"
 
@@ -78,7 +79,7 @@ func (h *AdminArchiveScanHandler) GetJob(c *gin.Context) {
 	}
 	attempts, err := h.repo.ListAttemptsByJob(c.Request.Context(), jobID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load scan attempts"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load scan attempts")
 		return
 	}
 	entry := archiveScanAuditEntry(c, "archive_scan_view", jobID, map[string]any{"job_id": jobID})
@@ -113,12 +114,12 @@ func (h *AdminArchiveScanHandler) StartManualReview(c *gin.Context) {
 		Reason string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.Reason) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "REVIEW_REASON_REQUIRED", "message": "review reason is required"})
+		response.Error(c, http.StatusBadRequest, "REVIEW_REASON_REQUIRED", "review reason is required")
 		return
 	}
 	reason := strings.TrimSpace(body.Reason)
 	if h.objects == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "ARCHIVE_OBJECT_STORE_UNAVAILABLE", "message": "archive object store is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_OBJECT_STORE_UNAVAILABLE", "archive object store is unavailable")
 		return
 	}
 	job, err := h.repo.GetJob(c.Request.Context(), jobID)
@@ -133,24 +134,24 @@ func (h *AdminArchiveScanHandler) StartManualReview(c *gin.Context) {
 	}
 	present, err := h.objects.Exists(strings.TrimSpace(attachment.OSSKey))
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "ARCHIVE_QUARANTINE_CLEANUP_UNKNOWN", "message": "archive cleanup state is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_QUARANTINE_CLEANUP_UNKNOWN", "archive cleanup state is unavailable")
 		return
 	}
 	if present {
-		c.JSON(http.StatusConflict, gin.H{"code": "ARCHIVE_QUARANTINE_CLEANUP_PENDING", "message": "archive quarantine cleanup is pending"})
+		response.Error(c, http.StatusConflict, "ARCHIVE_QUARANTINE_CLEANUP_PENDING", "archive quarantine cleanup is pending")
 		return
 	}
 	if strings.TrimSpace(job.QuarantineKey) == "" {
-		c.JSON(http.StatusConflict, gin.H{"code": "ARCHIVE_QUARANTINE_MISSING", "message": "archive quarantine object is unavailable"})
+		response.Error(c, http.StatusConflict, "ARCHIVE_QUARANTINE_MISSING", "archive quarantine object is unavailable")
 		return
 	}
 	quarantined, err := h.objects.Exists(strings.TrimSpace(job.QuarantineKey))
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "ARCHIVE_QUARANTINE_CLEANUP_UNKNOWN", "message": "archive cleanup state is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_QUARANTINE_CLEANUP_UNKNOWN", "archive cleanup state is unavailable")
 		return
 	}
 	if !quarantined {
-		c.JSON(http.StatusConflict, gin.H{"code": "ARCHIVE_QUARANTINE_MISSING", "message": "archive quarantine object is unavailable"})
+		response.Error(c, http.StatusConflict, "ARCHIVE_QUARANTINE_MISSING", "archive quarantine object is unavailable")
 		return
 	}
 	entry := archiveScanAuditEntry(c, "archive_scan_manual_review", jobID, map[string]any{
@@ -176,16 +177,16 @@ func (h *AdminArchiveScanHandler) ResolveManualReview(c *gin.Context) {
 		Reason  string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": "invalid request body"})
+		response.Error(c, http.StatusBadRequest, "INVALID_BODY", "invalid request body")
 		return
 	}
 	body.Outcome = strings.TrimSpace(body.Outcome)
 	if body.Outcome != model.ScanStatusClean && body.Outcome != model.ScanStatusBlocked {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_OUTCOME", "message": "outcome must be clean or blocked"})
+		response.Error(c, http.StatusBadRequest, "INVALID_OUTCOME", "outcome must be clean or blocked")
 		return
 	}
 	if strings.TrimSpace(body.Reason) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "REVIEW_REASON_REQUIRED", "message": "review reason is required"})
+		response.Error(c, http.StatusBadRequest, "REVIEW_REASON_REQUIRED", "review reason is required")
 		return
 	}
 	if h.audit == nil {
@@ -193,7 +194,7 @@ func (h *AdminArchiveScanHandler) ResolveManualReview(c *gin.Context) {
 		return
 	}
 	if body.Outcome == model.ScanStatusClean && h.objects == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "ARCHIVE_OBJECT_STORE_UNAVAILABLE", "message": "archive object store is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_OBJECT_STORE_UNAVAILABLE", "archive object store is unavailable")
 		return
 	}
 	reason := strings.TrimSpace(body.Reason)
@@ -346,25 +347,25 @@ func (h *AdminArchiveScanHandler) withArchiveScanAuditTx(c *gin.Context, entry s
 func (h *AdminArchiveScanHandler) respondArchiveScanError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, errArchiveRestoreRollbackFailed):
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "ARCHIVE_RESTORE_ROLLBACK_FAILED", "message": "archive restore rollback failed"})
+		response.Error(c, http.StatusInternalServerError, "ARCHIVE_RESTORE_ROLLBACK_FAILED", "archive restore rollback failed")
 	case errors.Is(err, errAdminAuditWriteFailed):
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 	case errors.Is(err, errAdminAuditUnavailable):
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "AUDIT_UNAVAILABLE", "message": "audit service is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "AUDIT_UNAVAILABLE", "audit service is unavailable")
 	case errors.Is(err, repository.ErrArchiveScanNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "archive scan job not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "archive scan job not found")
 	case errors.Is(err, repository.ErrArchiveScanIllegalState):
-		c.JSON(http.StatusConflict, gin.H{"code": "ARCHIVE_SCAN_ILLEGAL_STATE", "message": "archive scan state transition is not allowed"})
+		response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_ILLEGAL_STATE", "archive scan state transition is not allowed")
 	case errors.Is(err, repository.ErrArchiveScanRetryExhausted):
-		c.JSON(http.StatusConflict, gin.H{"code": "ARCHIVE_SCAN_RETRY_EXHAUSTED", "message": "archive scan retry budget is exhausted"})
+		response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_RETRY_EXHAUSTED", "archive scan retry budget is exhausted")
 	case errors.Is(err, errArchiveRestoreFailed):
-		c.JSON(http.StatusBadGateway, gin.H{"code": "ARCHIVE_RESTORE_FAILED", "message": "archive restore failed"})
+		response.Error(c, http.StatusBadGateway, "ARCHIVE_RESTORE_FAILED", "archive restore failed")
 	case errors.Is(err, errArchiveRestoreTargetExists):
-		c.JSON(http.StatusConflict, gin.H{"code": "ARCHIVE_RESTORE_TARGET_EXISTS", "message": "archive restore target already exists"})
+		response.Error(c, http.StatusConflict, "ARCHIVE_RESTORE_TARGET_EXISTS", "archive restore target already exists")
 	case errors.Is(err, errArchiveScanCompletionFailed):
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "ARCHIVE_SCAN_COMPLETION_FAILED", "message": "archive scan completion could not be applied"})
+		response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_SCAN_COMPLETION_FAILED", "archive scan completion could not be applied")
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "archive scan operation failed"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "archive scan operation failed")
 	}
 }
 
@@ -377,7 +378,7 @@ var errArchiveScanCompletionFailed = errors.New("archive scan completion failed"
 func parseArchiveScanJobID(c *gin.Context) (int64, bool) {
 	jobID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || jobID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid archive scan job id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid archive scan job id")
 		return 0, false
 	}
 	return jobID, true

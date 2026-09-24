@@ -31,7 +31,7 @@ func (h *CollabInviteHandler) SendInvite(c *gin.Context) {
 
 	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *CollabInviteHandler) AcceptInvite(c *gin.Context) {
 
 	inviteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid invite id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid invite id")
 		return
 	}
 
@@ -85,7 +85,7 @@ func (h *CollabInviteHandler) DeclineInvite(c *gin.Context) {
 
 	inviteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid invite id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid invite id")
 		return
 	}
 

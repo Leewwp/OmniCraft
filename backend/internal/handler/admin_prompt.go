@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 
@@ -38,14 +39,14 @@ type adminPromptSlotView struct {
 	RequiredPlaceholders []string `json:"required_placeholders"`
 	ProductionVersion    int      `json:"production_version"`
 	StagingVersion       int      `json:"staging_version"`
-	LatestVersion        int       `json:"latest_version"`
+	LatestVersion        int      `json:"latest_version"`
 }
 
 // ListSlots returns every registry slot with its current label pointers.
 func (h *AdminPromptHandler) ListSlots(c *gin.Context) {
 	labels, err := h.repo.ListAllLabels(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load prompt labels"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load prompt labels")
 		return
 	}
 	pointer := map[string]map[string]int{}
@@ -79,17 +80,17 @@ func (h *AdminPromptHandler) ListSlots(c *gin.Context) {
 func (h *AdminPromptHandler) ListVersions(c *gin.Context) {
 	name := c.Param("name")
 	if _, ok := promptregistry.SlotByName(name); !ok {
-		c.JSON(http.StatusNotFound, gin.H{"code": "PROMPT_SLOT_NOT_FOUND", "message": "unknown prompt slot"})
+		response.Error(c, http.StatusNotFound, "PROMPT_SLOT_NOT_FOUND", "unknown prompt slot")
 		return
 	}
 	versions, err := h.repo.ListVersions(c.Request.Context(), name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load prompt versions"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load prompt versions")
 		return
 	}
 	labels, err := h.repo.ListLabels(c.Request.Context(), name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load prompt labels"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load prompt labels")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"versions": versions, "labels": labels})
@@ -106,21 +107,21 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 	name := c.Param("name")
 	slot, ok := promptregistry.SlotByName(name)
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"code": "PROMPT_SLOT_NOT_FOUND", "message": "unknown prompt slot"})
+		response.Error(c, http.StatusNotFound, "PROMPT_SLOT_NOT_FOUND", "unknown prompt slot")
 		return
 	}
 	var in createPromptVersionInput
 	if err := c.ShouldBindJSON(&in); err != nil || in.Content == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "content is required"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "content is required")
 		return
 	}
 	if err := promptregistry.ValidateTemplate(slot, in.Content); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "PROMPT_PLACEHOLDER_CONTRACT", "message": err.Error()})
+		response.Error(c, http.StatusUnprocessableEntity, "PROMPT_PLACEHOLDER_CONTRACT", err.Error())
 		return
 	}
 	latest, err := h.repo.LatestVersion(c.Request.Context(), name)
 	if err != nil && !errors.Is(err, repository.ErrPromptNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to resolve next version"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to resolve next version")
 		return
 	}
 	next := 1
@@ -129,7 +130,7 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 	}
 	placeholders, err := json.Marshal(slot.RequiredPlaceholders)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to snapshot placeholders"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to snapshot placeholders")
 		return
 	}
 	adminID := middleware.GetUserID(c)
@@ -144,10 +145,10 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 		// 并发创建同名下一版本（LatestVersion→CreateVersion 窗口）撞唯一约束：
 		// 版本行不可变、重试即可成功——语义是冲突而非故障，映射 409。
 		if errors.Is(err, repository.ErrPromptVersionExists) {
-			c.JSON(http.StatusConflict, gin.H{"code": "PROMPT_VERSION_EXISTS", "message": "prompt version already exists, retry to re-resolve next version"})
+			response.Error(c, http.StatusConflict, "PROMPT_VERSION_EXISTS", "prompt version already exists, retry to re-resolve next version")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to create prompt version"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to create prompt version")
 		return
 	}
 	if h.auditSvc != nil {
@@ -174,24 +175,24 @@ type setPromptLabelInput struct {
 func (h *AdminPromptHandler) SetLabel(c *gin.Context) {
 	name := c.Param("name")
 	if _, ok := promptregistry.SlotByName(name); !ok {
-		c.JSON(http.StatusNotFound, gin.H{"code": "PROMPT_SLOT_NOT_FOUND", "message": "unknown prompt slot"})
+		response.Error(c, http.StatusNotFound, "PROMPT_SLOT_NOT_FOUND", "unknown prompt slot")
 		return
 	}
 	var in setPromptLabelInput
 	if err := c.ShouldBindJSON(&in); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "label and version are required"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "label and version are required")
 		return
 	}
 	if in.Label != promptregistry.ProductionLabel && in.Label != "staging" {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "PROMPT_LABEL_INVALID", "message": "label must be production or staging"})
+		response.Error(c, http.StatusUnprocessableEntity, "PROMPT_LABEL_INVALID", "label must be production or staging")
 		return
 	}
 	if err := h.repo.SetLabel(c.Request.Context(), name, in.Label, in.Version); err != nil {
 		if errors.Is(err, repository.ErrPromptNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "PROMPT_VERSION_NOT_FOUND", "message": "prompt version not found"})
+			response.Error(c, http.StatusNotFound, "PROMPT_VERSION_NOT_FOUND", "prompt version not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to move prompt label"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to move prompt label")
 		return
 	}
 	if h.resolver != nil {

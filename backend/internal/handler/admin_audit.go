@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 	"strconv"
 	"time"
@@ -20,7 +21,7 @@ func NewAdminAuditHandler(auditSvc *service.AdminAuditService) *AdminAuditHandle
 func (h *AdminAuditHandler) ListAuditActions(c *gin.Context) {
 	actions, err := h.auditSvc.DistinctActions(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to list audit actions"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list audit actions")
 		return
 	}
 	if actions == nil {
@@ -62,7 +63,7 @@ func (h *AdminAuditHandler) ListAuditLogs(c *gin.Context) {
 
 	logs, total, err := h.auditSvc.List(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to list audit logs"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list audit logs")
 		return
 	}
 

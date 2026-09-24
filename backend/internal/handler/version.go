@@ -27,7 +27,7 @@ func NewVersionHandler(versionSvc *service.VersionService) *VersionHandler {
 func (h *VersionHandler) ListVersions(c *gin.Context) {
 	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
@@ -39,7 +39,7 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 	versions, total, err := h.versionSvc.ListVersionsPagedForViewer(contentID, page, pageSize, middleware.GetUserID(c), middleware.IsAdmin(c))
 	if err != nil {
 		if err == service.ErrContentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -59,7 +59,7 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 func (h *VersionHandler) GetVersion(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid version id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid version id")
 		return
 	}
 
@@ -70,7 +70,7 @@ func (h *VersionHandler) GetVersion(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case service.ErrVersionNotFound:
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "version not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "version not found")
 		case service.ErrVersionForbidden:
 			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
 		default:
