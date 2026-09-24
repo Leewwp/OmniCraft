@@ -270,7 +270,6 @@ reputation:
   score_quality_content: 3
   score_pr_merged: 3
   score_quality_comment: 2
-  score_tag_recognized: 1
   score_judge_accuracy: 1
   score_rehab_course: 1
   score_valid_report: 1

@@ -283,7 +283,6 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `reputation.score_quality_content` | `int` | Score values (positive = award, negative = penalty).
 Zero means "use the hardcoded default in reputation_service.go". |
 | `reputation.score_rehab_course` | `int` | ScoreRehabCourse |
-| `reputation.score_tag_recognized` | `int` | ScoreTagRecognized |
 | `reputation.score_valid_report` | `int` | ScoreValidReport |
 | `resilience.aux_cache.expander.enabled` | `bool` | Enabled |
 | `resilience.aux_cache.expander.ttl_sec` | `int` | TTLSec |
