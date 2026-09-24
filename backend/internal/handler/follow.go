@@ -36,13 +36,13 @@ func (h *FollowHandler) FollowUser(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
 		return
 	}
 	// SP-25 低-24：self-follow 拒绝；目标必须存在且未封禁（此前
 	// FirstOrCreate 无条件落行，可关注不存在/封禁用户留下悬挂关系）。
 	if callerID == targetID {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "SELF_FOLLOW_NOT_ALLOWED", "message": "cannot follow yourself"})
+		response.Error(c, http.StatusBadRequest, "SELF_FOLLOW_NOT_ALLOWED", "cannot follow yourself")
 		return
 	}
 	exists, banned, err := h.followRepo.FollowTargetStatus("user", targetID)
@@ -51,11 +51,11 @@ func (h *FollowHandler) FollowUser(c *gin.Context) {
 		return
 	}
 	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "target user not found"})
+		response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "target user not found")
 		return
 	}
 	if banned {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "USER_BANNED", "message": "target user is banned"})
+		response.Error(c, http.StatusBadRequest, "USER_BANNED", "target user is banned")
 		return
 	}
 	if err := h.followRepo.Follow(callerID, "user", targetID); err != nil {
@@ -72,7 +72,7 @@ func (h *FollowHandler) UnfollowUser(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
 		return
 	}
 	if err := h.followRepo.Unfollow(callerID, "user", targetID); err != nil {
@@ -86,7 +86,7 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
 		return
 	}
 	// SP-25 低-24：IP 目标存在性校验（防悬挂关注关系）。
@@ -96,7 +96,7 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 		return
 	}
 	if !ipExists {
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "target ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "target ip not found")
 		return
 	}
 	if err := h.followRepo.Follow(callerID, "ip", ipID); err != nil {
@@ -111,7 +111,7 @@ func (h *FollowHandler) UnfollowIP(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
 		return
 	}
 	if err := h.followRepo.Unfollow(callerID, "ip", ipID); err != nil {
@@ -126,7 +126,7 @@ func (h *FollowHandler) GetFollowers(c *gin.Context) {
 	page, pageSize := pageQuery(c, 20)
 	users, total, err := h.followRepo.GetFollowers("user", targetID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "database error")
 		return
 	}
 	h.displaySigner.DecorateUsers(users)
@@ -138,7 +138,7 @@ func (h *FollowHandler) GetFollowing(c *gin.Context) {
 	page, pageSize := pageQuery(c, 20)
 	follows, total, err := h.followRepo.GetFollowing(targetID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "database error")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"following": follows, "total": total})
@@ -147,7 +147,7 @@ func (h *FollowHandler) GetFollowing(c *gin.Context) {
 func (h *FollowHandler) GetFollowerStats(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	days, _ := strconv.Atoi(c.DefaultQuery("days", "30"))
@@ -156,7 +156,7 @@ func (h *FollowHandler) GetFollowerStats(c *gin.Context) {
 	}
 	stats, err := h.followRepo.GetFollowerStats(userID, days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "database error")
 		return
 	}
 	c.JSON(http.StatusOK, stats)

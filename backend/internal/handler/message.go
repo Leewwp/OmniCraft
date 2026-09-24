@@ -155,13 +155,13 @@ func (h *MessageHandler) ListMessages(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
 		return
 	}
 
 	ok, _ := h.msgRepo.IsParticipant(callerID, convID)
 	if !ok {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN"})
+		response.CodeOnly(c, http.StatusForbidden, "FORBIDDEN")
 		return
 	}
 
@@ -180,11 +180,11 @@ func (h *MessageHandler) DeleteMessage(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	msgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
 		return
 	}
 	if err := h.msgRepo.DeleteMessage(msgID, callerID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "database error")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -194,11 +194,11 @@ func (h *MessageHandler) LeaveConversation(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
 		return
 	}
 	if err := h.msgRepo.LeaveConversation(convID, callerID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "database error")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "left conversation"})

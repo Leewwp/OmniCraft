@@ -102,7 +102,7 @@ func (h *IPHandler) ListIPs(c *gin.Context) {
 func (h *IPHandler) GetMyIPs(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 
@@ -126,7 +126,7 @@ func (h *IPHandler) GetMyIPs(c *gin.Context) {
 func (h *IPHandler) CreateIP(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 	ip, err := h.ipSvc.CreateIP(c.Request.Context(), input, callerID)
 	if err != nil {
 		if errors.Is(err, service.ErrIPSlugTaken) {
-			c.JSON(http.StatusConflict, gin.H{"code": "IP_SLUG_TAKEN", "message": "could not derive a unique slug for this name, try a different name"})
+			response.Error(c, http.StatusConflict, "IP_SLUG_TAKEN", "could not derive a unique slug for this name, try a different name")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
@@ -168,21 +168,21 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 func (h *IPHandler) GetIP(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
 		return
 	}
 
 	ip, err := h.ipSvc.GetIP(id)
 	if err != nil {
 		if err == service.ErrIPNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+			response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	if !ipVisibleToViewer(c, ip) {
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
 	}
 
@@ -241,21 +241,21 @@ func (h *IPHandler) hubStats(ipID int64) ipHubStats {
 func (h *IPHandler) GetIPContents(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
 		return
 	}
 
 	ip, err := h.ipSvc.GetIP(id)
 	if err != nil {
 		if err == service.ErrIPNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+			response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	if !ipVisibleToViewer(c, ip) {
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
 	}
 

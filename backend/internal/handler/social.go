@@ -53,7 +53,7 @@ func (h *SocialHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
 func (h *SocialHandler) PostComment(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	var input service.PostCommentInput
@@ -86,21 +86,21 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid comment id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid comment id")
 		return
 	}
 	// 错误风格与 EditComment 对齐（FIX-31b/F-093）：404/403 专用码，不再落
 	// 400 "ERROR" 通配透传底层错误。
 	if err := h.socialSvc.DeleteComment(id, callerID); err != nil {
 		if err == service.ErrCommentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "comment not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "comment not found")
 			return
 		}
 		if err == service.ErrCommentForbidden {
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not comment author"})
+			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not comment author")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "database error")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -110,7 +110,7 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid comment id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid comment id")
 		return
 	}
 	var body struct {
@@ -123,11 +123,11 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 	comment, err := h.socialSvc.EditComment(c.Request.Context(), id, callerID, body.Body)
 	if err != nil {
 		if err == service.ErrCommentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "comment not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "comment not found")
 			return
 		}
 		if err == service.ErrCommentForbidden {
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not comment author"})
+			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not comment author")
 			return
 		}
 		if err == service.ErrTextBlocked {
@@ -138,7 +138,7 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "database error")
 		return
 	}
 	h.displaySigner.DecorateComment(comment)
@@ -152,7 +152,7 @@ func (h *SocialHandler) ListComments(c *gin.Context) {
 	}
 	contentID, err := strconv.ParseInt(contentIDStr, 10, 64)
 	if err != nil || contentID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "content_item_id required"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "content_item_id required")
 		return
 	}
 	var parentID *int64
@@ -192,7 +192,7 @@ func (h *SocialHandler) ListDiscussions(c *gin.Context) {
 func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	var input service.PostDiscussionInput
@@ -224,18 +224,18 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 func (h *SocialHandler) GetDiscussion(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid discussion id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid discussion id")
 		return
 	}
 	d, err := h.socialSvc.GetDiscussion(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
 		return
 	}
 	// #446/SP-16 P0：与 /discussions/:id 同口径（T12/F-106）——未发布
 	// （under_review/hidden）讨论不透出详情，此前 social 路径漏了这层门。
 	if d.Status != "published" {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
 		return
 	}
 	h.displaySigner.DecorateDiscussion(d)
@@ -245,7 +245,7 @@ func (h *SocialHandler) GetDiscussion(c *gin.Context) {
 func (h *SocialHandler) React(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	var input service.ReactInput
@@ -321,12 +321,12 @@ func reactionSnapshot(db *gorm.DB, userID int64, targetType string, targetID int
 func (h *SocialHandler) ReportContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 	var body struct {
@@ -339,7 +339,7 @@ func (h *SocialHandler) ReportContent(c *gin.Context) {
 	}
 	if err := h.socialSvc.Report("content", contentID, callerID, body.Reason, body.Detail); err != nil {
 		if err == service.ErrAlreadyReported {
-			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_REPORTED", "message": "you have already reported this content"})
+			response.Error(c, http.StatusConflict, "ALREADY_REPORTED", "you have already reported this content")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -351,12 +351,12 @@ func (h *SocialHandler) ReportContent(c *gin.Context) {
 func (h *SocialHandler) ReportComment(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	commentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid comment id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid comment id")
 		return
 	}
 	var body struct {
@@ -369,7 +369,7 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 	}
 	if err := h.socialSvc.Report("comment", commentID, callerID, body.Reason, body.Detail); err != nil {
 		if err == service.ErrAlreadyReported {
-			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_REPORTED", "message": "you have already reported this comment"})
+			response.Error(c, http.StatusConflict, "ALREADY_REPORTED", "you have already reported this comment")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -384,7 +384,7 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 func (h *SocialHandler) ListMyReports(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	page, pageSize := pageQuery(c, 20)

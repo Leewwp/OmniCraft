@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 )
 
@@ -21,18 +22,12 @@ func (h *StatsHandler) GetSummary(c *gin.Context) {
 	// 过滤、创作者 = 区内去重作者数）；缺省维持全局语义（向后兼容）。
 	zone := c.Query("zone")
 	if !service.ValidStatsZone(zone) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    "INVALID_PARAM",
-			"message": "zone must be original or fanwork",
-		})
+		response.Error(c, http.StatusBadRequest, "INVALID_PARAM", "zone must be original or fanwork")
 		return
 	}
 	summary, err := h.svc.GetSummaryForZone(c.Request.Context(), zone)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    "INTERNAL_ERROR",
-			"message": "Failed to load stats",
-		})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to load stats")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

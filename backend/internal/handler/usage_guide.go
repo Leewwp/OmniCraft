@@ -34,7 +34,7 @@ const usageGuideCacheControl = "public, max-age=60, s-maxage=300"
 func (h *UsageGuideHandler) GetGuide(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
@@ -48,7 +48,7 @@ func (h *UsageGuideHandler) GetGuide(c *gin.Context) {
 		return
 	}
 	if content == nil || !h.guideVisibleToViewer(c, content) {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 		return
 	}
 
@@ -71,7 +71,7 @@ func (h *UsageGuideHandler) GetGuide(c *gin.Context) {
 func (h *UsageGuideHandler) SaveGuide(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 	var input service.UsageGuideInput
@@ -96,7 +96,7 @@ func (h *UsageGuideHandler) SaveGuide(c *gin.Context) {
 func (h *UsageGuideHandler) GetAuthorGuide(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 	row, err := h.guideSvc.GetSpecifics(c.Request.Context(), middleware.GetUserID(c), id, c.Query("locale"))
@@ -110,11 +110,11 @@ func (h *UsageGuideHandler) GetAuthorGuide(c *gin.Context) {
 func (h *UsageGuideHandler) mapUsageGuideError(c *gin.Context, err error) {
 	switch err {
 	case service.ErrUsageGuideContentNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 	case service.ErrUsageGuideForbidden:
 		response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
 	case service.ErrUsageGuideInvalidLocale, service.ErrUsageGuideInvalidPayload:
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 	default:
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 	}

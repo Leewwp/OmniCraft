@@ -102,7 +102,7 @@ func (h *CategoryHandler) AdminCreateCategory(c *gin.Context) {
 func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid category id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid category id")
 		return
 	}
 	var updates map[string]interface{}
@@ -144,7 +144,7 @@ func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
 func (h *CategoryHandler) AdminDeleteCategory(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid category id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid category id")
 		return
 	}
 	entry := h.auditEntry(c, "category_delete", "category", strconv.FormatInt(id, 10), map[string]any{"category_id": id})
@@ -222,7 +222,7 @@ func (h *CategoryHandler) withAuditTx(c *gin.Context, entry *service.RecordAdmin
 
 func respondCategoryAuditError(c *gin.Context, err error) bool {
 	if errors.Is(err, errAdminAuditWriteFailed) {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 		return true
 	}
 	return false

@@ -94,12 +94,12 @@ func clearRefreshCookie(c *gin.Context, cfg *config.Config) {
 
 func (h *AuthHandler) verifyCaptcha(c *gin.Context, token string) bool {
 	if token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_REQUIRED", "message": "captcha verification required"})
+		response.Error(c, http.StatusBadRequest, "CAPTCHA_REQUIRED", "captcha verification required")
 		return false
 	}
 	if h.captchaVerifier != nil {
 		if err := h.captchaVerifier.Verify(c.Request.Context(), token, c.ClientIP()); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_FAILED", "message": "captcha verification failed"})
+			response.Error(c, http.StatusBadRequest, "CAPTCHA_FAILED", "captcha verification failed")
 			return false
 		}
 	}
@@ -130,7 +130,7 @@ func (h *AuthHandler) captchaRequiredForLogin(c *gin.Context, email string) (boo
 		return false, true
 	}
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, service.DenialReasonAuthStatusUnavailable, "account status is temporarily unavailable")
 		return false, false
 	}
 	failures, err := strconv.Atoi(raw)
@@ -169,11 +169,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	if h.cfg.Legal.CurrentTermsVersion != "" && input.AcceptedTermsVersion != h.cfg.Legal.CurrentTermsVersion {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "TERMS_VERSION_MISMATCH", "message": "accepted terms version does not match current version"})
+		response.Error(c, http.StatusBadRequest, "TERMS_VERSION_MISMATCH", "accepted terms version does not match current version")
 		return
 	}
 	if h.cfg.Legal.CurrentPrivacyVersion != "" && input.AcceptedPrivacyVersion != h.cfg.Legal.CurrentPrivacyVersion {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "PRIVACY_VERSION_MISMATCH", "message": "accepted privacy version does not match current version"})
+		response.Error(c, http.StatusBadRequest, "PRIVACY_VERSION_MISMATCH", "accepted privacy version does not match current version")
 		return
 	}
 
@@ -181,14 +181,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	regID, err := h.authService.RegisterPending(c.Request.Context(), input)
 	if err != nil {
 		if errors.Is(err, service.ErrUserAlreadyExists) {
-			c.JSON(http.StatusConflict, gin.H{"code": "USER_EXISTS", "message": "email already registered"})
+			response.Error(c, http.StatusConflict, "USER_EXISTS", "email already registered")
 			return
 		}
 		if errors.Is(err, service.ErrUsernameTaken) {
-			c.JSON(http.StatusConflict, gin.H{"code": "USERNAME_TAKEN", "message": "username already taken"})
+			response.Error(c, http.StatusConflict, "USERNAME_TAKEN", "username already taken")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to register user"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to register user")
 		return
 	}
 
@@ -201,7 +201,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		if pending != nil {
 			_ = h.authService.DeletePendingRegistration(c.Request.Context(), regID, pending)
 		}
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "EMAIL_SEND_FAILED", "message": "verification email could not be sent"})
+		response.Error(c, http.StatusServiceUnavailable, "EMAIL_SEND_FAILED", "verification email could not be sent")
 		return
 	}
 
@@ -231,24 +231,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			h.recordLoginFailure(c, input.Email)
-			c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_CREDENTIALS", "message": "invalid email or password"})
+			response.Error(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid email or password")
 			return
 		}
 		if errors.Is(err, service.ErrUserBanned) {
-			c.JSON(http.StatusForbidden, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
+			response.Error(c, http.StatusForbidden, service.DenialReasonUserBanned, "account has been banned")
 			return
 		}
 		if errors.Is(err, service.ErrEmailNotVerified) {
-			c.JSON(http.StatusForbidden, gin.H{"code": service.DenialReasonEmailNotVerified, "message": "email verification required before login"})
+			response.Error(c, http.StatusForbidden, service.DenialReasonEmailNotVerified, "email verification required before login")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to login"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to login")
 		return
 	}
 
 	capabilities, capabilityErrCode := buildAuthCapabilities(user, h.cfg)
 	if capabilityErrCode != "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": capabilityErrCode, "message": "interaction status is temporarily unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, capabilityErrCode, "interaction status is temporarily unavailable")
 		return
 	}
 
@@ -276,7 +276,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) == 2 {
 		if err := h.authService.Logout(parts[1]); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to logout"})
+			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to logout")
 			return
 		}
 	}
@@ -294,14 +294,14 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	refreshToken, _ := c.Cookie(refreshCookieName(h.cfg))
 
 	if refreshToken == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "missing refresh token"})
+		response.Error(c, http.StatusUnauthorized, "INVALID_TOKEN", "missing refresh token")
 		return
 	}
 
 	tokens, err := h.authService.RefreshToken(refreshToken)
 	if err != nil {
 		clearRefreshCookie(c, h.cfg)
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired refresh token"})
+		response.Error(c, http.StatusUnauthorized, "INVALID_TOKEN", "invalid or expired refresh token")
 		return
 	}
 
@@ -332,20 +332,20 @@ func (h *AuthHandler) selfUserPayload(user *model.User) (map[string]any, error) 
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "not authenticated"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "not authenticated")
 		return
 	}
 
 	user, err := h.userRepo.FindByID(userID)
 	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 		return
 	}
 
 	csrfToken := middleware.GetCSRFToken(c)
 	capabilities, capabilityErrCode := buildAuthCapabilities(user, h.cfg)
 	if capabilityErrCode != "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": capabilityErrCode, "message": "interaction status is temporarily unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, capabilityErrCode, "interaction status is temporarily unavailable")
 		return
 	}
 	c.Header("X-CSRF-Token", csrfToken)
@@ -373,7 +373,7 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		CaptchaToken string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "email required"})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "email required")
 		return
 	}
 	if !h.verifyCaptcha(c, body.CaptchaToken) {
@@ -391,31 +391,31 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		NewPassword string `json:"new_password" binding:"required,max=72"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "token and new_password required (max 72 characters)"})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "token and new_password required (max 72 characters)")
 		return
 	}
 
 	userID, err := h.verificationService.ResetPassword(c.Request.Context(), body.Token, body.NewPassword)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidToken) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired reset token"})
+			response.Error(c, http.StatusBadRequest, "INVALID_TOKEN", "invalid or expired reset token")
 			return
 		}
 		if errors.Is(err, service.ErrPasswordTooShort) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_SHORT", "message": "password does not meet minimum length requirement"})
+			response.Error(c, http.StatusBadRequest, "PASSWORD_TOO_SHORT", "password does not meet minimum length requirement")
 			return
 		}
 		if errors.Is(err, service.ErrPasswordTooLong) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_LONG", "message": "password exceeds the 72-byte maximum length"})
+			response.Error(c, http.StatusBadRequest, "PASSWORD_TOO_LONG", "password exceeds the 72-byte maximum length")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to reset password"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to reset password")
 		return
 	}
 
 	user, err := h.userRepo.FindByID(userID)
 	if err != nil || user == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to establish session"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to establish session")
 		return
 	}
 	// 忘记密码/重置是账号疑似被盗后的标准恢复动作——签发新会话前撤销该用户
@@ -424,7 +424,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	invalidateUserTokens(h.rdb, int64(user.ID))
 	tokens, err := h.authService.IssueTokenPairForUser(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to establish session"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to establish session")
 		return
 	}
 
@@ -443,16 +443,16 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 		Token string `json:"token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "token required"})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "token required")
 		return
 	}
 
 	if err := h.verificationService.VerifyEmail(c.Request.Context(), body.Token); err != nil {
 		if errors.Is(err, service.ErrInvalidToken) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired verification token"})
+			response.Error(c, http.StatusBadRequest, "INVALID_TOKEN", "invalid or expired verification token")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to verify email"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to verify email")
 		return
 	}
 
@@ -465,7 +465,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 		CaptchaToken string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "email required"})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "email required")
 		return
 	}
 	if !h.verifyCaptcha(c, body.CaptchaToken) {
@@ -479,10 +479,10 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	if err == nil && pending != nil {
 		if err := h.verificationService.SendVerificationForPending(c.Request.Context(), regID, pending.Email); err != nil {
 			if errors.Is(err, service.ErrResendCooldown) {
-				c.JSON(http.StatusTooManyRequests, gin.H{"code": "RESEND_COOLDOWN", "message": "please wait before requesting another verification email"})
+				response.Error(c, http.StatusTooManyRequests, "RESEND_COOLDOWN", "please wait before requesting another verification email")
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to send verification email"})
+			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to send verification email")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})
@@ -503,10 +503,10 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 
 	if err := h.verificationService.SendVerification(c.Request.Context(), user); err != nil {
 		if errors.Is(err, service.ErrResendCooldown) {
-			c.JSON(http.StatusTooManyRequests, gin.H{"code": "RESEND_COOLDOWN", "message": "please wait before requesting another verification email"})
+			response.Error(c, http.StatusTooManyRequests, "RESEND_COOLDOWN", "please wait before requesting another verification email")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to send verification email"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to send verification email")
 		return
 	}
 

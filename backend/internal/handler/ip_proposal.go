@@ -24,7 +24,7 @@ func NewIPProposalHandler(svc *service.IPProposalService) *IPProposalHandler {
 func (h *IPProposalHandler) ListProposals(c *gin.Context) {
 	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
 		return
 	}
 	status := c.Query("status") // open | adopted | rejected | all | "" (history)
@@ -36,7 +36,7 @@ func (h *IPProposalHandler) ListProposals(c *gin.Context) {
 	views, total, err := h.svc.ListProposals(c.Request.Context(), ipID, status, query, page, pageSize, viewerID)
 	if err != nil {
 		if err == service.ErrIPNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+			response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -56,7 +56,7 @@ func (h *IPProposalHandler) ListProposals(c *gin.Context) {
 func (h *IPProposalHandler) GetProposal(c *gin.Context) {
 	proposalID, err := strconv.ParseInt(c.Param("proposalId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid proposal id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid proposal id")
 		return
 	}
 	view, err := h.svc.GetProposal(c.Request.Context(), proposalID, middleware.GetUserID(c))
@@ -70,12 +70,12 @@ func (h *IPProposalHandler) GetProposal(c *gin.Context) {
 func (h *IPProposalHandler) CreateProposal(c *gin.Context) {
 	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
 		return
 	}
 	var input service.CreateIPProposalInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid proposal payload"})
+		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "invalid proposal payload")
 		return
 	}
 	proposal, err := h.svc.CreateProposal(c.Request.Context(), ipID, middleware.GetUserID(c), input)
@@ -89,14 +89,14 @@ func (h *IPProposalHandler) CreateProposal(c *gin.Context) {
 func (h *IPProposalHandler) SubmitVote(c *gin.Context) {
 	proposalID, err := strconv.ParseInt(c.Param("proposalId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid proposal id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid proposal id")
 		return
 	}
 	var body struct {
 		Vote string `json:"vote"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || (body.Vote != "yes" && body.Vote != "no") {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "vote must be yes or no"})
+		response.Error(c, http.StatusBadRequest, "INVALID_REQUEST", "vote must be yes or no")
 		return
 	}
 	if err := h.svc.SubmitVote(c.Request.Context(), proposalID, middleware.GetUserID(c), body.Vote); err != nil {
@@ -114,13 +114,13 @@ func (h *IPProposalHandler) SubmitVote(c *gin.Context) {
 func (h *IPProposalHandler) ListVersions(c *gin.Context) {
 	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
 		return
 	}
 	versions, err := h.svc.ListVersions(c.Request.Context(), ipID, middleware.GetUserID(c))
 	if err != nil {
 		if err == service.ErrIPNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+			response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -132,22 +132,22 @@ func (h *IPProposalHandler) ListVersions(c *gin.Context) {
 func (h *IPProposalHandler) mapError(c *gin.Context, err error) {
 	switch err {
 	case service.ErrProposalNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"code": "PROPOSAL_NOT_FOUND", "message": "proposal not found"})
+		response.Error(c, http.StatusNotFound, "PROPOSAL_NOT_FOUND", "proposal not found")
 	case service.ErrIPNotFound:
 		// #446：提案随 IP 可见性走——所属 IP 不可见时按 IP 不存在回应。
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 	case service.ErrProposalNotEligible:
-		c.JSON(http.StatusForbidden, gin.H{"code": "PROPOSAL_NOT_ELIGIBLE", "message": "reputation too low, or not following the ip (voting requires following)"})
+		response.Error(c, http.StatusForbidden, "PROPOSAL_NOT_ELIGIBLE", "reputation too low, or not following the ip (voting requires following)")
 	case service.ErrProposalOpenExists:
-		c.JSON(http.StatusConflict, gin.H{"code": "PROPOSAL_OPEN_EXISTS", "message": "an open proposal already exists for this ip"})
+		response.Error(c, http.StatusConflict, "PROPOSAL_OPEN_EXISTS", "an open proposal already exists for this ip")
 	case service.ErrProposalAlreadyVoted:
-		c.JSON(http.StatusConflict, gin.H{"code": "PROPOSAL_ALREADY_VOTED", "message": "already voted on this proposal"})
+		response.Error(c, http.StatusConflict, "PROPOSAL_ALREADY_VOTED", "already voted on this proposal")
 	case service.ErrProposalClosed:
-		c.JSON(http.StatusConflict, gin.H{"code": "PROPOSAL_CLOSED", "message": "proposal is closed"})
+		response.Error(c, http.StatusConflict, "PROPOSAL_CLOSED", "proposal is closed")
 	case service.ErrProposalTagConflict:
-		c.JSON(http.StatusBadRequest, gin.H{"code": "PROPOSAL_TAG_CONFLICT", "message": "tag change conflicts with current ip tags"})
+		response.Error(c, http.StatusBadRequest, "PROPOSAL_TAG_CONFLICT", "tag change conflicts with current ip tags")
 	case service.ErrProposalEmpty:
-		c.JSON(http.StatusBadRequest, gin.H{"code": "PROPOSAL_EMPTY", "message": "proposal must change at least one field"})
+		response.Error(c, http.StatusBadRequest, "PROPOSAL_EMPTY", "proposal must change at least one field")
 	default:
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 	}

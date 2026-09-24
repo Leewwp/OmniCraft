@@ -194,7 +194,7 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 func (h *ContentHandler) CreateContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 
@@ -289,14 +289,14 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 func (h *ContentHandler) GetContent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
 	content, err := h.contentSvc.GetContent(id)
 	if err != nil {
 		if err == service.ErrContentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -308,7 +308,7 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	// 内容可见性统一口径（FIX-12+43）：非 published / 私密 / 封禁作者的内容
 	// 仅作者与 admin 可读；判官读豁免钩子留待 T40（FIX-36d）。
 	if !h.contentVisibleToViewer(content, c) {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 		return
 	}
 
@@ -423,7 +423,7 @@ func (h *ContentHandler) visibleSourceLite(c *gin.Context, sourceID int64) (int6
 func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 	sourceID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
@@ -431,7 +431,7 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 	source, err := h.contentSvc.GetVisibleContent(sourceID, viewerID)
 	if err != nil {
 		if errors.Is(err, service.ErrContentNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -549,13 +549,13 @@ func parseCSVQuery(raw string) []string {
 func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
@@ -597,22 +597,22 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	}
 
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "NO_FIELDS", "message": "no fields to update"})
+		response.Error(c, http.StatusBadRequest, "NO_FIELDS", "no fields to update")
 		return
 	}
 
 	if err := h.contentSvc.UpdateContentWithContext(c.Request.Context(), id, callerID, updates); err != nil {
 		if err == service.ErrContentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 			return
 		}
 		if err == service.ErrContentForbidden {
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not content author"})
+			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not content author")
 			return
 		}
 		// banned 终态禁改（FIX-13）：删除仍允许，编辑引导走申诉。
 		if err == service.ErrContentBanned {
-			c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_BANNED", "message": "content is banned and cannot be edited"})
+			response.Error(c, http.StatusForbidden, "CONTENT_BANNED", "content is banned and cannot be edited")
 			return
 		}
 		if err == service.ErrCoverNotPlatformOSSObject {
@@ -629,23 +629,23 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 func (h *ContentHandler) DeleteContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
 	if err := h.contentSvc.DeleteContentWithContext(c.Request.Context(), id, callerID); err != nil {
 		if err == service.ErrContentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 			return
 		}
 		if err == service.ErrContentForbidden {
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not content author"})
+			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not content author")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -658,13 +658,13 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 func (h *ContentHandler) DownloadContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
@@ -676,29 +676,29 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrDownloadUnauthorized):
-			c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+			response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		case errors.Is(err, service.ErrContentNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 		case errors.Is(err, service.ErrDownloadNotPublished):
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "content not available for download"})
+			response.Error(c, http.StatusForbidden, "FORBIDDEN", "content not available for download")
 		case errors.Is(err, service.ErrDownloadUnavailable):
-			c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_UNAVAILABLE", "message": "content is unavailable"})
+			response.Error(c, http.StatusForbidden, "CONTENT_UNAVAILABLE", "content is unavailable")
 		case errors.Is(err, service.ErrDownloadNotAllowed):
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "download not allowed"})
+			response.Error(c, http.StatusForbidden, "FORBIDDEN", "download not allowed")
 		case errors.Is(err, service.ErrOSSNotConfigured):
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "oss service not configured"})
+			response.Error(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", "oss service not configured")
 		case errors.Is(err, service.ErrNoAttachments):
-			c.JSON(http.StatusNotFound, gin.H{"code": "NO_ATTACHMENTS", "message": "no downloadable files"})
+			response.Error(c, http.StatusNotFound, "NO_ATTACHMENTS", "no downloadable files")
 		case errors.Is(err, service.ErrInvalidAttachmentID):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_ID", "message": "invalid attachment_id"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ATTACHMENT_ID", "invalid attachment_id")
 		case errors.Is(err, service.ErrAttachmentMismatch):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_MISMATCH", "message": "attachment does not belong to this content"})
+			response.Error(c, http.StatusBadRequest, "ATTACHMENT_MISMATCH", "attachment does not belong to this content")
 		case errors.Is(err, service.ErrAmbiguousAttachment):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "AMBIGUOUS_ATTACHMENT", "message": "specify attachment_id; cannot determine a unique primary attachment"})
+			response.Error(c, http.StatusBadRequest, "AMBIGUOUS_ATTACHMENT", "specify attachment_id; cannot determine a unique primary attachment")
 		case errors.Is(err, service.ErrArchiveNotClean):
 			response.Error(c, http.StatusForbidden, "ARCHIVE_NOT_CLEAN", "archive is not clean")
 		case errors.Is(err, service.ErrDownloadPresignFailed):
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "OSS_ERROR", "message": "failed to generate download url"})
+			response.Error(c, http.StatusInternalServerError, "OSS_ERROR", "failed to generate download url")
 		default:
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}

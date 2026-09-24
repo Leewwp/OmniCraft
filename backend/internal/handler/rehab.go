@@ -37,14 +37,14 @@ func (h *RehabHandler) ListCourses(c *gin.Context) {
 func (h *RehabHandler) GetCourse(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid course id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid course id")
 		return
 	}
 	locale := c.DefaultQuery("locale", "zh")
 	course, err := h.rehabSvc.GetCourseDetail(id, locale)
 	if err != nil {
 		if err == service.ErrCourseNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "COURSE_NOT_FOUND", "message": "course not found"})
+			response.Error(c, http.StatusNotFound, "COURSE_NOT_FOUND", "course not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -56,7 +56,7 @@ func (h *RehabHandler) GetCourse(c *gin.Context) {
 func (h *RehabHandler) CompleteCourse(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid course id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid course id")
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -64,15 +64,15 @@ func (h *RehabHandler) CompleteCourse(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case service.ErrCourseNotFound:
-			c.JSON(http.StatusNotFound, gin.H{"code": "COURSE_NOT_FOUND", "message": "course not found"})
+			response.Error(c, http.StatusNotFound, "COURSE_NOT_FOUND", "course not found")
 		case service.ErrAlreadyCompleted:
-			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_COMPLETED", "message": "course already completed"})
+			response.Error(c, http.StatusConflict, "ALREADY_COMPLETED", "course already completed")
 		case service.ErrCourseNotStarted:
-			c.JSON(http.StatusBadRequest, gin.H{"code": "COURSE_NOT_STARTED", "message": "course has not been started"})
+			response.Error(c, http.StatusBadRequest, "COURSE_NOT_STARTED", "course has not been started")
 		case service.ErrReadingTooShort:
-			c.JSON(http.StatusTooEarly, gin.H{"code": "READING_TIME_TOO_SHORT", "message": "minimum reading time has not elapsed"})
+			response.Error(c, http.StatusTooEarly, "READING_TIME_TOO_SHORT", "minimum reading time has not elapsed")
 		case service.ErrStatusCacheUnavailable:
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
+			response.Error(c, http.StatusServiceUnavailable, service.DenialReasonAuthStatusUnavailable, "account status is temporarily unavailable")
 		default:
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}
@@ -84,16 +84,16 @@ func (h *RehabHandler) CompleteCourse(c *gin.Context) {
 func (h *RehabHandler) StartCourse(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid course id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid course id")
 		return
 	}
 	userID := middleware.GetUserID(c)
 	if err := h.rehabSvc.StartCourse(userID, id); err != nil {
 		switch err {
 		case service.ErrCourseNotFound:
-			c.JSON(http.StatusNotFound, gin.H{"code": "COURSE_NOT_FOUND", "message": "course not found"})
+			response.Error(c, http.StatusNotFound, "COURSE_NOT_FOUND", "course not found")
 		case service.ErrAlreadyCompleted:
-			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_COMPLETED", "message": "course already completed"})
+			response.Error(c, http.StatusConflict, "ALREADY_COMPLETED", "course already completed")
 		default:
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 	"time"
+	"unicode/utf8"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -78,14 +78,14 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 
 	user, err := h.userRepo.FindByID(id)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -94,7 +94,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	// FindByID 对不存在用户返回 (nil, nil)——此前 nil 直传投影函数会 panic
 	//（契约测试以不存在 id 打端点时触发，#448 顺手收口为 404）。
 	if user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 		return
 	}
 
@@ -159,13 +159,13 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 
 	callerID := middleware.GetUserID(c)
 	if callerID != id {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "can only update your own profile"})
+		response.Error(c, http.StatusForbidden, "FORBIDDEN", "can only update your own profile")
 		return
 	}
 
@@ -240,7 +240,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "NO_FIELDS", "message": "no fields to update"})
+		response.Error(c, http.StatusBadRequest, "NO_FIELDS", "no fields to update")
 		return
 	}
 
@@ -257,14 +257,14 @@ func (h *UserHandler) GetReputation(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 
 	// T33（FIX-37）：处罚日志（ai_violation 等 reason）只对本人与 admin 开放，
 	// 不对他人外泄。
 	if middleware.GetUserID(c) != id && !middleware.IsAdmin(c) {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "reputation logs are only visible to the owner or admins"})
+		response.Error(c, http.StatusForbidden, "FORBIDDEN", "reputation logs are only visible to the owner or admins")
 		return
 	}
 
@@ -289,7 +289,7 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 
@@ -490,28 +490,28 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 
 	user, err := h.userRepo.FindByID(callerID)
 	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"code": "INVALID_PASSWORD", "message": "old password is incorrect"})
+		response.Error(c, http.StatusForbidden, "INVALID_PASSWORD", "old password is incorrect")
 		return
 	}
 
 	// SP-25 低-25：bcrypt 只认前 72 字节——超出即 400（单靠 max=128 rune
 	// 绑定不闭环：128 个 CJK 字符可达 384 字节）。
 	if len(req.NewPassword) > 72 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_LONG", "message": "password must be at most 72 bytes"})
+		response.Error(c, http.StatusBadRequest, "PASSWORD_TOO_LONG", "password must be at most 72 bytes")
 		return
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		if errors.Is(err, bcrypt.ErrPasswordTooLong) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_LONG", "message": "password must be at most 72 bytes"})
+			response.Error(c, http.StatusBadRequest, "PASSWORD_TOO_LONG", "password must be at most 72 bytes")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to hash password"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to hash password")
 		return
 	}
 
@@ -538,12 +538,12 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 
 	user, err := h.userRepo.FindByID(callerID)
 	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"code": "INVALID_PASSWORD", "message": "password is incorrect"})
+		response.Error(c, http.StatusForbidden, "INVALID_PASSWORD", "password is incorrect")
 		return
 	}
 
@@ -577,7 +577,7 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 
 func (h *UserHandler) UpdateSupportInfo(c *gin.Context) {
 	if !h.cfg.Features.CreatorSupportEnabled {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FEATURE_DISABLED", "message": "creator support is not enabled"})
+		response.Error(c, http.StatusForbidden, "FEATURE_DISABLED", "creator support is not enabled")
 		return
 	}
 
@@ -593,7 +593,7 @@ func (h *UserHandler) UpdateSupportInfo(c *gin.Context) {
 	}
 
 	if len(req.ExternalLinks) > 3 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_ERROR", "message": "external_links maximum is 3"})
+		response.Error(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "external_links maximum is 3")
 		return
 	}
 	// SP-25 低-25：支持信息仅接受 https（含打赏图）；javascript:/data: 等
@@ -602,12 +602,12 @@ func (h *UserHandler) UpdateSupportInfo(c *gin.Context) {
 		return strings.HasPrefix(strings.TrimSpace(strings.ToLower(raw)), "https://")
 	}
 	if strings.TrimSpace(req.DonationImageURL) != "" && !httpsOnly(req.DonationImageURL) {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_ERROR", "message": "donation_image_url must be an https URL"})
+		response.Error(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "donation_image_url must be an https URL")
 		return
 	}
 	for _, link := range req.ExternalLinks {
 		if strings.TrimSpace(link) != "" && !httpsOnly(link) {
-			c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_ERROR", "message": "external_links must be https URLs"})
+			response.Error(c, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "external_links must be https URLs")
 			return
 		}
 	}

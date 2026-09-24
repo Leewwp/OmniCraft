@@ -42,7 +42,7 @@ func NewPRHandlerWithService(prSvc *service.PRService) *PRHandler {
 func (h *PRHandler) SubmitPR(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 
@@ -75,7 +75,7 @@ func (h *PRHandler) SubmitPR(c *gin.Context) {
 func (h *PRHandler) GetPR(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid pr id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
 		return
 	}
 
@@ -86,7 +86,7 @@ func (h *PRHandler) GetPR(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case service.ErrPRNotFound, service.ErrContentNotFound:
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "pr not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "pr not found")
 		case service.ErrPRForbidden:
 			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
 		default:
@@ -101,7 +101,7 @@ func (h *PRHandler) GetPR(c *gin.Context) {
 func (h *PRHandler) ListPRs(c *gin.Context) {
 	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 
@@ -111,7 +111,7 @@ func (h *PRHandler) ListPRs(c *gin.Context) {
 	prs, total, err := h.prSvc.ListPRsPagedForViewer(contentID, c.Query("status"), page, pageSize, middleware.GetUserID(c), middleware.IsAdmin(c))
 	if err != nil {
 		if err == service.ErrContentNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -146,7 +146,7 @@ func (h *PRHandler) AcceptPR(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid pr id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
 		return
 	}
 
@@ -170,7 +170,7 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid pr id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
 		return
 	}
 
@@ -201,7 +201,7 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid pr id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
 		return
 	}
 
@@ -235,7 +235,7 @@ func (h *PRHandler) BlockContributor(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 	if err := h.prSvc.BlockContributor(callerID, userID); err != nil {
@@ -254,7 +254,7 @@ func (h *PRHandler) UnblockContributor(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 	if err := h.prSvc.UnblockContributor(callerID, userID); err != nil {

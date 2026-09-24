@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 	"strconv"
@@ -44,7 +45,7 @@ func (h *AdminFeedbackHandler) ListFeedback(c *gin.Context) {
 
 	tickets, total, err := h.feedbackSvc.ListAdminFeedback(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to list feedback tickets"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list feedback tickets")
 		return
 	}
 
@@ -59,18 +60,18 @@ func (h *AdminFeedbackHandler) ListFeedback(c *gin.Context) {
 func (h *AdminFeedbackHandler) GetFeedback(c *gin.Context) {
 	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "Invalid ticket ID"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
 		return
 	}
 
 	ticket, err := h.feedbackSvc.GetTicketForAdmin(c.Request.Context(), ticketID)
 	if err != nil {
 		if errors.Is(err, service.ErrFeedbackTicketNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "Feedback ticket not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
 			return
 		}
 		slog.Error("failed to get feedback ticket for admin", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to get feedback ticket"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get feedback ticket")
 		return
 	}
 
@@ -80,7 +81,7 @@ func (h *AdminFeedbackHandler) GetFeedback(c *gin.Context) {
 func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "Invalid ticket ID"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
 		return
 	}
 
@@ -90,7 +91,7 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 		AssigneeAdminID *int64 `json:"assignee_admin_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": "Invalid request body"})
+		response.Error(c, http.StatusBadRequest, "INVALID_BODY", "Invalid request body")
 		return
 	}
 
@@ -116,31 +117,31 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, errAdminAuditWriteFailed) {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 			return
 		}
 		switch {
 		case errors.Is(err, service.ErrFeedbackTicketNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "Feedback ticket not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
 		case errors.Is(err, service.ErrFeedbackInvalidStatus):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "Invalid status value"})
+			response.Error(c, http.StatusBadRequest, "INVALID_STATUS", "Invalid status value")
 		case errors.Is(err, service.ErrFeedbackInvalidPriority):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_PRIORITY", "message": "Invalid priority value"})
+			response.Error(c, http.StatusBadRequest, "INVALID_PRIORITY", "Invalid priority value")
 		case errors.Is(err, service.ErrFeedbackDeliveryFailed):
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback update delivery failed; please retry"})
+			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback update delivery failed; please retry")
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update feedback ticket"})
+			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update feedback ticket")
 		}
 		return
 	}
 
 	if err := h.feedbackSvc.NotifyPatchTicket(c.Request.Context(), ticket, input); err != nil {
 		if errors.Is(err, service.ErrFeedbackDeliveryFailed) {
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback update delivery failed; please retry"})
+			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback update delivery failed; please retry")
 			return
 		}
 		slog.Error("failed to notify patch ticket", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update feedback ticket"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update feedback ticket")
 		return
 	}
 
@@ -150,7 +151,7 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "Invalid ticket ID"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
 		return
 	}
 
@@ -159,7 +160,7 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 		IsInternalNote bool   `json:"is_internal_note"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": "Invalid request body"})
+		response.Error(c, http.StatusBadRequest, "INVALID_BODY", "Invalid request body")
 		return
 	}
 
@@ -192,31 +193,31 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, errAdminAuditWriteFailed) {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 			return
 		}
 		switch {
 		case errors.Is(err, service.ErrFeedbackTicketNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "Feedback ticket not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
 		case errors.Is(err, service.ErrFeedbackBodyRequired):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Reply body is required"})
+			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Reply body is required")
 		case errors.Is(err, service.ErrFeedbackBodyTooLong):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Reply body must not exceed 5000 characters"})
+			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Reply body must not exceed 5000 characters")
 		case errors.Is(err, service.ErrFeedbackDeliveryFailed):
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback reply delivery failed; please retry"})
+			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback reply delivery failed; please retry")
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to create reply"})
+			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create reply")
 		}
 		return
 	}
 
 	if err := h.feedbackSvc.NotifyAdminReply(c.Request.Context(), ticket, input); err != nil {
 		if errors.Is(err, service.ErrFeedbackDeliveryFailed) {
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback reply delivery failed; please retry"})
+			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback reply delivery failed; please retry")
 			return
 		}
 		slog.Error("failed to notify admin reply", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to create reply"})
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create reply")
 		return
 	}
 

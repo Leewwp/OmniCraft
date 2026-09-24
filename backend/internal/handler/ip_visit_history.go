@@ -59,7 +59,7 @@ func (h *IPVisitHistoryHandler) RecordVisit(c *gin.Context) {
 
 	ipID, err := strconv.ParseInt(c.Param("ipId"), 10, 64)
 	if err != nil || ipID <= 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *IPVisitHistoryHandler) RecordVisit(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
 	}
 
@@ -93,12 +93,12 @@ func (h *IPVisitHistoryHandler) MergeVisits(c *gin.Context) {
 
 	var input ipVisitMergeInput
 	if err := c.ShouldBindJSON(&input); err != nil || input.Visits == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_IP_VISIT_MERGE", "message": "invalid ip visit merge payload"})
+		response.Error(c, http.StatusBadRequest, "INVALID_IP_VISIT_MERGE", "invalid ip visit merge payload")
 		return
 	}
 	raw := *input.Visits
 	if len(raw) > repository.RecentIPVisitLimit {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_IP_VISIT_MERGE", "message": "invalid ip visit merge payload"})
+		response.Error(c, http.StatusBadRequest, "INVALID_IP_VISIT_MERGE", "invalid ip visit merge payload")
 		return
 	}
 
@@ -107,12 +107,12 @@ func (h *IPVisitHistoryHandler) MergeVisits(c *gin.Context) {
 	order := make([]int64, 0, len(raw))
 	for _, v := range raw {
 		if v.IPID <= 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_IP_VISIT_MERGE", "message": "invalid ip visit merge payload"})
+			response.Error(c, http.StatusBadRequest, "INVALID_IP_VISIT_MERGE", "invalid ip visit merge payload")
 			return
 		}
 		ts, err := time.Parse(time.RFC3339Nano, v.VisitedAt)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_IP_VISIT_MERGE", "message": "invalid ip visit merge payload"})
+			response.Error(c, http.StatusBadRequest, "INVALID_IP_VISIT_MERGE", "invalid ip visit merge payload")
 			return
 		}
 		if existing, ok := latestByIP[v.IPID]; !ok || ts.After(existing) {

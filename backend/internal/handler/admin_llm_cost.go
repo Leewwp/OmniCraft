@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"sort"
 	"strings"
 	"time"
@@ -112,7 +113,7 @@ func (h *AdminLLMCostHandler) parseCostWindow(c *gin.Context) (*time.Time, *time
 	if raw := c.Query("from"); raw != "" {
 		t, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "from must be RFC3339"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "from must be RFC3339")
 			return nil, nil, false
 		}
 		from = &t
@@ -120,7 +121,7 @@ func (h *AdminLLMCostHandler) parseCostWindow(c *gin.Context) (*time.Time, *time
 	if raw := c.Query("to"); raw != "" {
 		t, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ARGS", "message": "to must be RFC3339"})
+			response.Error(c, http.StatusBadRequest, "INVALID_ARGS", "to must be RFC3339")
 			return nil, nil, false
 		}
 		to = &t
@@ -149,12 +150,12 @@ func (h *AdminLLMCostHandler) Ledger(c *gin.Context) {
 	}
 	dayModel, err := h.repo.AggregateLLMCostsByDayModel(c.Request.Context(), from, to)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to aggregate llm costs"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to aggregate llm costs")
 		return
 	}
 	convModel, err := h.repo.AggregateLLMCostsByConversationModel(c.Request.Context(), from, to)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to aggregate llm costs"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to aggregate llm costs")
 		return
 	}
 
@@ -237,7 +238,7 @@ func (h *AdminLLMCostHandler) Ledger(c *gin.Context) {
 	}
 	turns, err := h.repo.CountRunsByConversationIDs(c.Request.Context(), ids, from, to)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to aggregate llm costs"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to aggregate llm costs")
 		return
 	}
 	for i := range convs {
@@ -246,9 +247,9 @@ func (h *AdminLLMCostHandler) Ledger(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"window": gin.H{"from": from, "to": to},
-		"rates":  rates,
-		"totals": totals,
+		"window":            gin.H{"from": from, "to": to},
+		"rates":             rates,
+		"totals":            totals,
 		"by_model":          byModel,
 		"by_day":            byDay,
 		"top_conversations": convs,
