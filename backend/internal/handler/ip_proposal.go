@@ -31,9 +31,6 @@ func (h *IPProposalHandler) ListProposals(c *gin.Context) {
 	query := c.Query("q")       // IP 内搜索（#290）：description_change 包含匹配
 	page, pageSize := pageQuery(c, 20)
 	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 	viewerID := middleware.GetUserID(c)
 
 	views, total, err := h.svc.ListProposals(c.Request.Context(), ipID, status, query, page, pageSize, viewerID)

@@ -168,9 +168,6 @@ func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
 
 	page, pageSize := pageQuery(c, 20)
 	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	tickets, total, err := h.feedbackService.ListUserTickets(c.Request.Context(), userID.(int64), page, pageSize)
 	if err != nil {

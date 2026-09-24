@@ -32,9 +32,6 @@ func (h *AdminAuditHandler) ListAuditActions(c *gin.Context) {
 func (h *AdminAuditHandler) ListAuditLogs(c *gin.Context) {
 	page, pageSize := pageQuery(c, 20)
 	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	filter := service.AdminAuditFilter{
 		Action:   c.DefaultQuery("action", ""),
