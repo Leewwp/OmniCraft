@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mapAgentHistoryMessages, type AgentHistoryMessageDTO } from "@/lib/agent-history";
+import { mapAgentHistoryMessages, type AgentHistoryMessageDTO } from "@/lib/agent-turn";
 
 /* #538：历史回放映射——think/tools phase 行按序保留（与流式轮内渲染同构）、
-   blocked 行占位、空答案行剔除、引用畸形项由 normalizer 剔除。 */
+   blocked 行占位、空答案行剔除、引用畸形项由 normalizer 剔除。
+   #663：mapper 自 lib/agent-history.ts 整体迁入 lib/agent-turn.ts（断言零改动）。 */
 
 test("tools phase rows replay with their persisted step summaries in stream order", () => {
   const rows: AgentHistoryMessageDTO[] = [
