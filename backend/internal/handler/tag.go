@@ -55,7 +55,7 @@ func (h *TagHandler) GetFacetedTags(c *gin.Context) {
 func (h *TagHandler) SearchTags(c *gin.Context) {
 	q := c.Query("q")
 	if q == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "MISSING_QUERY", "message": "q is required"})
+		response.Error(c, http.StatusBadRequest, "MISSING_QUERY", "q is required")
 		return
 	}
 	if rejectLongQuery(c, q, h.maxQueryChars) {
@@ -72,12 +72,12 @@ func (h *TagHandler) SearchTags(c *gin.Context) {
 func (h *TagHandler) SuggestTag(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
 	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 	var body struct {
@@ -103,7 +103,7 @@ func (h *TagHandler) ListTagSuggestions(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	contentID, err := strconv.ParseInt(c.Query("content_id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "content_id required"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "content_id required")
 		return
 	}
 	suggestions, err := h.tagSvc.ListTagSuggestions(contentID, callerID)
@@ -118,7 +118,7 @@ func (h *TagHandler) UpdateTagSuggestion(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid suggestion id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid suggestion id")
 		return
 	}
 	var body struct {
@@ -173,7 +173,7 @@ func (h *TagHandler) UpdateTagGroup(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid group id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid group id")
 		return
 	}
 	// SP-25 低-23：显式字段白名单（name/tags），未知字段 400——任意 map
@@ -216,7 +216,7 @@ func (h *TagHandler) DeleteTagGroup(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid group id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid group id")
 		return
 	}
 	if err := h.tagSvc.DeleteTagGroup(id, callerID); err != nil {
@@ -258,7 +258,7 @@ func (h *TagHandler) DeleteSavedSearch(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid saved search id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid saved search id")
 		return
 	}
 	if err := h.tagSvc.DeleteSavedSearch(id, callerID); err != nil {

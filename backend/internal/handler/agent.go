@@ -72,7 +72,7 @@ func (h *AgentHandler) requireAgentFeature(c *gin.Context) bool {
 	if h.cfg.Agent.WebAgentEnabled {
 		return true
 	}
-	c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "web agent is disabled"})
+	response.Error(c, http.StatusServiceUnavailable, "FEATURE_DISABLED", "web agent is disabled")
 	return false
 }
 
@@ -155,7 +155,7 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 	viewerID := middleware.GetUserID(c)
@@ -288,7 +288,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	if conversationID > 0 {
 		if err := h.agentSvc.EnsureConversationOwned(c.Request.Context(), userID, conversationID); err != nil {
 			if errors.Is(err, service.ErrAgentConversationNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+				response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
 				return
 			}
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
@@ -402,7 +402,7 @@ func (h *AgentHandler) UpdateConversation(c *gin.Context) {
 		return
 	}
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
 		return
 	}
 	var conv model.AgentConversation
@@ -410,7 +410,7 @@ func (h *AgentHandler) UpdateConversation(c *gin.Context) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Deleted between the UPDATE and the read-back: same 404 as any
 			// other owner-scoped miss.
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
@@ -449,13 +449,13 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid conversation id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid conversation id")
 		return
 	}
 	var conv model.AgentConversation
 	if err := h.db.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)

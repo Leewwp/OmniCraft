@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"omnicraft/backend/internal/pkg/response"
 	"strconv"
 	"strings"
 
@@ -35,7 +36,7 @@ func (h *SearchHandler) Suggestions(c *gin.Context) {
 	limit := clampLimit(c.DefaultQuery("limit", "10"), 10, h.maxSearchLimit())
 	suggestions, err := h.searchSvc.GetSuggestions(q, limit, middleware.GetUserID(c))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "search failed"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "search failed")
 		return
 	}
 	if suggestions == nil {
@@ -48,7 +49,7 @@ func (h *SearchHandler) Trending(c *gin.Context) {
 	limit := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 	items, err := h.searchSvc.GetTrending(limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "search failed"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "search failed")
 		return
 	}
 	if items == nil {
@@ -92,7 +93,7 @@ func (h *SearchHandler) SearchContents(c *gin.Context) {
 
 	results, total, err := h.searchSvc.SearchContents(query, zone, category, contentType, tagFilters, sort, timeRange, page, pageSize, vid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "search failed"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "search failed")
 		return
 	}
 
@@ -131,7 +132,7 @@ func (h *SearchHandler) SearchUsers(c *gin.Context) {
 
 	users, total, err := h.searchSvc.SearchUsers(q, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "user search failed"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "user search failed")
 		return
 	}
 	if users == nil {
@@ -168,7 +169,7 @@ func rejectLongQuery(c *gin.Context, q string, max int) bool {
 		max = defaultMaxQueryChars
 	}
 	if len([]rune(q)) > max {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "QUERY_TOO_LONG", "message": "search query is too long"})
+		response.Error(c, http.StatusBadRequest, "QUERY_TOO_LONG", "search query is too long")
 		return true
 	}
 	return false

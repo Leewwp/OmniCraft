@@ -52,13 +52,13 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 		case "content":
 			item, err := h.contentRepo.FindByID(body.TargetID)
 			if err != nil || item == nil {
-				c.JSON(http.StatusNotFound, gin.H{"code": "TARGET_NOT_FOUND", "message": "appeal target not found"})
+				response.Error(c, http.StatusNotFound, "TARGET_NOT_FOUND", "appeal target not found")
 				return
 			}
 		case "comment":
 			comment, err := h.socialRepo.FindComment(body.TargetID)
 			if err != nil || comment == nil {
-				c.JSON(http.StatusNotFound, gin.H{"code": "TARGET_NOT_FOUND", "message": "appeal target not found"})
+				response.Error(c, http.StatusNotFound, "TARGET_NOT_FOUND", "appeal target not found")
 				return
 			}
 		}
@@ -72,7 +72,7 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 		return
 	}
 	if hasPending {
-		c.JSON(http.StatusConflict, gin.H{"code": "APPEAL_EXISTS", "message": "pending appeal already exists"})
+		response.Error(c, http.StatusConflict, "APPEAL_EXISTS", "pending appeal already exists")
 		return
 	}
 

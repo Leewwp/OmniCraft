@@ -58,7 +58,7 @@ func (h *DiscussionHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner
 func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
 	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if !h.ipDiscussionsVisible(c, ipID) {
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
 	}
 	sort := c.DefaultQuery("sort", "latest_reply")
@@ -108,13 +108,13 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
 		return
 	}
 	// T12/F-106 顺带收口：未发布（under_review/hidden）讨论不透出详情；
 	// admin 置顶走 PinDiscussion（不经此读路径），不受影响。
 	if d.Status != "published" {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
 		return
 	}
 
@@ -193,7 +193,7 @@ func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
 		return
 	}
 
@@ -202,7 +202,7 @@ func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
 	}
 	c.ShouldBindJSON(&body)
 	if err := h.discRepo.Pin(id, body.Pinned); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR"})
+		response.CodeOnly(c, http.StatusInternalServerError, "DB_ERROR")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
@@ -211,7 +211,7 @@ func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
 func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if !h.ipDiscussionsVisible(c, ipID) {
-		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
 	}
 	keyword := c.Query("q")
@@ -219,7 +219,7 @@ func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 
 	discussions, err := h.discRepo.SearchByKeyword(ipID, keyword, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR"})
+		response.CodeOnly(c, http.StatusInternalServerError, "DB_ERROR")
 		return
 	}
 	h.displaySigner.DecorateDiscussions(discussions)
@@ -229,7 +229,7 @@ func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 func (h *DiscussionHandler) ListByUser(c *gin.Context) {
 	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 	page, pageSize := pageQuery(c, 20)

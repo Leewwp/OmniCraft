@@ -183,9 +183,9 @@ func (h *AdminHandler) BroadcastNotification(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrIdempotencyKeyRequired):
-			c.JSON(http.StatusBadRequest, gin.H{"code": "IDEMPOTENCY_KEY_REQUIRED", "message": "Idempotency-Key header is required"})
+			response.Error(c, http.StatusBadRequest, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key header is required")
 		case errors.Is(err, service.ErrIdempotencyKeyReused):
-			c.JSON(http.StatusConflict, gin.H{"code": "IDEMPOTENCY_KEY_REUSED", "message": "idempotency key was already used with a different payload"})
+			response.Error(c, http.StatusConflict, "IDEMPOTENCY_KEY_REUSED", "idempotency key was already used with a different payload")
 		case errors.Is(err, service.ErrBroadcastValidation):
 			response.ValidationError(c, "invalid request parameters")
 		default:
@@ -222,7 +222,7 @@ func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
 func (h *AdminHandler) ApproveIP(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
 		return
 	}
 	entry := h.auditEntry(c, "ip_approve", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "approved"})
@@ -260,7 +260,7 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 func (h *AdminHandler) RejectIP(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
 		return
 	}
 	// T16 (FIX-24): the rejection reason is mandatory and lands in
@@ -269,12 +269,12 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 		Reason string `json:"reason" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "REASON_REQUIRED", "message": "a rejection reason is required"})
+		response.Error(c, http.StatusBadRequest, "REASON_REQUIRED", "a rejection reason is required")
 		return
 	}
 	reason := strings.TrimSpace(body.Reason)
 	if reason == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "REASON_REQUIRED", "message": "a rejection reason is required"})
+		response.Error(c, http.StatusBadRequest, "REASON_REQUIRED", "a rejection reason is required")
 		return
 	}
 	adminID := middleware.GetUserID(c)
@@ -353,7 +353,7 @@ func (h *AdminHandler) ListTrashedContents(c *gin.Context) {
 func (h *AdminHandler) BanContent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 	var body struct {
@@ -367,7 +367,7 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 	var content model.ContentItem
 	if err := h.contentRepo.DB().First(&content, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -389,7 +389,7 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 		return nil
 	}); err != nil {
 		if errors.Is(err, errAdminTargetMissing) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
 			return
 		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban content") {
@@ -413,7 +413,7 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 func (h *AdminHandler) RestoreContent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
 	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404（此前 return nil
@@ -421,7 +421,7 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 	var content model.ContentItem
 	if err := h.contentRepo.DB().First(&content, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -447,7 +447,7 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 		return h.emitContentRestoredEvent(c.Request.Context(), tx, &content)
 	}); err != nil {
 		if errors.Is(err, errAdminTargetMissing) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
 			return
 		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to restore content") {
@@ -477,7 +477,7 @@ func (h *AdminHandler) emitContentRestoredEvent(ctx context.Context, tx *gorm.DB
 func (h *AdminHandler) BanUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 	var body struct {
@@ -491,18 +491,18 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 	var target model.User
 	if err := h.userRepo.DB().First(&target, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load user"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load user")
 		return
 	}
 	if callerID := middleware.GetUserID(c); target.ID == callerID {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "SELF_BAN_FORBIDDEN", "message": "you cannot ban yourself"})
+		response.Error(c, http.StatusBadRequest, "SELF_BAN_FORBIDDEN", "you cannot ban yourself")
 		return
 	}
 	if target.Role == "admin" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ADMIN_TARGET_FORBIDDEN", "message": "admin accounts cannot be banned"})
+		response.Error(c, http.StatusBadRequest, "ADMIN_TARGET_FORBIDDEN", "admin accounts cannot be banned")
 		return
 	}
 	entry := h.auditEntry(c, "user_ban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id, "reason": body.Reason})
@@ -517,13 +517,13 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 		return nil
 	}); err != nil {
 		if errors.Is(err, errAdminTargetMissing) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 			return
 		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban user") {
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to ban user"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to ban user")
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
@@ -533,17 +533,17 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 func (h *AdminHandler) UnbanUser(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
 		return
 	}
 	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404。
 	var target model.User
 	if err := h.userRepo.DB().First(&target, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load user"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load user")
 		return
 	}
 	entry := h.auditEntry(c, "user_unban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id})
@@ -558,13 +558,13 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 		return nil
 	}); err != nil {
 		if errors.Is(err, errAdminTargetMissing) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
 			return
 		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to unban user") {
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to unban user"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to unban user")
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
@@ -638,7 +638,7 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid appeal id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid appeal id")
 		return
 	}
 	var body struct {
@@ -652,12 +652,12 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 	db := h.userRepo.DB()
 	var appeal model.Appeal
 	if err := db.First(&appeal, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "APPEAL_NOT_FOUND", "message": "appeal not found"})
+		response.Error(c, http.StatusNotFound, "APPEAL_NOT_FOUND", "appeal not found")
 		return
 	}
 	// T31（FIX-27）：非 pending 不可重复处理——防止重复改目标状态与重复通知。
 	if appeal.Status != "pending" {
-		c.JSON(http.StatusConflict, gin.H{"code": "APPEAL_ALREADY_RESOLVED", "message": "appeal has already been resolved"})
+		response.Error(c, http.StatusConflict, "APPEAL_ALREADY_RESOLVED", "appeal has already been resolved")
 		return
 	}
 
@@ -699,7 +699,7 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		}
 	}); err != nil {
 		if errors.Is(err, errAppealTargetGone) {
-			c.JSON(http.StatusConflict, gin.H{"code": "APPEAL_TARGET_GONE", "message": "appeal target is no longer available"})
+			response.Error(c, http.StatusConflict, "APPEAL_TARGET_GONE", "appeal target is no longer available")
 			return
 		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to resolve appeal") {
@@ -762,7 +762,7 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 	filterSensitivePatches(patches)
 
 	if len(patches) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "NO_ALLOWED_FIELDS", "message": "no allowed fields in request"})
+		response.Error(c, http.StatusBadRequest, "NO_ALLOWED_FIELDS", "no allowed fields in request")
 		return
 	}
 
@@ -957,7 +957,7 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
 		return
 	}
 	var req map[string]interface{}
@@ -980,7 +980,7 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 			return
 		}
 		if err == service.ErrConfigNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+			response.Error(c, http.StatusNotFound, "CONFIG_NOT_FOUND", "config not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -992,7 +992,7 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
 		return
 	}
 	entry := h.auditEntry(c, "llm_config_delete", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
@@ -1003,10 +1003,10 @@ func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 			return
 		}
 		if err == repository.ErrActiveConfigCannotDelete {
-			c.JSON(http.StatusConflict, gin.H{"code": "ACTIVE_CONFIG", "message": "cannot delete active config"})
+			response.Error(c, http.StatusConflict, "ACTIVE_CONFIG", "cannot delete active config")
 			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+		response.Error(c, http.StatusNotFound, "CONFIG_NOT_FOUND", "config not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config deleted"})
@@ -1015,7 +1015,7 @@ func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
 		return
 	}
 	entry := h.auditEntry(c, "llm_config_activate", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
@@ -1025,13 +1025,13 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 		// T28（FIX-35）：404（配置不存在）与 500（DB 故障）区分——此前任何
 		// 错误统一 404，排障时误导方向。
 		if errors.Is(err, service.ErrConfigNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+			response.Error(c, http.StatusNotFound, "CONFIG_NOT_FOUND", "config not found")
 			return
 		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to activate config") {
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to activate config"})
+		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to activate config")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config activated"})
@@ -1040,7 +1040,7 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
 		return
 	}
 	resp, err := h.llmConfigSvc.TestConnection(c.Request.Context(), id)
@@ -1078,7 +1078,7 @@ func (h *AdminHandler) ListReports(c *gin.Context) {
 func (h *AdminHandler) ResolveReport(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid report id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid report id")
 		return
 	}
 	var body struct {
@@ -1086,7 +1086,7 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		ActionTaken string `json:"action_taken"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status is required"})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "status is required")
 		return
 	}
 	if body.Status != "resolved" && body.Status != "dismissed" {
@@ -1095,7 +1095,7 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 			"decision":  body.Status,
 			"reason":    "VALIDATION_ERROR",
 		})
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status must be resolved or dismissed"})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "status must be resolved or dismissed")
 		return
 	}
 	// T27（FIX-34 / F-114）：前置存在性校验——不存在的 ID 返回 404，不再
@@ -1103,7 +1103,7 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 	var report model.Report
 	if err := h.contentRepo.DB().First(&report, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "REPORT_NOT_FOUND", "message": "report not found"})
+			response.Error(c, http.StatusNotFound, "REPORT_NOT_FOUND", "report not found")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
@@ -1126,7 +1126,7 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		return nil
 	}); err != nil {
 		if errors.Is(err, errAdminTargetMissing) {
-			c.JSON(http.StatusNotFound, gin.H{"code": "REPORT_NOT_FOUND", "message": "report not found"})
+			response.Error(c, http.StatusNotFound, "REPORT_NOT_FOUND", "report not found")
 			return
 		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update report") {
@@ -1216,11 +1216,11 @@ func (h *AdminHandler) ReplayDLQEntry(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
 	if !dlqEntryIDPattern.MatchString(id) {
 		h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "INVALID_ID"})
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid dlq entry id"})
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid dlq entry id")
 		return
 	}
 	if h.dlqWorker == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "DLQ_UNAVAILABLE", "message": "dead-letter queue is unavailable"})
+		response.Error(c, http.StatusServiceUnavailable, "DLQ_UNAVAILABLE", "dead-letter queue is unavailable")
 		return
 	}
 
@@ -1228,7 +1228,7 @@ func (h *AdminHandler) ReplayDLQEntry(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, worker.ErrDLQEntryNotFound) {
 			h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "DLQ_ENTRY_NOT_FOUND"})
-			c.JSON(http.StatusNotFound, gin.H{"code": "DLQ_ENTRY_NOT_FOUND", "message": "dlq entry not found"})
+			response.Error(c, http.StatusNotFound, "DLQ_ENTRY_NOT_FOUND", "dlq entry not found")
 			return
 		}
 		h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "REPLAY_FAILED"})
@@ -1251,7 +1251,7 @@ func (h *AdminHandler) auditOrFail(c *gin.Context, action, targetType, targetID 
 	}
 	entry := h.auditEntry(c, action, targetType, targetID, metadata)
 	if err := h.auditSvc.Record(c.Request.Context(), entry); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 		return false
 	}
 	return true
@@ -1298,7 +1298,7 @@ func (h *AdminHandler) withAuditTx(c *gin.Context, entry *service.RecordAdminAud
 
 func (h *AdminHandler) respondAuditTxError(c *gin.Context, err error, status int, code, message string) bool {
 	if errors.Is(err, errAdminAuditWriteFailed) {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
 		return true
 	}
 	if status > 0 && code != "" && message != "" {
