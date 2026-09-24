@@ -127,8 +127,8 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 }
 
 func (h *ContentHandler) ListContents(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 
 	var ipID *int64
 	if ipIDStr := c.Query("ip_id"); ipIDStr != "" {
