@@ -29,11 +29,8 @@ func (h *IPProposalHandler) ListProposals(c *gin.Context) {
 	}
 	status := c.Query("status") // open | adopted | rejected | all | "" (history)
 	query := c.Query("q")       // IP 内搜索（#290）：description_change 包含匹配
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}

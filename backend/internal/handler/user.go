@@ -268,11 +268,8 @@ func (h *UserHandler) GetReputation(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page < 1 {
-		page = 1
-	}
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
@@ -299,8 +296,8 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	contentType := c.Query("content_type")
 
 	items, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
@@ -441,8 +438,8 @@ func (h *UserHandler) GetMyPendingTasks(c *gin.Context) {
 func (h *UserHandler) GetMyContents(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pageQuery(c, 20)
+	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
 	contentType := c.Query("content_type")
 
 	items, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
