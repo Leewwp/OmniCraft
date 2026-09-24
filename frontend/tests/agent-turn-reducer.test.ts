@@ -38,6 +38,7 @@ test("流式增量拼接：think/tools/delta/citation/usage 依序累积", () =>
   ]);
 
   assert.equal(turn.streaming, true);
+  assert.equal(turn.settled, false);
   assert.equal(turn.terminal.traceId, "t1");
   assert.deepEqual(
     turn.segments.map((segment) => segment.kind),
@@ -97,6 +98,7 @@ test("done 终裁分支一：no_evidence 撤下已流出正文", () => {
     },
   ]);
   assert.equal(turn.streaming, false);
+  assert.equal(turn.settled, true);
   assert.equal(turn.answer, "", "no_evidence 撤答");
   assert.equal(turn.terminal.answerKind, "no_evidence");
   assert.equal(turn.terminal.emptyNoEvidence, false, "有成功工具 = 检索文案而非空轮");
@@ -227,6 +229,7 @@ test("停止：保留半答与思考/工具，仅收敛 streaming 并标记停�
   assert.equal(stopped.answer, "partial answer", "半答保留");
   assert.equal(stopped.segments[0].kind === "think" && stopped.segments[0].content, "思考");
   assert.equal(stopped.terminal.stopped, true);
+  assert.equal(stopped.settled, true);
   assert.equal(stopped.terminal.error, false);
 });
 
@@ -240,6 +243,7 @@ test("无终局关流：仅收敛 streaming（半答与轮内态保留）", () =
 test("createAgentTurn 初始形状：仅提问行，streaming、firstRound 就绪", () => {
   const turn = createAgentTurn("问题", { id: "live-x", firstRound: false });
   assert.equal(turn.query, "问题");
+  assert.equal(turn.settled, false);
   assert.equal(turn.answer, "");
   assert.deepEqual(turn.segments, []);
   assert.equal(turn.streaming, true);

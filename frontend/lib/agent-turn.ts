@@ -42,6 +42,10 @@ export interface AgentTurn {
   /** 历史 moderation 脱敏行：渲染占位文案而非答案。 */
   moderationBlocked?: boolean;
   streaming: boolean;
+  /** 终局已到（done/error/stop/关流）：续问轮在终局后 commit 进树、清空活动轮。 */
+  settled: boolean;
+  /** 过渡形态标记：轮的提问行/相块/正文已由消息树行接管，活动轮只剩终态尾部。 */
+  treeOwned?: boolean;
   /** 首轮（发起时会话 id 尚未产生）：done 后活到历史回载替换树；续问轮 done 即 commit。 */
   firstRound: boolean;
   terminal: AgentTurnTerminal;
@@ -57,6 +61,7 @@ export function createAgentTurn(
     segments: [],
     answer: "",
     streaming: true,
+    settled: false,
     firstRound: options.firstRound,
     terminal: {
       answerKind: null,
@@ -158,6 +163,7 @@ function applyDone(turn: AgentTurn, event: DoneEvent): AgentTurn {
   let next: AgentTurn = {
     ...turn,
     streaming: false,
+    settled: true,
     terminal: {
       ...turn.terminal,
       traceId: event.trace_id ?? turn.terminal.traceId,
@@ -201,6 +207,7 @@ function applyError(turn: AgentTurn, event: ErrorEvent): AgentTurn {
     return {
       ...turn,
       streaming: false,
+      settled: true,
       answer: "",
       terminal: { ...turn.terminal, error: false, degraded: true },
     };
@@ -208,18 +215,19 @@ function applyError(turn: AgentTurn, event: ErrorEvent): AgentTurn {
   return {
     ...turn,
     streaming: false,
+    settled: true,
     terminal: { ...turn.terminal, error: true, errorCode: event.error_code ?? null },
   };
 }
 
 /** 停止按钮：保留已流出的思考/工具/半答，标记停止终态。 */
 export function stopAgentTurn(turn: AgentTurn): AgentTurn {
-  return { ...turn, streaming: false, terminal: { ...turn.terminal, stopped: true } };
+  return { ...turn, streaming: false, settled: true, terminal: { ...turn.terminal, stopped: true } };
 }
 
 /** 流在无 done/error 事件时关闭（传输层结束）：仅收敛 streaming 标志。 */
 export function closeAgentStream(turn: AgentTurn): AgentTurn {
-  return { ...turn, streaming: false };
+  return { ...turn, streaming: false, settled: true };
 }
 
 /** provider 降级关键词回退结果写轮级引用（纯函数；请求由调用方发起）。 */

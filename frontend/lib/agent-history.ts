@@ -15,9 +15,10 @@ export interface AgentHistoryMessageDTO {
   tools?: AgentStreamTool[];
 }
 
-/** 工作台渲染消息（历史回放与流式行内共用的最小形态）。 */
+/** 工作台渲染消息（历史回放与流式行内共用的最小形态）。id 允许字符串以
+ *  承接活动轮落树时的本地轮 id（`live-` 前缀），与历史服务端行 id 不混用。 */
 export interface AgentHistoryWorkspaceMessage {
-  id: number;
+  id: number | string;
   role: "user" | "assistant";
   content: string;
   /** A-02：think 行独立成消息（仅展示层）；#538：tools 行回放工具步骤条。 */
