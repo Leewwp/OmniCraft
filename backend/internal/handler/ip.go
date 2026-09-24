@@ -261,9 +261,6 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 
 	page, pageSize := pageQuery(c, 20)
 	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	filter := repository.ListContentsFilter{
 		IPID:     &id,

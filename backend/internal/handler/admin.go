@@ -337,9 +337,6 @@ func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
 func (h *AdminHandler) ListTrashedContents(c *gin.Context) {
 	page, pageSize := pageQuery(c, 20)
 	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
 	var contents []model.ContentItem
 	var total int64
@@ -577,9 +574,6 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 func (h *AdminHandler) ListUsers(c *gin.Context) {
 	page, pageSize := pageQuery(c, 20)
 	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 	// T28（FIX-35）：search 服务端化（username/email 大小写不敏感模糊匹配）+
 	// id DESC 稳定排序——此前前端只过滤当前页 20 条，跨页命中不可能，且无
 	// ORDER BY 时翻页可能重复/漏。LOWER+LIKE 而非 ILIKE：sqlite 单测可执行。
@@ -612,9 +606,6 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 func (h *AdminHandler) ListAppeals(c *gin.Context) {
 	page, pageSize := pageQuery(c, 20)
 	// #668：标准列表分页迁 pageQuery（缺省/无效/越界语义见 pagination.go）。
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 	// T31（FIX-27）：status 筛选——默认 pending 保持历史兼容；all 全量。
 	status := c.DefaultQuery("status", "pending")
 	switch status {
