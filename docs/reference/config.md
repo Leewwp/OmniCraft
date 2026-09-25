@@ -2,6 +2,8 @@
 
 > 本文档由 2026-07-23 文档瘦身从 `architecture.md` §7 抽取，章节号保持原编号以便深链兼容。
 > 同步快照；运行时真源：backend/config.yaml 与 backend/internal/config。
+>
+> **非权威声明（#671）**：本文是人工维护的同步快照，不作为配置生效值的权威。正常运行的出厂值权威 = `backend/config.yaml`（结构定义 = `backend/config/config.go`）；启动校验语义（全模式 `Validate()` + release 门 `ValidateRelease()`）同样以代码为准。快照与真源不一致时，以真源为准并更新本快照。
 
 ## 7. 配置化开关与参数（config.yaml）
 
