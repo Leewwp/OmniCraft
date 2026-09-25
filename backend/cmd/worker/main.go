@@ -29,6 +29,14 @@ func main() {
 	}
 	slog.SetDefault(logger)
 
+	// The worker runs the same release gate as the API server (ticket #671):
+	// release credentials and production constraints are checked here, the
+	// all-mode structural validation already ran inside config.Load().
+	if err := cfg.ValidateRelease(); err != nil {
+		logger.Error("invalid release configuration", "error", err)
+		os.Exit(1)
+	}
+
 	tracerProvider, err := observability.NewTracerProvider(context.Background(), observability.TracingConfig{
 		Enabled: cfg.Observability.Tracing.Enabled, Endpoint: cfg.Observability.Tracing.Endpoint,
 		SampleRatio: cfg.Observability.Tracing.SampleRatio, Backend: cfg.Observability.Tracing.Backend,

@@ -881,6 +881,15 @@ func Load() *Config {
 	}
 	sanitizeAgentMCPServerIDs(cfg)
 
+	// All-mode structural gate (ticket #671): refuses startup with the full
+	// path list when required non-credential fields are missing/misspelled
+	// (zero values), the mode enum is invalid, or an enabled feature carries
+	// structurally invalid values. Credential checks stay in ValidateRelease.
+	if err := cfg.Validate(); err != nil {
+		slog.Error("configuration validation failed", "error", err)
+		os.Exit(1)
+	}
+
 	Cfg = cfg
 	return cfg
 }
@@ -1293,6 +1302,15 @@ func requireNonEmpty(errs *[]string, field, value string) {
 	}
 }
 
+// requireNonEmptyAnyMode is the mode-neutral twin of requireNonEmpty used by
+// Config.Validate (ticket #671): the wording must not claim release mode when
+// the check runs in debug too.
+func requireNonEmptyAnyMode(errs *[]string, field, value string) {
+	if strings.TrimSpace(value) == "" {
+		*errs = append(*errs, field+" is required")
+	}
+}
+
 // isPlaceholderValue detects template/placeholder tokens that must never reach
 // production configuration. The check is deliberately conservative: angle
 // brackets, explicit placeholder phrases and example domains are all rejected.
@@ -1359,7 +1377,7 @@ func validateDatabaseTLSPolicy(errs *[]string, dsn string) {
 
 func requirePositiveInt(errs *[]string, field string, value int) {
 	if value <= 0 {
-		*errs = append(*errs, field+" must be positive when web agent is enabled")
+		*errs = append(*errs, field+" must be positive")
 	}
 }
 
@@ -1411,14 +1429,299 @@ func requireAllowedOrigins(errs *[]string, origins []string) {
 	}
 }
 
+// Validate checks the mode-independent structural requirements (ticket
+// #671): required non-credential fields (a missing or misspelled key in any
+// of them surfaces as a zero value and refuses startup), the server.mode
+// enum, value ranges, and the structural requirements of enabled features.
+// Credential checks stay in ValidateRelease; a local/debug configuration
+// with features off and no real credentials must pass. Caveat: optional keys
+// that legally allow a zero value cannot be distinguished from a misspelled
+// missing key by post-deserialization validation alone.
+func (c *Config) Validate() error {
+	var errs []string
+	switch c.Server.Mode {
+	case "debug", "release":
+	default:
+		errs = append(errs, "server.mode must be \"debug\" or \"release\"")
+	}
+	if strings.TrimSpace(c.Server.Port) == "" {
+		errs = append(errs, "server.port is required")
+	} else if p, err := strconv.Atoi(strings.TrimSpace(c.Server.Port)); err != nil || p <= 0 {
+		errs = append(errs, "server.port must be a positive integer")
+	}
+	requirePositiveInt(&errs, "server.read_timeout", c.Server.ReadTimeout)
+	requirePositiveInt(&errs, "server.write_timeout", c.Server.WriteTimeout)
+	requirePositiveInt(&errs, "server.idle_timeout", c.Server.IdleTimeout)
+	requireNonEmptyAnyMode(&errs, "database.dsn", c.Database.DSN)
+	requireNonEmptyAnyMode(&errs, "redis.addr", c.Redis.Addr)
+	requireNonEmptyAnyMode(&errs, "web.public_base_url", c.Web.PublicBaseURL)
+	requireNonEmptyAnyMode(&errs, "jwt.secret", c.JWT.Secret)
+	if len(c.Security.AllowedOrigins) == 0 {
+		errs = append(errs, "security.allowed_origins must not be empty")
+	}
+	requireNonEmptyAnyMode(&errs, "observability.metrics_port", c.Observability.MetricsPort)
+	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {
+		errs = append(errs, fmt.Sprintf("relay.batch_size must be between %d and %d", RelayMinBatchSize, RelayMaxBatchSize))
+	}
+	if c.Relay.PollIntervalSec < RelayMinPollIntervalSec || c.Relay.PollIntervalSec > RelayMaxPollIntervalSec {
+		errs = append(errs, fmt.Sprintf("relay.poll_interval_sec must be between %d and %d", RelayMinPollIntervalSec, RelayMaxPollIntervalSec))
+	}
+	c.validateStructure(&errs)
+	if len(errs) > 0 {
+		return fmt.Errorf("configuration error: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// validateStructure carries the structural, range and feature-conditional
+// checks shared by Validate (all modes) and ValidateRelease. Every block is
+// gated either by a feature switch or by "only when set", so a minimal
+// configuration with all features off passes. Credential and
+// production-only constraints (HTTPS, secrets, placeholders, mode-specific
+// provider bans) deliberately stay in ValidateRelease.
+func (c *Config) validateStructure(errs *[]string) {
+	if err := c.Upload.ValidateGalleryLimits(); err != nil {
+		*errs = append(*errs, "upload."+err.Error())
+	}
+
+	switch strings.ToLower(strings.TrimSpace(c.Captcha.Provider)) {
+	case "", "aliyun_v2", "bypass":
+	default:
+		*errs = append(*errs, "captcha.provider must be 'aliyun_v2' or 'bypass' (unknown provider: "+c.Captcha.Provider+")")
+	}
+	if lv := strings.ToLower(strings.TrimSpace(c.Observability.LogLevel)); lv != "" {
+		switch lv {
+		case "debug", "info", "warn", "error":
+		default:
+			*errs = append(*errs, "observability.log_level must be one of debug, info, warn, error")
+		}
+	}
+
+	if c.Features.ArchiveMalwareScanEnabled {
+		if c.ArchiveScan.MaxUploadSizeMB <= 0 {
+			*errs = append(*errs, "archive_scan.max_upload_size_mb must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxZipEntries <= 0 {
+			*errs = append(*errs, "archive_scan.max_zip_entries must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxEntryUncompressedMB <= 0 {
+			*errs = append(*errs, "archive_scan.max_entry_uncompressed_mb must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxTotalUncompressedMB <= 0 {
+			*errs = append(*errs, "archive_scan.max_total_uncompressed_mb must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxRecursionDepth <= 0 {
+			*errs = append(*errs, "archive_scan.max_recursion_depth must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.ScanTimeoutSec <= 0 {
+			*errs = append(*errs, "archive_scan.scan_timeout_sec must be positive when archive malware scanning is enabled")
+		}
+		if strings.TrimSpace(c.ArchiveScan.ClamdAddress) == "" {
+			*errs = append(*errs, "archive_scan.clamd_address must be configured when archive malware scanning is enabled")
+		}
+		if len(c.ArchiveScan.RetryBackoffSec) == 0 {
+			*errs = append(*errs, "archive_scan.retry_backoff_sec must not be empty when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.URLTTLSec <= 0 {
+			*errs = append(*errs, "archive_scan.url_ttl_sec must be positive when archive malware scanning is enabled")
+		}
+	}
+	if c.Features.RAGHybridEnabled {
+		if c.RAG.Chunking.MaxTokens <= 0 {
+			*errs = append(*errs, "rag.chunking.max_tokens must be positive when RAG hybrid search is enabled")
+		}
+		if c.RAG.Chunking.OverlapTokens < 0 || c.RAG.Chunking.OverlapTokens >= c.RAG.Chunking.MaxTokens {
+			*errs = append(*errs, "rag.chunking.overlap_tokens must be non-negative and less than max_tokens when RAG hybrid search is enabled")
+		}
+		if c.RAG.Chunking.ChunkingVersion <= 0 {
+			*errs = append(*errs, "rag.chunking.version must be positive when RAG hybrid search is enabled")
+		}
+		if c.RAG.Chunking.TokenizerEncoding != "cl100k_base" {
+			*errs = append(*errs, "rag.chunking.tokenizer_encoding must be cl100k_base when RAG hybrid search is enabled")
+		}
+		indexURL, err := url.Parse(strings.TrimSpace(c.RAG.Index.URL))
+		if err != nil || indexURL.Host == "" || (indexURL.Scheme != "http" && indexURL.Scheme != "https") {
+			*errs = append(*errs, "rag.index.url must be an absolute http(s) URL when RAG hybrid search is enabled")
+		}
+		requireNonEmptyAnyMode(errs, "rag.index.embedding_model", c.RAG.Index.EmbeddingModel)
+		if c.RAG.Index.EmbeddingModel != c.Agent.EmbeddingModel {
+			*errs = append(*errs, "rag.index.embedding_model must match agent.embedding_model when RAG hybrid search is enabled")
+		}
+		requirePositiveInt(errs, "rag.index.generation_start", c.RAG.Index.GenerationStart)
+		if c.Agent.EmbeddingDimensions != RAGEmbeddingDimensions {
+			*errs = append(*errs, fmt.Sprintf("agent.embedding_dimensions must be %d when RAG hybrid search is enabled", RAGEmbeddingDimensions))
+		}
+		requirePositiveInt(errs, "rag.index.health_poll_interval_sec", c.RAG.Index.HealthPollIntervalSec)
+		requirePositiveInt(errs, "rag.index.timeout_sec", c.RAG.Index.TimeoutSec)
+		requirePositiveInt(errs, "rag.index.audit_timeout_sec", c.RAG.Index.AuditTimeoutSec)
+		requirePositiveInt(errs, "rag.index.lock_cleanup_timeout_sec", c.RAG.Index.LockCleanupTimeoutSec)
+		requirePositiveInt(errs, "rag.index.error_body_max_bytes", c.RAG.Index.ErrorBodyMaxBytes)
+		requirePositiveInt(errs, "rag.index.response_body_max_bytes", c.RAG.Index.ResponseBodyMaxBytes)
+		requirePositiveInt(errs, "rag.hybrid.bm25_topk", c.RAG.Hybrid.BM25TopK)
+		requirePositiveInt(errs, "rag.hybrid.vector_topk", c.RAG.Hybrid.VectorTopK)
+		requirePositiveInt(errs, "rag.hybrid.rrf_k", c.RAG.Hybrid.RRFK)
+		requirePositiveInt(errs, "rag.hybrid.final_topk", c.RAG.Hybrid.FinalTopK)
+		switch strings.ToLower(strings.TrimSpace(c.RAG.Hybrid.KeywordSource)) {
+		case "", "postgres", "opensearch":
+		default:
+			*errs = append(*errs, "rag.hybrid.keyword_source must be postgres or opensearch")
+		}
+	}
+
+	// SP-24 R3 refusal boundary knobs: the citation-count boundary is an
+	// answer-classification knob (applies regardless of hybrid), the
+	// similarity floor only has meaning on the rerank path. A non-positive
+	// min_surviving_citations is normalized to 1 at load (configs predating
+	// the knob stay valid), so validation only rejects explicit negatives.
+	if c.Resilience.Breaker.FailureThreshold < 0 || c.Resilience.Breaker.OpenTimeoutSec < 0 {
+		*errs = append(*errs, "resilience.breaker values must not be negative (0 falls back to the 2-failure/30s defaults)")
+	}
+	// SP-24 R6 aux-call caches: an enabled cache needs a positive TTL; the
+	// shipped TTL defaults are the recommended first-on values.
+	if item := c.Resilience.AuxCache.Title; item.Enabled && item.TTLSec <= 0 {
+		*errs = append(*errs, "resilience.aux_cache.title.ttl_sec must be positive when the cache is enabled")
+	}
+	if item := c.Resilience.AuxCache.Expander; item.Enabled && item.TTLSec <= 0 {
+		*errs = append(*errs, "resilience.aux_cache.expander.ttl_sec must be positive when the cache is enabled")
+	}
+	// SP-24 R6 per-provider chat concurrency: an enabled throttle needs a
+	// usable slot count.
+	if conc := c.Resilience.LLMConcurrency; conc.Enabled && conc.MaxPerProvider <= 0 {
+		*errs = append(*errs, "resilience.llm_concurrency.max_per_provider must be >= 1 when the throttle is enabled")
+	}
+	if c.RAG.Refusal.MinSurvivingCitations < 0 {
+		*errs = append(*errs, "rag.refusal.min_surviving_citations must not be negative")
+	}
+	if c.RAG.Refusal.MinTopRelevanceScore < 0 || c.RAG.Refusal.MinTopRelevanceScore > 1 {
+		*errs = append(*errs, "rag.refusal.min_top_relevance_score must be within [0,1] (0 disables the similarity floor)")
+	}
+	if c.RAG.Refusal.MinTopRelevanceScore > 0 && !(c.Features.RAGHybridEnabled && c.Features.RAGRerankEnabled) {
+		*errs = append(*errs, "rag.refusal.min_top_relevance_score requires features.rag_hybrid_enabled and features.rag_rerank_enabled (relevance scores exist only on the rerank path)")
+	}
+	// SP-24 R4 contextual retrieval: annotation rides the projection (hybrid
+	// ingestion), so the switch requires hybrid and a fully specified
+	// annotation provider. The API key is deliberately not validated here —
+	// it arrives via env at runtime; an enabled-but-keyless deployment logs
+	// a warning and ingests unannotated (fail-open, never a hard gate).
+	if c.RAG.Contextual.Enabled {
+		if !c.Features.RAGHybridEnabled {
+			*errs = append(*errs, "rag.contextual.enabled requires features.rag_hybrid_enabled (annotation rides the content projection)")
+		}
+		if strings.TrimSpace(c.RAG.Contextual.Provider) == "" || strings.TrimSpace(c.RAG.Contextual.Model) == "" {
+			*errs = append(*errs, "rag.contextual.provider and rag.contextual.model are required when rag.contextual.enabled")
+		}
+		// Upper bound aligns with the annotator's fixed 200-token output
+		// cap: a configured 300–500 could never be delivered.
+		if c.RAG.Contextual.MaxPrefixTokens < 20 || c.RAG.Contextual.MaxPrefixTokens > 200 {
+			*errs = append(*errs, "rag.contextual.max_prefix_tokens must be within 20..200")
+		}
+		if c.RAG.Contextual.DocContextChars < 200 {
+			*errs = append(*errs, "rag.contextual.doc_context_chars must be >= 200")
+		}
+		if c.RAG.Contextual.Concurrency < 1 || c.RAG.Contextual.Concurrency > 16 {
+			*errs = append(*errs, "rag.contextual.concurrency must be within 1..16")
+		}
+		if c.RAG.Contextual.RequestIntervalMS < 0 {
+			*errs = append(*errs, "rag.contextual.request_interval_ms must be non-negative")
+		}
+		if c.RAG.Contextual.TimeoutSec <= 0 {
+			*errs = append(*errs, "rag.contextual.timeout_sec must be positive")
+		}
+		if c.RAG.Contextual.MaxRetries < 0 {
+			*errs = append(*errs, "rag.contextual.max_retries must be non-negative")
+		}
+	}
+
+	if c.Agent.WebAgentEnabled {
+		requirePositiveInt(errs, "agent.rate_limit_per_day", c.Agent.RateLimitPerDay)
+		requirePositiveInt(errs, "agent.rate_limit_per_minute", c.Agent.RateLimitPerMinute)
+		requirePositiveInt(errs, "agent.max_tool_calls_per_turn", c.Agent.MaxToolCallsPerTurn)
+		requirePositiveInt(errs, "agent.max_output_tokens", c.Agent.MaxOutputTokens)
+		requirePositiveInt(errs, "agent.provider_timeout_sec", c.Agent.ProviderTimeoutSec)
+		if c.Agent.Image.ImageConfigured() {
+			requirePositiveInt(errs, "agent.image.timeout_sec", c.Agent.Image.TimeoutSec)
+			requirePositiveInt(errs, "agent.image.session_image_limit", c.Agent.Image.SessionImageLimit)
+			requirePositiveInt(errs, "agent.image.max_image_bytes", c.Agent.Image.MaxImageBytes)
+			if strings.TrimSpace(c.Agent.Image.Model) == "" || strings.TrimSpace(c.Agent.Image.APIBase) == "" {
+				*errs = append(*errs, "agent.image.model and agent.image.api_base are required when image generation is enabled")
+			}
+		}
+		requirePositiveInt(errs, "agent.citation_max_count", c.Agent.CitationMaxCount)
+		requirePositiveInt(errs, "agent.max_user_message_chars", c.Agent.MaxUserMessageChars)
+		requirePositiveInt(errs, "agent.chat_max_context_messages", c.Agent.ChatMaxContextMsgs)
+		requirePositiveInt(errs, "agent.conversation_list_limit", c.Agent.ConversationListLimit)
+		requirePositiveInt(errs, "agent.conversation_page_size", c.Agent.ConversationPageSize)
+		requirePositiveInt(errs, "agent.chat_context_token_budget", c.Agent.ChatContextTokenBudget)
+		requirePositiveInt(errs, "rate_limit.agent_window_sec", c.RateLimit.AgentWindowSec)
+		requirePositiveInt(errs, "rate_limit.agent_minute_window_sec", c.RateLimit.AgentMinuteWindowSec)
+		if c.Agent.ProviderMaxRetries < 0 {
+			*errs = append(*errs, "agent.provider_max_retries must not be negative when web agent is enabled")
+		}
+	}
+	// MCP bridge (SP-23 M3): an enabled bridge needs usable limits and, per
+	// configured server, an id and command (ids are charset-sanitized at
+	// load; empty id survives sanitization only via override, still reject).
+	if c.Agent.MCP.Enabled {
+		requirePositiveInt(errs, "agent.mcp.call_timeout_sec", c.Agent.MCP.CallTimeoutSec)
+		requirePositiveInt(errs, "agent.mcp.result_max_bytes", c.Agent.MCP.ResultMaxBytes)
+		for i, srv := range c.Agent.MCP.Servers {
+			if strings.TrimSpace(srv.ID) == "" || strings.TrimSpace(srv.Command) == "" {
+				*errs = append(*errs, fmt.Sprintf("agent.mcp.servers[%d].id and .command are required when agent.mcp is enabled", i))
+			}
+		}
+	}
+	// Notification queue (ADR 0005): an enabled queue needs usable bounds —
+	// max_attempts 0 would dead-letter every first delivery.
+	if c.Queue.Enabled {
+		requirePositiveInt(errs, "queue.max_attempts", c.Queue.MaxAttempts)
+		requirePositiveInt(errs, "queue.maxlen", int(c.Queue.MaxLen))
+		if c.Queue.WorkerCount < 0 || c.Queue.WorkerReview < 0 || c.Queue.WorkerNotif < 0 || c.Queue.WorkerEmbedding < 0 {
+			*errs = append(*errs, "queue worker counts must not be negative")
+		}
+	}
+
+	if c.RateLimit.Enabled && c.RateLimit.NormalPerMinute <= 0 {
+		*errs = append(*errs, "rate_limit.normal_per_minute must be positive when rate limiting is enabled")
+	}
+
+	if c.Observability.Tracing.SampleRatio < 0 || c.Observability.Tracing.SampleRatio > 1 {
+		*errs = append(*errs, "observability.tracing.sample_ratio must be between 0 and 1 in release mode")
+	}
+	if c.Observability.Tracing.Enabled {
+		if strings.TrimSpace(c.Observability.Tracing.Endpoint) == "" {
+			*errs = append(*errs, "observability.tracing.endpoint is required when tracing is enabled")
+		}
+		if strings.TrimSpace(c.Observability.Tracing.Backend) != "jaeger" {
+			*errs = append(*errs, "observability.tracing.backend must be jaeger")
+		}
+	}
+	if c.Observability.AgentTrace.Enabled {
+		at := c.Observability.AgentTrace
+		if at.SampleRatio < 0 || at.SampleRatio > 1 {
+			*errs = append(*errs, "observability.agent_trace.sample_ratio must be between 0 and 1")
+		}
+		requirePositiveInt(errs, "observability.agent_trace.channel_size", at.ChannelSize)
+		requirePositiveInt(errs, "observability.agent_trace.flush_interval_ms", at.FlushIntervalMs)
+		requirePositiveInt(errs, "observability.agent_trace.flush_batch_size", at.FlushBatchSize)
+		requirePositiveInt(errs, "observability.agent_trace.retention_days", at.RetentionDays)
+		if at.DigestMaxRunes < 0 {
+			*errs = append(*errs, "observability.agent_trace.digest_max_runes must not be negative")
+		}
+	}
+	if err := validateIPKeyRotation(errs, c.Observability.IPKeyRotation); err != nil {
+		*errs = append(*errs, err.Error())
+	}
+}
+
 func (c *Config) ValidateRelease() error {
 	if c.Server.Mode != "release" {
 		return nil
 	}
 	var errs []string
-	if err := c.Upload.ValidateGalleryLimits(); err != nil {
-		errs = append(errs, "upload."+err.Error())
-	}
+	// Structural, range and feature-conditional findings are shared with the
+	// all-mode Validate (ticket #671); release mode surfaces them too so the
+	// error contract of existing callers is unchanged.
+	c.validateStructure(&errs)
 
 	requireHTTPSURL(&errs, "web.public_base_url", c.Web.PublicBaseURL)
 	requireAllowedOrigins(&errs, c.Security.AllowedOrigins)
@@ -1492,141 +1795,6 @@ func (c *Config) ValidateRelease() error {
 	if c.Client.DownloadEnabled {
 		errs = append(errs, "client.download_enabled must remain false in the Web-only release scope")
 	}
-	if c.Features.ArchiveMalwareScanEnabled {
-		if c.ArchiveScan.MaxUploadSizeMB <= 0 {
-			errs = append(errs, "archive_scan.max_upload_size_mb must be positive when archive malware scanning is enabled")
-		}
-		if c.ArchiveScan.MaxZipEntries <= 0 {
-			errs = append(errs, "archive_scan.max_zip_entries must be positive when archive malware scanning is enabled")
-		}
-		if c.ArchiveScan.MaxEntryUncompressedMB <= 0 {
-			errs = append(errs, "archive_scan.max_entry_uncompressed_mb must be positive when archive malware scanning is enabled")
-		}
-		if c.ArchiveScan.MaxTotalUncompressedMB <= 0 {
-			errs = append(errs, "archive_scan.max_total_uncompressed_mb must be positive when archive malware scanning is enabled")
-		}
-		if c.ArchiveScan.MaxRecursionDepth <= 0 {
-			errs = append(errs, "archive_scan.max_recursion_depth must be positive when archive malware scanning is enabled")
-		}
-		if c.ArchiveScan.ScanTimeoutSec <= 0 {
-			errs = append(errs, "archive_scan.scan_timeout_sec must be positive when archive malware scanning is enabled")
-		}
-		if strings.TrimSpace(c.ArchiveScan.ClamdAddress) == "" {
-			errs = append(errs, "archive_scan.clamd_address must be configured when archive malware scanning is enabled")
-		}
-		if len(c.ArchiveScan.RetryBackoffSec) == 0 {
-			errs = append(errs, "archive_scan.retry_backoff_sec must not be empty when archive malware scanning is enabled")
-		}
-		if c.ArchiveScan.URLTTLSec <= 0 {
-			errs = append(errs, "archive_scan.url_ttl_sec must be positive when archive malware scanning is enabled")
-		}
-	}
-	if c.Features.RAGHybridEnabled {
-		if c.RAG.Chunking.MaxTokens <= 0 {
-			errs = append(errs, "rag.chunking.max_tokens must be positive when RAG hybrid search is enabled")
-		}
-		if c.RAG.Chunking.OverlapTokens < 0 || c.RAG.Chunking.OverlapTokens >= c.RAG.Chunking.MaxTokens {
-			errs = append(errs, "rag.chunking.overlap_tokens must be non-negative and less than max_tokens when RAG hybrid search is enabled")
-		}
-		if c.RAG.Chunking.ChunkingVersion <= 0 {
-			errs = append(errs, "rag.chunking.version must be positive when RAG hybrid search is enabled")
-		}
-		if c.RAG.Chunking.TokenizerEncoding != "cl100k_base" {
-			errs = append(errs, "rag.chunking.tokenizer_encoding must be cl100k_base when RAG hybrid search is enabled")
-		}
-		indexURL, err := url.Parse(strings.TrimSpace(c.RAG.Index.URL))
-		if err != nil || indexURL.Host == "" || (indexURL.Scheme != "http" && indexURL.Scheme != "https") {
-			errs = append(errs, "rag.index.url must be an absolute http(s) URL when RAG hybrid search is enabled")
-		}
-		requireNonEmpty(&errs, "rag.index.embedding_model", c.RAG.Index.EmbeddingModel)
-		if c.RAG.Index.EmbeddingModel != c.Agent.EmbeddingModel {
-			errs = append(errs, "rag.index.embedding_model must match agent.embedding_model when RAG hybrid search is enabled")
-		}
-		requirePositiveInt(&errs, "rag.index.generation_start", c.RAG.Index.GenerationStart)
-		if c.Agent.EmbeddingDimensions != RAGEmbeddingDimensions {
-			errs = append(errs, fmt.Sprintf("agent.embedding_dimensions must be %d when RAG hybrid search is enabled", RAGEmbeddingDimensions))
-		}
-		requirePositiveInt(&errs, "rag.index.health_poll_interval_sec", c.RAG.Index.HealthPollIntervalSec)
-		requirePositiveInt(&errs, "rag.index.timeout_sec", c.RAG.Index.TimeoutSec)
-		requirePositiveInt(&errs, "rag.index.audit_timeout_sec", c.RAG.Index.AuditTimeoutSec)
-		requirePositiveInt(&errs, "rag.index.lock_cleanup_timeout_sec", c.RAG.Index.LockCleanupTimeoutSec)
-		requirePositiveInt(&errs, "rag.index.error_body_max_bytes", c.RAG.Index.ErrorBodyMaxBytes)
-		requirePositiveInt(&errs, "rag.index.response_body_max_bytes", c.RAG.Index.ResponseBodyMaxBytes)
-		requirePositiveInt(&errs, "rag.hybrid.bm25_topk", c.RAG.Hybrid.BM25TopK)
-		requirePositiveInt(&errs, "rag.hybrid.vector_topk", c.RAG.Hybrid.VectorTopK)
-		requirePositiveInt(&errs, "rag.hybrid.rrf_k", c.RAG.Hybrid.RRFK)
-		requirePositiveInt(&errs, "rag.hybrid.final_topk", c.RAG.Hybrid.FinalTopK)
-		switch strings.ToLower(strings.TrimSpace(c.RAG.Hybrid.KeywordSource)) {
-		case "", "postgres", "opensearch":
-		default:
-			errs = append(errs, "rag.hybrid.keyword_source must be postgres or opensearch")
-		}
-	}
-
-	// SP-24 R3 refusal boundary knobs: the citation-count boundary is an
-	// answer-classification knob (applies regardless of hybrid), the
-	// similarity floor only has meaning on the rerank path. A non-positive
-	// min_surviving_citations is normalized to 1 at load (configs predating
-	// the knob stay valid), so validation only rejects explicit negatives.
-	if c.Resilience.Breaker.FailureThreshold < 0 || c.Resilience.Breaker.OpenTimeoutSec < 0 {
-		errs = append(errs, "resilience.breaker values must not be negative (0 falls back to the 2-failure/30s defaults)")
-	}
-	// SP-24 R6 aux-call caches: an enabled cache needs a positive TTL; the
-	// shipped TTL defaults are the recommended first-on values.
-	if item := c.Resilience.AuxCache.Title; item.Enabled && item.TTLSec <= 0 {
-		errs = append(errs, "resilience.aux_cache.title.ttl_sec must be positive when the cache is enabled")
-	}
-	if item := c.Resilience.AuxCache.Expander; item.Enabled && item.TTLSec <= 0 {
-		errs = append(errs, "resilience.aux_cache.expander.ttl_sec must be positive when the cache is enabled")
-	}
-	// SP-24 R6 per-provider chat concurrency: an enabled throttle needs a
-	// usable slot count.
-	if conc := c.Resilience.LLMConcurrency; conc.Enabled && conc.MaxPerProvider <= 0 {
-		errs = append(errs, "resilience.llm_concurrency.max_per_provider must be >= 1 when the throttle is enabled")
-	}
-	if c.RAG.Refusal.MinSurvivingCitations < 0 {
-		errs = append(errs, "rag.refusal.min_surviving_citations must not be negative")
-	}
-	if c.RAG.Refusal.MinTopRelevanceScore < 0 || c.RAG.Refusal.MinTopRelevanceScore > 1 {
-		errs = append(errs, "rag.refusal.min_top_relevance_score must be within [0,1] (0 disables the similarity floor)")
-	}
-	if c.RAG.Refusal.MinTopRelevanceScore > 0 && !(c.Features.RAGHybridEnabled && c.Features.RAGRerankEnabled) {
-		errs = append(errs, "rag.refusal.min_top_relevance_score requires features.rag_hybrid_enabled and features.rag_rerank_enabled (relevance scores exist only on the rerank path)")
-	}
-	// SP-24 R4 contextual retrieval: annotation rides the projection (hybrid
-	// ingestion), so the switch requires hybrid and a fully specified
-	// annotation provider. The API key is deliberately not validated here —
-	// it arrives via env at runtime; an enabled-but-keyless deployment logs
-	// a warning and ingests unannotated (fail-open, never a hard gate).
-	if c.RAG.Contextual.Enabled {
-		if !c.Features.RAGHybridEnabled {
-			errs = append(errs, "rag.contextual.enabled requires features.rag_hybrid_enabled (annotation rides the content projection)")
-		}
-		if strings.TrimSpace(c.RAG.Contextual.Provider) == "" || strings.TrimSpace(c.RAG.Contextual.Model) == "" {
-			errs = append(errs, "rag.contextual.provider and rag.contextual.model are required when rag.contextual.enabled")
-		}
-		// Upper bound aligns with the annotator's fixed 200-token output
-		// cap: a configured 300–500 could never be delivered.
-		if c.RAG.Contextual.MaxPrefixTokens < 20 || c.RAG.Contextual.MaxPrefixTokens > 200 {
-			errs = append(errs, "rag.contextual.max_prefix_tokens must be within 20..200")
-		}
-		if c.RAG.Contextual.DocContextChars < 200 {
-			errs = append(errs, "rag.contextual.doc_context_chars must be >= 200")
-		}
-		if c.RAG.Contextual.Concurrency < 1 || c.RAG.Contextual.Concurrency > 16 {
-			errs = append(errs, "rag.contextual.concurrency must be within 1..16")
-		}
-		if c.RAG.Contextual.RequestIntervalMS < 0 {
-			errs = append(errs, "rag.contextual.request_interval_ms must be non-negative")
-		}
-		if c.RAG.Contextual.TimeoutSec <= 0 {
-			errs = append(errs, "rag.contextual.timeout_sec must be positive")
-		}
-		if c.RAG.Contextual.MaxRetries < 0 {
-			errs = append(errs, "rag.contextual.max_retries must be non-negative")
-		}
-	}
-
 	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {
 		errs = append(errs, fmt.Sprintf("relay.batch_size must be between %d and %d in release mode", RelayMinBatchSize, RelayMaxBatchSize))
 	}
@@ -1634,6 +1802,8 @@ func (c *Config) ValidateRelease() error {
 		errs = append(errs, fmt.Sprintf("relay.poll_interval_sec must be between %d and %d in release mode", RelayMinPollIntervalSec, RelayMaxPollIntervalSec))
 	}
 
+	// Credential-only agent checks: the structural agent limits live in
+	// validateStructure (shared with the all-mode Validate, ticket #671).
 	if c.Agent.WebAgentEnabled {
 		requireNonEmpty(&errs, "agent.llm_api_key", c.Agent.LLMAPIKey)
 		if p := strings.TrimSpace(c.Agent.EmbeddingProvider); p != "" &&
@@ -1641,37 +1811,9 @@ func (c *Config) ValidateRelease() error {
 			strings.TrimSpace(c.Agent.EmbeddingAPIKey) == "" {
 			errs = append(errs, "agent.embedding_provider differs from agent.llm_provider: agent.embedding_api_key is required (cross-vendor embedding must not borrow the chat credential)")
 		}
-		requirePositiveInt(&errs, "agent.rate_limit_per_day", c.Agent.RateLimitPerDay)
-		requirePositiveInt(&errs, "agent.rate_limit_per_minute", c.Agent.RateLimitPerMinute)
-		requirePositiveInt(&errs, "agent.max_tool_calls_per_turn", c.Agent.MaxToolCallsPerTurn)
-		requirePositiveInt(&errs, "agent.max_output_tokens", c.Agent.MaxOutputTokens)
-		requirePositiveInt(&errs, "agent.provider_timeout_sec", c.Agent.ProviderTimeoutSec)
-		if c.Agent.Image.ImageConfigured() {
-			requirePositiveInt(&errs, "agent.image.timeout_sec", c.Agent.Image.TimeoutSec)
-			requirePositiveInt(&errs, "agent.image.session_image_limit", c.Agent.Image.SessionImageLimit)
-			requirePositiveInt(&errs, "agent.image.max_image_bytes", c.Agent.Image.MaxImageBytes)
-			if strings.TrimSpace(c.Agent.Image.Model) == "" || strings.TrimSpace(c.Agent.Image.APIBase) == "" {
-				errs = append(errs, "agent.image.model and agent.image.api_base are required when image generation is enabled")
-			}
-		}
-		requirePositiveInt(&errs, "agent.citation_max_count", c.Agent.CitationMaxCount)
-		requirePositiveInt(&errs, "agent.max_user_message_chars", c.Agent.MaxUserMessageChars)
-		requirePositiveInt(&errs, "agent.chat_max_context_messages", c.Agent.ChatMaxContextMsgs)
-		requirePositiveInt(&errs, "agent.conversation_list_limit", c.Agent.ConversationListLimit)
-		requirePositiveInt(&errs, "agent.conversation_page_size", c.Agent.ConversationPageSize)
-		requirePositiveInt(&errs, "agent.chat_context_token_budget", c.Agent.ChatContextTokenBudget)
-		requirePositiveInt(&errs, "rate_limit.agent_window_sec", c.RateLimit.AgentWindowSec)
-		requirePositiveInt(&errs, "rate_limit.agent_minute_window_sec", c.RateLimit.AgentMinuteWindowSec)
-		if c.Agent.ProviderMaxRetries < 0 {
-			errs = append(errs, "agent.provider_max_retries must not be negative when web agent is enabled")
-		}
 	}
 
 	requireNonEmpty(&errs, "LLM_KEY_ENCRYPTION_SECRET", os.Getenv("LLM_KEY_ENCRYPTION_SECRET"))
-
-	if c.RateLimit.Enabled && c.RateLimit.NormalPerMinute <= 0 {
-		errs = append(errs, "rate_limit.normal_per_minute must be positive when rate limiting is enabled")
-	}
 
 	if strings.TrimSpace(c.Observability.MetricsPort) == "" {
 		errs = append(errs, "observability.metrics_port is required in release mode")
@@ -1693,35 +1835,8 @@ func (c *Config) ValidateRelease() error {
 	if c.Observability.ReadHeaderTimeoutSec <= 0 {
 		errs = append(errs, "observability.read_header_timeout_sec must be positive in release mode")
 	}
-	if c.Observability.Tracing.SampleRatio < 0 || c.Observability.Tracing.SampleRatio > 1 {
-		errs = append(errs, "observability.tracing.sample_ratio must be between 0 and 1 in release mode")
-	}
-	if c.Observability.Tracing.Enabled {
-		if strings.TrimSpace(c.Observability.Tracing.Endpoint) == "" {
-			errs = append(errs, "observability.tracing.endpoint is required when tracing is enabled")
-		}
-		if strings.TrimSpace(c.Observability.Tracing.Backend) != "jaeger" {
-			errs = append(errs, "observability.tracing.backend must be jaeger")
-		}
-	}
-	if c.Observability.AgentTrace.Enabled {
-		at := c.Observability.AgentTrace
-		if at.SampleRatio < 0 || at.SampleRatio > 1 {
-			errs = append(errs, "observability.agent_trace.sample_ratio must be between 0 and 1")
-		}
-		requirePositiveInt(&errs, "observability.agent_trace.channel_size", at.ChannelSize)
-		requirePositiveInt(&errs, "observability.agent_trace.flush_interval_ms", at.FlushIntervalMs)
-		requirePositiveInt(&errs, "observability.agent_trace.flush_batch_size", at.FlushBatchSize)
-		requirePositiveInt(&errs, "observability.agent_trace.retention_days", at.RetentionDays)
-		if at.DigestMaxRunes < 0 {
-			errs = append(errs, "observability.agent_trace.digest_max_runes must not be negative")
-		}
-	}
 	if c.Server.ReadTimeout <= 0 || c.Server.WriteTimeout <= 0 || c.Server.IdleTimeout <= 0 {
 		errs = append(errs, "server HTTP timeouts must be positive in release mode")
-	}
-	if err := validateIPKeyRotation(&errs, c.Observability.IPKeyRotation); err != nil {
-		errs = append(errs, err.Error())
 	}
 
 	if len(errs) > 0 {
