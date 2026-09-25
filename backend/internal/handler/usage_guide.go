@@ -113,8 +113,10 @@ func (h *UsageGuideHandler) mapUsageGuideError(c *gin.Context, err error) {
 		response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
 	case service.ErrUsageGuideForbidden:
 		response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
-	case service.ErrUsageGuideInvalidLocale, service.ErrUsageGuideInvalidPayload:
-		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+	case service.ErrUsageGuideInvalidLocale:
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "locale must be zh or en")
+	case service.ErrUsageGuideInvalidPayload:
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "usage guide payload is invalid")
 	default:
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 	}
