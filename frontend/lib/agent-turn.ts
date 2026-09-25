@@ -25,8 +25,10 @@ export interface AgentTurnTerminal {
   traceId: string | null;
   /** #610 空轮：no_evidence 且零成功工具（零调用或全部失败）。 */
   emptyNoEvidence: boolean;
-  /** provider 降级待关键词回退：由回退结果落轮（applyKeywordFallbackCitations）
-      清除——回退触发完全由轮终态驱动，无跨状态查询 ref。 */
+  /** provider 降级待关键词回退：applyError 降级分支置位，回退结果落轮
+      （applyKeywordFallbackCitations）清除。回退请求本身由组件从原始 error
+      事件同 tick 发起（#678 时序契约，非读本字段）——本字段目前只是回退
+      挂起的状态记录，仅测试断言消费（双真源收口待 #684 裁决）。 */
   needsKeywordFallback: boolean;
   stopped: boolean;
   error: boolean;

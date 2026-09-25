@@ -14,6 +14,7 @@ Content-Type: application/json
 错误格式: { "code": "ERROR_CODE", "message": "描述", "details": {} }
   - 错误信封唯一发送处 = backend/internal/pkg/response（#669 收口）：Error/ErrorWithDetails/状态缩写/SafeErrorResponse 发标准形；CodeOnly 保持历史 code-only 形 {"code"}；CaptchaError 保持 {"code","message","captcha_result":false}。全部经 AbortWithStatusJSON（中止链）。
   - 兼容形状登记：code-only ×10 与 captcha_result ×4 为历史 wire 契约，勿扩字段/勿塞 details；成功 ack（gin.H{"message" 起头）不受错误守门约束。
+  - message 动态例外的 Key Rule 12 豁免：PROMPT_PLACEHOLDER_CONTRACT 的 message 取 ValidateTemplate 自造诊断（模板 token 集 vs 槽位必需集，均为 admin 可见数据，无上游/内部错误串），admin 修模板依赖该差集。
   - 码值增补规则：新增错误码经各 handler 业务语义命名（大写蛇形），不做历史码清理/重命名；handler 源码禁止新增裸 gin.H{"code" 构造（envelope_gate_test.go 守门）。
 分页（标准列表）: ?page=1&page_size=20  →  { "data": [], "total": 100, "page": 1, "page_size": 20 }
   - 标准列表统一经 handler 层 pageQuery 钳制：page<1 → 1；page_size<1 或 >100 → 20（回落而非钳到 100）；响应回显的 page/page_size 即实际生效值（#668）。
