@@ -86,6 +86,10 @@ services:
     env_file: .env
     environment:
       DB_DSN: "host=pgbouncer port=5432 user=${POSTGRES_USER:-omnicraft} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-omnicraft} sslmode=disable"
+      # The worker runs the same release config gate as backend since #671;
+      # pgbouncer is an unexposed internal host and needs the same explicit
+      # TLS-negotiation exemption backend already carries.
+      OMNICRAFT_PRIVATE_DB_HOSTS: "pgbouncer"
       REDIS_ADDR: "redis:6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
       REDIS_DB: ${REDIS_DB:-0}
