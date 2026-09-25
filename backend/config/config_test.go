@@ -36,6 +36,34 @@ func loadDefaultConfigForTest(t *testing.T) *Config {
 	return &cfg
 }
 
+// minimalValidCoreYAML carries the all-mode required non-credential fields
+// (ticket #671 Validate gate inside Load) so Load-level tests that boot from
+// a minimal temp config.yaml still pass the structural gate. Load-semantics
+// assertions are untouched; the core only satisfies the startup floor.
+const minimalValidCoreYAML = `server:
+  port: "8080"
+  mode: debug
+  read_timeout: 30
+  write_timeout: 60
+  idle_timeout: 120
+database:
+  dsn: host=localhost user=test dbname=test
+redis:
+  addr: localhost:6379
+web:
+  public_base_url: http://localhost:3000
+jwt:
+  secret: test-secret
+security:
+  allowed_origins:
+    - http://localhost:3000
+observability:
+  metrics_port: "9091"
+relay:
+  batch_size: 100
+  poll_interval_sec: 5
+`
+
 func TestDefaultRAGChunkingConfig(t *testing.T) {
 	cfg := loadDefaultConfigForTest(t)
 	// A-04 裁决（2026-09-05）：hybrid 默认开（C1）、扩展默认关。
@@ -235,7 +263,7 @@ func TestDefaultConfigDoesNotExposeFixedRAGIndexIdentity(t *testing.T) {
 func TestLoadAppliesRAGIndexURLEnvOverride(t *testing.T) {
 	t.Setenv("RAG_INDEX_URL", "http://opensearch:9200")
 	tmp := t.TempDir()
-	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  index:\n    url: http://127.0.0.1:9200\n"), 0o600))
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(minimalValidCoreYAML+"rag:\n  index:\n    url: http://127.0.0.1:9200\n"), 0o600))
 	previousWD, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmp))
@@ -246,7 +274,7 @@ func TestLoadAppliesRAGIndexURLEnvOverride(t *testing.T) {
 func TestLoadAppliesRAGHybridFinalTopKEnvOverride(t *testing.T) {
 	t.Setenv("RAG_HYBRID_FINAL_TOPK", "20")
 	tmp := t.TempDir()
-	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  hybrid:\n    final_topk: 10\n"), 0o600))
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(minimalValidCoreYAML+"rag:\n  hybrid:\n    final_topk: 10\n"), 0o600))
 	previousWD, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmp))
@@ -260,7 +288,7 @@ func TestLoadRAGRerankKeyFallsBackToDashScopeMasterKey(t *testing.T) {
 	t.Setenv("RAG_RERANK_API_BASE", "https://rerank.example.com")
 	t.Setenv("RAG_RERANK_FALLBACK_API_BASE", "https://fallback.example.com")
 	tmp := t.TempDir()
-	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(minimalValidCoreYAML+"rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
 	previousWD, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmp))
@@ -275,7 +303,7 @@ func TestLoadExplicitRAGRerankKeyWinsOverDashScopeFallback(t *testing.T) {
 	t.Setenv("DASHSCOPE_API_KEY", "dash-master-key")
 	t.Setenv("RAG_RERANK_API_KEY", "dedicated-rerank-key")
 	tmp := t.TempDir()
-	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(minimalValidCoreYAML+"rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
 	previousWD, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmp))
@@ -287,7 +315,7 @@ func TestLoadRAGRerankKeyStaysEmptyWithoutAnyKeyEnv(t *testing.T) {
 	t.Setenv("DASHSCOPE_API_KEY", "")
 	t.Setenv("RAG_RERANK_API_KEY", "")
 	tmp := t.TempDir()
-	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(minimalValidCoreYAML+"rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
 	previousWD, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(tmp))
@@ -300,12 +328,26 @@ func TestLoadDoesNotLetGenericAgentEnvShadowAgentSection(t *testing.T) {
 	t.Setenv("AGENT_WEB_AGENT_ENABLED", "true")
 
 	tmp := t.TempDir()
-	configYAML := []byte(`agent:
+	configYAML := []byte(minimalValidCoreYAML + `agent:
   web_agent_enabled: false
   llm_provider: minimax
   llm_model: MiniMax-M1
   llm_api_base: https://api.minimaxi.com
   embedding_model: embo-01
+  rate_limit_per_day: 50
+  rate_limit_per_minute: 5
+  max_tool_calls_per_turn: 6
+  max_output_tokens: 8192
+  provider_timeout_sec: 60
+  citation_max_count: 12
+  max_user_message_chars: 2000
+  chat_max_context_messages: 20
+  conversation_list_limit: 20
+  conversation_page_size: 10
+  chat_context_token_budget: 24000
+rate_limit:
+  agent_window_sec: 86400
+  agent_minute_window_sec: 60
 `)
 	require.NoError(t, os.WriteFile(tmp+"/config.yaml", configYAML, 0o600))
 
@@ -331,12 +373,26 @@ func TestLoadAppliesExplicitAgentEnvAfterConfigOverride(t *testing.T) {
 	t.Setenv("AGENT_EMBEDDING_GROUP_ID", "group-123")
 
 	tmp := t.TempDir()
-	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(`agent:
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(minimalValidCoreYAML+`agent:
   web_agent_enabled: false
   llm_provider: openai_compat
   llm_model: stale-chat
   llm_api_base: https://stale.example.test
   embedding_model: stale-embedding
+  rate_limit_per_day: 50
+  rate_limit_per_minute: 5
+  max_tool_calls_per_turn: 6
+  max_output_tokens: 8192
+  provider_timeout_sec: 60
+  citation_max_count: 12
+  max_user_message_chars: 2000
+  chat_max_context_messages: 20
+  conversation_list_limit: 20
+  conversation_page_size: 10
+  chat_context_token_budget: 24000
+rate_limit:
+  agent_window_sec: 86400
+  agent_minute_window_sec: 60
 `), 0o600))
 	require.NoError(t, os.WriteFile(tmp+"/override.yaml", []byte(`agent:
   web_agent_enabled: false
@@ -368,7 +424,7 @@ func TestLoadAllowsExplicitRAGIndexEmbeddingModelOverride(t *testing.T) {
 	t.Setenv("RAG_INDEX_EMBEDDING_MODEL", "index-model")
 
 	tmp := t.TempDir()
-	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(`agent:
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(minimalValidCoreYAML+`agent:
   embedding_model: stale-agent
 rag:
   index:
@@ -388,7 +444,7 @@ func TestLoadPrefersRepositoryRootEnvWhenStartedFromBackend(t *testing.T) {
 	repo := t.TempDir()
 	backendDir := filepath.Join(repo, "backend")
 	require.NoError(t, os.Mkdir(backendDir, 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(backendDir, "config.yaml"), []byte("agent:\n  llm_model: yaml-model\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(backendDir, "config.yaml"), []byte(minimalValidCoreYAML+"agent:\n  llm_model: yaml-model\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(repo, ".env"), []byte("AGENT_LLM_MODEL=root-model\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(backendDir, ".env"), []byte("AGENT_LLM_MODEL=stale-backend-model\n"), 0o600))
 
@@ -1240,7 +1296,7 @@ func TestLoadRAGContextualKeyFallbackChain(t *testing.T) {
 		t.Helper()
 		tmp := t.TempDir()
 		require.NoError(t, os.WriteFile(tmp+"/config.yaml",
-			[]byte("rag:\n  contextual:\n    provider: "+provider+"\n"), 0o600))
+			[]byte(minimalValidCoreYAML+"rag:\n  contextual:\n    provider: "+provider+"\n"), 0o600))
 		previousWD, err := os.Getwd()
 		require.NoError(t, err)
 		require.NoError(t, os.Chdir(tmp))

@@ -165,6 +165,15 @@ func runChecks(envFile, overrideFile, repoRoot, composeFile string) []check {
 	}
 
 	if cfg != nil {
+		// Structural check first (ticket #671): run the all-mode Validate()
+		// on the synthesized config as-is (before forcing release), so the
+		// demo-isomorphic YAML+EnvironmentFile+OverrideFile combo is held to
+		// the same startup gate the server/worker enforce via Load().
+		if serr := cfg.Validate(); serr != nil {
+			add("validate_structural", false, serr.Error())
+		} else {
+			add("validate_structural", true, "all structural config rules passed (all-mode)")
+		}
 		cfg.Server.Mode = "release"
 		verr := cfg.ValidateRelease()
 		if verr != nil {
