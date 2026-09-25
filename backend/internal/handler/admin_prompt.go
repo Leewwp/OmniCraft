@@ -116,6 +116,10 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 		return
 	}
 	if err := promptregistry.ValidateTemplate(slot, in.Content); err != nil {
+		// Key Rule 12 例外（api.md 兼容形状登记）：ValidateTemplate 只会返回
+		// 自造的占位符对比诊断（模板 token 集 vs 槽位必需集，均为 admin 可见
+		// 数据，无上游/内部错误串），动态 message 即安全内容，admin 修模板
+		// 依赖其中的具体差集。
 		response.Error(c, http.StatusUnprocessableEntity, "PROMPT_PLACEHOLDER_CONTRACT", err.Error())
 		return
 	}
