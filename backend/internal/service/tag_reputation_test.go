@@ -1,7 +1,10 @@
 package service
 
-// T33（FIX-37）③：标签建议被认可 → 建议者 +1 信誉分（business-rules 承诺接线）。
-// 仅 action=add 且建议者≠内容作者时加分（作者自加标签不自我激励）。
+// #659（用户裁决 B）：未接线的 tag_recognized 声誉奖励规则整体移除——
+// 生产组合根从未注入 TagService 声誉依赖（#657 勘误），规则删除不改变
+// 生产奖励流。本文件原为 T33「+1 信誉分」接线测试，替换为无奖励特征：
+// 批准他人 add 建议后标签生效、建议者声誉与 reputation_logs 不变。
+// 历史 tag_recognized 日志与前端 reason 文案保留（历史兼容显示）。
 
 import (
 	"testing"
@@ -19,7 +22,7 @@ func setupT33TagReputationDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.TagSuggestion{}, &model.ReputationLog{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.ContentTag{}, &model.TagSuggestion{}, &model.ReputationLog{}))
 	return db
 }
 
@@ -41,9 +44,7 @@ func t33Suggestion(t *testing.T, db *gorm.DB, suggesterID, authorID int64, actio
 	sg := model.TagSuggestion{ContentItemID: content.ID, UserID: suggesterID, Tag: "奇幻", Action: action, Status: "pending"}
 	require.NoError(t, db.Create(&sg).Error)
 
-	svc := NewTagService(repository.NewTagRepository(db), repository.NewContentRepository(db), nil, nil)
-	svc.SetReputationService(NewReputationService(db))
-	return svc
+	return NewTagService(repository.NewTagRepository(db), repository.NewContentRepository(db), nil, nil)
 }
 
 func t33ReputationLogs(t *testing.T, db *gorm.DB, userID int64) []model.ReputationLog {
@@ -53,34 +54,48 @@ func t33ReputationLogs(t *testing.T, db *gorm.DB, userID int64) []model.Reputati
 	return logs
 }
 
-func TestApproveTagSuggestionAwardsSuggester(t *testing.T) {
+func TestApproveTagSuggestionAppliesTagWithoutAnyReputationAward(t *testing.T) {
 	db := setupT33TagReputationDB(t)
-	svc := t33Suggestion(t, db, 2, 1, "add")
+	svc := t33Suggestion(t, db, 2, 1, "add") // 建议者 ≠ 作者
 
 	var sg model.TagSuggestion
 	require.NoError(t, db.First(&sg).Error)
+	require.EqualValues(t, "pending", sg.Status)
 	require.NoError(t, svc.ApproveTagSuggestion(sg.ID, 1)) // 作者批准
 
-	logs := t33ReputationLogs(t, db, 2)
-	require.Len(t, logs, 1, "认可他人标签建议必须给建议者 +1 信誉分")
-	require.Equal(t, "tag_recognized", logs[0].Reason)
-	require.EqualValues(t, 1, logs[0].Delta)
-	require.NotNil(t, logs[0].RelatedID)
-	require.EqualValues(t, sg.ID, *logs[0].RelatedID)
+	// 标签生效主语义保持：建议转 approved、标签落内容。
+	var after model.TagSuggestion
+	require.NoError(t, db.First(&after, sg.ID).Error)
+	require.EqualValues(t, "approved", after.Status)
+	var contentTags []model.ContentTag
+	require.NoError(t, db.Where("content_item_id = ?", after.ContentItemID).Find(&contentTags).Error)
+	found := false
+	for _, ct := range contentTags {
+		if ct.Tag == "奇幻" {
+			found = true
+		}
+	}
+	require.True(t, found, "批准 add 建议后标签必须写入内容")
+
+	// #659 特征：建议者声誉与 reputation_logs 均不变（奖励规则已移除）。
+	require.Empty(t, t33ReputationLogs(t, db, 2), "批准他人标签建议不得再写声誉日志")
+	var suggester model.User
+	require.NoError(t, db.First(&suggester, 2).Error)
+	require.EqualValues(t, 10, suggester.Reputation, "建议者声誉分保持不变")
 }
 
-func TestApproveTagSuggestionNoAwardForSelfSuggestion(t *testing.T) {
+func TestApproveOwnTagSuggestionStillAppliesWithoutAward(t *testing.T) {
 	db := setupT33TagReputationDB(t)
-	svc := t33Suggestion(t, db, 1, 1, "add") // 建议者==作者
+	svc := t33Suggestion(t, db, 1, 1, "add") // 建议者 == 作者
 
 	var sg model.TagSuggestion
 	require.NoError(t, db.First(&sg).Error)
 	require.NoError(t, svc.ApproveTagSuggestion(sg.ID, 1))
 
-	require.Empty(t, t33ReputationLogs(t, db, 1), "作者自建议不得自我加分")
+	require.Empty(t, t33ReputationLogs(t, db, 1), "自建议同样不产生声誉日志")
 }
 
-func TestApproveTagSuggestionNoAwardForRemoveAction(t *testing.T) {
+func TestApproveRemoveSuggestionStillAppliesWithoutAward(t *testing.T) {
 	db := setupT33TagReputationDB(t)
 	svc := t33Suggestion(t, db, 2, 1, "remove")
 
@@ -88,5 +103,5 @@ func TestApproveTagSuggestionNoAwardForRemoveAction(t *testing.T) {
 	require.NoError(t, db.First(&sg).Error)
 	require.NoError(t, svc.ApproveTagSuggestion(sg.ID, 1))
 
-	require.Empty(t, t33ReputationLogs(t, db, 2), "remove 建议不触发加分")
+	require.Empty(t, t33ReputationLogs(t, db, 2), "remove 建议不产生声誉日志")
 }

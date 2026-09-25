@@ -115,10 +115,6 @@ func (s *ReputationService) AwardQualityComment(userID int64, commentID int64, l
 	return s.AddReputation(userID, s.score(2, func() int { return s.cfg.Reputation.ScoreQualityComment }), "quality_comment", &commentID)
 }
 
-func (s *ReputationService) AwardTagRecognized(userID int64, tagSuggestionID int64) error {
-	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreTagRecognized }), "tag_recognized", &tagSuggestionID)
-}
-
 func (s *ReputationService) AwardJudgeAccuracy(userID int64, caseID int64) error {
 	// T39（FIX-03）：同案幂等（闭案并发触发/重复调用只记一次）。
 	var count int64

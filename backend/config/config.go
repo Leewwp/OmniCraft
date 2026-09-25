@@ -436,7 +436,6 @@ type ReputationConfig struct {
 	ScoreQualityContent     int `mapstructure:"score_quality_content" json:"score_quality_content"`
 	ScorePRMerged           int `mapstructure:"score_pr_merged" json:"score_pr_merged"`
 	ScoreQualityComment     int `mapstructure:"score_quality_comment" json:"score_quality_comment"`
-	ScoreTagRecognized      int `mapstructure:"score_tag_recognized" json:"score_tag_recognized"`
 	ScoreJudgeAccuracy      int `mapstructure:"score_judge_accuracy" json:"score_judge_accuracy"`
 	ScoreRehabCourse        int `mapstructure:"score_rehab_course" json:"score_rehab_course"`
 	ScoreValidReport        int `mapstructure:"score_valid_report" json:"score_valid_report"`
