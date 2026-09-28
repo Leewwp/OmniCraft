@@ -57,9 +57,13 @@ type turnRunner struct {
 	ownImagePrefixes   []string
 	citationCandidates []AgentCitation
 	seenCitationKeys   map[string]bool
-	retrievalSources   map[string]string
-	degraded           bool
-	streamErr          error
+	// citationNumbers remembers each pool entry's turn-global number by the
+	// same dedupe key (FT-5 #697) so a re-seen search result can be stamped
+	// with its original number in later tool outputs.
+	citationNumbers  map[string]int
+	retrievalSources map[string]string
+	degraded         bool
+	streamErr        error
 	// skipFinalize marks exits that pre-#661 returned without the terminal
 	// quartet (SSE handler failure = client disconnect; internal marshal
 	// abort): the flag lets the caller reproduce that exit exactly; the
@@ -100,6 +104,7 @@ func (s *AgentService) newTurnRunner(userID int64, turn ChatTurnInput, conv *mod
 		ownImagePrefixes:   []string{},
 		citationCandidates: make([]AgentCitation, 0, s.ToolPolicy().CitationMaxCount),
 		seenCitationKeys:   make(map[string]bool, s.ToolPolicy().CitationMaxCount),
+		citationNumbers:    make(map[string]int, s.ToolPolicy().CitationMaxCount),
 		retrievalSources:   make(map[string]string),
 		followUpCh:         make(chan []string, 1),
 		recorder:           recorder,
@@ -299,27 +304,44 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 					r.degraded = true
 					traceAgentEvent(r.traceID, "retrieval_r.degraded", "tool", tc.Function.Name)
 				}
-				for _, summary := range outcome.Search {
-					citation, ok := citationFromSearchSummary(summary)
-					if !ok || r.seenCitationKeys[citation.ChunkKey] {
+				// FT-5 (#697): each new pool entry takes the next
+				// turn-global number and the summary the model is about to
+				// see is stamped with the same number, so inline [n]
+				// markers stay aligned with the emitted citation cards
+				// across every search call of the turn. Re-seen results
+				// keep their original number instead of being renumbered.
+				for i := range outcome.Search {
+					citation, ok := citationFromSearchSummary(outcome.Search[i])
+					if !ok {
+						continue
+					}
+					if r.seenCitationKeys[citation.ChunkKey] {
+						outcome.Search[i].Cite = r.citationNumbers[citation.ChunkKey]
 						continue
 					}
 					r.seenCitationKeys[citation.ChunkKey] = true
+					citation.Number = len(r.citationCandidates) + 1
+					r.citationNumbers[citation.ChunkKey] = citation.Number
+					outcome.Search[i].Cite = citation.Number
 					r.citationCandidates = append(r.citationCandidates, citation)
 				}
 				// SP-19 G2-1: search_ips results join the same citation
 				// candidate pool; the "ip:{id}" dedupe key cannot collide
 				// with 64-hex chunk keys.
-				for _, ipSummary := range outcome.IPs {
-					citation, ok := citationFromIPSummary(ipSummary)
+				for i := range outcome.IPs {
+					citation, ok := citationFromIPSummary(outcome.IPs[i])
 					if !ok {
 						continue
 					}
 					key := fmt.Sprintf("ip:%d", citation.ContentID)
 					if r.seenCitationKeys[key] {
+						outcome.IPs[i].Cite = r.citationNumbers[key]
 						continue
 					}
 					r.seenCitationKeys[key] = true
+					citation.Number = len(r.citationCandidates) + 1
+					r.citationNumbers[key] = citation.Number
+					outcome.IPs[i].Cite = citation.Number
 					r.citationCandidates = append(r.citationCandidates, citation)
 				}
 				if outcome.Detail != nil {
@@ -327,12 +349,16 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 						legacyKey := fmt.Sprintf("content:%d", outcome.Detail.ID)
 						if !r.seenCitationKeys[legacyKey] {
 							r.seenCitationKeys[legacyKey] = true
-							r.citationCandidates = append(r.citationCandidates, AgentCitation{
+							citation := AgentCitation{
 								ContentID: outcome.Detail.ID,
 								Title:     outcome.Detail.Title,
 								Zone:      outcome.Detail.Zone,
 								Excerpt:   outcome.Detail.Excerpt,
-							})
+							}
+							citation.Number = len(r.citationCandidates) + 1
+							r.citationNumbers[legacyKey] = citation.Number
+							outcome.Detail.Cite = citation.Number
+							r.citationCandidates = append(r.citationCandidates, citation)
 						}
 					} else {
 						citation, err := r.svc.citationForContent(ctx, r.userID, outcome.Detail.ID)
@@ -343,6 +369,9 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 						} else if !r.seenCitationKeys[citation.ChunkKey] {
 							citation.Source = source
 							r.seenCitationKeys[citation.ChunkKey] = true
+							citation.Number = len(r.citationCandidates) + 1
+							r.citationNumbers[citation.ChunkKey] = citation.Number
+							outcome.Detail.Cite = citation.Number
 							r.citationCandidates = append(r.citationCandidates, citation)
 						}
 					}

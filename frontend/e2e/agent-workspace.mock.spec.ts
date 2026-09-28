@@ -464,14 +464,114 @@ test("inline citation badge [1] opens the cited content overlay directly", async
   await expect(page.getByText(/Blender 插件安装的回答/)).toBeVisible();
 
   /* 行内 [1] 角标直开共享内容浮窗（2026-09-06 实测修复后的契约，与站内其它
-     「点链接开浮窗」一致）；答案行下方引用卡（#agent-citation-0）仍在。 */
+     「点链接开浮窗」一致）；答案行下引用卡按编号键控（#agent-citation-1）仍在侧栏。 */
   const badge = page.getByRole("button", { name: "Jump to citation 1" });
   await expect(badge).toBeVisible();
-  await expect(page.locator("#agent-citation-0")).toBeVisible();
+  /* FT-4：引用卡住侧栏——先开「参考来源」面板再断言编号键控卡片（FT-5：
+     id 与序号按轮内全局编号，历史行无 number 回退位置序 1）。 */
+  await page.getByRole("button", { name: /reference sources/ }).first().click();
+  await expect(page.locator("#agent-citation-1")).toBeVisible();
   await badge.click();
   await expect(page.getByRole("dialog", { name: "Blender 插件安装教程" })).toBeVisible();
-  await page.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  /* Esc 关闭（浮层 Esc 逐层弹出语义；关闭按钮存在 hover 显隐/动画稳定性
+     问题，Esc 等价且更稳）。 */
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Blender 插件安装教程" })).toHaveCount(0);
+});
+
+test("gap-numbered citations align badges, cards and clicks by turn-global number (FT-5)", async ({ page }) => {
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(
+    page,
+    [{ id: 1, context_type: "global", updated_at: "2026-08-10T00:00:00Z" }],
+    {
+      1: [
+        { id: 11, role: "user", content: "三视图" },
+        /* done 后历史回放重建消息树：assistant 行带同编号 citations，回放后
+           角标仍按编号渲染（与 unit 版 gap 测试同款回放一致性）。 */
+        {
+          id: 12,
+          role: "assistant",
+          content: "第一篇 [1] 与第三篇 [3]",
+          citations: [
+            { content_id: 1001, title: "Blender 插件安装教程", zone: "original", excerpt: "步骤一", number: 1 },
+            { content_id: 1003, title: "三视图坐标合同详解", zone: "original", excerpt: "Z-up", number: 3 },
+          ],
+        },
+      ],
+    },
+  );
+  /* 编号 1、3（2 被复验剔除）：正文 [2] 已被服务端剥离，此处 mock 直接给
+     终稿——验证前端按编号命中，不按数组位置。 */
+  const GAP_EVENTS: unknown[] = [
+    { type: "start", trace_id: "mock-trace-gap", conversation_id: 1, answer_kind: "grounded_content" },
+    { type: "delta", delta: "第一篇 [1] 与第三篇 [3]" },
+    {
+      type: "done",
+      conversation_id: 1,
+      message_id: 21,
+      answer_kind: "grounded_content",
+      answer: "第一篇 [1] 与第三篇 [3]",
+      citations: [
+        { content_id: 1001, title: "Blender 插件安装教程", zone: "original", excerpt: "步骤一", number: 1 },
+        { content_id: 1003, title: "三视图坐标合同详解", zone: "original", excerpt: "Z-up", number: 3 },
+      ],
+      tools: [],
+      degraded: false,
+    },
+  ];
+  await mockApiRoute(page, "**/api/v1/contents/1003", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        content: {
+          id: 1003,
+          title: "三视图坐标合同详解",
+          description: "Z-up",
+          body: "正文。",
+          content_type: "article",
+          category: "gaming",
+          zone: "original",
+          status: "published",
+          author: { id: 42, username: "Ada" },
+          created_at: "2026-07-01T00:00:00Z",
+        },
+        attachments: [],
+        tags: [],
+      }),
+    }),
+  );
+  await mockApiRoute(page, "**/api/v1/contents/1003/related-fanworks", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], total: 0 }) }),
+  );
+  await mockStream(page, GAP_EVENTS);
+
+  await page.goto("/agent");
+  await ask(page, "三视图");
+  await expect(page.getByText(/第一篇/)).toBeVisible();
+
+  /* [3] 小卡命中第二条引用（数组第 2 项，非位置 3）：标题露出 + 点击开 1003。 */
+  const badge3 = page.getByRole("button", { name: "Jump to citation 3" });
+  await expect(badge3).toBeVisible();
+  await expect(badge3).toContainText("三视图坐标合同详解");
+  await badge3.click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: "三视图坐标合同详解" }).first()).toBeVisible();
+
+  /* 侧栏：编号键控卡片 1/3 存在，2 无卡。 */
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /reference sources/ }).first().click();
+  await expect(page.locator("#agent-citation-1")).toBeVisible();
+  await expect(page.locator("#agent-citation-3")).toBeVisible();
+  await expect(page.locator("#agent-citation-2")).toHaveCount(0);
+  await page.screenshot({ path: "../screenshots/ft5-badges/gap-numbered-sidebar.png", fullPage: true });
+
+  /* 悬停浮窗：完整标题 + 简介 + 查看提示（桌面 hover 专属）。 */
+  const chip3 = page.getByRole("button", { name: "Jump to citation 3" });
+  await chip3.hover();
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  await page.screenshot({ path: "../screenshots/ft5-badges/hover-popover.png" });
 });
 
 test("sidebar ⋯ menu renames the conversation via PATCH", async ({ page }) => {

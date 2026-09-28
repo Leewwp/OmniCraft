@@ -36,7 +36,7 @@ func TestPersistPartialTurnSanitizesBeforePersist(t *testing.T) {
 	s.cfg.Agent.Guardrails.ImageURLAllowHosts = []string{"cdn.omnicraft.local"}
 
 	partial := "看这张 ![cat](https://evil.example.org/cat.png) 和自家 ![ok](https://cdn.omnicraft.local/a.png) 图[3]。"
-	s.persistPartialTurn(conv.ID, partial, nil, 0, "zh")
+	s.persistPartialTurn(conv.ID, partial, nil, nil, "zh")
 
 	var row model.AgentMessage
 	if err := db.Where("conversation_id = ? AND role = ?", conv.ID, "assistant").First(&row).Error; err != nil {

@@ -418,11 +418,11 @@ func TestAgentSystemV2Golden(t *testing.T) {
 	}
 	var shipped *UpgradeSeed
 	for i := range RegistryUpgrades {
-		if RegistryUpgrades[i].SlotName == "agent_system" {
+		if RegistryUpgrades[i].SlotName == "agent_system" && RegistryUpgrades[i].Version == 2 {
 			shipped = &RegistryUpgrades[i]
 		}
 	}
-	if shipped == nil || shipped.Version != 2 {
+	if shipped == nil {
 		t.Fatalf("agent_system v2 upgrade missing from RegistryUpgrades: %+v", RegistryUpgrades)
 	}
 	if err := ValidateTemplate(slot, shipped.Content); err != nil {
@@ -450,6 +450,43 @@ func TestAgentSystemV2Golden(t *testing.T) {
 	}
 }
 
+// FT-5 (#697): v3 = v2 corpus with only the citation instruction swapped for
+// the turn-global numbering clause; every other v1 instruction and the v2
+// image clause stay byte-identical.
+func TestAgentSystemV3Golden(t *testing.T) {
+	slot, ok := SlotByName("agent_system")
+	if !ok {
+		t.Fatal("agent_system slot missing")
+	}
+	var shipped *UpgradeSeed
+	for i := range RegistryUpgrades {
+		if RegistryUpgrades[i].SlotName == "agent_system" && RegistryUpgrades[i].Version == 3 {
+			shipped = &RegistryUpgrades[i]
+		}
+	}
+	if shipped == nil {
+		t.Fatalf("agent_system v3 upgrade missing from RegistryUpgrades: %+v", RegistryUpgrades)
+	}
+	if err := ValidateTemplate(slot, shipped.Content); err != nil {
+		t.Fatalf("v3 template invalid: %v", err)
+	}
+	if !strings.Contains(shipped.Content, agentSystemV3Citation) {
+		t.Fatal("v3 must carry the turn-global citation clause")
+	}
+	if strings.Contains(shipped.Content, agentSystemInstructions[0]) {
+		t.Fatal("v3 must replace, not duplicate, the v1 positional citation clause")
+	}
+	// Every non-citation v1 instruction and the whole v2 extra survive.
+	for _, instruction := range agentSystemInstructions[1:] {
+		if !strings.Contains(shipped.Content, instruction) {
+			t.Fatalf("v3 dropped a v1 instruction: %.60s…", instruction)
+		}
+	}
+	if !strings.Contains(shipped.Content, agentSystemV2Extra) {
+		t.Fatal("v3 must keep the v2 image-tool guidance verbatim")
+	}
+}
+
 func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 	db := testutil.OpenEphemeralPostgres(t)
 	testutil.ApplyMigrationFile(t, db, "../../../migrations/082_prompt_registry.sql")
@@ -466,8 +503,8 @@ func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Version != 2 || row.Content != agentSystemV2() {
-		t.Fatalf("fresh ship must move production to v2, got v%d (len %d)", row.Version, len(row.Content))
+	if row.Version != 3 || row.Content != agentSystemV3() {
+		t.Fatalf("fresh ship must move production to v3, got v%d (len %d)", row.Version, len(row.Content))
 	}
 	// All other slots stay at v1.
 	other, _ := repo.GetByLabel(ctx, "conversation_title_prompt", ProductionLabel)
@@ -480,7 +517,7 @@ func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 		t.Fatal(err)
 	}
 	row, _ = repo.GetByLabel(ctx, "agent_system", ProductionLabel)
-	if row.Version != 2 {
+	if row.Version != 3 {
 		t.Fatalf("re-run must not move label (now v%d)", row.Version)
 	}
 
