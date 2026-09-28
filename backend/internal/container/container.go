@@ -207,6 +207,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 		}
 	}
 	c.ArchiveScanRepo = repository.NewArchiveScanRepositoryWithOutbox(db, repository.ArchiveScanRetryPolicy{Backoff: backoff}, c.OutboxRepo)
+	// #688: scannable families come from the registry capability axis.
+	c.ArchiveScanRepo.SetScannableFileTypes(cfg.ScannableUploadFamilies())
 	// SP-21 T1: async trace persistence. Start/Stop are owned by the
 	// server/worker mains so shutdown ordering (flush before redis close)
 	// stays explicit; recording call sites arrive with T2.
@@ -247,11 +249,12 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	}
 	// One shared per-user upload-grant store (same redis keys for web studio
 	// uploads and MCP writes; TTL contract unchanged).
-	grantTTL := 5 * time.Minute
-	if cfg.Feedback.UploadGrantTTLSec > 0 {
-		grantTTL = time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
-	}
-	c.UploadGrants = service.NewUploadGrantService(rdb, grantTTL)
+	// #688 v2.2: content grants get their own TTL (default 1800s) instead of
+	// borrowing the feedback 300s — the presign PUT URL itself lives 15
+	// minutes, so slow uploads or serial multi-attachment publishes used to
+	// outrun the grant. Feedback keeps its 5-minute budget, uncoupled.
+	contentGrantTTL := time.Duration(cfg.Upload.EffectiveContentGrantTTLSec()) * time.Second
+	c.UploadGrants = service.NewUploadGrantService(rdb, contentGrantTTL)
 
 	var mailSender mail.MailSender
 	var feedbackMailSender service.FeedbackMailSender
@@ -285,14 +288,16 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	}
 	c.IPPublishService = service.NewIPServiceWithReview(c.IPRepo, rdb, &cfg.Cache, c.ReviewService)
 	c.AgentQuotaReserver = middleware.NewAgentQuotaReserver(rdb, cfg)
-	c.DownloadArchiveGate = service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled)
+	scannableFamilies := cfg.ScannableUploadFamilies()
+	c.DownloadArchiveGate = service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled, scannableFamilies)
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)
 	c.ReviewService.SetOutboxRepository(c.OutboxRepo)
-	c.ReviewService.SetArchiveScanGate(service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled))
+	c.ReviewService.SetArchiveScanGate(service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled, scannableFamilies))
 	c.JudgeService = service.NewJudgeService(c.JudgeRepo, c.ReputationService, cfg)
 	c.ContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, nil).
-		WithArchiveScanConfig(&cfg.ArchiveScan)
+		WithArchiveScanConfig(&cfg.ArchiveScan).
+		SetContentRegistryConfig(cfg)
 	c.ContentService.SetOutboxRepository(c.OutboxRepo)
 	c.SocialService = service.NewSocialServiceWithRedis(c.SocialRepo, c.ContentRepo, c.UserRepo, cfg, rdb, c.ReviewService)
 	c.StatsService = service.NewStatsService(db, rdb)
@@ -355,7 +360,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 		WithArchiveScanConfig(&cfg.ArchiveScan).
 		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
 		WithImageDimensionsResolver(c.OSSService).
-		WithUploadConfig(&cfg.Upload)
+		WithUploadConfig(&cfg.Upload).
+		SetContentRegistryConfig(cfg).
+		SetDocumentValidator(c.OSSService, c.OSSService)
 	c.StudioContentService.SetVersionService(c.VersionService)
 	c.StudioContentService.SetOutboxRepository(c.OutboxRepo)
 	c.StudioContentService.SetQueueProducer(c.QueueProducer)
@@ -383,6 +390,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 		DisplaySigner: c.DisplayURLSigner,
 		Cfg:           cfg,
 		ContentSvc:    c.StudioContentService,
+		PreviewGate:   c.DownloadArchiveGate,
 		// SuggestPublishMetadata reuses the in-chat upload-assist LLM;
 		// AgentService is constructed below, hence the late-bound closure.
 		SuggestPublishMetadata: func(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error) {

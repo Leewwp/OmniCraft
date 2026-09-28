@@ -116,6 +116,10 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 		FileType: req.FileType,
 		MimeType: req.MimeType,
 		FileSize: req.FileSize,
+		// #688: the server locks the normalized name into the grant at
+		// presign time; the later publish payload's file_name is never
+		// trusted for this.
+		OriginalFileName: service.NormalizeUploadFileName(req.FileName),
 	})
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", err)
@@ -331,7 +335,10 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		attachments = nil
 	}
 	h.displaySigner.DecorateContent(content)
-	h.displaySigner.DecorateAttachments(attachments)
+	// #688 AttachmentScanGate 预览门：详情路径与下载门同源同判——非 clean
+	// 不签发 oss_url（前端渲染扫描状态卡）；scannable 族群走 scan-aware
+	// 短 TTL 签名（cap 300s、无 bucket 对齐）。
+	h.displaySigner.ScanAwareDecorateAttachments(c.Request.Context(), attachments, h.archiveGate, h.cfg.ArchiveScan.URLTTLSec)
 
 	// SP-17/T1：作者关注态按 viewer 附加（同 is_favorited 的缓存外模式）——
 	// 详情内容行有 Redis 整行缓存，登录视角字段禁止进缓存。匿名（user_id=0）

@@ -124,7 +124,7 @@ func (s *ContentService) RequestDownload(ctx context.Context, callerID int64, co
 		}
 	}
 
-	gate := NewArchiveScanGate(s.contentRepo.DB(), s.archiveScanEnabled)
+	gate := NewArchiveScanGate(s.contentRepo.DB(), s.archiveScanEnabled, nil)
 	if err := gate.RequireAttachmentClean(ctx, target.ID); err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func downloadURLTTL(ossTTLSec int, archiveScanEnabled bool, archiveScanTTLSec in
 	if ossTTLSec > 0 {
 		ttlSec = ossTTLSec
 	}
-	if archiveScanEnabled && (attachment.FileType == "mod" || attachment.ScanRequired) {
+	if archiveScanEnabled && (isScannableAttachmentFamily(nil, attachment.FileType) || attachment.ScanRequired) {
 		scanTTL := archiveScanTTLSec
 		if scanTTL <= 0 || scanTTL > 300 {
 			scanTTL = 300
