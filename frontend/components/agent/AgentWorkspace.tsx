@@ -12,7 +12,7 @@ import { Composer } from "@/components/ui/composer";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
 import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getBrowserApiBase } from "@/lib/server-api";
 import {
@@ -127,6 +127,9 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  /* FT-3：首轮 done→replace(/agent/c/{id}) 的待导航标记（会话 id 到 done
+     才产生；push 会让「发完首条按返回」退回空页）。 */
+  const pendingFirstRoundNavRef = useRef(false);
   /** provider 降级关键词回退的请求代（防过期响应写回新轮）。 */
   const fallbackRequestRef = useRef(0);
   const atBottomRef = useRef(true);
@@ -157,6 +160,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
+
+  /* FT-3：流中离开（路由切走/组件卸载）补 abort——SSE 连接不再残留。 */
+  useEffect(() => () => controllerRef.current?.abort(), []);
+
 
   /* 侧栏折叠状态持久化（A1.6）。 */
   useEffect(() => {
@@ -262,6 +269,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         if (!cancelled) {
           setMessagesLoadError(true);
           silentError(error, { component: "AgentWorkspace", action: "load conversation" });
+          /* FT-3：深链他人/已删会话 404 → 落回空态入口（错误横幅随重挂载消失）。 */
+          if (error instanceof ApiRequestError && error.status === 404) {
+            router.replace("/agent");
+          }
         }
       })
       .finally(() => {
@@ -327,6 +338,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setActiveTurn(null);
     setActiveId(id);
     setDrawerOpen(false);
+    /* FT-3：切会话即导航（URL 承载会话身份；同 id 不重复压栈）。 */
+    if (!initialConversationId || id !== initialConversationId) {
+      router.push(`/agent/c/${id}`);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -337,6 +352,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setTurns([]);
     setActiveTurn(null);
     setDrawerOpen(false);
+    /* FT-3：新建会话回空态入口路由（已在 /agent 时同路由导航为 no-op）。 */
+    router.push("/agent");
     focusComposer();
   }, [streaming]);
 
@@ -423,6 +440,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         setActiveId(null);
         setTurns([]);
         setActiveTurn(null);
+        /* FT-3：删的是当前会话 → 落回空态入口（不留死 URL）。 */
+        router.replace("/agent");
         focusComposer();
       }
       toast("success", t("agent.workspace.deleteSuccess"));
@@ -492,6 +511,12 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         if (event.conversation_id) {
           setActiveId(event.conversation_id);
           void loadConversations();
+          /* FT-3：首轮会话 id 到 done 才产生——replace 写入会话 URL
+             （push 会让「发完首条按返回」退回空页）。 */
+          if (pendingFirstRoundNavRef.current) {
+            pendingFirstRoundNavRef.current = false;
+            router.replace(`/agent/c/${event.conversation_id}`);
+          }
         }
         return;
       }
@@ -523,6 +548,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     if (activeTurn) {
       setTurns((previous) => [...previous, activeTurn]);
     }
+    pendingFirstRoundNavRef.current = activeId === null;
     setActiveTurn(createAgentTurn(query, { id: newLocalTurnId(), firstRound: activeId === null }));
 
     const controller = new AbortController();
