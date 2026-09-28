@@ -47,6 +47,7 @@ let authUser: {
   email_verified_at: string | null;
 } | null = null;
 const routerPushes: string[] = [];
+const routerReplaces: string[] = [];
 
 Module._load = function loadWithNavigationStub(request, parent, isMain) {
   if (request === "next/navigation") {
@@ -55,6 +56,9 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
       useRouter: () => ({
         push: (path: string) => {
           routerPushes.push(path);
+        },
+        replace: (path: string) => {
+          routerReplaces.push(path);
         },
       }),
       usePathname: () => "/agent",
@@ -274,6 +278,7 @@ test.afterEach(() => {
   api.patch = originalPatch;
   authUser = null;
   routerPushes.length = 0;
+  routerReplaces.length = 0;
   window.localStorage.clear();
   delete (globalThis as Record<string, unknown>).fetch;
 });
@@ -2425,4 +2430,22 @@ test("#417 agent composer delegates to the shared embedded Composer", async () =
   assert.match(source, /stopLabel=\{streaming/, "streaming swaps the embedded slot to the stop action");
   assert.doesNotMatch(source, /composer\.style\.height/, "local auto-grow removed (component-owned)");
   assert.match(source, /ref=\{composerRef\}/, "focus flows preserved via ref forwarding");
+});
+
+/* FT-3（#695）会话路由化：四处导航改造 + 深链 404 回退 + 流中卸载 abort。
+   source-contract 钉法（交互级断言见 e2e agent-workspace.mock.spec.ts）。 */
+test("FT-3 conversation routing contract: URL carries conversation identity", async () => {
+  const source = await read("components/agent/AgentWorkspace.tsx");
+  // 切会话 → push(/agent/c/{id})；新建 → push("/agent")
+  assert.ok(source.includes('router.push(`/agent/c/${id}`)'), "select conversation pushes the conversation URL");
+  assert.ok(source.includes('router.push("/agent")'), "new conversation pushes the empty-state entry");
+  // 首轮 done → replace（发完首条按返回不退回空页）；删当前会话/深链 404 → replace("/agent")
+  assert.ok(source.includes('router.replace(`/agent/c/${event.conversation_id}`)'), "first-round done replaces in the conversation URL");
+  assert.ok(source.includes('router.replace("/agent")'), "delete-current and deep-link 404 replace back to /agent");
+  assert.ok(source.includes("error.status === 404"), "deep-link 404 is the replace trigger");
+  // 流中离开补卸载 abort
+  assert.ok(source.includes("useEffect(() => () => controllerRef.current?.abort(), [])"), "unmount aborts the in-flight stream");
+  // 会话路由页存在且 key 强制重挂载
+  const page = await read("app/(protected)/(headered)/agent/c/[conversationId]/page.tsx");
+  assert.ok(page.includes("key={id}") && page.includes("initialConversationId={id}"), "conversation page remounts per id and seeds the workspace");
 });
