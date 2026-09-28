@@ -859,8 +859,12 @@ test("workspace streams an answer and renders citation cards", async () => {
     await openCitationsPanel(view);
     await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
     /* 工具步骤区完成后自动折叠（A-06）：先展开再断言步骤明细。 */
-    fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
-    await waitFor(() => assert.ok(view.getByText("Searched site content")));
+    /* settle 竞态防护：轮终局重渲染会换掉展开按钮，点击与断言放同一 waitFor
+       内重试（陈旧点击不抛错、断言失败重点）。 */
+    await waitFor(() => {
+      fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
+      assert.ok(view.getByText("Searched site content"));
+    });
     assert.ok(view.getByText("Original"), "citation card exposes the zone label");
     assert.match(stub.calls[0], /\/api\/v1\/agent\/chat\/stream$/);
     assert.ok(calls.some((call) => call.path.includes("/api/v1/agent/conversations")));
