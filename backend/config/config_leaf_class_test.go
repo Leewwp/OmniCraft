@@ -41,6 +41,8 @@ var leafClassification = map[string]string{
 	"agent.embedding_model":                        "conditional",
 	"agent.embedding_provider":                     "conditional",
 	"agent.answer_bare_reasoning_guard.enabled":    "conditional",
+	"agent.follow_ups.budget_sec":                  "conditional",
+	"agent.follow_ups.enabled":                     "conditional",
 	"agent.guardrails.fence_external_tool_results": "conditional",
 	"agent.guardrails.image_url_allow_hosts":       "conditional",
 	"agent.guardrails.session_tool_call_limit":     "conditional",
@@ -445,8 +447,8 @@ func TestLeafClassificationOnlyUsesKnownClasses(t *testing.T) {
 	}
 }
 
-// The census ledger (required 13 / conditional 163 / optional-zero 122 /
-// registry 8 / dead 6 = 312 leaves) is asserted so the doc and the table
+// The census ledger (required 13 / conditional 165 / optional-zero 122 /
+// registry 8 / dead 6 = 314 leaves) is asserted so the doc and the table
 // cannot drift apart silently.
 func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	counts := map[string]int{}
@@ -454,8 +456,8 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 		counts[class]++
 	}
 	require.Equal(t, 13, counts[classRequired])
-	// 162 + 1 FT-6 (#698) answer_bare_reasoning_guard switch.
-	require.Equal(t, 163, counts[classConditional])
+	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups switches.
+	require.Equal(t, 165, counts[classConditional])
 	// 122 shipped + 5 (#688) + 3 (#689) new.
 	require.Equal(t, 130, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).
