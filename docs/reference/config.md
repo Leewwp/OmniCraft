@@ -34,6 +34,8 @@ model-routed conversational lane (SP-15 A2): a zero-too... |
 | `agent.embedding_model` | `string` | EmbeddingModel |
 | `agent.embedding_provider` | `string` | EmbeddingProvider routes embeddings to a different adapter than chat
 (canonical profile: minimax chat + openai_compat... |
+| `agent.follow_ups.budget_sec` | `int` | BudgetSec |
+| `agent.follow_ups.enabled` | `bool` | Enabled |
 | `agent.guardrails.fence_external_tool_results` | `bool` | FenceExternalToolResults wraps MCP/image tool results in explicit
 "data, not instructions" boundary markers before th... |
 | `agent.guardrails.image_url_allow_hosts` | `[]string` | ImageURLAllowHosts is the image-URL allowlist for model output: any
