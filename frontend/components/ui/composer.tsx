@@ -123,9 +123,11 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
         className="block w-full resize-none overflow-y-auto bg-transparent px-3 pb-11 pt-2 pr-11 text-sm text-fg-default placeholder:text-fg-subtle focus:outline-none disabled:cursor-not-allowed"
         style={{ maxHeight }}
       />
-      {/* #539：左下角控件区（与内嵌动作钮同一底部预留带，8px 内边距）。 */}
+      {/* #539：左下角控件区（与内嵌动作钮同一底部预留带，8px 内边距）。
+          FT-2：加 gap-2——深度思考开关与模型选择器之间的间隔不再依赖
+          按钮自身 px-2。 */}
       {leading ? (
-        <div className="absolute bottom-2 left-2 flex items-center">{leading}</div>
+        <div className="absolute bottom-2 left-2 flex items-center gap-2">{leading}</div>
       ) : null}
       {/* 内嵌动作按钮：右下角 8px、36px 实底圆钮两态（见文件头契约）。
           #417：流式期渲染停止按钮（同一内嵌位，Square 图标 + stopLabel）。 */}
