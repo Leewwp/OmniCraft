@@ -104,6 +104,12 @@ func (s *ContentService) validateDocumentAttachment(ctx context.Context, grant U
 			if errors.As(err, &validationErr) {
 				return fmt.Errorf("%w: %v", ErrUploadGrantInvalid, err)
 			}
+			// #691 冒烟实证（宏改名 docx / 非 OPC zip）：包身份与宏内容
+			// 失败是用户输入拒绝，必须以 400 UPLOAD_GRANT_INVALID 露出而非
+			// 裸奔 500 INTERNAL_ERROR（OSS 取物失败等内部错误仍走原样上抛）。
+			if errors.Is(err, ErrDocumentPackage) {
+				return fmt.Errorf("%w: %v", ErrUploadGrantInvalid, err)
+			}
 			return err
 		}
 		return nil

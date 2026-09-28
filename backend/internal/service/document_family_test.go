@@ -4,12 +4,15 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/archivezip"
 )
 
 // #688 upload-family admission matrices, publish rules and the document
@@ -322,4 +325,39 @@ func TestScannableFamiliesIncludeModel3D(t *testing.T) {
 	cfg := &config.Config{}
 	families := cfg.ScannableUploadFamilies()
 	require.Contains(t, families, "model3d", "#689 model3d joins ClamAV")
+}
+
+// TestDocumentPackageRejectionWireCode pins the #691 smoke finding: a macro
+// container renamed to .docx (or a non-OPC zip) must surface as
+// ErrUploadGrantInvalid (400 UPLOAD_GRANT_INVALID on the wire), not escape
+// raw and become 500 INTERNAL_ERROR.
+func TestDocumentPackageRejectionWireCode(t *testing.T) {
+	macroErr := fmt.Errorf("%w: [Content_Types].xml declares macro content", ErrDocumentPackage)
+	stub := &stubDocumentValidator{packageErr: macroErr}
+	svc := (&ContentService{}).SetDocumentValidator(stub, nil)
+
+	err := svc.validateDocumentAttachment(context.Background(),
+		UploadGrant{OSSKey: "uploads/1/document/a.docx", OriginalFileName: "a.docx", FileSize: 10})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrUploadGrantInvalid, "package-identity/macro rejection must map to the 400 wire code")
+
+	// Internal errors (OSS fetch failure) stay raw — they are not user input.
+	fetchErr := errors.New("oss: connection reset")
+	svc2 := (&ContentService{}).SetDocumentValidator(&stubDocumentValidator{packageErr: fetchErr}, nil)
+	err2 := svc2.validateDocumentAttachment(context.Background(),
+		UploadGrant{OSSKey: "uploads/1/document/a.docx", OriginalFileName: "a.docx", FileSize: 10})
+	require.ErrorIs(t, err2, fetchErr)
+	require.NotErrorIs(t, err2, ErrUploadGrantInvalid)
+}
+
+type stubDocumentValidator struct {
+	packageErr error
+}
+
+func (s *stubDocumentValidator) ValidateDocumentPackage(ctx context.Context, ossKey string, size int64, ext string, quota archivezip.Quota) error {
+	return s.packageErr
+}
+
+func (s *stubDocumentValidator) ValidateCSVTextSanity(ctx context.Context, ossKey string) error {
+	return nil
 }
