@@ -41,6 +41,24 @@ type DocumentValidator interface {
 var packageIdentityParts = map[string][]string{
 	".docx": {"[Content_Types].xml", "word/document.xml"},
 	".xlsx": {"[Content_Types].xml", "xl/workbook.xml"},
+	// #689: a 3MF package must carry the content-type manifest and a 3D
+	// model part (any 3D/*.model path — pattern match, not exact).
+	".3mf": {"[Content_Types].xml", "3D/*.model"},
+}
+
+// packagePartMatches reports whether a zip entry satisfies an identity part
+// (exact name, or a dir/*.ext pattern).
+func packagePartMatches(entryName, part string) bool {
+	if strings.EqualFold(entryName, part) {
+		return true
+	}
+	if idx := strings.Index(part, "*"); idx >= 0 {
+		prefix := strings.ToLower(part[:idx])
+		suffix := strings.ToLower(part[idx+1:])
+		name := strings.ToLower(entryName)
+		return strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix)
+	}
+	return false
 }
 
 // macroContentTypeMarkers are the [Content_Types].xml markers for macro
@@ -92,7 +110,7 @@ func inspectDocumentZip(zr *zip.Reader, ext string) error {
 	var contentTypes []byte
 	for _, f := range zr.File {
 		for _, part := range needed {
-			if strings.EqualFold(f.Name, part) {
+			if packagePartMatches(f.Name, part) {
 				found[part] = true
 			}
 		}

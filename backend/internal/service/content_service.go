@@ -407,7 +407,8 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				}
 				// #688 document chain: OPC structure + package identity +
 				// macro content (csv gets a text sanity pass instead).
-				if a.FileType == "document" {
+				// #689: .3mf rides the same pipeline (3D/*.model identity).
+				if a.FileType == "document" || (a.FileType == "model3d" && extensionOfGrant(*grant) == ".3mf") {
 					if err := s.validateDocumentAttachment(ctx, *grant); err != nil {
 						return err
 					}

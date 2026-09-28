@@ -343,7 +343,10 @@ var leafClassification = map[string]string{
 	"social.report_auto_hide_rate":                                   "optional-zero",
 	"upload.content_grant_ttl_sec":                                   "optional-zero",
 	"upload.document_preview_max_mb":                                 "optional-zero",
+	"upload.gcode_max_lines":                                         "optional-zero",
 	"upload.image_gallery_max_items":                                 "optional-zero",
+	"upload.model3d_max_preview_mb":                                  "optional-zero",
+	"upload.model3d_max_triangles":                                   "optional-zero",
 	"upload.image_gallery_min_items":                                 "optional-zero",
 	"upload.sheet_music_extensions":                                  "optional-zero",
 	"upload.video_gallery_max_items":                                 "optional-zero",
@@ -451,8 +454,8 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	}
 	require.Equal(t, 13, counts[classRequired])
 	require.Equal(t, 162, counts[classConditional])
-	// 122 shipped + 5 new (#688).
-	require.Equal(t, 127, counts[classOptionalZero])
+	// 122 shipped + 5 (#688) + 3 (#689) new.
+	require.Equal(t, 130, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).
 	require.Equal(t, 21, counts[classRegistry])
 	require.Equal(t, 6, counts[classDead])

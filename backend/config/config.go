@@ -546,6 +546,12 @@ type UploadConfig struct {
 	// ExcelJS/Mammoth parse memory is the binding constraint, not DOM count.
 	// Zero → 10MB default; over budget the viewer degrades to download-only.
 	DocumentPreviewMaxMB int `mapstructure:"document_preview_max_mb" json:"document_preview_max_mb"`
+	// #689 preview budgets, deliberately separate from the 50MB upload cap:
+	// a 50MB binary STL is ~million-triangle class and must not render
+	// unconditionally. gcode parsing is synchronous — line count bounds it.
+	Model3DMaxPreviewMB int `mapstructure:"model3d_max_preview_mb" json:"model3d_max_preview_mb"`
+	Model3DMaxTriangles int `mapstructure:"model3d_max_triangles" json:"model3d_max_triangles"`
+	GCodeMaxLines       int `mapstructure:"gcode_max_lines" json:"gcode_max_lines"`
 	// Media set (media gallery) size bounds for newly published image/video
 	// content. Zero means "use the specification default" so tests and
 	// minimal configs keep working.
@@ -562,6 +568,24 @@ func (u UploadConfig) EffectiveDocumentPreviewMaxMB() int {
 		return 10
 	}
 	return u.DocumentPreviewMaxMB
+}
+
+// EffectiveModel3DPreviewBuckets returns the #689 preview budgets with
+// defaults (15MB / 1,000,000 triangles / 500,000 gcode lines).
+func (u UploadConfig) EffectiveModel3DPreviewBuckets() (previewMB, maxTriangles, gcodeMaxLines int) {
+	previewMB = u.Model3DMaxPreviewMB
+	if previewMB <= 0 {
+		previewMB = 15
+	}
+	maxTriangles = u.Model3DMaxTriangles
+	if maxTriangles <= 0 {
+		maxTriangles = 1_000_000
+	}
+	gcodeMaxLines = u.GCodeMaxLines
+	if gcodeMaxLines <= 0 {
+		gcodeMaxLines = 500_000
+	}
+	return
 }
 
 // PresignPUTTTLSec is the OSS presign PUT URL lifetime (oss_service.go) that

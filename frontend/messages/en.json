@@ -351,6 +351,17 @@
         "failed": "Attachment scan failed; preview unavailable",
         "legacy_unscanned": "Legacy attachment was never scanned; preview unavailable",
         "unavailable": "Attachment preview unavailable (scan state)"
+      },
+      "model": {
+        "loading": "Loading 3D model… {progress}%",
+        "canvasLabel": "3D preview of {name}",
+        "views": "Views",
+        "view": {
+          "orbit": "Orbit",
+          "front": "Front",
+          "side": "Side",
+          "top": "Top"
+        }
       }
     }
   },

@@ -32,6 +32,10 @@ export interface PublicUpload {
   video_gallery_max_items: number;
   /** #688 文档浏览器预览预算（MB）；超限查看器降级为下载卡 */
   document_preview_max_mb?: number;
+  /** #689 3D 预览预算（与上传上限分离） */
+  model3d_max_preview_mb?: number;
+  model3d_max_triangles?: number;
+  gcode_max_lines?: number;
 }
 
 export interface PublicCollaboration {

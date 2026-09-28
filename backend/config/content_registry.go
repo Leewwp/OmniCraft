@@ -115,7 +115,7 @@ func DefaultContentRegistry() ContentRegistryConfig {
 			{Key: "audio", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"audio"}, JudgeEligible: boolPtr(true)},
 			{Key: "mod", Zones: []string{ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"mod"}, JudgeEligible: boolPtr(false)},
 			{Key: "prompt", Zones: []string{ZoneFanwork}, Form: ContentFormText, UploadFileTypes: []string{}, JudgeEligible: boolPtr(true)},
-			{Key: "template", Zones: []string{ZoneOriginal}, Form: ContentFormFile, UploadFileTypes: []string{"text", "document"}, JudgeEligible: boolPtr(true)},
+			{Key: "template", Zones: []string{ZoneOriginal}, Form: ContentFormFile, UploadFileTypes: []string{"text", "document", "model3d"}, JudgeEligible: boolPtr(true)},
 			{Key: "sheet_music", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"sheet_music"}, JudgeEligible: boolPtr(true)},
 			{Key: "other", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormText, UploadFileTypes: []string{}, JudgeEligible: boolPtr(true)},
 		},
@@ -140,6 +140,14 @@ func DefaultContentRegistry() ContentRegistryConfig {
 			// rule) — first real opening, built to the new standard:
 			// extension whitelist + header magic sniffing + scannable.
 			{Key: "audio", Extensions: []string{".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"}, MaxMBKey: "audio_max_mb", Scannable: true},
+			// #689 model3d family: extension-whitelist driven (MIME sniffing
+			// is unreliable for STL/PLY — browsers report octet-stream);
+			// 3MF is a ZIP container and walks the #688 structure +
+			// package-identity pipeline (3D/*.model) post-upload.
+			// .mtl uploads but never previews (V1: no OBJ+MTL material
+			// matching — OSS keys are randomized, basename matching is
+			// unimplementable on the current data model).
+			{Key: "model3d", Extensions: []string{".stl", ".obj", ".3mf", ".gcode", ".ply", ".mtl"}, MaxMBKey: "model3d_max_mb", Scannable: true},
 		},
 	}
 }

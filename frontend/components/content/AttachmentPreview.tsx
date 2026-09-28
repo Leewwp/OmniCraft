@@ -20,6 +20,15 @@ const DocumentViewer = dynamic(
   },
 );
 
+/** #689：3D 查看器独立懒分块（three.js 全家桶不进主包）。 */
+const ModelViewer = dynamic(
+  () => import("@/components/content/ModelViewer").then((m) => m.ModelViewer),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+);
+
 export interface PreviewableAttachment {
   id: number;
   file_type?: string;
@@ -103,6 +112,25 @@ export function AttachmentPreview({
         fileName={attachment.original_file_name || attachment.oss_key || ""}
         fileSize={attachment.file_size ?? undefined}
         maxPreviewMB={effectiveConfig?.upload?.document_preview_max_mb}
+        contentId={contentId}
+        attachmentId={attachment.id}
+        allowCopy={allowCopy}
+      />
+    );
+  }
+
+  // #689 model3d 族：.mtl 落下载卡（V1 无材质匹配），其余五格式进查看器。
+  const model3dName = attachment.original_file_name || attachment.oss_key || "";
+  const isMaterialFile = model3dName.toLowerCase().endsWith(".mtl");
+  if (attachment.file_type === "model3d" && attachment.oss_url && !isMaterialFile) {
+    return (
+      <ModelViewer
+        url={attachment.oss_url}
+        fileName={model3dName}
+        fileSize={attachment.file_size ?? undefined}
+        maxPreviewMB={effectiveConfig?.upload?.model3d_max_preview_mb}
+        maxTriangles={effectiveConfig?.upload?.model3d_max_triangles}
+        gcodeMaxLines={effectiveConfig?.upload?.gcode_max_lines}
         contentId={contentId}
         attachmentId={attachment.id}
         allowCopy={allowCopy}
