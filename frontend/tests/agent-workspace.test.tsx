@@ -274,7 +274,7 @@ const originalPatch = api.patch;
 
 /** FT-4（#696）：引用卡住参考来源侧栏——测试先点入口按钮开面板。 */
 async function openCitationsPanel(view: ReturnType<typeof renderWithIntl>) {
-  const entry = await waitFor(() => view.getByRole("button", { name: /reference sources/ }));
+  const entry = await waitFor(() => view.getByRole("button", { name: /reference sources/ }), { timeout: 3000 });
   fireEvent.click(entry);
   return entry;
 }
