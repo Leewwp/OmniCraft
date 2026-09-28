@@ -684,6 +684,7 @@
     "fileTooLarge": "文件超出大小限制，请压缩后重试",
     "invalidMimeType": "不支持的文件类型",
     "mediaSetInvalid": "媒体组合不符合画廊规范，请检查封面与媒体列表",
+    "attachmentPolicyRequired": "3D 打印内容需至少包含一个 3D 模型文件（stl、obj、3mf、gcode、ply）",
     "sourceNotAllowedForOriginal": "原创内容不能添加来源归属",
     "fanworkSourceRequired": "二次创作需关联 IP 或选择灵感来源",
     "multipleSourceConflict": "只能选择一个来源（IP / 原作 / 灵感作品）",
@@ -2456,6 +2457,7 @@
         "template": "效率模板",
         "prompt": "AI 提示词",
         "mod": "Mod",
+        "3d_print": "3D打印",
         "other": "其他"
       },
       "typeDescOriginal": {
@@ -2466,6 +2468,7 @@
         "sheet_music": "原创曲谱、改编",
         "template": "Notion、Excel 等模板",
         "prompt": "Prompt 模板分享",
+        "3d_print": "原创 3D 模型、打印文件",
         "other": "其他原创内容"
       },
       "typeDescFanwork": {
@@ -2476,6 +2479,7 @@
         "sheet_music": "主题曲改编谱",
         "mod": "游戏模组、材质包",
         "prompt": "角色 LoRA 提示词",
+        "3d_print": "角色手办、道具模型",
         "other": "其他二创内容"
       },
       "attachments": {

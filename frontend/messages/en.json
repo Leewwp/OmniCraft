@@ -684,6 +684,7 @@
     "fileTooLarge": "The file exceeds the size limit. Please compress it and try again",
     "invalidMimeType": "Unsupported file type",
     "mediaSetInvalid": "The media set violates the gallery contract. Please check the cover and media list",
+    "attachmentPolicyRequired": "3D printing content needs at least one 3D model file (.stl, .obj, .3mf, .gcode, .ply)",
     "sourceNotAllowedForOriginal": "Original content cannot carry a source attribution",
     "fanworkSourceRequired": "Fanwork must link to an IP or select an inspiration source",
     "multipleSourceConflict": "Only one source may be set (IP, original, or inspiration work)",
@@ -2456,6 +2457,7 @@
         "template": "Template",
         "prompt": "AI Prompt",
         "mod": "Mod",
+        "3d_print": "3D Printing",
         "other": "Other"
       },
       "typeDescOriginal": {
@@ -2466,6 +2468,7 @@
         "sheet_music": "Original scores, arrangements",
         "template": "Notion, Excel and other templates",
         "prompt": "Prompt template sharing",
+        "3d_print": "Original 3D models and print files",
         "other": "Other original content"
       },
       "typeDescFanwork": {
@@ -2476,6 +2479,7 @@
         "sheet_music": "Theme song arrangements",
         "mod": "Game mods, texture packs",
         "prompt": "Character LoRA prompts",
+        "3d_print": "Character miniatures and prop models",
         "other": "Other fan creation content"
       },
       "attachments": {

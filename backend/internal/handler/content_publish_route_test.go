@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -663,6 +664,19 @@ func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
 			if time.Now().After(deadline) {
 				t.Fatal("content.review was never published: the content service never saw the wired producer (#321)")
 			}
+		}
+	}
+}
+
+// #690：attachment_policy（required_any_of）违规必须以专用错误码露出
+// （400 ATTACHMENT_POLICY_REQUIRED），而非落 INTERNAL_ERROR——前端
+// ERROR_CODE_MESSAGE_KEYS 依赖该码出双语提示。source-contract 钉法沿
+// content_download_test.go 先例（readHandlerSource）。
+func TestPublishRoutes_AttachmentPolicyViolationCode(t *testing.T) {
+	source := readHandlerSource(t, "content.go")
+	for _, needle := range []string{"ErrAttachmentPolicyRequired", "ATTACHMENT_POLICY_REQUIRED"} {
+		if !strings.Contains(source, needle) {
+			t.Fatalf("publish error mapping must translate %s into a dedicated 400 code (got neither)", needle)
 		}
 	}
 }
