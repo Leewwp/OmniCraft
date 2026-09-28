@@ -328,6 +328,17 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 		if !(strings.HasPrefix(mimeType, "audio/") || mimeType == "application/octet-stream") {
 			return &UploadValidationError{Message: "mime_type must be audio/*"}
 		}
+	case "model3d":
+		// #689: extension-whitelist driven (MIME sniffing unreliable for
+		// STL/PLY). 3MF's PK magic and package identity are verified
+		// post-upload through the #688 pipeline.
+		limitMB = s.cfg.Limits.Model3DMaxMB
+		if !isAllowedModel3DExt(ext) {
+			return &UploadValidationError{Message: "unsupported model3d extension"}
+		}
+		if !(strings.HasPrefix(mimeType, "model/") || strings.HasPrefix(mimeType, "application/") || strings.HasPrefix(mimeType, "text/") || mimeType == "application/octet-stream") {
+			return &UploadValidationError{Message: "unsupported model3d mime_type"}
+		}
 	default:
 		return &UploadValidationError{Message: "unsupported file_type"}
 	}

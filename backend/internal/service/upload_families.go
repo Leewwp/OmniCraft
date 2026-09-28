@@ -68,6 +68,15 @@ func isAllowedDocumentMIME(ext, mimeType string) bool {
 	return allowed[strings.ToLower(strings.TrimSpace(mimeType))]
 }
 
+var model3dExtensions = map[string]bool{
+	".stl": true, ".obj": true, ".3mf": true,
+	".gcode": true, ".ply": true, ".mtl": true,
+}
+
+func isAllowedModel3DExt(ext string) bool {
+	return model3dExtensions[strings.ToLower(strings.TrimSpace(ext))]
+}
+
 func isAllowedAudioExt(ext string) bool {
 	return audioExtensions[strings.ToLower(strings.TrimSpace(ext))]
 }

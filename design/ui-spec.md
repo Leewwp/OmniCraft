@@ -6147,3 +6147,24 @@ docx = mammoth → DOMPurify 严格 sanitizer → 富文本渲染；xlsx = excel
 **安全合同**
 - 渲染前双重净化：DOMPurify 白名单（标签/属性/URI 协议，禁 script/style/iframe/object/embed/link/meta，禁 data-* 属性）+ DOMParser 后处理（img src 仅接受内嵌 `data:image/*`，外链资源剥除；a 补 rel 并中和危险 href）。
 - 预算合同：`document_preview_max_mb`（压缩体积，默认 10MB）+ 解析规模上限（xlsx 200k cells、docx 2MB HTML）；超限走 degraded，不在浏览器解析。
+
+## Component: ModelViewer 3D 模型查看器
+
+three.js 精确锁版 + OrbitControls + 自动居中 fit-to-view + XY 底面网格 + 三视图按钮（#689）。独立懒分块（next/dynamic ssr:false），three 全家桶不进主包。
+
+**布局**
+- 画布：`h-80 w-full overflow-hidden rounded-lg border border-border bg-card`，`role="img"` + aria-label（文件名）；底行左侧视图按钮组（`role="group"`）右侧下载入口。
+- 视图按钮药丸：orbit/front/side/top，选中 `bg-primary text-primary-foreground`，`aria-pressed`。
+
+**坐标合同（唯一权威）**
+- 统一 Z-up、XY=build plate；GridHelper 旋至 XY 平面、置于 bbox 底面之下。
+- Top=+Z / Front=-Y / Side=+X；三视图用正交机位（禁用 orbit 交互），自由旋转为透视机位（阻尼 + 滚轮缩放）。
+
+**状态变体**
+- loading：Loader2 + 百分比进度。
+- degraded：FileText +「文件较大，暂不提供在线预览」+ 下载入口（预算合同：model3d_max_preview_mb / model3d_max_triangles / gcode_max_lines，解析前估计规模，超限不渲染）。
+- error：AlertTriangle（destructive）+ 失败文案 + 下载入口。
+- ready：画布 + 视图按钮 + 下载。
+
+**族群合同**
+- stl/obj/ply/3mf/gcode 五格式预览；.mtl 落下载卡不预览（V1 无 OBJ+MTL 材质匹配——OSS key 随机化使 basename 匹配不可实现）。

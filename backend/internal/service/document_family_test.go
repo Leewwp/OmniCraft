@@ -270,3 +270,47 @@ func TestScanAwarePreviewGateMatrix(t *testing.T) {
 }
 
 func boolPtrT1(v bool) *bool { return &v }
+
+// --- #689 model3d family ---
+
+func TestModel3DFamilyAdmissionMatrix(t *testing.T) {
+	svc := newT1TestOSSService()
+	svc.cfg.Limits.Model3DMaxMB = 50
+
+	for _, ext := range []string{".stl", ".obj", ".3mf", ".gcode", ".ply", ".mtl"} {
+		require.NoError(t, svc.validateUploadByType("model3d", "application/octet-stream", 1024, nil, ext), "model3d %s", ext)
+		// MIME is a hint: model/*, text/plain (gcode) and common shapes pass.
+		require.NoError(t, svc.validateUploadByType("model3d", "model/stl", 1024, nil, ext))
+	}
+	require.Error(t, svc.validateUploadByType("model3d", "application/octet-stream", 1024, nil, ".blend"), "unsupported extension")
+	require.Error(t, svc.validateUploadByType("model3d", "video/mp4", 1024, nil, ".stl"), "implausible mime")
+	require.Error(t, svc.validateUploadByType("model3d", "application/octet-stream", 51<<20, nil, ".stl"), "over model3d budget")
+}
+
+func TestThreeMFPackageIdentity(t *testing.T) {
+	contentTypes := `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`
+
+	t.Run("valid 3mf passes identity", func(t *testing.T) {
+		zr := buildDocZip(t, map[string]string{
+			"[Content_Types].xml": contentTypes,
+			"3D/3dmodel.model":    `<?xml version="1.0"?><model/>`,
+		})
+		require.NoError(t, inspectDocumentZip(zr, ".3mf"))
+	})
+
+	t.Run("plain zip renamed 3mf fails identity", func(t *testing.T) {
+		zr := buildDocZip(t, map[string]string{
+			"[Content_Types].xml": contentTypes,
+			"readme.txt":          "hello",
+		})
+		err := inspectDocumentZip(zr, ".3mf")
+		require.ErrorIs(t, err, ErrDocumentPackage)
+		require.Contains(t, err.Error(), "3D/*.model")
+	})
+}
+
+func TestScannableFamiliesIncludeModel3D(t *testing.T) {
+	cfg := &config.Config{}
+	families := cfg.ScannableUploadFamilies()
+	require.Contains(t, families, "model3d", "#689 model3d joins ClamAV")
+}
