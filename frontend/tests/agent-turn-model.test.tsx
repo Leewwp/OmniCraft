@@ -33,7 +33,7 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
   if (request === "next/navigation") {
     return {
       useParams: () => ({}),
-      useRouter: () => ({ push: () => undefined }),
+      useRouter: () => ({ push: () => undefined, replace: () => undefined }),
       usePathname: () => "/agent",
     };
   }
