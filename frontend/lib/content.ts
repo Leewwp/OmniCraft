@@ -160,6 +160,10 @@ export function normalizeAttachment(value: unknown): AttachmentData | null {
     width: positiveInteger(raw.width ?? raw.Width),
     height: positiveInteger(raw.height ?? raw.Height),
     sort_order: nonNegativeInteger(raw.sort_order ?? raw.SortOrder),
+    // #688：原始文件名与扫描状态此前在归一化边界被丢弃（#691 冒烟实证：
+    // 详情页附件行退回族群标签、扫描状态卡拿不到状态）。
+    original_file_name: stringValue(raw.original_file_name ?? raw.OriginalFileName) || null,
+    scan_status: stringValue(raw.scan_status ?? raw.ScanStatus) || undefined,
   };
 }
 

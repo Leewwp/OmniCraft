@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeContentDetailResponse, normalizeContentListResponse, normalizeSeriesMemberships } from "@/lib/content";
+import { normalizeAttachment, normalizeContentDetailResponse, normalizeContentListResponse, normalizeSeriesMemberships } from "@/lib/content";
 
 test("normalizeContentDetailResponse composes top-level memberships with content", () => {
   const normalized = normalizeContentDetailResponse({
@@ -104,4 +104,24 @@ test("normalizeAuthor keeps SP-17 detail author fields (avatar_url + is_followin
   ]);
   assert.equal(anonymous[0]?.author?.avatar_url, undefined);
   assert.equal(anonymous[0]?.author?.is_following, undefined);
+});
+
+// #691 冒烟实证回归钉：归一化边界不得再丢 original_file_name / scan_status
+// （丢字段 = 详情页附件行退回族群标签 + 扫描状态卡拿不到状态）。
+test("normalizeAttachment preserves #688 original_file_name and scan_status", () => {
+  const att = normalizeAttachment({
+    id: 7,
+    file_type: "model3d",
+    oss_key: "uploads/1/model3d/a.stl",
+    oss_url: "https://signed.example/a.stl",
+    file_size: 684,
+    original_file_name: "part.stl",
+    scan_status: "clean",
+  });
+  assert.equal(att?.original_file_name, "part.stl");
+  assert.equal(att?.scan_status, "clean");
+  // 历史行无文件名：null 而非 undefined（渲染回退族群标签语义）。
+  const legacy = normalizeAttachment({ id: 8, file_type: "text", oss_key: "k", scan_status: "not_required" });
+  assert.equal(legacy?.original_file_name, null);
+  assert.equal(legacy?.scan_status, "not_required");
 });
