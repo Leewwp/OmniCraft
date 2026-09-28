@@ -14,6 +14,7 @@
 
 | 配置路径 | 类型 | 说明 |
 |----------|------|------|
+| `agent.answer_bare_reasoning_guard.enabled` | `bool` | Enabled |
 | `agent.chat_context_token_budget` | `int` | ChatContextTokenBudget caps the server-side assembled conversation
 history (estimated tokens; CJK-heavy so rune count... |
 | `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |

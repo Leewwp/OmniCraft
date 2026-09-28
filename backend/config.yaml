@@ -576,6 +576,11 @@ agent:
   # 指令边界标记）、模型输出图片 URL 白名单（域外换占位）、会话级预算
   # （工具调用总数 + 允许跑工具的轮数硬顶；0 = 不限）。第五件写确认门在
   # MCP docserver 的 draft_apply_edit 二段式确认里（见 internal/mcpdocserver）。
+  # FT-6（#698）：裸英文推理前缀窄域守卫——grounded 轮 + 首 CJK 前有完整
+  # 英文句 + 其后仍有中文正文，三重全满足才剥离英文前缀；命中记 trace
+  # answer_bare_reasoning_guard 事件（可观测先行）。关闭即直通。
+  answer_bare_reasoning_guard:
+    enabled: true
   guardrails:
     fence_external_tool_results: true
     image_url_allow_hosts: []     # 留空 = 仅平台 OSS 签名域放行

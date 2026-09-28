@@ -487,6 +487,33 @@ func TestAgentSystemV3Golden(t *testing.T) {
 	}
 }
 
+// FT-6 (#698)：v4 = v3 corpus + 仅追加禁推理条款。
+func TestAgentSystemV4Golden(t *testing.T) {
+	slot, ok := SlotByName("agent_system")
+	if !ok {
+		t.Fatal("agent_system slot missing")
+	}
+	var shipped *UpgradeSeed
+	for i := range RegistryUpgrades {
+		if RegistryUpgrades[i].SlotName == "agent_system" && RegistryUpgrades[i].Version == 4 {
+			shipped = &RegistryUpgrades[i]
+		}
+	}
+	if shipped == nil {
+		t.Fatalf("agent_system v4 upgrade missing from RegistryUpgrades: %+v", RegistryUpgrades)
+	}
+	if err := ValidateTemplate(slot, shipped.Content); err != nil {
+		t.Fatalf("v4 template invalid: %v", err)
+	}
+	// v4 严格 = v3 + 禁推理条款（前缀关系），不改写任何 v3 内容。
+	if !strings.HasPrefix(shipped.Content, agentSystemV3()) {
+		t.Fatal("v4 must extend the v3 corpus, not rewrite it")
+	}
+	if !strings.Contains(shipped.Content, agentSystemV4NoReasoning) {
+		t.Fatal("v4 must carry the no-reasoning clause")
+	}
+}
+
 func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 	db := testutil.OpenEphemeralPostgres(t)
 	testutil.ApplyMigrationFile(t, db, "../../../migrations/082_prompt_registry.sql")
@@ -503,8 +530,8 @@ func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Version != 3 || row.Content != agentSystemV3() {
-		t.Fatalf("fresh ship must move production to v3, got v%d (len %d)", row.Version, len(row.Content))
+	if row.Version != 4 || row.Content != agentSystemV4() {
+		t.Fatalf("fresh ship must move production to v4, got v%d (len %d)", row.Version, len(row.Content))
 	}
 	// All other slots stay at v1.
 	other, _ := repo.GetByLabel(ctx, "conversation_title_prompt", ProductionLabel)
@@ -517,7 +544,7 @@ func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 		t.Fatal(err)
 	}
 	row, _ = repo.GetByLabel(ctx, "agent_system", ProductionLabel)
-	if row.Version != 3 {
+	if row.Version != 4 {
 		t.Fatalf("re-run must not move label (now v%d)", row.Version)
 	}
 
