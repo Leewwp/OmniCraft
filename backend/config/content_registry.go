@@ -104,8 +104,11 @@ func boolPtr(v bool) *bool { return &v }
 // mapping (audio link fix lands with #688).
 //
 // Canonical declaration order: image, article, video, audio, mod, prompt,
-// template, sheet_music, other — the fanwork-zone subsequence equals
-// type_order_fanwork so zone-filtered fallback lists keep today's order.
+// template, sheet_music, 3d_print, other — each zone's subsequence equals
+// its type_order so zone-filtered fallback lists keep the configured order.
+// 3d_print (#690) is the first registry-pure-data category: its
+// attachment_policy turns on by configuration alone (engine shipped with
+// #688).
 func DefaultContentRegistry() ContentRegistryConfig {
 	return ContentRegistryConfig{
 		ContentTypes: []ContentTypeEntry{
@@ -117,6 +120,7 @@ func DefaultContentRegistry() ContentRegistryConfig {
 			{Key: "prompt", Zones: []string{ZoneFanwork}, Form: ContentFormText, UploadFileTypes: []string{}, JudgeEligible: boolPtr(true)},
 			{Key: "template", Zones: []string{ZoneOriginal}, Form: ContentFormFile, UploadFileTypes: []string{"text", "document", "model3d"}, JudgeEligible: boolPtr(true)},
 			{Key: "sheet_music", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"sheet_music"}, JudgeEligible: boolPtr(true)},
+			{Key: "3d_print", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"model3d", "text"}, JudgeEligible: boolPtr(true), AttachmentPolicy: &AttachmentPolicyConfig{RequiredAnyOf: []string{"model3d"}}},
 			{Key: "other", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormText, UploadFileTypes: []string{}, JudgeEligible: boolPtr(true)},
 		},
 		UploadFileTypes: []UploadFileTypeEntry{

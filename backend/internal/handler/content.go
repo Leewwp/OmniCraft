@@ -246,6 +246,13 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "ARCHIVE_ATTACHMENT_REQUIRED", "mod content requires a zip archive attachment")
 			return
 		}
+		// #690：注册表 attachment_policy（required_any_of）违规面——通用
+		// 引擎错误面（引擎本体随 #688 落地），任何配置了 policy 的类型
+		// 共用，非 3d_print 专属分支。
+		if errors.Is(err, service.ErrAttachmentPolicyRequired) {
+			response.Error(c, http.StatusBadRequest, "ATTACHMENT_POLICY_REQUIRED", "content type requires at least one attachment of the required family")
+			return
+		}
 		if errors.Is(err, archivezip.ErrEncrypted) {
 			response.Error(c, http.StatusBadRequest, "ARCHIVE_ENCRYPTED", "archive is encrypted")
 			return

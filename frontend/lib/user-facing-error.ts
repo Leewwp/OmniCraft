@@ -37,6 +37,7 @@ export const ERROR_CODE_MESSAGE_KEYS: Record<string, string> = {
   FILE_TOO_LARGE: "publish.fileTooLarge",
   INVALID_MIME_TYPE: "publish.invalidMimeType",
   MEDIA_SET_INVALID: "publish.mediaSetInvalid",
+  ATTACHMENT_POLICY_REQUIRED: "publish.attachmentPolicyRequired",
   SOURCE_NOT_ALLOWED_FOR_ORIGINAL: "publish.sourceNotAllowedForOriginal",
   FANWORK_SOURCE_REQUIRED: "publish.fanworkSourceRequired",
   MULTIPLE_SOURCE_CONFLICT: "publish.multipleSourceConflict",
