@@ -254,6 +254,15 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		NodeName:         "classify",
 		CompletionDigest: answer,
 	})
+	// FT-6 (#698)：裸英文推理前缀窄域守卫——仅 grounded 轮、首 CJK 前有
+	// 完整英文句、其后仍有中文正文才剥离（三重合取，agent_answer_guard.go）；
+	// 落库与终稿共用此 answer，历史回放不再现泄漏。
+	if s.cfg != nil && s.cfg.Agent.AnswerBareReasoningGuard.Enabled && kind == AgentAnswerGroundedContent {
+		if stripped, prefixRunes := stripBareEnglishReasoningPrefix(answer); prefixRunes > 0 {
+			traceAgentEvent(traceID, "answer_bare_reasoning_guard", "stripped", true, "prefix_runes", prefixRunes)
+			answer = stripped
+		}
+	}
 	// SP-15 B join (#435): only a grounded, non-degraded turn waits for the
 	// speculative follow-up call. A result already sitting in the buffered
 	// channel is taken non-blockingly even when the budget has elapsed; only a
