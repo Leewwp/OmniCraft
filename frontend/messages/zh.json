@@ -334,7 +334,25 @@
     "suggestRemoveTagHint": "建议移除此标签",
     "tagSuggestionSubmitted": "标签建议已提交，等待作者审批",
     "ipLabel": "IP：{name}",
-    "attachmentUnknownType": "文件"
+    "attachmentUnknownType": "文件",
+    "unsupportedFileType": "不支持的文件格式：{name}",
+    "attachmentPreview": {
+      "loading": "文档预览加载中…",
+      "tooLarge": "文件较大，暂不提供在线预览",
+      "failed": "预览加载失败，可下载后查看",
+      "sheets": "工作表",
+      "moreRows": "已显示 {shown}/{total} 行，点击加载更多",
+      "noViewer": "{fileType} 文件",
+      "scanStatus": {
+        "pending": "附件安全扫描排队中，暂不可预览",
+        "scanning": "附件安全扫描进行中，暂不可预览",
+        "manual_review": "附件正在人工复核，暂不可预览",
+        "blocked": "附件未通过安全扫描，不可预览",
+        "failed": "附件扫描失败，暂不可预览",
+        "legacy_unscanned": "历史附件未经扫描，暂不可预览",
+        "unavailable": "附件暂不可预览（安全扫描状态）"
+      }
+    }
   },
   "media": {
     "gallery": {
@@ -1055,7 +1073,10 @@
       "confirmSave": "确认保存",
       "loadFailed": "加载配置失败",
       "saveFailed": "保存配置失败",
-      "invalidValue": "请检查高亮的配置值后再保存。"
+      "invalidValue": "请检查高亮的配置值后再保存。",
+      "audioMaxMb": "音频上限（MB）",
+      "documentMaxMb": "文档上限（MB）",
+      "model3dMaxMb": "3D 模型上限（MB）"
     },
     "feedback": {
       "title": "反馈管理",
@@ -2445,6 +2466,10 @@
         "mod": "游戏模组、材质包",
         "prompt": "角色 LoRA 提示词",
         "other": "其他二创内容"
+      },
+      "attachments": {
+        "selected": "已选附件",
+        "remove": "移除 {name}"
       }
     },
     "publishIP": {
