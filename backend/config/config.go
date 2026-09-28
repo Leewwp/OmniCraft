@@ -704,6 +704,13 @@ type AgentConfig struct {
 	// server-side: untrusted-tool-result fencing, image-URL domain
 	// allowlist, and the conversation-level budgets.
 	Guardrails AgentGuardrailsConfig `mapstructure:"guardrails" json:"guardrails"`
+	// FollowUps drives the SP-15 B (#435) speculative follow-up side call;
+	// FT-7 (#630) makes the master switch and the join budget explicit —
+	// enabled=false skips the side call entirely (no speculative LLM call,
+	// no follow_ups trace events), budget_sec bounds how long the done
+	// assembly waits for the in-flight result (factory 8s; <=0 falls back
+	// to 8s so an unconfigured host cannot regress to the old 4s squeeze).
+	FollowUps AgentFollowUpsConfig `mapstructure:"follow_ups" json:"follow_ups"`
 	// AnswerBareReasoningGuard gates the FT-6 (#698) narrow strip of
 	// bare-English reasoning prefixes on grounded turns (M3 with thinking
 	// disabled can emit reasoning as body text with no tags at all).
@@ -719,6 +726,13 @@ type AgentConfig struct {
 	// per-conversation generation budget. enabled=false or a missing
 	// AGENT_IMAGE_API_KEY keeps the tool out of the model's tool list.
 	Image AgentImageConfig `mapstructure:"image" json:"image"`
+}
+
+// AgentFollowUpsConfig is the FT-7 (#630) follow-up stability pair: master
+// switch + join budget.
+type AgentFollowUpsConfig struct {
+	Enabled   bool `mapstructure:"enabled" json:"enabled"`
+	BudgetSec int  `mapstructure:"budget_sec" json:"budget_sec"`
 }
 
 // AgentAnswerBareReasoningGuardConfig is the FT-6 (#698) switch: enabled

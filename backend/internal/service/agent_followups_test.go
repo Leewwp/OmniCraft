@@ -23,10 +23,12 @@ type followUpTestProvider struct {
 	chatDelay   time.Duration
 	chatCalls   int
 	streamCalls int
+	lastChatReq llm.ChatRequest
 }
 
-func (p *followUpTestProvider) Chat(_ context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
+func (p *followUpTestProvider) Chat(_ context.Context, req llm.ChatRequest) (*llm.ChatResponse, error) {
 	p.chatCalls++
+	p.lastChatReq = req
 	if p.chatDelay > 0 {
 		time.Sleep(p.chatDelay)
 	}
@@ -83,6 +85,8 @@ func followUpTestService(t *testing.T, provider *followUpTestProvider) *AgentSer
 	t.Helper()
 	cfg := conversationalLaneTestConfig()
 	cfg.Features.RAGHybridEnabled = true
+	// FT-7 (#630)：follow_ups 显式开（零值 = 总开关关）。
+	cfg.Agent.FollowUps.Enabled = true
 	svc, _ := newStreamTestService(t, provider, cfg)
 	// 复用 #434 套件的检索桩：chunk key 匹配种子 RagChunk，引用复验通过 → grounded。
 	svc.hybridRetriever = &queryUnderstandingRetriever{}
@@ -138,9 +142,9 @@ func TestFollowUpsNotAttachedOnConversationalTurn(t *testing.T) {
 // call exceeds the remaining budget, done proceeds without follow_ups and the
 // turn outcome is unchanged.
 func TestFollowUpsTimeoutAbandonedSilently(t *testing.T) {
-	original := followUpBudget
-	followUpBudget = 60 * time.Millisecond
-	t.Cleanup(func() { followUpBudget = original })
+	original := followUpBudgetOverride
+	followUpBudgetOverride = 60 * time.Millisecond
+	t.Cleanup(func() { followUpBudgetOverride = original })
 
 	provider := &followUpTestProvider{rounds: followUpGroundedRounds(), chatReply: "合法的问题", chatDelay: 500 * time.Millisecond}
 	svc := followUpTestService(t, provider)
@@ -208,9 +212,9 @@ func TestParseFollowUpItems(t *testing.T) {
 // 阻塞取走（default 前的 channel 探测）——慢网络下已完成的投机调用不因
 // 预算时钟归零而被丢弃。
 func TestFollowUpsReadyResultTakenEvenWhenBudgetElapsed(t *testing.T) {
-	original := followUpBudget
-	followUpBudget = time.Millisecond
-	t.Cleanup(func() { followUpBudget = original })
+	original := followUpBudgetOverride
+	followUpBudgetOverride = time.Millisecond
+	t.Cleanup(func() { followUpBudgetOverride = original })
 
 	provider := &followUpTestProvider{
 		rounds:    followUpGroundedRounds(),
@@ -240,5 +244,58 @@ func TestFollowUpsReadyResultTakenEvenWhenBudgetElapsed(t *testing.T) {
 	}
 	if len(done.FollowUps) != 2 {
 		t.Fatalf("follow_ups = %v, want the ready result taken non-blockingly despite elapsed budget", done.FollowUps)
+	}
+}
+
+// FT-7 (#630)：总开关关闭 = 完全跳过投机侧调用——无额外 LLM 成本，done 不
+// 带 follow-ups；请求侧调用显式 Thinking disabled（M3 不先跑 reasoning 吃
+// 预算）；预算 config 化（budget_sec 生效、非正值回退 8s 下限）。
+func TestFollowUpsDisabledSkipsSideCallEntirely(t *testing.T) {
+	provider := &followUpTestProvider{rounds: followUpGroundedRounds(), chatReply: "合法的问题"}
+	svc := followUpTestService(t, provider)
+	svc.cfg.Agent.FollowUps.Enabled = false
+
+	done := runFollowUpTurn(t, svc, provider)
+
+	if done.AnswerKind != AgentAnswerGroundedContent {
+		t.Fatalf("answer_kind = %q, want grounded_content", done.AnswerKind)
+	}
+	if provider.chatCalls != 0 {
+		t.Fatalf("disabled switch must skip the side call, got %d Chat calls", provider.chatCalls)
+	}
+	if len(done.FollowUps) != 0 {
+		t.Fatalf("disabled switch must yield no follow_ups: %v", done.FollowUps)
+	}
+}
+
+func TestFollowUpsRequestCarriesThinkingDisabled(t *testing.T) {
+	provider := &followUpTestProvider{rounds: followUpGroundedRounds(), chatReply: "Follow-Up-A"}
+	svc := followUpTestService(t, provider)
+
+	done := runFollowUpTurn(t, svc, provider)
+
+	if len(done.FollowUps) != 1 {
+		t.Fatalf("fixture must attach the follow-up, got %v", done.FollowUps)
+	}
+	if provider.lastChatReq.Thinking != llm.ThinkingDisabled {
+		t.Fatalf("side call must carry ThinkingDisabled, got %q", provider.lastChatReq.Thinking)
+	}
+}
+
+func TestFollowUpsBudgetConfigDrivesJoin(t *testing.T) {
+	// budget_sec=1（测试不设 override）：join 等待 ≤ 1s + 余量。
+	provider := &followUpTestProvider{rounds: followUpGroundedRounds(), chatReply: "合法的问题", chatDelay: 900 * time.Millisecond}
+	svc := followUpTestService(t, provider)
+	svc.cfg.Agent.FollowUps.BudgetSec = 1
+
+	started := time.Now()
+	done := runFollowUpTurn(t, svc, provider)
+	elapsed := time.Since(started)
+
+	if elapsed > 1500*time.Millisecond {
+		t.Fatalf("join blocked %v, want bounded by budget_sec=1", elapsed)
+	}
+	if done.FollowUps == nil {
+		t.Log("late result may miss the 1s window; the join bound is what this test pins")
 	}
 }

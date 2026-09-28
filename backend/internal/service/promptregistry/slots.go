@@ -167,11 +167,28 @@ func agentSystemV3() string {
 const agentSystemV4NoReasoning = "never include your reasoning, thinking process, or chain of thought in the answer body; compose the final answer directly in the user's language — the body must contain only the answer itself, never the steps you took to reach it"
 
 // agentSystemV4 is the FT-6 upgrade of agent_system: the v3 corpus plus the
-// no-reasoning-in-body clause and nothing else (retrieval-first, if needed at
-// all, belongs to a possible v5 per #629's diagnosis). v1–v3 stay
-// byte-identical so the registry diff and rollback chain keep working.
+// no-reasoning-in-body clause and nothing else. v1–v3 stay byte-identical so
+// the registry diff and rollback chain keep working.
 func agentSystemV4() string {
 	return agentSystemV3() + "; " + agentSystemV4NoReasoning
+}
+
+// agentSystemV5RetrievalFirst is the single instruction v5 appends to the v4
+// corpus (FT-7 #629, diagnosis-driven). Demo-site trace forensics (three
+// 2026-09-20 turns, e.g. 1cd24f5f): idea/planning questions about site
+// content or IPs — 「帮我想一个系列」「怎么融合这两个主题」 — were answered
+// from imagination with zero tool calls, so the strict citation gate cleared
+// every answer to no_evidence. The existing must-search clause lists
+// find/search/recommend/compare/summarize but not ideation; v5 closes that
+// gap. Pure general brainstorming unrelated to site content stays exempt
+// (short conversational lane), as does image ideation (v2 exemption).
+const agentSystemV5RetrievalFirst = "when the user asks for ideas, suggestions, plans, series, or creative concepts about site content or IPs (for example 「帮我想一个系列」 or 「怎么融合这两个主题」), you must call the search tool first with the relevant topics and ground the suggestions in what actually exists on the site; never answer such requests purely from imagination, because an ungrounded long answer is cleared as no evidence"
+
+// agentSystemV5 is the FT-7 upgrade of agent_system: the v4 corpus plus the
+// retrieval-first clause and nothing else. v1–v4 stay byte-identical so the
+// registry diff and rollback chain keep working.
+func agentSystemV5() string {
+	return agentSystemV4() + "; " + agentSystemV5RetrievalFirst
 }
 
 // Slots is the full, ordered inventory of prompt sites (user decision

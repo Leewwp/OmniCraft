@@ -278,7 +278,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		default:
 		}
 		if !received {
-			remaining := followUpBudget - time.Since(runner.followUpStartedAt)
+			remaining := s.followUpBudgetDuration() - time.Since(runner.followUpStartedAt)
 			if remaining > 0 {
 				timer := time.NewTimer(remaining)
 				select {
@@ -498,9 +498,35 @@ func (s *AgentService) conversationalMaxRunes() int {
 	return s.cfg.Agent.ConversationalMaxRunes
 }
 
-// SP-15 B (#435) follow-up generation constants. followUpBudget is a var so
-// tests can shorten the join window; production reads the 4s spec value.
-var followUpBudget = 4 * time.Second
+// SP-15 B (#435) follow-up generation constants. The join budget is
+// config-driven since FT-7 (#630): agent.follow_ups.budget_sec with an 8s
+// floor (the old 4s squeeze failed 4/8 live side calls on M3).
+const followUpDefaultBudget = 8 * time.Second
+
+// followUpBudgetOverride lets tests shorten the join window below the
+// one-second config granularity (the #435 suite asserts sub-second joins).
+var followUpBudgetOverride time.Duration
+
+// followUpBudgetDuration resolves the join budget: test override first, then
+// config (agent.follow_ups.budget_sec), nil cfg or non-positive falling back
+// to the 8s floor.
+func (s *AgentService) followUpBudgetDuration() time.Duration {
+	if followUpBudgetOverride > 0 {
+		return followUpBudgetOverride
+	}
+	if s.cfg == nil || s.cfg.Agent.FollowUps.BudgetSec <= 0 {
+		return followUpDefaultBudget
+	}
+	return time.Duration(s.cfg.Agent.FollowUps.BudgetSec) * time.Second
+}
+
+// followUpsEnabled gates the speculative side call entirely (FT-7 #630):
+// disabled = no side LLM call, no follow_ups trace events, done carries no
+// follow-ups. Nil cfg keeps the pre-switch behavior (test seams without
+// config).
+func (s *AgentService) followUpsEnabled() bool {
+	return s.cfg == nil || s.cfg.Agent.FollowUps.Enabled
+}
 
 const (
 	followUpMaxCount = 3
@@ -546,7 +572,10 @@ func followUpRequest(resolver *promptregistry.PromptResolver, question string, t
 		"answer_prefix": truncateChatRunes(strings.TrimSpace(answerPrefix), followUpPrefixCap),
 	})
 	return llm.ChatRequest{
-		Messages:  []llm.ChatMessage{{Role: "user", Content: content}},
+		Messages: []llm.ChatMessage{{Role: "user", Content: content}},
+		// FT-7 (#630)：侧调用显式关思考——M3 思考型先跑 reasoning 吃掉预算
+		// 是 4/8 失败的根因；不支持的 provider 按各自约定忽略。
+		Thinking:  llm.ThinkingDisabled,
 		MaxTokens: followUpMaxTokens,
 	}
 }

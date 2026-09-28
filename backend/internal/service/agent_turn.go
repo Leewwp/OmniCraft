@@ -160,7 +160,7 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 				if r.firstDisplayDelta.IsZero() {
 					r.firstDisplayDelta = time.Now()
 				}
-				if !r.followUpStarted && len(r.executedTools) > 0 && r.svc.llmProvider != nil {
+				if !r.followUpStarted && r.svc.followUpsEnabled() && len(r.executedTools) > 0 && r.svc.llmProvider != nil {
 					r.followUpStarted = true
 					r.followUpStartedAt = time.Now()
 					question := r.turn.Message
@@ -171,7 +171,7 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 					sid := r.traceID
 					followUpRec := r.recorder
 					recovery.GoSafe(func() {
-						ctx, cancel := context.WithTimeout(context.Background(), followUpBudget)
+						ctx, cancel := context.WithTimeout(context.Background(), r.svc.followUpBudgetDuration())
 						defer cancel()
 						r.followUpCh <- generateFollowUps(ctx, followUpRec, resolver, provider, sid, question, titles, prefix)
 					})
