@@ -337,8 +337,10 @@ recommendation:
   refresh_interval_h: 2
 
 publish:
-  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
-  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
+  # #690：3d_print 试点品类追加（注册表纯数据路径；位于 other 之前与
+  # 声明序一致，other 保持收尾）。
+  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "3d_print", "other"]
+  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "3d_print", "other"]
 
 # Content-type registry (#687): dual-axis single source of truth. This
 # explicit section mirrors the shipped baseline (config/content_registry.go
@@ -390,6 +392,16 @@ content_registry:
       form: file
       upload_file_types: [sheet_music]
       judge_eligible: true
+    # #690 试点品类：注册表纯数据路径新增的第一个 content_type——
+    # attachment_policy 引擎已随 #688 落地，本行仅配置启用（产品裁决：
+    # 3D 打印内容必须至少含一个 3D 文件，纯说明文档帖不属于该品类）。
+    - key: 3d_print
+      zones: [original, fanwork]
+      form: file
+      upload_file_types: [model3d, text]
+      judge_eligible: true
+      attachment_policy:
+        required_any_of: [model3d]
     - key: other
       zones: [original, fanwork]
       form: text
