@@ -316,6 +316,7 @@
 | `last_scan_job_id` | `BIGINT` | - | last_scan_job_id |
 | `scanned_at` | `TIMESTAMPTZ` | - | scanned_at |
 | `checksum_sha256` | `VARCHAR(64)` | - | checksum_sha256 |
+| `original_file_name` | `VARCHAR(255) NULL` | - | original_file_name |
 
 ### content_contributors
 

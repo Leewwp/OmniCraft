@@ -351,6 +351,17 @@
         "failed": "附件扫描失败，暂不可预览",
         "legacy_unscanned": "历史附件未经扫描，暂不可预览",
         "unavailable": "附件暂不可预览（安全扫描状态）"
+      },
+      "model": {
+        "loading": "3D 模型加载中… {progress}%",
+        "canvasLabel": "{name} 的 3D 预览",
+        "views": "视图",
+        "view": {
+          "orbit": "自由旋转",
+          "front": "正视图",
+          "side": "侧视图",
+          "top": "俯视图"
+        }
       }
     }
   },
