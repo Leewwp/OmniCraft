@@ -31,7 +31,9 @@ export function SortSelect({ className, value, options, onChange, ariaLabel }: S
       <SelectPrimitive.Trigger
         aria-label={ariaLabel}
         className={cn(
-          "inline-flex items-center gap-2 rounded-md border border-border-default bg-canvas-default px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent-emphasis",
+          /* FT-1 选中态分级：触发器软化聚焦（边框加深，无 2px 环）；
+             键盘 focus-visible 留 1px 细描边。下拉项高亮不受影响。 */
+          "inline-flex items-center gap-2 rounded-md border border-border-default bg-canvas-default px-3 py-1.5 text-sm text-foreground focus:border-border-strong focus:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           className,
         )}
       >

@@ -944,11 +944,11 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               onBlur={commitTitleEdit}
               aria-label={t("agent.workspace.editTitleLabel")}
               maxLength={50}
-              className="min-w-0 flex-1 truncate rounded-md border border-border-default bg-canvas-default px-2 py-1 text-sm font-semibold text-fg-default focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+              className="min-w-0 flex-1 truncate rounded-md border border-border-default bg-canvas-default px-2 py-1 text-sm font-semibold text-fg-default focus:border-border-strong focus:outline-none"
             />
           ) : (
             <h1
-              className="min-w-0 flex-1 cursor-text truncate rounded-md px-1 py-0.5 text-sm font-semibold text-fg-default hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring"
+              className="min-w-0 flex-1 cursor-text truncate rounded-md px-1 py-0.5 text-sm font-semibold text-fg-default hover:bg-canvas-subtle focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               title={t("agent.workspace.editTitleLabel")}
               tabIndex={0}
               onClick={startTitleEdit}

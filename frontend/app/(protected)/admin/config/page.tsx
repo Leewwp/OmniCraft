@@ -230,7 +230,7 @@ export default function AdminConfigPage() {
             id={id}
             data-config-field
             type="number"
-            className="[@media(pointer:coarse)]:min-h-11 w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+            className="[@media(pointer:coarse)]:min-h-11 w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:border-border-strong focus:outline-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
             value={value}
             min={min}
             max={max}

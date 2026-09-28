@@ -81,6 +81,9 @@ test("cards and form controls consume the approved radius, elevation, border, an
   assert.match(card.className, /data-\[interactive=true\]:focus-within:border-border-strong/);
   assert.match(card.className, /data-\[interactive=true\]:focus-within:shadow-\[var\(--elevation-2\)\]/);
 
+  /* FT-1 选中态分级（2026-09-28）：自明态控件（输入框/下拉触发器）软化
+     聚焦——仅边框加深到 border-strong，无 2px ring、无背景变化；select
+     触发器键盘 focus-visible 保留 1px 细描边。 */
   for (const control of [
     view.getByRole("textbox", { name: "Title" }),
     view.getByRole("combobox", { name: "Category" }),
@@ -88,9 +91,13 @@ test("cards and form controls consume the approved radius, elevation, border, an
   ]) {
     assert.match(control.className, /rounded-md/);
     assert.match(control.className, /hover:border-border-strong/);
-    assert.match(control.className, /focus-visible:ring-2/);
-    assert.match(control.className, /focus-visible:ring-offset-2/);
+    assert.match(control.className, /focus:border-border-strong/);
+    // 聚焦不再出环（aria-invalid 错误态环是另一语义面，不受分级影响）
+    assert.doesNotMatch(control.className, /focus-visible:ring-2/);
+    assert.doesNotMatch(control.className, /focus:ring-2/);
+    assert.doesNotMatch(control.className, /ring-offset-2/);
   }
+  assert.match(view.getByRole("combobox", { name: "Category" }).className, /focus-visible:ring-1/);
 
   assert.match(view.getByRole("checkbox", { name: "Accept" }).className, /rounded-sm/);
   const switchControl = view.getByRole("switch", { name: "Published" });

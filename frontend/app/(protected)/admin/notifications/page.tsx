@@ -131,7 +131,7 @@ export default function AdminNotificationsPage() {
             <input
               id="broadcast-title"
               ref={titleInputRef}
-              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/25 disabled:opacity-60 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-border-strong disabled:opacity-60 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
               value={title}
               onBlur={() => setTitleTouched(true)}
               onChange={(event) => setTitle(event.currentTarget.value)}

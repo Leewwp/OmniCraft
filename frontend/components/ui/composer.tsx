@@ -100,7 +100,9 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
   return (
     <div
       className={cn(
-        "relative rounded-md border border-border-default bg-canvas-default focus-within:border-accent-emphasis focus-within:ring-1 focus-within:ring-accent-emphasis disabled:cursor-not-allowed disabled:opacity-60",
+        /* FT-1 选中态分级：软化 focus-within（原 accent 边 + 1px 环），
+           仅边框加深到 border-strong，无背景变化。 */
+        "relative rounded-md border border-border-default bg-canvas-default focus-within:border-border-strong disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
     >

@@ -319,7 +319,7 @@ export default function AdminFeedbackPage() {
           <textarea
             id="feedback-reply"
             ref={replyInputRef}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
             rows={3}
             value={replyBody}
             onChange={(e) => {
