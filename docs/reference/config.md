@@ -115,6 +115,8 @@ primary stays on the single llm_provider wiring abo... |
 | `collaboration.invite_expire_days` | `int` | InviteExpireDays |
 | `collaboration.max_contributors_per_item` | `int` | MaxContributorsPerItem |
 | `collaboration.max_invitees_per_publish` | `int` | MaxInviteesPerPublish |
+| `content_registry` | `ContentRegistryConfig` | ContentRegistry is the dual-axis content-type registry (#687):
+content_types (taxonomy) + upload_file_types (upload c... |
 | `database.dsn` | `string` | DSN |
 | `database.read_dsn` | `string` | ReadDSN |
 | `discussion.hot_decay_hours` | `float64` | HotDecayHours |
@@ -183,6 +185,19 @@ the frontend MAX_DM_LENGTH (2000) so the UI c... |
 | `oss.access_key_id` | `string` | AccessKeyID |
 | `oss.access_key_secret` | `string` | AccessKeySecret |
 | `oss.bucket_name` | `string` | BucketName |
+| `content_registry.content_types.[].attachment_policy.required_any_of` | `[]string` | AttachmentPolicy.RequiredAnyOf — publish-time required-family constraint; evaluator lands with #688, enabled by config in #690 |
+| `content_registry.content_types.[].form` | `string` | Form — publish form shape: text / file / media |
+| `content_registry.content_types.[].judge_eligible` | `bool` | JudgeEligible — required-explicit; absent refuses startup (#687) |
+| `content_registry.content_types.[].key` | `string` | Key — taxonomy key |
+| `content_registry.content_types.[].upload_file_types` | `[]string` | UploadFileTypes — allowed attachment families; unregistered references refuse startup |
+| `content_registry.content_types.[].zones` | `[]string` | Zones — publishable zones (original / fanwork) |
+| `content_registry.upload_file_types.[].extensions` | `[]string` | Extensions — explicit whitelist; empty = unrestricted (MIME-driven) |
+| `content_registry.upload_file_types.[].extensions_key` | `string` | ExtensionsKey — legacy list reference (sheet_music_extensions) |
+| `content_registry.upload_file_types.[].key` | `string` | Key — family key |
+| `content_registry.upload_file_types.[].max_mb_key` | `string` | MaxMBKey — limits.* key reference, resolved live at read time |
+| `content_registry.upload_file_types.[].mime_exact` | `[]string` | MimeExact — exact MIME admissions |
+| `content_registry.upload_file_types.[].mime_prefixes` | `[]string` | MimePrefixes — MIME prefix admissions |
+| `content_registry.upload_file_types.[].scannable` | `bool` | Scannable — joins the ClamAV pipeline |
 | `oss.display_url_ttl_sec` | `int` | DisplayURLTTL bounds the signed GET URLs issued for display media
 (covers, avatars, gallery attachments) at the API s... |
 | `oss.domain` | `string` | Domain |

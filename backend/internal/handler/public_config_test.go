@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 
 	"omnicraft/backend/config"
 )
@@ -382,4 +383,74 @@ func TestPublicConfigExposesCommentFoldThreshold(t *testing.T) {
 	if resp.Social.CommentFoldThreshold <= 0 || resp.Social.CommentFoldThreshold >= 1 {
 		t.Fatalf("social.comment_fold_threshold = %v, want a configured ratio in (0,1)", resp.Social.CommentFoldThreshold)
 	}
+}
+
+// TestPublicConfigContentRegistryProjection pins the additive /config/public
+// registry projection (#687): content_types full rows, upload_file_types
+// safe slice (extensions null = unrestricted, live max_mb via limit key),
+// and the server-derived client_accept per content type.
+func TestPublicConfigContentRegistryProjection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Limits: config.LimitsConfig{
+			VideoMaxMB: 300, ImageMaxMB: 20, TextMaxMB: 10,
+			ModMaxMB: 500, SheetMusicMaxMB: 50,
+		},
+		Upload: config.UploadConfig{
+			SheetMusicExtensions: []string{".mid", ".midi", ".xml", ".mxl", ".mscz", ".mscx", ".pdf"},
+		},
+	}
+	router := gin.New()
+	router.GET("/api/v1/config/public", NewPublicConfigHandler(cfg).GetPublicConfig)
+
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil))
+	require.Equal(t, http.StatusOK, res.Code)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &raw))
+
+	contentTypes := raw["content_types"].([]any)
+	require.Len(t, contentTypes, 9)
+	byKey := map[string]map[string]any{}
+	for _, item := range contentTypes {
+		entry := item.(map[string]any)
+		byKey[entry["key"].(string)] = entry
+	}
+	for _, key := range []string{"image", "article", "video", "audio", "template", "sheet_music", "mod", "prompt", "other"} {
+		require.Contains(t, byKey, key)
+	}
+	require.Equal(t, []any{"fanwork"}, byKey["mod"]["zones"])
+	require.Equal(t, false, byKey["mod"]["judge_eligible"])
+	require.Equal(t, true, byKey["sheet_music"]["judge_eligible"])
+	require.Equal(t, "media", byKey["video"]["form"])
+	require.Equal(t, "text", byKey["article"]["form"])
+	require.Equal(t, []any{"mod"}, byKey["mod"]["upload_file_types"])
+
+	// client_accept: unrestricted family in the set -> "*"; explicit-only
+	// -> sorted union; no attachments -> absent (omitempty).
+	require.Equal(t, "*", byKey["mod"]["client_accept"])
+	require.Equal(t, "*", byKey["template"]["client_accept"])
+	require.Equal(t, ".mid,.midi,.mscx,.mscz,.mxl,.pdf,.xml", byKey["sheet_music"]["client_accept"])
+	require.NotContains(t, byKey["article"], "client_accept")
+
+	families := raw["upload_file_types"].([]any)
+	require.Len(t, families, 6)
+	familyMax := map[string]float64{}
+	for _, item := range families {
+		family := item.(map[string]any)
+		key := family["key"].(string)
+		familyMax[key] = family["max_mb"].(float64)
+		extensions, present := family["extensions"]
+		if key == "sheet_music" {
+			require.True(t, present, "sheet_music must carry an explicit extensions array")
+			require.Len(t, extensions, 7)
+		} else {
+			require.Nil(t, extensions, "family %s is unrestricted and must project extensions as null", key)
+		}
+	}
+	require.Equal(t, float64(500), familyMax["mod"])
+	require.Equal(t, float64(50), familyMax["sheet_music"])
+	require.Equal(t, float64(20), familyMax["avatar"], "avatar reuses the image budget via its limit key")
+	require.Equal(t, float64(10), familyMax["text"])
 }

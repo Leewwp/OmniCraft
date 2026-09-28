@@ -75,7 +75,7 @@ func textResult(v any) (*sdkmcp.CallToolResult, any, error) {
 
 type SearchInput struct {
 	Query       string `json:"query" jsonschema:"keyword query matched against title and description"`
-	ContentType string `json:"content_type,omitempty" jsonschema:"optional content type filter: mod, sheet_music, template, audio, video, image, article, prompt, other"`
+	ContentType string `json:"content_type,omitempty" jsonschema:"optional content type filter; platform-registered types are projected by GET /config/public (content_types)"`
 	Category    string `json:"category,omitempty" jsonschema:"optional category slug"`
 	Page        int    `json:"page,omitempty" jsonschema:"result page, 1-based"`
 	PageSize    int    `json:"page_size,omitempty" jsonschema:"results per page, 1-20"`

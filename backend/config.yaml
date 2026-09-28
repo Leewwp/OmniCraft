@@ -337,6 +337,83 @@ publish:
   type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
   type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
 
+# Content-type registry (#687): dual-axis single source of truth. This
+# explicit section mirrors the shipped baseline (config/content_registry.go
+# DefaultContentRegistry; equivalence pinned by
+# TestDefaultRegistryMatchesShippedYAML). Adding a category = one
+# content_types row + type_order entries + zh/en i18n keys + icon map entry;
+# no business-branch code. Families staged per spec: document joins with
+# #688, model3d with #689 — references to unregistered families refuse
+# startup (anti-typo). extensions omitted = unrestricted (MIME-driven).
+content_registry:
+  content_types:
+    - key: image
+      zones: [original, fanwork]
+      form: media
+      upload_file_types: [image]
+      judge_eligible: true
+    - key: article
+      zones: [original, fanwork]
+      form: text
+      upload_file_types: []
+      judge_eligible: true
+    - key: video
+      zones: [original, fanwork]
+      form: media
+      upload_file_types: [video]
+      judge_eligible: true
+    - key: audio
+      zones: [original, fanwork]
+      form: file
+      upload_file_types: [text]
+      judge_eligible: true
+    - key: mod
+      zones: [fanwork]
+      form: file
+      upload_file_types: [mod]
+      judge_eligible: false
+    - key: prompt
+      zones: [fanwork]
+      form: text
+      upload_file_types: []
+      judge_eligible: true
+    - key: template
+      zones: [original]
+      form: file
+      upload_file_types: [text]
+      judge_eligible: true
+    - key: sheet_music
+      zones: [original, fanwork]
+      form: file
+      upload_file_types: [sheet_music]
+      judge_eligible: true
+    - key: other
+      zones: [original, fanwork]
+      form: text
+      upload_file_types: []
+      judge_eligible: true
+  upload_file_types:
+    - key: video
+      mime_prefixes: ["video/"]
+      max_mb_key: video_max_mb
+    - key: image
+      mime_prefixes: ["image/"]
+      max_mb_key: image_max_mb
+    - key: avatar
+      mime_prefixes: ["image/"]
+      max_mb_key: image_max_mb
+    - key: text
+      mime_prefixes: ["text/"]
+      mime_exact: ["application/pdf"]
+      max_mb_key: text_max_mb
+    - key: mod
+      mime_exact: ["application/zip", "application/x-zip-compressed"]
+      max_mb_key: mod_max_mb
+      scannable: true
+    - key: sheet_music
+      extensions_key: sheet_music_extensions
+      max_mb_key: sheet_music_max_mb
+
 upload:
   sheet_music_extensions:
     - ".mid"

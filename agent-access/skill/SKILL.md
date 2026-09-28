@@ -33,8 +33,10 @@ curl "$OMNICRAFT_BASE_URL/api/v1/contents/search?q=<keywords>&page_size=10"
 curl "$OMNICRAFT_BASE_URL/api/v1/contents/<id>"          # detail + attachments
 ```
 
-Filters: `type` (mod / sheet_music / template / audio / video / image / article /
-prompt / other). Full contract: `GET /api/v1/openapi.json` (OpenAPI 3.1).
+Filters: `type` — platform-registered content types are projected by
+`GET /api/v1/config/public` (`content_types[].key`; e.g. image, article, video,
+audio, mod, prompt, sheet_music, template, other). Full contract:
+`GET /api/v1/openapi.json` (OpenAPI 3.1).
 
 ## 2. Usage guides (install / setup steps)
 

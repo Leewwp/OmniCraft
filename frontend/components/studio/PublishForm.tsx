@@ -25,7 +25,7 @@ import { CollabUserPicker, type CollabUser } from "@/components/content/CollabUs
 import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
-import { fetchPublicConfig, uploadMaxMBForType, type PublicConfig } from "@/lib/public-config";
+import { fetchPublicConfig, isFilePrimaryContentType, uploadMaxMBForType, type PublicConfig } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
@@ -40,10 +40,6 @@ const CATEGORY_I18N: Record<string, string> = {
   tech_digital: "home.categoryTechDigital", travel: "home.categoryTravel", sports: "home.categorySports", productivity: "home.categoryProductivity",
 };
 
-// Types that use file upload as primary content
-const FILE_PRIMARY_TYPES = ["image", "video", "audio", "sheet_music", "mod", "template"];
-// Types that use text editor as primary
-const TEXT_PRIMARY_TYPES = ["article", "prompt", "other"];
 const MAX_SUGGESTED_TITLE_LENGTH = 500;
 const MAX_SUGGESTED_DESCRIPTION_LENGTH = 2000;
 
@@ -120,7 +116,6 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   const t = useTranslations();
   const router = useRouter();
   const { toast } = useToast();
-  const isFilePrimary = FILE_PRIMARY_TYPES.includes(contentType);
   const mediaContentType = contentType === "image" || contentType === "video" ? contentType : null;
   const isMediaGallery = mediaContentType !== null;
 
@@ -246,8 +241,11 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   const [previewTab, setPreviewTab] = useState<"edit" | "preview">("edit");
   const { user } = useAuth();
   const [briefDesc, setBriefDesc] = useState("");
-  /* T25：公开配置（上传上限动态消费） */
+  /* T25：公开配置（上传上限动态消费；#687 注册表形态轴同源消费） */
   const [publicConfig, setPublicConfig] = useState<PublicConfig | null>(null);
+  /* #687：文件主形态由注册表 form 轴驱动（file|media），替代硬编码清单；
+   * 未知类型回退 text 形态，与旧 FILE_PRIMARY_TYPES 判定语义一致 */
+  const isFilePrimary = isFilePrimaryContentType(publicConfig, contentType);
 
   // Zone-specific
   const [category, setCategory] = useState("");
@@ -611,7 +609,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       )}
 
       {/* Primary content area: Text types → Markdown */}
-      {TEXT_PRIMARY_TYPES.includes(contentType) && (
+      {!isFilePrimary && (
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.bodyLabel')}</label>
           <MilkdownEditor

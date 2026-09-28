@@ -14,6 +14,10 @@ import (
 )
 
 func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.ServiceContainer) {
+	// Registry-driven content_type validation set (#687): refresh the DTO
+	// validator from the loaded config so registry-added categories pass
+	// binding without validator code changes.
+	middleware.SetRegisteredContentTypes(cfg)
 	rdb := ctr.RDB
 	db := ctr.DB
 	userRepo := ctr.UserRepo

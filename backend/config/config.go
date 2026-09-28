@@ -72,31 +72,36 @@ type Config struct {
 	// with the frontend single source frontend/lib/ip-categories.ts; IP
 	// creation validates category against it. Extending = frontend constant +
 	// this list + ipCategory.* i18n keys in one small PR (GLOSSARY "IP 分类").
-	IPCategories   []string             `mapstructure:"ip_categories" json:"ip_categories"`
-	Discussion     DiscussionConfig     `mapstructure:"discussion" json:"discussion"`
-	Social         SocialConfig         `mapstructure:"social" json:"social"`
-	Collaboration  CollaborationConfig  `mapstructure:"collaboration" json:"collaboration"`
-	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history" json:"browse_history"`
-	Upload         UploadConfig         `mapstructure:"upload" json:"upload"`
-	Publish        PublishConfig        `mapstructure:"publish" json:"publish"`
-	ArchiveScan    ArchiveScanConfig    `mapstructure:"archive_scan" json:"archive_scan"`
-	Agent          AgentConfig          `mapstructure:"agent" json:"agent"`
-	AgentAccess    AgentAccessConfig    `mapstructure:"agent_access" json:"agent_access"`
-	RAG            RAGConfig            `mapstructure:"rag" json:"rag"`
-	SMTP           SMTPConfig           `mapstructure:"smtp" json:"smtp"`
-	Captcha        CaptchaConfig        `mapstructure:"captcha" json:"captcha"`
-	Verification   VerificationConfig   `mapstructure:"verification" json:"verification"`
-	Legal          LegalConfig          `mapstructure:"legal" json:"legal"`
-	Client         ClientConfig         `mapstructure:"client" json:"client"`
-	Feedback       FeedbackConfig       `mapstructure:"feedback" json:"feedback"`
-	Cache          CacheConfig          `mapstructure:"cache" json:"cache"`
-	RateLimit      RateLimitConfig      `mapstructure:"rate_limit" json:"rate_limit"`
-	Recommendation RecommendationConfig `mapstructure:"recommendation" json:"recommendation"`
-	Queue          queue.QueueConfig    `mapstructure:"queue" json:"queue"`
-	Relay          RelayConfig          `mapstructure:"relay" json:"relay"`
-	Worker         WorkerConfig         `mapstructure:"worker" json:"worker"`
-	Observability  ObservabilityConfig  `mapstructure:"observability" json:"observability"`
-	Resilience     ResilienceConfig     `mapstructure:"resilience" json:"resilience"`
+	IPCategories  []string            `mapstructure:"ip_categories" json:"ip_categories"`
+	Discussion    DiscussionConfig    `mapstructure:"discussion" json:"discussion"`
+	Social        SocialConfig        `mapstructure:"social" json:"social"`
+	Collaboration CollaborationConfig `mapstructure:"collaboration" json:"collaboration"`
+	BrowseHistory BrowseHistoryConfig `mapstructure:"browse_history" json:"browse_history"`
+	Upload        UploadConfig        `mapstructure:"upload" json:"upload"`
+	Publish       PublishConfig       `mapstructure:"publish" json:"publish"`
+	// ContentRegistry is the dual-axis content-type registry (#687):
+	// content_types (taxonomy) + upload_file_types (upload capability).
+	// Optional in YAML — absent section falls back to the shipped baseline
+	// via the Effective* accessors in content_registry.go.
+	ContentRegistry ContentRegistryConfig `mapstructure:"content_registry" json:"content_registry"`
+	ArchiveScan     ArchiveScanConfig     `mapstructure:"archive_scan" json:"archive_scan"`
+	Agent           AgentConfig           `mapstructure:"agent" json:"agent"`
+	AgentAccess     AgentAccessConfig     `mapstructure:"agent_access" json:"agent_access"`
+	RAG             RAGConfig             `mapstructure:"rag" json:"rag"`
+	SMTP            SMTPConfig            `mapstructure:"smtp" json:"smtp"`
+	Captcha         CaptchaConfig         `mapstructure:"captcha" json:"captcha"`
+	Verification    VerificationConfig    `mapstructure:"verification" json:"verification"`
+	Legal           LegalConfig           `mapstructure:"legal" json:"legal"`
+	Client          ClientConfig          `mapstructure:"client" json:"client"`
+	Feedback        FeedbackConfig        `mapstructure:"feedback" json:"feedback"`
+	Cache           CacheConfig           `mapstructure:"cache" json:"cache"`
+	RateLimit       RateLimitConfig       `mapstructure:"rate_limit" json:"rate_limit"`
+	Recommendation  RecommendationConfig  `mapstructure:"recommendation" json:"recommendation"`
+	Queue           queue.QueueConfig     `mapstructure:"queue" json:"queue"`
+	Relay           RelayConfig           `mapstructure:"relay" json:"relay"`
+	Worker          WorkerConfig          `mapstructure:"worker" json:"worker"`
+	Observability   ObservabilityConfig   `mapstructure:"observability" json:"observability"`
+	Resilience      ResilienceConfig      `mapstructure:"resilience" json:"resilience"`
 }
 
 // ResilienceConfig carries the shared failure-isolation tunables
@@ -1480,6 +1485,7 @@ func (c *Config) Validate() error {
 // production-only constraints (HTTPS, secrets, placeholders, mode-specific
 // provider bans) deliberately stay in ValidateRelease.
 func (c *Config) validateStructure(errs *[]string) {
+	c.validateContentRegistry(errs)
 	if err := c.Upload.ValidateGalleryLimits(); err != nil {
 		*errs = append(*errs, "upload."+err.Error())
 	}

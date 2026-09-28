@@ -221,7 +221,7 @@ func downloadErrorText(err error) string {
 
 type SuggestPublishMetadataInput struct {
 	FileName    string `json:"file_name" jsonschema:"name of the local file to publish, e.g. song.pdf"`
-	ContentType string `json:"content_type,omitempty" jsonschema:"content type if known: mod, sheet_music, template, audio, video, image, article, prompt, other"`
+	ContentType string `json:"content_type,omitempty" jsonschema:"content type if known; platform-registered types are projected by GET /config/public (content_types)"`
 	Title       string `json:"title,omitempty" jsonschema:"working title, if the user gave one"`
 	Description string `json:"description,omitempty" jsonschema:"short description of the work, if any"`
 }
@@ -279,7 +279,7 @@ type CreateContentInput struct {
 	Title            string                  `json:"title"`
 	Description      string                  `json:"description,omitempty"`
 	Zone             string                  `json:"zone" jsonschema:"original or fanwork"`
-	ContentType      string                  `json:"content_type" jsonschema:"mod, sheet_music, template, audio, video, image, article, prompt, other"`
+	ContentType      string                  `json:"content_type" jsonschema:"platform-registered content type; see GET /config/public (content_types)"`
 	Category         string                  `json:"category,omitempty"`
 	IPID             *int64                  `json:"ip_id,omitempty" jsonschema:"bound original IP id for fanworks"`
 	SourceOriginalID *int64                  `json:"source_original_id,omitempty" jsonschema:"source original content id (fanwork)"`

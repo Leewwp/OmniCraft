@@ -3,20 +3,59 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+
+	"omnicraft/backend/config"
 )
 
 var validate = validator.New()
 
+// registeredContentTypes is the content_type validator's allowed set. It
+// boots from the registry baseline and is refreshed from the loaded config
+// at wiring (SetRegisteredContentTypes) so a registry-added category needs
+// no validator code change (#687).
+var (
+	registeredContentTypesMu sync.RWMutex
+	registeredContentTypes   = defaultContentTypeSet()
+)
+
+func defaultContentTypeSet() map[string]bool {
+	set := make(map[string]bool)
+	for _, entry := range config.DefaultContentRegistry().ContentTypes {
+		set[entry.Key] = true
+	}
+	return set
+}
+
+// SetRegisteredContentTypes refreshes the content_type validation set from
+// the loaded configuration. Called once during wiring; the boot default
+// equals the shipped baseline so pre-wiring tests behave identically.
+func SetRegisteredContentTypes(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	set := make(map[string]bool)
+	for _, entry := range cfg.EffectiveContentTypes() {
+		set[entry.Key] = true
+	}
+	registeredContentTypesMu.Lock()
+	registeredContentTypes = set
+	registeredContentTypesMu.Unlock()
+}
+
+func isRegisteredContentType(value string) bool {
+	registeredContentTypesMu.RLock()
+	set := registeredContentTypes
+	registeredContentTypesMu.RUnlock()
+	return set[value]
+}
+
 func init() {
 	validate.RegisterValidation("content_type", func(fl validator.FieldLevel) bool {
-		allowed := map[string]bool{
-			"image": true, "article": true, "video": true, "audio": true,
-			"template": true, "sheet_music": true, "mod": true, "prompt": true, "other": true,
-		}
-		return allowed[fl.Field().String()]
+		return isRegisteredContentType(fl.Field().String())
 	})
 
 	validate.RegisterValidation("safe_username", func(fl validator.FieldLevel) bool {
