@@ -149,6 +149,7 @@ type UpgradeSeed struct {
 var RegistryUpgrades = []UpgradeSeed{
 	{SlotName: SlotAgentSystem.Name, Version: 2, Content: agentSystemV2()},
 	{SlotName: SlotAgentSystem.Name, Version: 3, Content: agentSystemV3()},
+	{SlotName: SlotAgentSystem.Name, Version: 4, Content: agentSystemV4()},
 }
 
 // SeedUpgrades applies code-shipped version bumps after SeedV1. Each entry

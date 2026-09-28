@@ -157,6 +157,23 @@ func agentSystemV3() string {
 	return "[OmniCraft Agent Context] {{surface_context}}; " + strings.Join(corpus, "; ") + "; " + agentSystemV2Extra
 }
 
+// agentSystemV4NoReasoning is the single instruction v4 appends to the v3
+// corpus (FT-6 #698). Live evidence (trace f47a985e, 2026-09-28): with
+// thinking disabled M3 sometimes emits its reasoning as the answer body
+// itself — a bare English "The user is asking about…" run followed by the
+// Chinese answer, no think tags for the splitter to strip. v4 tells the
+// model the body must be the final answer only; the narrow server-side
+// guard (agent_answer_guard.go) is the belt-and-braces backstop.
+const agentSystemV4NoReasoning = "never include your reasoning, thinking process, or chain of thought in the answer body; compose the final answer directly in the user's language — the body must contain only the answer itself, never the steps you took to reach it"
+
+// agentSystemV4 is the FT-6 upgrade of agent_system: the v3 corpus plus the
+// no-reasoning-in-body clause and nothing else (retrieval-first, if needed at
+// all, belongs to a possible v5 per #629's diagnosis). v1–v3 stay
+// byte-identical so the registry diff and rollback chain keep working.
+func agentSystemV4() string {
+	return agentSystemV3() + "; " + agentSystemV4NoReasoning
+}
+
 // Slots is the full, ordered inventory of prompt sites (user decision
 // 2026-09-16: ALL slots enter the registry, not only high-traffic ones).
 // v1 of every slot is byte-identical to the pre-registry hardcoded prompt;

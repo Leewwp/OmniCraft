@@ -704,6 +704,11 @@ type AgentConfig struct {
 	// server-side: untrusted-tool-result fencing, image-URL domain
 	// allowlist, and the conversation-level budgets.
 	Guardrails AgentGuardrailsConfig `mapstructure:"guardrails" json:"guardrails"`
+	// AnswerBareReasoningGuard gates the FT-6 (#698) narrow strip of
+	// bare-English reasoning prefixes on grounded turns (M3 with thinking
+	// disabled can emit reasoning as body text with no tags at all).
+	// Zero value = off (explicit opt-in via config.yaml factory default).
+	AnswerBareReasoningGuard AgentAnswerBareReasoningGuardConfig `mapstructure:"answer_bare_reasoning_guard" json:"answer_bare_reasoning_guard"`
 	// MCP drives the external-tool bridge (SP-23 M3, #568): configured
 	// servers are exposed to the agent as mcp_<server>_<tool> tools over
 	// stdio subprocess transports. Default off (gray rollout per server).
@@ -714,6 +719,14 @@ type AgentConfig struct {
 	// per-conversation generation budget. enabled=false or a missing
 	// AGENT_IMAGE_API_KEY keeps the tool out of the model's tool list.
 	Image AgentImageConfig `mapstructure:"image" json:"image"`
+}
+
+// AgentAnswerBareReasoningGuardConfig is the FT-6 (#698) switch: enabled
+// strips a leaked bare-English reasoning prefix on grounded turns whose body
+// afterwards still contains Chinese text (triple condition, see
+// agent_answer_guard.go); disabled passes everything through unchanged.
+type AgentAnswerBareReasoningGuardConfig struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 }
 
 // AgentGuardrailsConfig holds every M4 limit (config-driven, Key Rule 6).
