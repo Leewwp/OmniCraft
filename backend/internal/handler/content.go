@@ -458,7 +458,7 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 		pageSize = 100
 	}
 
-	contentTypes, ok := parseRelatedFanworkContentTypes(c.Query("content_type"))
+	contentTypes, ok := parseRelatedFanworkContentTypes(c.Query("content_type"), h.cfg)
 	if !ok {
 		response.Error(c, http.StatusBadRequest, "INVALID_CONTENT_TYPE", "invalid content type")
 		return
@@ -503,16 +503,11 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 	})
 }
 
-var validRelatedFanworkContentTypes = map[string]bool{
-	"image": true, "article": true, "video": true, "audio": true,
-	"template": true, "sheet_music": true, "mod": true, "prompt": true, "other": true,
-}
-
 // parseRelatedFanworkContentTypes parses the comma-separated content_type
-// query for related-fanworks. Every entry must be a standard allowlisted
-// content type; empty or unknown entries reject the request so the caller
-// can answer 400 INVALID_CONTENT_TYPE.
-func parseRelatedFanworkContentTypes(raw string) ([]string, bool) {
+// query for related-fanworks. Every entry must be a registry-registered
+// content type (#687 taxonomy axis); empty or unknown entries reject the
+// request so the caller can answer 400 INVALID_CONTENT_TYPE.
+func parseRelatedFanworkContentTypes(raw string, cfg *config.Config) ([]string, bool) {
 	if raw == "" {
 		return nil, true
 	}
@@ -520,7 +515,7 @@ func parseRelatedFanworkContentTypes(raw string) ([]string, bool) {
 	values := make([]string, 0, len(parts))
 	for _, part := range parts {
 		value := strings.TrimSpace(part)
-		if value == "" || !validRelatedFanworkContentTypes[value] {
+		if value == "" || !cfg.IsRegisteredContentType(value) {
 			return nil, false
 		}
 		values = append(values, value)
