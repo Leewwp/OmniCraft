@@ -785,6 +785,18 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		if v, ok := limits["sheet_music_max_mb"].(float64); ok {
 			h.cfg.Limits.SheetMusicMaxMB = int(v)
 		}
+		// #688/#689: the new family budgets join the same runtime mechanism
+		// as the legacy five (registry max_mb_key references resolve the
+		// live value; no YAML-only second class).
+		if v, ok := limits["audio_max_mb"].(float64); ok {
+			h.cfg.Limits.AudioMaxMB = int(v)
+		}
+		if v, ok := limits["document_max_mb"].(float64); ok {
+			h.cfg.Limits.DocumentMaxMB = int(v)
+		}
+		if v, ok := limits["model3d_max_mb"].(float64); ok {
+			h.cfg.Limits.Model3DMaxMB = int(v)
+		}
 		if v, ok := limits["video_max_sec"].(float64); ok {
 			h.cfg.Limits.VideoMaxSec = int(v)
 		}

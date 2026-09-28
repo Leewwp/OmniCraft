@@ -43,7 +43,7 @@ func TestArchiveScanGateAttachmentStateMatrix(t *testing.T) {
 		if err := db.Create(&attachment).Error; err != nil {
 			t.Fatalf("create %s attachment: %v", status, err)
 		}
-		gate := NewArchiveScanGate(db, true)
+		gate := NewArchiveScanGate(db, true, nil)
 		if err := gate.RequireAttachmentClean(context.Background(), attachment.ID); !errors.Is(err, ErrArchiveNotClean) {
 			t.Fatalf("status %s error = %v, want ErrArchiveNotClean", status, err)
 		}
@@ -59,7 +59,7 @@ func TestArchiveScanGateAttachmentStateMatrix(t *testing.T) {
 	if err := db.Create(&clean).Error; err != nil {
 		t.Fatalf("create clean attachment: %v", err)
 	}
-	if err := NewArchiveScanGate(db, true).RequireAttachmentClean(context.Background(), clean.ID); err != nil {
+	if err := NewArchiveScanGate(db, true, nil).RequireAttachmentClean(context.Background(), clean.ID); err != nil {
 		t.Fatalf("clean attachment error = %v, want nil", err)
 	}
 
@@ -72,7 +72,7 @@ func TestArchiveScanGateAttachmentStateMatrix(t *testing.T) {
 	if err := db.Create(&notRequired).Error; err != nil {
 		t.Fatalf("create not-required attachment: %v", err)
 	}
-	if err := NewArchiveScanGate(db, true).RequireAttachmentClean(context.Background(), notRequired.ID); err != nil {
+	if err := NewArchiveScanGate(db, true, nil).RequireAttachmentClean(context.Background(), notRequired.ID); err != nil {
 		t.Fatalf("not-required attachment error = %v, want nil", err)
 	}
 	quarantinedNonArchive := model.ContentAttachment{
@@ -84,10 +84,10 @@ func TestArchiveScanGateAttachmentStateMatrix(t *testing.T) {
 	if err := db.Create(&quarantinedNonArchive).Error; err != nil {
 		t.Fatalf("create quarantined non-archive attachment: %v", err)
 	}
-	if err := NewArchiveScanGate(db, true).RequireAttachmentClean(context.Background(), quarantinedNonArchive.ID); !errors.Is(err, ErrArchiveNotClean) {
+	if err := NewArchiveScanGate(db, true, nil).RequireAttachmentClean(context.Background(), quarantinedNonArchive.ID); !errors.Is(err, ErrArchiveNotClean) {
 		t.Fatalf("quarantined non-archive error = %v, want ErrArchiveNotClean", err)
 	}
-	if err := NewArchiveScanGate(db, false).RequireAttachmentClean(context.Background(), quarantinedNonArchive.ID); !errors.Is(err, ErrArchiveNotClean) {
+	if err := NewArchiveScanGate(db, false, nil).RequireAttachmentClean(context.Background(), quarantinedNonArchive.ID); !errors.Is(err, ErrArchiveNotClean) {
 		t.Fatalf("disabled gate quarantined error = %v, want ErrArchiveNotClean", err)
 	}
 	modNotRequired := model.ContentAttachment{
@@ -99,7 +99,7 @@ func TestArchiveScanGateAttachmentStateMatrix(t *testing.T) {
 	if err := db.Create(&modNotRequired).Error; err != nil {
 		t.Fatalf("create not-required mod attachment: %v", err)
 	}
-	if err := NewArchiveScanGate(db, true).RequireAttachmentClean(context.Background(), modNotRequired.ID); !errors.Is(err, ErrArchiveNotClean) {
+	if err := NewArchiveScanGate(db, true, nil).RequireAttachmentClean(context.Background(), modNotRequired.ID); !errors.Is(err, ErrArchiveNotClean) {
 		t.Fatalf("not-required mod error = %v, want ErrArchiveNotClean", err)
 	}
 	foreignPrefix := model.ContentAttachment{
@@ -112,10 +112,10 @@ func TestArchiveScanGateAttachmentStateMatrix(t *testing.T) {
 	if err := db.Create(&foreignPrefix).Error; err != nil {
 		t.Fatalf("create foreign-prefix attachment: %v", err)
 	}
-	if err := NewArchiveScanGate(db, true).RequireAttachmentClean(context.Background(), foreignPrefix.ID); !errors.Is(err, ErrArchiveNotClean) {
+	if err := NewArchiveScanGate(db, true, nil).RequireAttachmentClean(context.Background(), foreignPrefix.ID); !errors.Is(err, ErrArchiveNotClean) {
 		t.Fatalf("foreign-prefix error = %v, want ErrArchiveNotClean", err)
 	}
-	if err := NewArchiveScanGate(db, false).RequireAttachmentClean(context.Background(), attachmentIDOrFail(t, db, 1)); err != nil {
+	if err := NewArchiveScanGate(db, false, nil).RequireAttachmentClean(context.Background(), attachmentIDOrFail(t, db, 1)); err != nil {
 		t.Fatalf("disabled gate error = %v, want nil", err)
 	}
 }
@@ -139,7 +139,7 @@ func TestArchiveScanGateContentPublishRequiresEveryArchiveClean(t *testing.T) {
 	if err := db.Create(&attachments).Error; err != nil {
 		t.Fatalf("create attachments: %v", err)
 	}
-	gate := NewArchiveScanGate(db, true)
+	gate := NewArchiveScanGate(db, true, nil)
 	if err := gate.RequireContentCleanTx(context.Background(), db, content.ID); !errors.Is(err, ErrArchiveNotClean) {
 		t.Fatalf("mixed content error = %v, want ErrArchiveNotClean", err)
 	}
@@ -158,7 +158,7 @@ func TestArchiveScanGateContentPublishRequiresEveryArchiveClean(t *testing.T) {
 	if err := db.Create(&quarantined).Error; err != nil {
 		t.Fatalf("create quarantined attachment: %v", err)
 	}
-	if err := NewArchiveScanGate(db, false).RequireContentCleanTx(context.Background(), db, content.ID); !errors.Is(err, ErrArchiveNotClean) {
+	if err := NewArchiveScanGate(db, false, nil).RequireContentCleanTx(context.Background(), db, content.ID); !errors.Is(err, ErrArchiveNotClean) {
 		t.Fatalf("disabled content gate error = %v, want ErrArchiveNotClean", err)
 	}
 }
@@ -187,7 +187,7 @@ func TestArchiveScanCleanRequiresLatestReviewPass(t *testing.T) {
 		t.Fatalf("create newer review: %v", err)
 	}
 	svc := NewReviewService(db, nil, &config.Config{}, nil)
-	svc.SetArchiveScanGate(NewArchiveScanGate(db, true))
+	svc.SetArchiveScanGate(NewArchiveScanGate(db, true, nil))
 	if err := svc.ArchiveScanClean(context.Background(), attachment.ID); err != nil {
 		t.Fatalf("ArchiveScanClean() error = %v", err)
 	}

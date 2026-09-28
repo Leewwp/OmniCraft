@@ -49,6 +49,10 @@ type ContentAttachment struct {
 	ContentItem   ContentItem `gorm:"foreignKey:ContentItemID" json:"-"`
 	FileType      string      `gorm:"size:30;not null" json:"file_type"`
 	OSSKey        string      `gorm:"type:text;not null" json:"oss_key"`
+	// OriginalFileName (#688) is the server-normalized name locked into the
+	// upload grant at presign time — the publish payload's file_name is never
+	// trusted. NULL on legacy rows; the frontend falls back to the type label.
+	OriginalFileName *string `gorm:"size:255" json:"original_file_name,omitempty"`
 	FileSize      *int64      `json:"file_size,omitempty"`
 	MimeType      string      `gorm:"size:100" json:"mime_type,omitempty"`
 	DurationSec   *int        `json:"duration_sec,omitempty"`

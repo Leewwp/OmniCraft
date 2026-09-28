@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -177,6 +178,59 @@ func (s *DisplayURLSigner) DecorateAttachments(attachments []model.ContentAttach
 	for i := range attachments {
 		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey)
 	}
+}
+
+// ScanAwareDecorateAttachments is the #688 AttachmentScanGate preview
+// closure: the REST detail and MCP read paths used to sign every attachment
+// unconditionally, bypassing the scan gate that only publish review and the
+// download endpoint enforced. Semantics (fail-closed, same judgment as the
+// download gate):
+//
+//   - gate == nil → legacy unconditional decorate (wirings without a gate);
+//   - every attachment passes RequireAttachmentClean (disabled flag → only
+//     the eternal quarantine-prefix rejection applies);
+//   - rejected attachments keep an empty OSSURL — the row's scan_status
+//     rides the DTO and the client renders the scan-state card;
+//   - admitted scannable-family attachments sign with the scan-aware short
+//     TTL (cap 300s) and NO bucket alignment, so a re-scan that turns an
+//     attachment blocked leaves at most the scan TTL of exposure (v2.2 #1);
+//   - non-scannable attachments keep the ordinary display signing.
+func (s *DisplayURLSigner) ScanAwareDecorateAttachments(ctx context.Context, attachments []model.ContentAttachment, gate *ArchiveScanGate, scanTTLSec int) {
+	if s == nil {
+		return
+	}
+	if gate == nil {
+		s.DecorateAttachments(attachments)
+		return
+	}
+	for i := range attachments {
+		if err := gate.RequireAttachmentClean(ctx, attachments[i].ID); err != nil {
+			attachments[i].OSSURL = ""
+			continue
+		}
+		if gate.IsScannableFamily(attachments[i].FileType) {
+			attachments[i].OSSURL = s.attachmentURLShortTTL(attachments[i].OSSKey, gate.ScannablePreviewTTLSec(scanTTLSec))
+			continue
+		}
+		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey)
+	}
+}
+
+// attachmentURLShortTTL signs without the #428 bucket alignment: the
+// scan-aware preview budget must never stretch to ttl + bucket.
+func (s *DisplayURLSigner) attachmentURLShortTTL(ossKey string, ttlSec int) string {
+	if s == nil {
+		return ""
+	}
+	key := strings.TrimSpace(ossKey)
+	if key == "" || strings.TrimSpace(s.domain) == "" || s.client == nil {
+		return ""
+	}
+	signed, err := s.client.GetSignedURL(key, http.MethodGet, time.Duration(ttlSec)*time.Second)
+	if err != nil {
+		return ""
+	}
+	return signed
 }
 
 // DecorateUser signs the avatar URL in place.

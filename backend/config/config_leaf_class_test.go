@@ -172,9 +172,12 @@ var leafClassification = map[string]string{
 	"jwt.secret":                                                     "required",
 	"legal.current_privacy_version":                                  "optional-zero",
 	"legal.current_terms_version":                                    "optional-zero",
+	"limits.audio_max_mb":                                            "optional-zero",
+	"limits.document_max_mb":                                         "optional-zero",
 	"limits.dm_max_length":                                           "optional-zero",
 	"limits.image_max_mb":                                            "optional-zero",
 	"limits.mod_max_mb":                                              "optional-zero",
+	"limits.model3d_max_mb":                                          "optional-zero",
 	"limits.sheet_music_max_mb":                                      "optional-zero",
 	"limits.text_max_mb":                                             "optional-zero",
 	"limits.video_max_mb":                                            "optional-zero",
@@ -338,6 +341,8 @@ var leafClassification = map[string]string{
 	"smtp.user":                                                      "conditional",
 	"social.comment_fold_threshold":                                  "optional-zero",
 	"social.report_auto_hide_rate":                                   "optional-zero",
+	"upload.content_grant_ttl_sec":                                   "optional-zero",
+	"upload.document_preview_max_mb":                                 "optional-zero",
 	"upload.image_gallery_max_items":                                 "optional-zero",
 	"upload.image_gallery_min_items":                                 "optional-zero",
 	"upload.sheet_music_extensions":                                  "optional-zero",
@@ -446,7 +451,8 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	}
 	require.Equal(t, 13, counts[classRequired])
 	require.Equal(t, 162, counts[classConditional])
-	require.Equal(t, 122, counts[classOptionalZero])
+	// 122 shipped + 5 new (#688).
+	require.Equal(t, 127, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).
 	require.Equal(t, 21, counts[classRegistry])
 	require.Equal(t, 6, counts[classDead])

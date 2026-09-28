@@ -16,6 +16,9 @@ interface ConfigData {
     text_max_mb: number;
     mod_max_mb: number;
     sheet_music_max_mb: number;
+    audio_max_mb: number;
+    document_max_mb: number;
+    model3d_max_mb: number;
   };
   features: {
     payment_enabled: boolean;
@@ -317,6 +320,9 @@ export default function AdminConfigPage() {
             <FieldRow id="config-text-max-mb" label={t('admin.config.textMaxMb')} value={config.limits.text_max_mb} onChange={(v) => updateLimits("text_max_mb", v)} min={1} unit="MB" />
             <FieldRow id="config-mod-max-mb" label={t('admin.config.modMaxMb')} value={config.limits.mod_max_mb} onChange={(v) => updateLimits("mod_max_mb", v)} min={1} unit="MB" />
             <FieldRow id="config-sheet-music-max-mb" label={t('admin.config.sheetMusicMaxMb')} value={config.limits.sheet_music_max_mb} onChange={(v) => updateLimits("sheet_music_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-audio-max-mb" label={t('admin.config.audioMaxMb')} value={config.limits.audio_max_mb} onChange={(v) => updateLimits("audio_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-document-max-mb" label={t('admin.config.documentMaxMb')} value={config.limits.document_max_mb} onChange={(v) => updateLimits("document_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-model3d-max-mb" label={t('admin.config.model3dMaxMb')} value={config.limits.model3d_max_mb} onChange={(v) => updateLimits("model3d_max_mb", v)} min={1} unit="MB" />
           </div>
         </div>
 

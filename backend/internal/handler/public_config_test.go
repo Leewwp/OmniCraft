@@ -201,9 +201,12 @@ func TestPublicConfigExposesOnlyGalleryLimits(t *testing.T) {
 		"image_gallery_max_items": 9,
 		"video_gallery_min_items": 1,
 		"video_gallery_max_items": 3,
+		// #688: the document preview budget joins the non-sensitive upload
+		// exposure class (default 10 when unset in this minimal config).
+		"document_preview_max_mb": 10,
 	}
 	if len(upload) != len(want) {
-		t.Fatalf("upload object has %d keys, want exactly %d (only the gallery limits)", len(upload), len(want))
+		t.Fatalf("upload object has %d keys, want exactly %d (gallery limits + document preview budget)", len(upload), len(want))
 	}
 	for key, wantValue := range want {
 		got, has := upload[key]
@@ -306,7 +309,7 @@ func TestPublicConfigNormalizesOmittedGalleryLimits(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if resp.Upload != (PublicUploadDTO{ImageGalleryMinItems: 2, ImageGalleryMaxItems: 9, VideoGalleryMinItems: 1, VideoGalleryMaxItems: 3}) {
+	if resp.Upload != (PublicUploadDTO{ImageGalleryMinItems: 2, ImageGalleryMaxItems: 9, VideoGalleryMinItems: 1, VideoGalleryMaxItems: 3, DocumentPreviewMaxMB: 10}) {
 		t.Fatalf("upload limits = %#v, want specification defaults", resp.Upload)
 	}
 }
@@ -347,6 +350,11 @@ func TestPublicConfigExposesPublishTypeOrderAndUploadCaps(t *testing.T) {
 		"text_max_mb":        10,
 		"mod_max_mb":         500,
 		"sheet_music_max_mb": 50,
+		// #688/#689: the three new family budgets ride the same exposure
+		// class (non-sensitive numeric caps); unset in this minimal config.
+		"audio_max_mb":    0,
+		"document_max_mb": 0,
+		"model3d_max_mb":  0,
 	}
 	if len(resp.Limits) != len(wantCaps) {
 		t.Fatalf("limits object has %d keys %v, want exactly the %d upload caps", len(resp.Limits), resp.Limits, len(wantCaps))
@@ -435,16 +443,15 @@ func TestPublicConfigContentRegistryProjection(t *testing.T) {
 	require.NotContains(t, byKey["article"], "client_accept")
 
 	families := raw["upload_file_types"].([]any)
-	require.Len(t, families, 6)
+	require.Len(t, families, 8)
 	familyMax := map[string]float64{}
 	for _, item := range families {
 		family := item.(map[string]any)
 		key := family["key"].(string)
 		familyMax[key] = family["max_mb"].(float64)
 		extensions, present := family["extensions"]
-		if key == "sheet_music" {
-			require.True(t, present, "sheet_music must carry an explicit extensions array")
-			require.Len(t, extensions, 7)
+		if key == "sheet_music" || key == "document" || key == "audio" {
+			require.True(t, present, "%s must carry an explicit extensions array", key)
 		} else {
 			require.Nil(t, extensions, "family %s is unrestricted and must project extensions as null", key)
 		}
@@ -453,4 +460,6 @@ func TestPublicConfigContentRegistryProjection(t *testing.T) {
 	require.Equal(t, float64(50), familyMax["sheet_music"])
 	require.Equal(t, float64(20), familyMax["avatar"], "avatar reuses the image budget via its limit key")
 	require.Equal(t, float64(10), familyMax["text"])
+	require.Equal(t, float64(0), familyMax["document"], "document cap unset in this minimal cfg")
+	require.Equal(t, float64(0), familyMax["audio"], "audio cap unset in this minimal cfg")
 }

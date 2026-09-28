@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 )
 
@@ -20,15 +21,52 @@ var (
 )
 
 // ArchiveScanGate centralizes the feature flag and the clean-only policy for
-// both publish and download paths. Non-archive attachments stay not_required;
-// every attachment that requires scanning must be clean before release.
+// both publish and download paths. Non-scannable attachments stay
+// not_required; every attachment whose family joins the ClamAV pipeline (or
+// whose row says scan_required) must be clean before release.
+//
+// #688: the scannable judgment comes from the registry capability axis
+// (mod + document + audio on the shipped baseline) instead of the mod-only
+// literal. scannableTypes nil → registry baseline via config defaults.
 type ArchiveScanGate struct {
-	db      *gorm.DB
-	enabled bool
+	db        *gorm.DB
+	enabled   bool
+	scannable map[string]bool
 }
 
-func NewArchiveScanGate(db *gorm.DB, enabled bool) *ArchiveScanGate {
-	return &ArchiveScanGate{db: db, enabled: enabled}
+func NewArchiveScanGate(db *gorm.DB, enabled bool, scannableTypes []string) *ArchiveScanGate {
+	set := make(map[string]bool)
+	if len(scannableTypes) == 0 {
+		for _, family := range config.DefaultContentRegistry().UploadFileTypes {
+			if family.Scannable {
+				set[family.Key] = true
+			}
+		}
+	} else {
+		for _, family := range scannableTypes {
+			set[family] = true
+		}
+	}
+	return &ArchiveScanGate{db: db, enabled: enabled, scannable: set}
+}
+
+// IsScannableFamily reports whether a family is enforcement-relevant for
+// this gate.
+func (g *ArchiveScanGate) IsScannableFamily(family string) bool {
+	if g == nil {
+		return false
+	}
+	return g.scannable[family]
+}
+
+// ScannablePreviewTTLSec returns the scan-aware short signing budget for
+// scannable attachments (shared with the download gate policy, cap 300s).
+func (g *ArchiveScanGate) ScannablePreviewTTLSec(fallbackTTLSec int) int {
+	ttl := fallbackTTLSec
+	if ttl <= 0 || ttl > 300 {
+		ttl = 300
+	}
+	return ttl
 }
 
 // RequireAttachmentClean checks the persisted attachment state immediately
@@ -53,7 +91,7 @@ func (g *ArchiveScanGate) RequireAttachmentClean(ctx context.Context, attachment
 	if !g.enabled {
 		return nil
 	}
-	return requireCleanAttachment(attachment)
+	return requireCleanAttachmentScannable(attachment, g.scannable)
 }
 
 // RequireContentCleanTx is used inside the review transaction so a content
@@ -65,7 +103,10 @@ func (g *ArchiveScanGate) RequireContentCleanTx(ctx context.Context, tx *gorm.DB
 	query := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("content_item_id = ?", contentID)
 	if g.enabled {
-		query = query.Where("scan_required = ? OR file_type = ?", true, "mod")
+		query = query.Where("scan_required = ?", true)
+		for family := range g.scannable {
+			query = query.Or("file_type = ?", family)
+		}
 	}
 	var attachments []model.ContentAttachment
 	if err := query.Find(&attachments).Error; err != nil {
@@ -80,7 +121,7 @@ func (g *ArchiveScanGate) RequireContentCleanTx(ctx context.Context, tx *gorm.DB
 		return nil
 	}
 	for _, attachment := range attachments {
-		if err := requireCleanAttachment(attachment); err != nil {
+		if err := requireCleanAttachmentScannable(attachment, g.scannable); err != nil {
 			return err
 		}
 	}
@@ -88,6 +129,22 @@ func (g *ArchiveScanGate) RequireContentCleanTx(ctx context.Context, tx *gorm.DB
 }
 
 func requireCleanAttachment(attachment model.ContentAttachment) error {
+	return requireCleanAttachmentScannable(attachment, defaultScannableFamilies())
+}
+
+// defaultScannableFamilies mirrors the registry baseline for callers that
+// have not threaded a gate (mod + document + audio).
+func defaultScannableFamilies() map[string]bool {
+	set := map[string]bool{}
+	for _, family := range config.DefaultContentRegistry().UploadFileTypes {
+		if family.Scannable {
+			set[family.Key] = true
+		}
+	}
+	return set
+}
+
+func requireCleanAttachmentScannable(attachment model.ContentAttachment, scannable map[string]bool) error {
 	// A quarantine object is never a valid delivery target, even if a stale or
 	// manually-corrupted row claims clean.
 	if strings.HasPrefix(strings.TrimSpace(attachment.OSSKey), "quarantine/") {
@@ -96,10 +153,10 @@ func requireCleanAttachment(attachment model.ContentAttachment) error {
 	if !strings.HasPrefix(strings.TrimSpace(attachment.OSSKey), "uploads/") {
 		return ErrArchiveNotClean
 	}
-	// A mod archive always requires a clean result when the feature is on.
-	// This also prevents legacy mod rows that still say not_required from
-	// bypassing the scan-then-publish/download policy.
-	if attachment.FileType == "mod" || attachment.ScanRequired {
+	// A scannable-family attachment always requires a clean result when the
+	// feature is on. This also prevents legacy rows that still say
+	// not_required from bypassing the scan-then-publish/download policy.
+	if scannable[attachment.FileType] || attachment.ScanRequired {
 		if attachment.ScanStatus != model.ScanStatusClean {
 			return archiveScanGateError(attachment.ScanStatus)
 		}

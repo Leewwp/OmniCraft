@@ -42,6 +42,9 @@ type PublicUploadDTO struct {
 	ImageGalleryMaxItems int `json:"image_gallery_max_items"`
 	VideoGalleryMinItems int `json:"video_gallery_min_items"`
 	VideoGalleryMaxItems int `json:"video_gallery_max_items"`
+	// DocumentPreviewMaxMB (#688): browser-side document preview budget;
+	// over budget the viewer degrades to download-only.
+	DocumentPreviewMaxMB int `json:"document_preview_max_mb"`
 }
 
 // PublicCollaborationDTO exposes only the publish-time invitee cap the
@@ -72,13 +75,13 @@ type PublicAttachmentPolicyDTO struct {
 // family is extension-unrestricted (never silently tighten), otherwise the
 // explicit extension union; empty when the type takes no attachments.
 type PublicContentTypeDTO struct {
-	Key               string                    `json:"key"`
-	Zones             []string                  `json:"zones"`
-	Form              string                    `json:"form"`
-	UploadFileTypes   []string                  `json:"upload_file_types"`
-	JudgeEligible     bool                      `json:"judge_eligible"`
-	ClientAccept      string                    `json:"client_accept,omitempty"`
-	AttachmentPolicy  *PublicAttachmentPolicyDTO `json:"attachment_policy,omitempty"`
+	Key              string                     `json:"key"`
+	Zones            []string                   `json:"zones"`
+	Form             string                     `json:"form"`
+	UploadFileTypes  []string                   `json:"upload_file_types"`
+	JudgeEligible    bool                       `json:"judge_eligible"`
+	ClientAccept     string                     `json:"client_accept,omitempty"`
+	AttachmentPolicy *PublicAttachmentPolicyDTO `json:"attachment_policy,omitempty"`
 }
 
 // PublicUploadFileTypeDTO projects the safe slice of one upload capability
@@ -100,6 +103,11 @@ type PublicLimitsDTO struct {
 	TextMaxMB       int `json:"text_max_mb"`
 	ModMaxMB        int `json:"mod_max_mb"`
 	SheetMusicMaxMB int `json:"sheet_music_max_mb"`
+	// #688/#689 new family budgets (additive; the registry projection's
+	// upload_file_types[].max_mb resolves the same live values).
+	AudioMaxMB    int `json:"audio_max_mb"`
+	DocumentMaxMB int `json:"document_max_mb"`
+	Model3DMaxMB  int `json:"model3d_max_mb"`
 }
 
 // PublicSocialDTO exposes the comment fold ratio the frontend needs for
@@ -120,18 +128,18 @@ type PublicAgentDTO struct {
 }
 
 type PublicConfigResponse struct {
-	Features      PublicFeaturesDTO      `json:"features"`
-	Captcha       PublicCaptchaDTO       `json:"captcha"`
-	Client        PublicClientDTO        `json:"client"`
-	Legal         PublicLegalDTO         `json:"legal"`
-	Upload        PublicUploadDTO        `json:"upload"`
-	Collaboration PublicCollaborationDTO `json:"collaboration"`
-	Publish       PublicPublishDTO       `json:"publish"`
-	ContentTypes  []PublicContentTypeDTO  `json:"content_types"`
+	Features        PublicFeaturesDTO         `json:"features"`
+	Captcha         PublicCaptchaDTO          `json:"captcha"`
+	Client          PublicClientDTO           `json:"client"`
+	Legal           PublicLegalDTO            `json:"legal"`
+	Upload          PublicUploadDTO           `json:"upload"`
+	Collaboration   PublicCollaborationDTO    `json:"collaboration"`
+	Publish         PublicPublishDTO          `json:"publish"`
+	ContentTypes    []PublicContentTypeDTO    `json:"content_types"`
 	UploadFileTypes []PublicUploadFileTypeDTO `json:"upload_file_types"`
-	Limits        PublicLimitsDTO        `json:"limits"`
-	Social        PublicSocialDTO        `json:"social"`
-	Agent         PublicAgentDTO         `json:"agent"`
+	Limits          PublicLimitsDTO           `json:"limits"`
+	Social          PublicSocialDTO           `json:"social"`
+	Agent           PublicAgentDTO            `json:"agent"`
 	// OSSDomain is the configured object delivery domain (#111). Clients use
 	// it to compose stable object URLs from upload grants (e.g. avatar_url =
 	// oss_domain + "/" + oss_key). Empty when delivery is not configured.
@@ -175,6 +183,7 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 			ImageGalleryMaxItems: upload.ImageGalleryMaxItems,
 			VideoGalleryMinItems: upload.VideoGalleryMinItems,
 			VideoGalleryMaxItems: upload.VideoGalleryMaxItems,
+			DocumentPreviewMaxMB: h.cfg.Upload.EffectiveDocumentPreviewMaxMB(),
 		},
 		Collaboration: PublicCollaborationDTO{
 			MaxInviteesPerPublish: h.cfg.Collaboration.MaxInviteesPerPublish,
@@ -191,6 +200,9 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 			TextMaxMB:       h.cfg.Limits.TextMaxMB,
 			ModMaxMB:        h.cfg.Limits.ModMaxMB,
 			SheetMusicMaxMB: h.cfg.Limits.SheetMusicMaxMB,
+			AudioMaxMB:      h.cfg.Limits.AudioMaxMB,
+			DocumentMaxMB:   h.cfg.Limits.DocumentMaxMB,
+			Model3DMaxMB:    h.cfg.Limits.Model3DMaxMB,
 		},
 		Social: PublicSocialDTO{
 			CommentFoldThreshold: h.cfg.Social.CommentFoldThreshold,

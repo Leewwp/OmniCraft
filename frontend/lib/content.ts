@@ -34,6 +34,10 @@ export interface AttachmentData {
   width?: number;
   height?: number;
   sort_order?: number;
+  /** #688：presign 时服务端锁定并持久化的原始文件名（历史行 NULL）。 */
+  original_file_name?: string | null;
+  /** #688：附件扫描状态（scannable 族群非 clean 时后端不签发 oss_url）。 */
+  scan_status?: string;
 }
 
 export interface SeriesContentSummary {

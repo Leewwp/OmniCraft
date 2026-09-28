@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/events"
 )
@@ -57,6 +58,32 @@ type ArchiveScanRepository struct {
 	db     *gorm.DB
 	policy ArchiveScanRetryPolicy
 	outbox OutboxWriter
+	// scannable (#688): families eligible for scan jobs, from the registry
+	// capability axis (mod + document + audio on the shipped baseline).
+	// Zero value falls back to the config baseline.
+	scannable map[string]bool
+}
+
+// SetScannableFileTypes overrides the scannable family set (wiring injects
+// the runtime registry; tests can narrow it).
+func (r *ArchiveScanRepository) SetScannableFileTypes(families []string) {
+	set := make(map[string]bool, len(families))
+	for _, family := range families {
+		set[family] = true
+	}
+	r.scannable = set
+}
+
+func (r *ArchiveScanRepository) isScannable(family string) bool {
+	if len(r.scannable) == 0 {
+		for _, entry := range config.DefaultContentRegistry().UploadFileTypes {
+			if entry.Scannable && entry.Key == family {
+				return true
+			}
+		}
+		return false
+	}
+	return r.scannable[family]
 }
 
 // RetryFailedJob moves a failed job back to pending when its configured retry
@@ -215,7 +242,7 @@ func (r *ArchiveScanRepository) CreateJobTx(ctx context.Context, tx *gorm.DB, at
 		}
 		return nil, err
 	}
-	if attachment.ScanStatus == model.ScanStatusNotRequired && attachment.FileType != "mod" {
+	if attachment.ScanStatus == model.ScanStatusNotRequired && !r.isScannable(attachment.FileType) {
 		return nil, ErrArchiveScanNotScannable
 	}
 	var current int64

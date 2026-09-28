@@ -54,7 +54,7 @@ func newContentHandlerForTest(db *gorm.DB, cfg *config.Config, rdb *redis.Client
 		SeriesSvc:      service.NewSeriesService(repository.NewSeriesRepository(db)),
 		BrowseHistory:  repository.NewBrowseHistoryRepository(db),
 		CollectionRepo: repository.NewCollectionRepository(db),
-		ArchiveGate:    service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled),
+		ArchiveGate:    service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled, nil),
 		DisplaySigner:  service.NewDisplayURLSigner(cfg),
 	}), st
 }

@@ -35,7 +35,7 @@ type Stack struct {
 func NewStack(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Stack {
 	reviewSvc := service.NewReviewService(db, rdb, cfg, service.NewReputationService(db))
 	reviewSvc.SetOutboxRepository(repository.NewOutboxRepository(db))
-	reviewSvc.SetArchiveScanGate(service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled))
+	reviewSvc.SetArchiveScanGate(service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled, nil))
 
 	ossSvc, ossErr := service.NewOSSService(cfg)
 

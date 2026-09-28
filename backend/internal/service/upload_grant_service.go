@@ -26,6 +26,10 @@ type UploadGrant struct {
 	FileType string `json:"file_type"`
 	MimeType string `json:"mime_type"`
 	FileSize int64  `json:"file_size"`
+	// OriginalFileName (#688): server-normalized at presign time; the single
+	// trusted source for the persisted attachment name. Empty for grants
+	// issued before the field existed.
+	OriginalFileName string `json:"original_file_name,omitempty"`
 }
 
 type UploadGrantService struct {

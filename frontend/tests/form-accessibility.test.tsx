@@ -255,6 +255,9 @@ const fullAdminConfig = {
       text_max_mb: 10,
       mod_max_mb: 500,
       sheet_music_max_mb: 50,
+      audio_max_mb: 50,
+      document_max_mb: 20,
+      model3d_max_mb: 50,
     },
     features: { payment_enabled: false, creator_support_enabled: false },
     reputation: {
@@ -290,7 +293,8 @@ test("system config exposes a label for every field and switch", async () => {
     );
     await waitFor(() => assert.equal(view.getAllByRole("switch").length, 3));
     const fields = view.getAllByRole("spinbutton") as HTMLInputElement[];
-    assert.equal(fields.length, 19);
+    // #688: +3 (audio/document/model3d caps join the same runtime mechanism).
+    assert.equal(fields.length, 22);
     for (const field of fields) assert.ok(field.labels?.length, field.id);
     for (const control of view.getAllByRole("switch")) assert.ok(control.getAttribute("aria-label"));
   } finally {

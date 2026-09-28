@@ -40,6 +40,9 @@ var (
 	ErrSourceImmutable             = errors.New("source attribution is immutable after creation")
 	ErrMediaSetInvalid             = errors.New("media set violates the gallery contract")
 	ErrArchiveAttachmentRequired   = errors.New("mod content requires an archive attachment")
+	// #688: registry-driven publish binding and attachment_policy errors.
+	ErrAttachmentFamilyNotAllowed = errors.New("attachment file type is not allowed for this content type")
+	ErrAttachmentPolicyRequired   = errors.New("content type requires at least one attachment of a required family")
 	ErrArchiveScanUnavailable      = errors.New("archive scan repository is unavailable")
 )
 
@@ -62,6 +65,19 @@ type ContentService struct {
 	archiveValidator       ArchiveValidator
 	archiveScanCfg         *config.ArchiveScanConfig
 	downloadSigner         DownloadURLSigner
+	// registryCfg (#688): the dual-axis registry drives the publish binding
+	// (allowed attachment families), the attachment_policy evaluator and the
+	// scannable family set. nil-safe: accessors fall back to the shipped
+	// baseline, so legacy constructions keep working.
+	registryCfg       *config.Config
+	documentValidator DocumentValidator
+	audioHeaderSource AudioHeaderSource
+}
+
+// AudioHeaderSource reads an object's leading bytes for the audio magic
+// consistency check (OSSService implements; tests substitute).
+type AudioHeaderSource interface {
+	ReadAudioHeader(ctx context.Context, ossKey string) ([]byte, error)
 }
 
 type UploadedObjectVerifier interface {
@@ -123,8 +139,25 @@ func (s *ContentService) SetArchiveScanRepository(repo *repository.ArchiveScanRe
 	s.archiveScanRepo = repo
 	s.archiveScanEnabled = enabled
 	if s.reviewSvc != nil {
-		s.reviewSvc.SetArchiveScanGate(NewArchiveScanGate(s.contentRepo.DB(), enabled))
+		s.reviewSvc.SetArchiveScanGate(NewArchiveScanGate(s.contentRepo.DB(), enabled, nil))
 	}
+}
+
+// SetContentRegistryConfig attaches the runtime config whose Effective*
+// registry accessors drive binding validation, attachment_policy and the
+// scannable set (#688). Chainable.
+func (s *ContentService) SetContentRegistryConfig(cfg *config.Config) *ContentService {
+	s.registryCfg = cfg
+	return s
+}
+
+// SetDocumentValidator wires the document package validation chain
+// (structure + OPC identity + macro detection) and the audio magic source.
+// Defaults to the OSSService when unset (legacy constructions).
+func (s *ContentService) SetDocumentValidator(validator DocumentValidator, audio AudioHeaderSource) *ContentService {
+	s.documentValidator = validator
+	s.audioHeaderSource = audio
+	return s
 }
 
 func (s *ContentService) SetArchiveValidator(validator ArchiveValidator) {
@@ -349,6 +382,12 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				if grant.FileType != a.FileType {
 					return ErrUploadGrantInvalid
 				}
+				// #688 registry-driven binding: the grant's family must be
+				// declared allowed for this content type (the mod
+				// all-mod rule above stays the stricter legacy special case).
+				if !s.allowedAttachmentFamily(input.ContentType, grant.FileType) {
+					return fmt.Errorf("%w: %s", ErrAttachmentFamilyNotAllowed, grant.FileType)
+				}
 				if (input.ContentType == "image" || input.ContentType == "video") &&
 					!strings.HasPrefix(strings.ToLower(strings.TrimSpace(grant.MimeType)), input.ContentType+"/") {
 					return fmt.Errorf("%w: %s media grant MIME type does not match content type", ErrMediaSetInvalid, input.ContentType)
@@ -366,6 +405,20 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					}
 					return err
 				}
+				// #688 document chain: OPC structure + package identity +
+				// macro content (csv gets a text sanity pass instead).
+				if a.FileType == "document" {
+					if err := s.validateDocumentAttachment(ctx, *grant); err != nil {
+						return err
+					}
+				}
+				// #688 audio chain: header magic must match the claimed
+				// extension (first real opening of this upload path).
+				if a.FileType == "audio" {
+					if err := s.validateAudioAttachment(ctx, *grant); err != nil {
+						return err
+					}
+				}
 				if s.archiveScanEnabled && input.ContentType == "mod" && a.FileType == "mod" {
 					if s.archiveValidator == nil || s.archiveScanCfg == nil {
 						return ErrOSSNotConfigured
@@ -380,12 +433,18 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				a.OSSKey = grant.OSSKey
 				a.FileSize = &grant.FileSize
 				a.MimeType = grant.MimeType
+				var originalFileName *string
+				if grant.OriginalFileName != "" {
+					name := grant.OriginalFileName
+					originalFileName = &name
+				}
 				attachments = append(attachments, model.ContentAttachment{
 					ContentItemID: content.ID,
 					FileType:      a.FileType,
 					OSSKey:        a.OSSKey,
 					FileSize:      a.FileSize,
 					MimeType:      a.MimeType,
+					OriginalFileName: originalFileName,
 					DurationSec:   a.DurationSec,
 					Width:         a.Width,
 					Height:        a.Height,
@@ -416,6 +475,13 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					attachments[i].IsPrimary = boolPtr(false)
 				}
 			}
+		}
+
+		// #688 attachment_policy evaluator (registry-driven; existing
+		// types ship no policy so this adds capability with zero behavior
+		// change until a type declares required_any_of).
+		if err := evaluateAttachmentPolicy(s.registryCfg, input.ContentType, attachments); err != nil {
+			return err
 		}
 
 		if err := txRepo.CreateContent(content); err != nil {
@@ -462,9 +528,12 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				return err
 			}
 		}
-		if s.archiveScanEnabled && s.archiveScanRepo != nil && input.ContentType == "mod" {
+		// #688: scannable families come from the registry capability axis
+		// (mod + document + audio on the shipped baseline) instead of the
+		// old mod-only condition.
+		if s.archiveScanEnabled && s.archiveScanRepo != nil {
 			for _, attachment := range attachments {
-				if attachment.FileType != "mod" {
+				if !isScannableAttachmentFamily(s.registryCfg, attachment.FileType) {
 					continue
 				}
 				if _, err := s.archiveScanRepo.CreateJobTx(ctx, txRepo.DB(), attachment.ID, 1); err != nil {

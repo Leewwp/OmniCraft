@@ -275,8 +275,8 @@ func TestClientAcceptProjection(t *testing.T) {
 	// Any unrestricted family in the allowed set → "*" (never silently
 	// tighten the accept list).
 	require.Equal(t, "*", cfg.ClientAcceptForContentType("mod"))
-	require.Equal(t, "*", cfg.ClientAcceptForContentType("template"))
-	require.Equal(t, "*", cfg.ClientAcceptForContentType("audio"))
+	require.Equal(t, "*", cfg.ClientAcceptForContentType("template"), "text family stays unrestricted in template's set")
+	require.Equal(t, ".aac,.flac,.m4a,.mp3,.ogg,.opus,.wav", cfg.ClientAcceptForContentType("audio"), "#688: audio family is an explicit extension whitelist")
 	// Explicit-only set → sorted explicit union resolved from the legacy
 	// extensions key.
 	require.Equal(t, ".mid,.midi,.mscx,.mscz,.mxl,.pdf,.xml", cfg.ClientAcceptForContentType("sheet_music"))

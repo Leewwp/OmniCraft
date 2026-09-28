@@ -112,10 +112,10 @@ func DefaultContentRegistry() ContentRegistryConfig {
 			{Key: "image", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormMedia, UploadFileTypes: []string{"image"}, JudgeEligible: boolPtr(true)},
 			{Key: "article", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormText, UploadFileTypes: []string{}, JudgeEligible: boolPtr(true)},
 			{Key: "video", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormMedia, UploadFileTypes: []string{"video"}, JudgeEligible: boolPtr(true)},
-			{Key: "audio", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"text"}, JudgeEligible: boolPtr(true)},
+			{Key: "audio", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"audio"}, JudgeEligible: boolPtr(true)},
 			{Key: "mod", Zones: []string{ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"mod"}, JudgeEligible: boolPtr(false)},
 			{Key: "prompt", Zones: []string{ZoneFanwork}, Form: ContentFormText, UploadFileTypes: []string{}, JudgeEligible: boolPtr(true)},
-			{Key: "template", Zones: []string{ZoneOriginal}, Form: ContentFormFile, UploadFileTypes: []string{"text"}, JudgeEligible: boolPtr(true)},
+			{Key: "template", Zones: []string{ZoneOriginal}, Form: ContentFormFile, UploadFileTypes: []string{"text", "document"}, JudgeEligible: boolPtr(true)},
 			{Key: "sheet_music", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormFile, UploadFileTypes: []string{"sheet_music"}, JudgeEligible: boolPtr(true)},
 			{Key: "other", Zones: []string{ZoneOriginal, ZoneFanwork}, Form: ContentFormText, UploadFileTypes: []string{}, JudgeEligible: boolPtr(true)},
 		},
@@ -128,6 +128,18 @@ func DefaultContentRegistry() ContentRegistryConfig {
 			{Key: "text", MimePrefixes: []string{"text/"}, MimeExact: []string{"application/pdf"}, MaxMBKey: "text_max_mb"},
 			{Key: "mod", MimeExact: []string{"application/zip", "application/x-zip-compressed"}, MaxMBKey: "mod_max_mb", Scannable: true},
 			{Key: "sheet_music", ExtensionsKey: "sheet_music_extensions", MaxMBKey: "sheet_music_max_mb"},
+			// #688 document family: .docx/.xlsx/.csv with the OpenXML/text
+			// CSV MIME hints enforced per-extension in validateUploadByType
+			// (octet-stream fallback while File.type may be empty); the
+			// authoritative check is the server-side package-identity
+			// validation at publish time. Macro containers (.docm/.xlsm/
+			// .pptm) are rejected by extension AND by package content.
+			{Key: "document", Extensions: []string{".docx", ".xlsx", ".csv"}, MaxMBKey: "document_max_mb", Scannable: true},
+			// #688 audio family: this chain was broken before (file_type
+			// mis-mapped to text and audio/* always failed the text MIME
+			// rule) — first real opening, built to the new standard:
+			// extension whitelist + header magic sniffing + scannable.
+			{Key: "audio", Extensions: []string{".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"}, MaxMBKey: "audio_max_mb", Scannable: true},
 		},
 	}
 }
@@ -204,6 +216,19 @@ func (c *Config) IsUnrestrictedFamily(key string) bool {
 	return c.FamilyExtensions(key) == nil
 }
 
+// ScannableUploadFamilies lists the families that join the ClamAV pipeline
+// (registry capability axis). Wiring threads this into the scan gate, the
+// scan repository and publish-time job creation.
+func (c *Config) ScannableUploadFamilies() []string {
+	var families []string
+	for _, entry := range c.EffectiveUploadFileTypes() {
+		if entry.Scannable {
+			families = append(families, entry.Key)
+		}
+	}
+	return families
+}
+
 // MaxMBByKey resolves a limits.* field name to its live value. The registry
 // stores the key, never the number, so admin runtime adjustments stay
 // authoritative (spec v2.2 item 9).
@@ -222,6 +247,12 @@ func (c *Config) MaxMBByKey(key string) (int, bool) {
 		return c.Limits.ModMaxMB, true
 	case "sheet_music_max_mb":
 		return c.Limits.SheetMusicMaxMB, true
+	case "audio_max_mb":
+		return c.Limits.AudioMaxMB, true
+	case "document_max_mb":
+		return c.Limits.DocumentMaxMB, true
+	case "model3d_max_mb":
+		return c.Limits.Model3DMaxMB, true
 	default:
 		return 0, false
 	}

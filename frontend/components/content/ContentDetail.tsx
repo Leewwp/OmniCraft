@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { SheetMusicViewer } from "@/components/content/SheetMusicViewer";
+import { AttachmentPreview, type PreviewableAttachment } from "@/components/content/AttachmentPreview";
 import { DownloadButton } from "@/components/content/DownloadButton";
 import { CollectionPicker } from "@/components/content/CollectionPicker";
 import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
@@ -399,17 +400,36 @@ export function ContentDetail({
       {/* Attachments download list: media-set entries (image/video items of
           image/video content) are excluded — they are browsed in the gallery.
           Other content types keep the full attachment list semantics (AC3). */}
-      {downloadItems.length > 0 && contentType !== "sheet_music" && (
+      {downloadItems.some((att) => att.file_type === "document") && (
+        /* #688 附件预览分发：document 族走懒加载查看器（无 URL 的非 clean
+         * 行由后端不签发 + 组件渲染扫描状态卡）。 */
+        <section className="space-y-3">
+          {downloadItems
+            .filter((att) => att.file_type === "document")
+            .map((att) => (
+              <AttachmentPreview
+                key={att.id}
+                attachment={att}
+                contentId={data.id}
+                allowCopy={Boolean(data.allow_copy)}
+              />
+            ))}
+        </section>
+      )}
+
+      {downloadItems.filter((att) => att.file_type !== "document").length > 0 && contentType !== "sheet_music" && (
         <section className="space-y-2 rounded-md border border-border bg-card p-4 ">
           <h2 className="text-sm font-semibold">{t('content.attachments')}</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {downloadItems.map((att) => (
+            {downloadItems.filter((att) => att.file_type !== "document").map((att) => (
               <div
                 key={att.id}
                 className="flex items-center justify-between rounded border border-border bg-muted/10 p-2"
               >
-                <span className="text-xs text-muted-foreground">
-                  {att.file_type || t("content.attachmentUnknownType")}
+                <span className="min-w-0 truncate text-xs text-muted-foreground" title={att.original_file_name || undefined}>
+                  {/* #688 原始文件名持久化：优先显示服务端锁定的文件名，
+                      历史无文件名行回退类型标签（今日观感）。 */}
+                  {att.original_file_name || att.file_type || t("content.attachmentUnknownType")}
                   {att.file_size != null && ` (${(att.file_size / 1024).toFixed(1)} KB)`}
                 </span>
                 {data.allow_copy && (

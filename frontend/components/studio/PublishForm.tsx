@@ -25,7 +25,15 @@ import { CollabUserPicker, type CollabUser } from "@/components/content/CollabUs
 import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
-import { fetchPublicConfig, isFilePrimaryContentType, uploadMaxMBForType, type PublicConfig } from "@/lib/public-config";
+import {
+  clientAcceptForContentType,
+  deriveUploadFamilyForExtension,
+  fetchPublicConfig,
+  isFilePrimaryContentType,
+  uploadFileTypeMap,
+  uploadMaxMBForType,
+  type PublicConfig,
+} from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
@@ -663,16 +671,53 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
                 </div>
               )
             ) : (
+              <>
               <FileUploader
                 fileType={fileType}
                 maxMB={maxMB}
-                accept="*"
+                /* #688：accept 消费服务端 client_accept 投影（允许集合含
+                 * unrestricted 族群 → "*"），前端不自建清单 */
+                accept={clientAcceptForContentType(publicConfig, contentType) ?? "*"}
+                /* #688 多附件入口闭环：一次多选 + 追加合并不覆盖 */
+                multiple
                 disabled={submitting}
+                /* #688 逐文件类型推导：扩展名 → 族群（注册表投影 + 推导
+                 * 合同），audio 内容从此正确推导 audio 族（旧映射误走
+                 * text 必败）；混合族群（docx+pdf）同选区可共存 */
+                deriveFileType={(file) => deriveUploadFamilyForExtension(publicConfig, contentType, file.name)}
+                maxMBForFileType={(family) => uploadFileTypeMap(publicConfig)[family]?.max_mb}
                 onUploaded={(files) => {
-                  setUploadedFiles(files);
+                  setUploadedFiles((prev) => [...prev, ...files]);
                   setUploadError("");
                 }}
               />
+              {uploadedFiles.length > 0 && (
+                <ul className="mt-2 space-y-1.5" aria-label={t("studio.publish.attachments.selected")}>
+                  {uploadedFiles.map((file, index) => (
+                    <li
+                      key={`${file.ossKey}-${index}`}
+                      className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm"
+                    >
+                      <span className="min-w-0 truncate text-foreground" title={file.fileName}>
+                        {file.fileName}
+                        <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+                          {(file.fileSize / 1024 / 1024).toFixed(file.fileSize > 1024 * 1024 ? 1 : 2)} MB · {file.fileType}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                        aria-label={t("studio.publish.attachments.remove", { name: file.fileName })}
+                        disabled={submitting}
+                        onClick={() => setUploadedFiles((prev) => prev.filter((_, i) => i !== index))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              </>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
               {contentType === "sheet_music" ? t('studio.publish.uploadHint.sheet_music') :
