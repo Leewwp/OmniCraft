@@ -151,6 +151,14 @@
 - **药丸（`rounded-full`）= 选择与信息**：筛选/类目选择控件、TagBadge、状态徽标。
 - 同一概念控件不得出现两套形态；筛选类控件一律用药丸（见「筛选选择控件」），操作按钮一律用矩形。
 
+### 焦点反馈分级（2026-09-28 修复轮 FT-1，全站规则）
+
+按控件状态是否「写在脸上」分两档：
+
+- **第一类：自明态控件 → 软化聚焦**。文本输入框（input/textarea/Composer/搜索框）与下拉触发器（SortSelect、原生 select 触发器）：聚焦时仅边框加深一档（`border-strong`），**无 ring、无背景变化**；文本输入的键盘可及性由输入光标 + 边框变化承载，下拉触发器键盘 `focus-visible` 保留 1px 细描边（`ring-1 ring-ring`，`--ring` 保留为此用途）。
+- **第二类：状态承载控件 → 原样保留**。筛选药丸/标签筛选/勾选框/开关的选中态与下拉项的 selected 高亮不动；按钮/链接维持键盘 `focus-visible` 2px ring（鼠标不触发，不构成侵入）。
+- skip-link 等:help 无障碍焦点样式不受本规则影响。
+
 ### 按钮 (Button)
 
 - 5 种变体: `default` (primary 色), `outline`, `secondary`, `ghost`, `destructive`
@@ -160,7 +168,7 @@
 - Primary 按钮使用 `bg-primary text-primary-foreground`
 - Hover: 加深一档亮度（`--accent-hover`，双主题白字 ≥AA）
 - Disabled: `opacity-50 cursor-not-allowed`
-- Focus: `ring-2 ring-ring ring-offset-2`
+- Focus: 键盘 `focus-visible` 才出 `ring-2 ring-ring ring-offset-2`（鼠标聚焦不出，见「焦点反馈分级」）
 
 ### 卡片 (Card)
 
@@ -172,7 +180,7 @@
 
 ### 输入框 (Input)
 
-- 1px `border-input`，聚焦时 `ring-2 ring-ring`
+- 1px `border-input`，聚焦时仅边框加深到 `border-strong`（无 ring、无背景变化；分级规则见「焦点反馈分级」）
 - 圆角 `rounded-lg` (8px)
 - 高度：常规 36px；表单内取 44-48px 并与提交按钮同高（同排同高硬规则）
 - Placeholder: `text-muted-foreground/60`
