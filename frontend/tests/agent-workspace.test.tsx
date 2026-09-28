@@ -1141,6 +1141,101 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
   }
 });
 
+/* FT-5 (#697)：轮内全局编号对齐——编号有洞（1、3，2 被复验剔除）时角标
+   小卡按编号命中、点击打开对应引用（非数组位置），越界 [2] 渲染纯文本。 */
+test("gap-numbered citations keep badge alignment by turn-global number", async () => {
+  installDom();
+  const now = new Date();
+  const events = sseResponse([
+    { type: "start", trace_id: "t-gap", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "第一 [1] 剔除 [2] 第三 [3]" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "第一 [1] 剔除 [2] 第三 [3]",
+      citations: [
+        { content_id: 3, title: "Cited content", zone: "original", number: 1 },
+        { content_id: 4, title: "Third numbered", zone: "original", number: 3 },
+      ],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const originalFetch = globalThis.fetch;
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        /* done 后历史回放重建消息树：assistant 行带同编号 citations，回放后
+           角标仍按编号渲染（历史回放一致性）。 */
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          {
+            id: 2, conversation_id: 7, role: "assistant", content: "第一 [1] 剔除 [2] 第三 [3]",
+            citations: [
+              { content_id: 3, title: "Cited content", zone: "original", number: 1 },
+              { content_id: 4, title: "Third numbered", zone: "original", number: 3 },
+            ],
+          },
+        ],
+      },
+    },
+    { method: "GET", path: "/api/v1/contents/4", response: { ...CONTENT_DETAIL, content: { ...CONTENT_DETAIL.content, id: 4, title: "Third numbered" } } },
+    { method: "GET", path: "/api/v1/contents/4/related-fanworks", response: { contents: [], total: 0 } },
+  ]);
+  const apiMockedFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/v1/agent/chat/stream")) return events;
+    return apiMockedFetch(input, init);
+  }) as typeof fetch;
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "find me a guide" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText(/第一/)), { timeout: 3000 });
+
+    /* 编号 3 命中第二条引用：小卡标题 = Third numbered，非数组第 3 项。 */
+    const badge3 = await waitFor(() => view.getByRole("button", { name: "Jump to citation 3" }), { timeout: 8000 });
+        assert.ok((badge3.textContent ?? "").startsWith("3"), "chip leads with the turn-global number");
+    assert.ok((badge3.textContent ?? "").includes("Third numb"), "badge chip carries the matched citation title (truncated)");
+    /* 编号 1 命中第一条引用。 */
+    const badge1 = view.getByRole("button", { name: "Jump to citation 1" });
+    assert.ok((badge1.textContent ?? "").includes("Cited cont"));
+    /* 越界编号 2 无引用可命中 = 纯文本 sup 兜底，不产生第三个角标按钮。 */
+    assert.equal(view.getAllByRole("button", { name: /Jump to citation/ }).length, 2);
+
+    /* 点击 [3] 直开共享浮层，落在 number=3 的引用目标（content 4）。 */
+    let dialog: HTMLElement | undefined;
+    for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
+      try {
+        fireEvent.click(view.getByRole("button", { name: "Jump to citation 3" }));
+      } catch {
+        /* 消息树替换过渡帧：下一轮重查再点。 */
+      }
+      dialog = await waitFor(() => view.getByRole("dialog"), { timeout: 600 }).catch(() => undefined);
+    }
+    assert.ok(dialog, "numbered badge click must open the overlay");
+    await waitFor(
+      () => assert.ok(within(dialog).getAllByRole("heading", { name: "Third numbered" }).length >= 1),
+      { timeout: 2000 },
+    );
+
+    /* 侧栏卡片按编号展示（01 / 03），id 键控编号。 */
+    await openCitationsPanel(view);
+    await waitFor(() => {
+      assert.ok(view.container.querySelector("#agent-citation-1"), "card id keyed by turn-global number");
+      assert.ok(view.container.querySelector("#agent-citation-3"));
+      assert.ok(!view.container.querySelector("#agent-citation-2"), "dropped number leaves no card");
+    }, { timeout: 8000 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 /* ---------- AgentWorkspace：流式失败与重试 ---------- */
 
 test("stream error shows a localized banner and retry resends", async () => {

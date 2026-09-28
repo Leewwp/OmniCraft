@@ -21,7 +21,7 @@ import {
   type AgentStreamCitation,
   type AgentStreamEvent,
 } from "@/lib/agent-stream";
-import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
+import { MarkdownRenderer, type CitationBadgeInfo } from "@/components/content/MarkdownRenderer";
 import { toAgentCitation, type AgentCitation } from "@/lib/agent";
 import {
   applyKeywordFallbackCitations,
@@ -99,6 +99,17 @@ const SUGGESTION_KEYS = [
  * #663：树 = Turn[]（TurnModel 双入口装配），活动轮单一状态独立渲染；首轮
  * 活动轮活到历史回载替换树之后（在途不闪空），续问轮 done 终局后 commit 进树。
  */
+/* FT-5 (#697)：引用池 → 角标小卡数据（编号缺失的历史行回退位置序，保持
+   与旧数字角标相同的展示层映射）。 */
+function toCitationBadgeInfo(citation: AgentStreamCitation, index: number): CitationBadgeInfo {
+  return {
+    number: citation.number ?? index + 1,
+    title: citation.title,
+    excerpt: citation.excerpt,
+    kind: citation.zone === "ip" ? "ip" : "content",
+  };
+}
+
 export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
   // SP-21 T4：管理员可从会话轮直接跳转链路详情（SSE trace_id ↔ 落库一致）。
@@ -378,12 +389,15 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   );
 
   /* 行内 [n] 角标 → 直接打开共享内容浮层（2026-09-06 实测修复：原先只高亮
-     滚动到底部引用卡片，与其它页面「点链接开浮窗」的契约不一致）。index 为
-     0 基；citations 由调用方按轮传入（活动轮进行中的答案回落轮内流式引用；
-     历史等无引用轮传空数组即不响应）。zone="ip" 的角标与卡片同分流（Q5）。 */
+     滚动到底部引用卡片，与其它页面「点链接开浮窗」的契约不一致）。FT-5
+     (#697)：ref 为轮内全局编号——服务端已把角标编号与引用池对齐（跨检索
+     累计、剔除不压缩），优先按 number 命中；历史行/旧轮次无 number 时回退
+     位置序（ref-1）。citations 由调用方按轮传入（活动轮进行中的答案回落轮
+     内流式引用；历史等无引用轮传空数组即不响应）。zone="ip" 的角标与卡片
+     同分流（Q5）。 */
   const handleCitationRef = useCallback(
-    (index: number, citations: AgentStreamCitation[]) => {
-      const citation = citations[index];
+    (ref: number, citations: AgentStreamCitation[]) => {
+      const citation = citations.find((item) => item.number === ref) ?? citations[ref - 1];
       if (!citation || citation.content_id <= 0) return;
       if (citation.zone === "ip") {
         router.push(`/ip/${citation.content_id}`);
@@ -691,8 +705,9 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               {/* 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验） */}
               <MarkdownRenderer
                 content={turn.answer}
-                onCitationRef={(citationIndex) => handleCitationRef(citationIndex, badgeCitations)}
+                onCitationRef={(citationRef) => handleCitationRef(citationRef, badgeCitations)}
                 citationCount={badgeCitations.length}
+                citations={badgeCitations.map(toCitationBadgeInfo)}
               />
               {!streaming && actionsTurnId === turn.id && (
                 <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100">
