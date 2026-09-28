@@ -135,6 +135,28 @@ func agentSystemV2() string {
 	return agentSystemBuiltin() + "; " + agentSystemV2Extra
 }
 
+// agentSystemV3Citation replaces the v1 per-search positional citation
+// instruction (FT-5 #697). Live evidence (2026-09-28 DB forensics) showed
+// the structural misalignment: the model numbered [n] by the local position
+// within one search call's output while the emitted citation pool
+// accumulates across every call of the turn — in a two-search_ips turn the
+// model's [2] (second call, local #1) landed on the pool's position 2 (first
+// call, second result), so the badge jumped to the wrong card. v3 points the
+// model at the turn-global "cite" number the server stamps next to every
+// result in the tool output.
+const agentSystemV3Citation = "when your answer relies on retrieved results, mark the sentence end with 1-based citation indexes like [1] or [2], where n is the global cite number printed next to each result in this turn's tool outputs (cite numbers accumulate across all search calls of the same turn; a result shown without a cite number cannot be cited); only cite results you actually used and keep the total number of distinct marks small"
+
+// agentSystemV3 is the FT-5 upgrade of agent_system: the v2 corpus with the
+// citation instruction swapped for the turn-global numbering clause (and
+// nothing else — the no-reasoning clause belongs to v4, retrieval-first to a
+// possible v5). v1/v2 stay byte-identical so the registry diff and rollback
+// chain keep working.
+func agentSystemV3() string {
+	corpus := append([]string(nil), agentSystemInstructions...)
+	corpus[0] = agentSystemV3Citation // index 0 = the A-06 citation clause above
+	return "[OmniCraft Agent Context] {{surface_context}}; " + strings.Join(corpus, "; ") + "; " + agentSystemV2Extra
+}
+
 // Slots is the full, ordered inventory of prompt sites (user decision
 // 2026-09-16: ALL slots enter the registry, not only high-traffic ones).
 // v1 of every slot is byte-identical to the pre-registry hardcoded prompt;

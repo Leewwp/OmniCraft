@@ -76,6 +76,9 @@ type AgentContentSummary struct {
 	Zone        string `json:"zone"`
 	ContentType string `json:"content_type"`
 	Excerpt     string `json:"excerpt,omitempty"`
+	// Cite is the turn-global citation number printed next to this result
+	// in the tool output (FT-5 #697); 0 = not citable this turn.
+	Cite int `json:"cite,omitempty"`
 }
 
 // AgentIPSummary is the compact, server-owned IP summary returned by
@@ -86,6 +89,9 @@ type AgentIPSummary struct {
 	Slug        string `json:"slug,omitempty"`
 	Category    string `json:"category,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Cite is the turn-global citation number printed next to this result
+	// in the tool output (FT-5 #697); 0 = not citable this turn.
+	Cite int `json:"cite,omitempty"`
 }
 
 // AgentToolOutcome carries one tool execution result. Only the matching field
