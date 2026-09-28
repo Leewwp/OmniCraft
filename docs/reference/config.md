@@ -198,6 +198,11 @@ the frontend MAX_DM_LENGTH (2000) so the UI c... |
 | `content_registry.upload_file_types.[].mime_exact` | `[]string` | MimeExact — exact MIME admissions |
 | `content_registry.upload_file_types.[].mime_prefixes` | `[]string` | MimePrefixes — MIME prefix admissions |
 | `content_registry.upload_file_types.[].scannable` | `bool` | Scannable — joins the ClamAV pipeline |
+| `limits.audio_max_mb` | `int` | AudioMaxMB — #688 audio family budget (registry max_mb_key reference) |
+| `limits.document_max_mb` | `int` | DocumentMaxMB — #688 document family budget |
+| `limits.model3d_max_mb` | `int` | Model3DMaxMB — #689 model3d family budget (key ahead of family registration) |
+| `upload.content_grant_ttl_sec` | `int` | ContentGrantTTLSec — content upload-grant TTL, default 1800, must exceed the 900s presign PUT window (#688 v2.2) |
+| `upload.document_preview_max_mb` | `int` | DocumentPreviewMaxMB — browser-side document preview budget, default 10; over budget the viewer degrades to download-only |
 | `oss.display_url_ttl_sec` | `int` | DisplayURLTTL bounds the signed GET URLs issued for display media
 (covers, avatars, gallery attachments) at the API s... |
 | `oss.domain` | `string` | Domain |

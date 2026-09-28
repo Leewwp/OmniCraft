@@ -22,9 +22,9 @@ func TestPublishContentRequiresUploadGrant(t *testing.T) {
 	defer cleanup()
 
 	_, err := svc.PublishContent(baseGrantPublishInput(AttachmentInput{
-		FileType: "image",
-		OSSKey:   "uploads/42/image/forged.png",
-		MimeType: "image/png",
+		FileType: "text",
+		OSSKey:   "uploads/42/text/forged.pdf",
+		MimeType: "application/pdf",
 	}), 42)
 
 	if err != ErrUploadGrantInvalid {
@@ -40,9 +40,9 @@ func TestPublishContentRejectsWrongUserAndPurposeGrants(t *testing.T) {
 	otherUserGrant, err := grants.Issue(ctx, UploadGrant{
 		UserID:   7,
 		Purpose:  "content",
-		OSSKey:   "uploads/7/image/file.png",
-		FileType: "image",
-		MimeType: "image/png",
+		OSSKey:   "uploads/7/image/file.pdf",
+		FileType: "text",
+		MimeType: "application/pdf",
 		FileSize: 123,
 	})
 	if err != nil {
@@ -50,8 +50,8 @@ func TestPublishContentRejectsWrongUserAndPurposeGrants(t *testing.T) {
 	}
 	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
 		GrantID:  otherUserGrant.ID,
-		FileType: "image",
-		MimeType: "image/png",
+		FileType: "text",
+		MimeType: "application/pdf",
 	}), 42)
 	if err != ErrUploadGrantInvalid {
 		t.Fatalf("wrong user err = %v, want ErrUploadGrantInvalid", err)
@@ -60,9 +60,9 @@ func TestPublishContentRejectsWrongUserAndPurposeGrants(t *testing.T) {
 	feedbackGrant, err := grants.Issue(ctx, UploadGrant{
 		UserID:   42,
 		Purpose:  "feedback",
-		OSSKey:   "feedback/42/image/file.png",
-		FileType: "image",
-		MimeType: "image/png",
+		OSSKey:   "feedback/42/image/file.pdf",
+		FileType: "text",
+		MimeType: "application/pdf",
 		FileSize: 123,
 	})
 	if err != nil {
@@ -70,8 +70,8 @@ func TestPublishContentRejectsWrongUserAndPurposeGrants(t *testing.T) {
 	}
 	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
 		GrantID:  feedbackGrant.ID,
-		FileType: "image",
-		MimeType: "image/png",
+		FileType: "text",
+		MimeType: "application/pdf",
 	}), 42)
 	if err != ErrUploadGrantInvalid {
 		t.Fatalf("wrong purpose err = %v, want ErrUploadGrantInvalid", err)
@@ -86,7 +86,7 @@ func TestPublishContentRejectsFeedbackGrantNamespace(t *testing.T) {
 	feedbackSvc := NewFeedbackService(nil, nil, svc.rdb, nil, 300, fakeFeedbackOSSSigner{})
 	feedbackGrant, err := feedbackSvc.PresignUpload(ctx, PresignUploadInput{
 		UserID:    ptrInt64(42),
-		FileName:  "shot.png",
+		FileName:  "shot.pdf",
 		MimeType:  "image/png",
 		SizeBytes: 512,
 	})
@@ -96,8 +96,8 @@ func TestPublishContentRejectsFeedbackGrantNamespace(t *testing.T) {
 
 	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
 		GrantID:  feedbackGrant.GrantID,
-		FileType: "image",
-		MimeType: "image/png",
+		FileType: "text",
+		MimeType: "application/pdf",
 	}), 42)
 	if err != ErrUploadGrantInvalid {
 		t.Fatalf("feedback namespace err = %v, want ErrUploadGrantInvalid", err)
@@ -112,9 +112,9 @@ func TestPublishContentConsumesUploadGrantOnce(t *testing.T) {
 	grant, err := grants.Issue(ctx, UploadGrant{
 		UserID:   42,
 		Purpose:  "content",
-		OSSKey:   "uploads/42/image/file.png",
-		FileType: "image",
-		MimeType: "image/png",
+		OSSKey:   "uploads/42/text/file.pdf",
+		FileType: "text",
+		MimeType: "application/pdf",
 		FileSize: 123,
 	})
 	if err != nil {
@@ -123,9 +123,9 @@ func TestPublishContentConsumesUploadGrantOnce(t *testing.T) {
 
 	input := baseGrantPublishInput(AttachmentInput{
 		GrantID:  grant.ID,
-		FileType: "image",
-		OSSKey:   "uploads/42/image/forged.png",
-		MimeType: "image/png",
+		FileType: "text",
+		OSSKey:   "uploads/42/text/forged.pdf",
+		MimeType: "application/pdf",
 	})
 	content, err := svc.PublishContent(input, 42)
 	if err != nil {
@@ -156,9 +156,9 @@ func TestPublishContentRejectsUploadedObjectMismatch(t *testing.T) {
 	grant, err := grants.Issue(ctx, UploadGrant{
 		UserID:   42,
 		Purpose:  "content",
-		OSSKey:   "uploads/42/image/file.png",
-		FileType: "image",
-		MimeType: "image/png",
+		OSSKey:   "uploads/42/text/file.pdf",
+		FileType: "text",
+		MimeType: "application/pdf",
 		FileSize: 123,
 	})
 	if err != nil {
@@ -167,8 +167,8 @@ func TestPublishContentRejectsUploadedObjectMismatch(t *testing.T) {
 
 	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
 		GrantID:  grant.ID,
-		FileType: "image",
-		MimeType: "image/png",
+		FileType: "text",
+		MimeType: "application/pdf",
 	}), 42)
 	if !errors.Is(err, ErrUploadGrantInvalid) {
 		t.Fatalf("publish err = %v, want ErrUploadGrantInvalid", err)
@@ -179,8 +179,8 @@ func TestPublishContentRejectsUploadedObjectMismatch(t *testing.T) {
 	verifier.err = nil
 	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
 		GrantID:  grant.ID,
-		FileType: "image",
-		MimeType: "image/png",
+		FileType: "text",
+		MimeType: "application/pdf",
 	}), 42)
 	if err != nil {
 		t.Fatalf("retry after uploaded object mismatch should reuse restored grant: %v", err)
@@ -196,9 +196,9 @@ func TestPublishContentPreservesVerifierInfrastructureErrors(t *testing.T) {
 	grant, err := grants.Issue(ctx, UploadGrant{
 		UserID:   42,
 		Purpose:  "content",
-		OSSKey:   "uploads/42/image/file.png",
-		FileType: "image",
-		MimeType: "image/png",
+		OSSKey:   "uploads/42/text/file.pdf",
+		FileType: "text",
+		MimeType: "application/pdf",
 		FileSize: 123,
 	})
 	if err != nil {
@@ -207,8 +207,8 @@ func TestPublishContentPreservesVerifierInfrastructureErrors(t *testing.T) {
 
 	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
 		GrantID:  grant.ID,
-		FileType: "image",
-		MimeType: "image/png",
+		FileType: "text",
+		MimeType: "application/pdf",
 	}), 42)
 	if err == nil {
 		t.Fatal("publish err = nil, want verifier infrastructure error")
@@ -223,8 +223,8 @@ func TestPublishContentPreservesVerifierInfrastructureErrors(t *testing.T) {
 	verifier.err = nil
 	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
 		GrantID:  grant.ID,
-		FileType: "image",
-		MimeType: "image/png",
+		FileType: "text",
+		MimeType: "application/pdf",
 	}), 42)
 	if err != nil {
 		t.Fatalf("retry after verifier infrastructure failure should reuse restored grant: %v", err)
@@ -242,9 +242,9 @@ func TestUploadGrantIssueFailsClosedWhenEntropyUnavailable(t *testing.T) {
 	_, err := grants.Issue(context.Background(), UploadGrant{
 		UserID:   42,
 		Purpose:  "content",
-		OSSKey:   "uploads/42/image/file.png",
-		FileType: "image",
-		MimeType: "image/png",
+		OSSKey:   "uploads/42/text/file.pdf",
+		FileType: "text",
+		MimeType: "application/pdf",
 		FileSize: 123,
 	})
 	if !errors.Is(err, ErrUploadGrantUnavailable) {
@@ -333,8 +333,11 @@ func baseGrantPublishInput(attachment AttachmentInput) PublishContentInput {
 		Category: "game",
 		// Non-media content type keeps the grant semantics of these tests
 		// independent from the media set gallery contract (image/video
-		// content now requires a full valid media set).
-		ContentType: "article",
+		// content now requires a full valid media set). #688 binding rule:
+		// template's registry-allowed families are [text, document], so the
+		// grant fixtures below use the text family (article takes no
+		// attachments at all now).
+		ContentType: "template",
 		IsPublic:    true,
 		AllowCopy:   true,
 		Attachments: []AttachmentInput{attachment},
