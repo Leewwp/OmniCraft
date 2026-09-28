@@ -2327,7 +2327,7 @@ test("#416 page-level horizontal dividers are removed from agent workspace shell
   assert.match(sidebar, /border-r border-border-default/, "vertical panel divider stays");
 });
 
-test("#416 empty state hides the header title and shows the big composer mid-lower", async () => {
+test("#416 empty state hides the header title and centers the composer (FT-2 uniform shape)", async () => {
   installDom();
   installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
   const view = renderWithIntl(<AgentWorkspace />);
@@ -2337,9 +2337,9 @@ test("#416 empty state hides the header title and shows the big composer mid-low
   assert.equal(view.queryByRole("heading", { name: /New conversation/i }), null);
   assert.ok(view.getByRole("button", { name: "Start new conversation" }), "sidebar entry stays");
 
-  // 大号输入框：初始 4 行 + 引导内容同屏
+  // FT-2 两态同形：空态与会话态同 rows=1（多行由 autoresize 长高）
   const composer = view.getByLabelText("Ask the agent");
-  assert.equal(composer.getAttribute("rows"), "4", "empty variant starts as a large multi-line composer");
+  assert.equal(composer.getAttribute("rows"), "1", "empty variant shares the conversation-state one-row shape");
   assert.ok(view.getByText(/example|suggestion|layout|music|mod/i, { exact: false }) || true);
 });
 
