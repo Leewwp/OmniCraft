@@ -297,6 +297,37 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 		if !s.isAllowedSheetMusicExt(ext) {
 			return &UploadValidationError{Message: "unsupported sheet_music extension"}
 		}
+	case "document":
+		// #688 document family (.docx/.xlsx/.csv). MIME here is a hint, not
+		// the sole gate (v2.2): browsers may report an empty File.type which
+		// the client normalizes to application/octet-stream, so each
+		// extension accepts its registered MIME plus octet-stream (csv also
+		// text/plain + a text sanity check at publish). The authoritative
+		// check is the server-side package-identity validation after upload.
+		limitMB = s.cfg.Limits.DocumentMaxMB
+		if !isAllowedDocumentExt(ext) {
+			// Macro containers are called out explicitly so uploaders see the
+			// reason; other extensions are simply unsupported.
+			if isDocumentMacroExt(ext) {
+				return &UploadValidationError{Message: "macro-enabled office documents are not allowed"}
+			}
+			return &UploadValidationError{Message: "unsupported document extension"}
+		}
+		if !isAllowedDocumentMIME(ext, mimeType) {
+			return &UploadValidationError{Message: "unsupported document mime_type for this extension"}
+		}
+	case "audio":
+		// #688: this chain was broken before (file_type mis-mapped to text
+		// and audio/* always failed the text MIME rule). First real opening —
+		// extension whitelist + audio/* (or octet-stream) hint here, header
+		// magic sniffing at publish.
+		limitMB = s.cfg.Limits.AudioMaxMB
+		if !isAllowedAudioExt(ext) {
+			return &UploadValidationError{Message: "unsupported audio extension"}
+		}
+		if !(strings.HasPrefix(mimeType, "audio/") || mimeType == "application/octet-stream") {
+			return &UploadValidationError{Message: "mime_type must be audio/*"}
+		}
 	default:
 		return &UploadValidationError{Message: "unsupported file_type"}
 	}

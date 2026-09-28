@@ -258,6 +258,9 @@ limits:
   text_max_mb: 10
   mod_max_mb: 500
   sheet_music_max_mb: 50
+  audio_max_mb: 50          # #688 audio 族群上传上限（首开此入口）
+  document_max_mb: 20       # #688 document 族群（docx/xlsx/csv）
+  model3d_max_mb: 50        # #689 model3d 族群键位先行（族群随 #689 注册）
   dm_max_length: 2000
 
 reputation:
@@ -365,7 +368,7 @@ content_registry:
     - key: audio
       zones: [original, fanwork]
       form: file
-      upload_file_types: [text]
+      upload_file_types: [audio]
       judge_eligible: true
     - key: mod
       zones: [fanwork]
@@ -380,7 +383,7 @@ content_registry:
     - key: template
       zones: [original]
       form: file
-      upload_file_types: [text]
+      upload_file_types: [text, document]
       judge_eligible: true
     - key: sheet_music
       zones: [original, fanwork]
@@ -413,8 +416,22 @@ content_registry:
     - key: sheet_music
       extensions_key: sheet_music_extensions
       max_mb_key: sheet_music_max_mb
+    - key: document
+      extensions: [".docx", ".xlsx", ".csv"]
+      max_mb_key: document_max_mb
+      scannable: true
+    - key: audio
+      extensions: [".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"]
+      max_mb_key: audio_max_mb
+      scannable: true
 
 upload:
+  # #688 v2.2：内容 grant TTL 独立（> presign PUT 15min；旧值借用 feedback 300s
+  # 在慢网/多附件串行下发布时已过期）。feedback grant 维持 5 分钟不联动。
+  content_grant_ttl_sec: 1800
+  # #688 v2.2：文档浏览器预览预算（压缩体积；ExcelJS/Mammoth 解析期内存是
+  # 约束，虚拟滚动不解决）；超限优雅降级为下载卡。
+  document_preview_max_mb: 10
   sheet_music_extensions:
     - ".mid"
     - ".midi"

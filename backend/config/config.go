@@ -423,6 +423,14 @@ type LimitsConfig struct {
 	TextMaxMB       int `mapstructure:"text_max_mb" json:"text_max_mb"`
 	ModMaxMB        int `mapstructure:"mod_max_mb" json:"mod_max_mb"`
 	SheetMusicMaxMB int `mapstructure:"sheet_music_max_mb" json:"sheet_music_max_mb"`
+	// AudioMaxMB / DocumentMaxMB / Model3DMaxMB (#688/#689): new upload
+	// families get their own budget keys so the registry's max_mb_key
+	// references resolve through the same Admin runtime mechanism as the
+	// legacy five (no "old types runtime-tunable, new types YAML-only"
+	// divergence).
+	AudioMaxMB    int `mapstructure:"audio_max_mb" json:"audio_max_mb"`
+	DocumentMaxMB int `mapstructure:"document_max_mb" json:"document_max_mb"`
+	Model3DMaxMB  int `mapstructure:"model3d_max_mb" json:"model3d_max_mb"`
 	// DMMaxLength caps a direct-message text in runes; must stay aligned with
 	// the frontend MAX_DM_LENGTH (2000) so the UI constraint is server-enforced.
 	DMMaxLength int `mapstructure:"dm_max_length" json:"dm_max_length"`
@@ -525,6 +533,19 @@ type BrowseHistoryConfig struct {
 
 type UploadConfig struct {
 	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions" json:"sheet_music_extensions"`
+	// ContentGrantTTLSec is the content upload-grant TTL (#688 v2.2): the
+	// presign PUT URL itself lives 15 minutes, so a 300s grant (the old
+	// feedback-borrowed value) expires before a slow network or a serial
+	// multi-attachment publish can consume it. Default 1800 = PUT window +
+	// publish buffer. Feedback grants keep their own 5-minute TTL and are
+	// deliberately not coupled. Validation enforces grant TTL > PUT TTL.
+	ContentGrantTTLSec int `mapstructure:"content_grant_ttl_sec" json:"content_grant_ttl_sec"`
+	// DocumentPreviewMaxMB (#688 v2.2): the browser-side document preview
+	// budget in compressed bytes — deliberately decoupled from the 20MB
+	// upload cap and the (much larger) server-side scan quotas, because
+	// ExcelJS/Mammoth parse memory is the binding constraint, not DOM count.
+	// Zero → 10MB default; over budget the viewer degrades to download-only.
+	DocumentPreviewMaxMB int `mapstructure:"document_preview_max_mb" json:"document_preview_max_mb"`
 	// Media set (media gallery) size bounds for newly published image/video
 	// content. Zero means "use the specification default" so tests and
 	// minimal configs keep working.
@@ -532,6 +553,28 @@ type UploadConfig struct {
 	ImageGalleryMaxItems int `mapstructure:"image_gallery_max_items" json:"image_gallery_max_items"`
 	VideoGalleryMinItems int `mapstructure:"video_gallery_min_items" json:"video_gallery_min_items"`
 	VideoGalleryMaxItems int `mapstructure:"video_gallery_max_items" json:"video_gallery_max_items"`
+}
+
+// EffectiveDocumentPreviewMaxMB returns the document preview budget with the
+// #688 default.
+func (u UploadConfig) EffectiveDocumentPreviewMaxMB() int {
+	if u.DocumentPreviewMaxMB <= 0 {
+		return 10
+	}
+	return u.DocumentPreviewMaxMB
+}
+
+// PresignPUTTTLSec is the OSS presign PUT URL lifetime (oss_service.go) that
+// the content grant TTL must strictly exceed.
+const PresignPUTTTLSec = 900
+
+// EffectiveContentGrantTTLSec returns the content grant TTL with the #688
+// default; zero-valued configs keep the documented 1800s.
+func (u UploadConfig) EffectiveContentGrantTTLSec() int {
+	if u.ContentGrantTTLSec <= 0 {
+		return 1800
+	}
+	return u.ContentGrantTTLSec
 }
 
 // NormalizedGalleryLimits fills only omitted media-gallery limits with the
@@ -1486,6 +1529,12 @@ func (c *Config) Validate() error {
 // provider bans) deliberately stay in ValidateRelease.
 func (c *Config) validateStructure(errs *[]string) {
 	c.validateContentRegistry(errs)
+	// #688 v2.2 invariant: the content grant must outlive the presign PUT
+	// URL (900s). A grant shorter than the upload window reproduces the
+	// UPLOAD_GRANT_INVALID mid-publish failure the split fixed.
+	if c.Upload.ContentGrantTTLSec > 0 && c.Upload.ContentGrantTTLSec <= PresignPUTTTLSec {
+		*errs = append(*errs, fmt.Sprintf("upload.content_grant_ttl_sec must exceed the presign PUT window (%ds)", PresignPUTTTLSec))
+	}
 	if err := c.Upload.ValidateGalleryLimits(); err != nil {
 		*errs = append(*errs, "upload."+err.Error())
 	}
