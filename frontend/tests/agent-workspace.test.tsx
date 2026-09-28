@@ -213,14 +213,14 @@ const workspaceMessages = {
       hits: "{count} hits",
     },
     citations: {
-      title: "Site references",
-      count: "{count} verified references",
+      /* FT-4：统一命名「参考来源」+ 侧栏键（折叠键随内联列表退役）。 */
+      title: "Reference sources",
+      count: "{count}",
       invalid: "Reference unavailable",
       zoneOriginal: "Original",
       zoneFanwork: "Fanwork",
-      /* #399 折叠键镜像真实 catalog（MISSING_MESSAGE 反模式防护）。 */
-      collapse: "Collapse citations",
-      expand: "Show citations ({count})",
+      close: "Close reference sources",
+      entry: "{count} reference sources",
     },
     noEvidence: {
       title: "Not enough evidence",
@@ -270,6 +270,14 @@ type ApiStubEntry = {
 const originalGet = api.get;
 const originalDelete = api.delete;
 const originalPatch = api.patch;
+
+
+/** FT-4（#696）：引用卡住参考来源侧栏——测试先点入口按钮开面板。 */
+async function openCitationsPanel(view: ReturnType<typeof renderWithIntl>) {
+  const entry = await waitFor(() => view.getByRole("button", { name: /reference sources/ }));
+  fireEvent.click(entry);
+  return entry;
+}
 
 test.afterEach(() => {
   cleanup();
@@ -848,6 +856,7 @@ test("workspace streams an answer and renders citation cards", async () => {
     fireEvent.click(suggestion);
 
     await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
+    await openCitationsPanel(view);
     await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
     /* 工具步骤区完成后自动折叠（A-06）：先展开再断言步骤明细。 */
     fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
@@ -893,6 +902,7 @@ test("degraded stream hides the model summary and shows fallback references", as
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("Search fallback active")), { timeout: 3000 });
     assert.equal(view.queryByText("model summary that must stay hidden"), null);
+    await openCitationsPanel(view);
     assert.ok(view.getByRole("button", { name: /Fallback result/ }));
   } finally {
     stub.restore();
@@ -927,6 +937,7 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
   fireEvent.click(suggestion);
   await flushAsyncUpdates();
 
+  await openCitationsPanel(view);
   const citation = await waitFor(() => view.getByRole("button", { name: /Cited content/ }));
   fireEvent.click(citation);
 
@@ -1008,15 +1019,22 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
 
     fireEvent.change(composer, { target: { value: "second question" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
 
-    /* 第二轮完成后，第一轮的引用卡片必须仍在（历史端点回放落库引用），第二轮的新卡片同屏。 */
-    assert.ok(view.getAllByRole("button", { name: /Cited content/ }).length >= 1, "turn-one citation card persists");
+    /* FT-4：引用随答案持久化为各自入口按钮（面板一次展示一条回答的引用）。
+        第二轮完成后两条入口都在；点第一轮入口仍能打开第一轮的引用卡。 */
+    const entries = view.getAllByRole("button", { name: /reference sources/ });
+    assert.ok(entries.length >= 2, "both answers keep their reference-sources entries");
+    /* 点第一轮入口 → 面板展示第一轮引用；再点第二轮入口 → 换为第二轮引用。 */
+    fireEvent.click(entries[0]);
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 3000 });
+    assert.equal(view.queryByRole("button", { name: /Second reference/ }), null, "panel shows the clicked answer's citations only");
+    fireEvent.click(entries[1]);
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Second reference/ })), { timeout: 3000 });
     assert.ok(view.getAllByRole("button", { name: /Second reference/ }).length >= 1, "turn-two citation card renders");
   } finally {
     globalThis.fetch = originalFetch;
@@ -1073,6 +1091,7 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     /* 等引用卡片出现 = done 事件已结算（角标按钮只在 done 后可点）。此后 done 触发的
        会话历史回放仍可能把整棵消息树原子替换，点击落在 detached 节点上即静默失效
        （CI 闪断形态，同 copy 点击反模式）：轮询补点兜底，点击前重查新鲜节点。 */
+    await openCitationsPanel(view);
     await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 3000 });
     let dialog: HTMLElement | undefined;
     for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
@@ -1189,6 +1208,7 @@ test("provider error falls back to ordinary keyword results without showing the 
     );
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("Search fallback active")));
+    await openCitationsPanel(view);
     assert.ok(view.getByRole("button", { name: /Keyword fallback result/ }));
     assert.equal(view.queryByText("This request was not completed"), null);
     assert.ok(calls.some((call) => call.path.includes("/api/v1/contents/search?q=Find+beginner-friendly+furniture+mods")));
@@ -1673,7 +1693,11 @@ test("malformed citation objects are never clickable", async () => {
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("answer text")));
 
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Valid ref/ })));
+    /* 轮 settle 后入口可能重挂载（activeTurn→树内轮），循环点击直至面板出现。 */
+    await waitFor(() => {
+      fireEvent.click(view.getAllByRole("button", { name: /reference sources/ })[0]);
+      assert.ok(view.getByRole("button", { name: /Valid ref/ }));
+    }, { timeout: 3000 });
     assert.equal(view.queryByRole("button", { name: /Bad zone/ }), null, "invalid citation must never be interactive");
     assert.equal(view.queryByRole("button", { name: /Reference unavailable/ }), null);
   } finally {
@@ -1874,7 +1898,8 @@ test("closing the citation overlay restores citation focus and the transcript sc
     fireEvent.click(suggestion);
     await flushAsyncUpdates();
 
-    const citation = await waitFor(() => view.getByRole("button", { name: /Cited content/ }));
+    await openCitationsPanel(view);
+  const citation = await waitFor(() => view.getByRole("button", { name: /Cited content/ }));
     const transcript = view.getByRole("log");
     transcript.scrollTop = 240;
     const anchorBefore = transcript.scrollTop;

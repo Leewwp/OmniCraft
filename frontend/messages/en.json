@@ -1685,14 +1685,14 @@
       "searchIpsSkipped": "IP search skipped"
     },
     "citations": {
-      "title": "Site references",
-      "count": "{count} verified references",
-      "invalid": "Reference unavailable",
+      "title": "Reference sources",
+      "count": "{count}",
+      "invalid": "This reference is unavailable",
       "zoneOriginal": "Original",
       "zoneFanwork": "Fanwork",
       "zoneIP": "IP",
-      "collapse": "Collapse citations",
-      "expand": "Show citations ({count})"
+      "close": "Close reference sources",
+      "entry": "{count} reference sources"
     },
     "noEvidence": {
       "title": "Not enough evidence",
