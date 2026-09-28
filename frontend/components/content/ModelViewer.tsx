@@ -182,45 +182,48 @@ export function ModelViewer({
     <DownloadButton contentId={contentId} attachmentId={attachmentId} contentType="model3d" size="sm" />
   ) : null;
 
-  if (state.kind === "loading") {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground" data-testid="model-viewer-loading" role="status">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("content.attachmentPreview.model.loading", { progress: state.progress })}
-      </div>
-    );
-  }
-  if (state.kind === "degraded") {
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4" data-testid="model-viewer-degraded">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <FileText className="h-4 w-4 shrink-0" />
-          {t("content.attachmentPreview.tooLarge")}
-        </div>
-        {downloadEntry}
-      </div>
-    );
-  }
-  if (state.kind === "error") {
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4" data-testid="model-viewer-error">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-          {t("content.attachmentPreview.failed")}
-        </div>
-        {downloadEntry}
-      </div>
-    );
-  }
+  /* 场景容器跨状态常驻（hidden 而非卸载）：mountScene 在异步加载完成时向
+     ref 容器追加 canvas——loading 态若卸载容器，ref 为 null、canvas 永不
+     出现（#691 真机冒烟实证，jsdom 测试只覆盖解析不覆盖挂载）。 */
+  const testid =
+    state.kind === "ready" ? "model-viewer-ready"
+    : state.kind === "loading" ? "model-viewer-loading"
+    : state.kind === "degraded" ? "model-viewer-degraded"
+    : "model-viewer-error";
 
   return (
-    <div className="space-y-2" data-testid="model-viewer-ready">
+    <div className="space-y-2" data-testid={testid}>
       <div
         ref={mountRef}
-        className="h-80 w-full overflow-hidden rounded-lg border border-border bg-card"
+        className={state.kind === "ready" ? "h-80 w-full overflow-hidden rounded-lg border border-border bg-card" : "hidden"}
         role="img"
         aria-label={t("content.attachmentPreview.model.canvasLabel", { name: fileName })}
       />
+      {state.kind === "loading" && (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t("content.attachmentPreview.model.loading", { progress: state.progress })}
+        </div>
+      )}
+      {state.kind === "degraded" && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <FileText className="h-4 w-4 shrink-0" />
+            {t("content.attachmentPreview.tooLarge")}
+          </div>
+          {downloadEntry}
+        </div>
+      )}
+      {state.kind === "error" && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+            {t("content.attachmentPreview.failed")}
+          </div>
+          {downloadEntry}
+        </div>
+      )}
+      {state.kind === "ready" && (
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1" role="group" aria-label={t("content.attachmentPreview.model.views")}>
           {(["orbit", "front", "side", "top"] as ViewName[]).map((name) => (
@@ -240,6 +243,7 @@ export function ModelViewer({
         </div>
         {downloadEntry}
       </div>
+      )}
     </div>
   );
 }

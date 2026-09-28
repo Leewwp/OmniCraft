@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Menu, RotateCw } from "lucide-react";
+import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Menu, RotateCw, BookOpenText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/ui/composer";
@@ -34,7 +34,7 @@ import {
   type AgentHistoryMessageDTO,
   type AgentTurn,
 } from "@/lib/agent-turn";
-import { AgentCitationList } from "@/components/agent/AgentCitationList";
+import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
@@ -122,6 +122,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  /* FT-4：参考来源侧栏——保存源数组引用（同一回答再点即收起），渲染时映射。 */
+  const [panelSource, setPanelSource] = useState<AgentStreamCitation[] | null>(null);
+  const citationsPanel = panelSource ? panelSource.map(toAgentCitation) : null;
+  const closeCitationsPanel = useCallback(() => setPanelSource(null), []);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -714,9 +718,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             {/* 引用随消息持久化（2026-09-06 实测修复）：每条有引用的
                 回答消息下方都保留跳转入口，不再随下一轮开始而消失。 */}
             {turn.answerCitations && turn.answerCitations.length > 0 && (
-              <AgentCitationList
-                citations={turn.answerCitations.map(toAgentCitation)}
-                onOpen={handleCitationOpen}
+              <CitationsEntryButton
+                count={turn.answerCitations.length}
+                active={panelSource === turn.answerCitations}
+                onToggle={() => setPanelSource(turn.answerCitations ?? [])}
               />
             )}
           </>
@@ -814,10 +819,13 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               </div>
             )}
 
-            <AgentCitationList
-              citations={terminal.citations.map(toAgentCitation)}
-              onOpen={handleCitationOpen}
-            />
+            {terminal.citations.length > 0 && (
+              <CitationsEntryButton
+                count={terminal.citations.length}
+                active={panelSource === terminal.citations}
+                onToggle={() => setPanelSource(terminal.citations)}
+              />
+            )}
 
             {terminal.stopped && (
               <p className="text-xs text-fg-muted">{t("agent.workspace.stoppedNotice")}</p>
@@ -950,7 +958,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
       <section
         aria-label={t("agent.workspace.transcriptLabel")}
-        className="relative flex min-w-0 flex-1 flex-col border-l border-border-default"
+        className="relative flex min-w-0 flex-1 flex-row border-l border-border-default"
       >
         <header className="flex h-14 shrink-0 items-center gap-2 px-2">
           <button
@@ -1027,7 +1035,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             <div className="mt-8 w-full max-w-3xl text-left">{renderComposer(true)}</div>
           </div>
         ) : (
-          <>
+          <div className="flex min-w-0 flex-1 flex-col">
             <div
               ref={transcriptRef}
               role="log"
@@ -1074,8 +1082,14 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             )}
 
             {renderComposer(false)}
-          </>
+          </div>
         )}
+        <AgentCitationsSidebar
+          open={citationsPanel !== null}
+          onClose={closeCitationsPanel}
+          citations={citationsPanel ?? []}
+          onOpen={handleCitationOpen}
+        />
       </section>
 
 
@@ -1094,5 +1108,23 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         onConfirm={() => void handleDeleteConfirm()}
       />
     </main>
+  );
+}
+
+
+/** FT-4（#696）：回答底部「N 条参考来源」入口按钮（侧栏 toggle 通道之一；
+    另一通道 = 侧栏 X）。原内联折叠列表退役。 */
+function CitationsEntryButton({ count, active, onToggle }: { count: number; active: boolean; onToggle: () => void }) {
+  const t = useTranslations();
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={active}
+      className="mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring"
+    >
+      <BookOpenText className="size-3.5" aria-hidden="true" />
+      {t("agent.citations.entry", { count })}
+    </button>
   );
 }

@@ -43,6 +43,8 @@
 | IP 分类 | IP Category | IP 实体的领域分类体系，现行 11 类：游戏/影视/动漫/漫画/小说/文学/音乐/综艺/短剧/虚拟主播/其他（slug: game/film_tv/anime/manga/novel/literature/music/variety/short_drama/vtuber/other）。词表**不定稿**、允许拓展；拓展机制 = 前端单源常量（`frontend/lib/ip-categories.ts`）+ 后端 config.yaml allowlist 校验 + i18n 键，三处同步一个小 PR | IP 发布表单、IP 库筛选 pills、首页 IP chips、IP 详情页类目标签；禁止与"内容类型"（Content Type）"内容分类"（Category）混用——后两者描述内容，IP 分类描述 IP 实体本身 |
 | Agent 工作台 | Agent Workspace | 由顶部导航进入、承载站内检索问答和受控任务协助的独立全页智能助手空间；普通写操作必须逐项确认，敏感账号操作不属于能力范围 | 受保护路由 `/agent`；禁止用"Agent 频道""全局聊天挂件"指代 |
 | Agent 会话全文搜索 | Agent Session Full-text Search | 在当前账号全部仍保留的 Agent 会话标题与消息正文中查找文本，不受分页或已加载范围限制；命中消息单独列出并按时间倒序 | Web Agent Productization 承接；禁止退化为客户端过滤已加载标题 |
+| 参考来源 | Reference Sources | Agent 回答所依据的站内内容与 IP 条目的统一称呼；桌面为右侧来源面板（对话区推挤不覆盖），移动端为底部抽屉；入口为回答底部来源按钮与正文角标 | 禁止用"站内依据""数据来源""搜索结果"指代 |
+| 会话路由 | Conversation Routing | 每个 Agent 会话拥有稳定可直达的独立 URL（/agent/c/[id]）；切会话即导航，返回/刷新/分享落在会话身份上 | 禁止用纯客户端状态维持"当前会话"的表述 |
 | Agent 引用卡片 | Agent Citation Card | Agent 回答中指向经服务端重新校验的站内公开内容的可聚焦入口；打开后进入内容详情浮层，关闭时恢复原对话上下文 | Agent 回答渲染层；禁止用"外链引用""模型链接"指代 |
 | 全站搜索 | Global Search | 顶部导航中的轻量关键词发现入口，负责建议、历史和热搜，不提供 Agent 模式切换；自然语言问答进入 Agent 工作台 | `/search`；禁止用"Agent 搜索模式""AI 搜索切换"指代 |
 | 内容详情浮层 | Content Detail Overlay | 从任何站内内容卡片入口（推荐流、分区页、IP 详情页、Agent 引用卡片、浮层内关联区块）进入内容详情时，在保留原上下文的同时展示与完整详情页一致内容的覆盖式界面；浮层内关联内容形成逐层返回导航栈，返回类手势逐层弹出、退出类手势退出整个浮层，完全退出后恢复最初触发入口、滚动位置和焦点；完整详情页仅服务直达链接 | 全站内容卡片统一入口；禁止用"弹窗详情页""推荐卡片弹窗"指代 |

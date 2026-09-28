@@ -1685,14 +1685,14 @@
       "searchIpsSkipped": "已跳过 IP 搜索"
     },
     "citations": {
-      "title": "站内依据",
-      "count": "{count} 条已校验引用",
+      "title": "参考来源",
+      "count": "{count} 条",
       "invalid": "该引用不可用",
       "zoneOriginal": "原文",
       "zoneFanwork": "同人",
       "zoneIP": "IP",
-      "collapse": "收起引用",
-      "expand": "展开引用（{count} 条）"
+      "close": "关闭参考来源",
+      "entry": "{count} 条参考来源"
     },
     "noEvidence": {
       "title": "未找到足够依据",

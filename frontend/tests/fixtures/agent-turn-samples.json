@@ -38,18 +38,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
-        "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginalexcerpt line",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "tag": "button",
+        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "div",
@@ -95,18 +87,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
-        "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "tag": "button",
+        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "details",
@@ -169,18 +153,10 @@
         ]
       },
       {
-        "tag": "section",
-        "cls": "mt-1 max-w-[85%]",
-        "text": "Site references2 verified referencesCollapse citations01Keyword fallback resultOriginalMatched by keyword search02Second keyword hitFanworkAnother match",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "tag": "button",
+        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "text": "2 reference sources",
+        "attrs": {}
       }
     ]
   },
@@ -307,18 +283,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
-        "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginalexcerpt line",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "tag": "button",
+        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "text": "1 reference sources",
+        "attrs": {}
       }
     ]
   },
@@ -337,18 +305,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
-        "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginal",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "tag": "button",
+        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "div",
@@ -363,18 +323,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
-        "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "tag": "button",
+        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "div",
@@ -389,18 +341,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
-        "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "tag": "button",
+        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "details",
