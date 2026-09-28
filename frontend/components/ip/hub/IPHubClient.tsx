@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -8,6 +8,8 @@ import { useTranslations } from "next-intl";
 import { Layers, MessageSquareText, Users } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { ipCategoryLabelKey } from "@/lib/ip-categories";
+import { zoneContentKeys } from "@/lib/public-config";
+import { usePublicConfig } from "@/lib/use-public-config";
 import { FollowButton } from "@/components/social/FollowButton";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { RecordBrowseHistory } from "@/components/tracking/RecordBrowseHistory";
@@ -38,8 +40,8 @@ export type IPHubTab = "share" | "discussions" | "proposals";
 
 const TAB_KEYS: IPHubTab[] = ["share", "discussions", "proposals"];
 
-// 各模块筛选/排序词表：URL 传入值不在词表内时回落默认值（#290 单页 query 驱动）。
-export const SHARE_TYPES = ["all", "image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"];
+// 各模块排序词表：URL 传入值不在词表内时回落默认值（#290 单页 query 驱动）。
+// 分享类型筛选词表自 #687 起由注册表 fanwork zone 投影驱动（useShareTypes）。
 export const SHARE_SORTS = ["newest", "hot", "most_views", "best_rated"];
 export const DISCUSSION_SORTS = ["latest_reply", "newest_post", "most_replies", "hot"];
 export const PROPOSAL_STATUSES = ["open", "adopted", "rejected", "history"];
@@ -80,12 +82,19 @@ export function IPHubClient({ ip, stats, apiBase }: IPHubClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  /* #687：类型筛选词表 = ["all", ...注册表 fanwork zone 键]；配置未达时
+   * 读取层兜底序与既有静态词表一致（观感不变） */
+  const publicConfig = usePublicConfig();
+  const shareTypes = useMemo(
+    () => ["all", ...zoneContentKeys(publicConfig, "fanwork")],
+    [publicConfig],
+  );
 
   const initialTab = (searchParams.get("tab") as IPHubTab) || "share";
   const tab: IPHubTab = TAB_KEYS.includes(initialTab) ? initialTab : "share";
   const query = searchParams.get("q")?.trim() || "";
   // 301 旧类目路由落点 ?tab=share&type=<category>：type 在词表内即被消费
-  const type = pickValid(searchParams.get("type"), SHARE_TYPES, "all");
+  const type = pickValid(searchParams.get("type"), shareTypes, "all");
   const sort = pickValid(
     searchParams.get("sort"),
     tab === "discussions" ? DISCUSSION_SORTS : SHARE_SORTS,

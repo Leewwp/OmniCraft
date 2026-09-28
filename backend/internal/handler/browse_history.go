@@ -121,7 +121,7 @@ func (h *BrowseHistoryHandler) ClearHistory(c *gin.Context) {
 
 func (h *BrowseHistoryHandler) parseListOptions(c *gin.Context, userID int64) (repository.BrowseHistoryListOptions, bool) {
 	contentType := c.Query("content_type")
-	if contentType != "" && !validBrowseHistoryContentType(contentType) {
+	if contentType != "" && !h.cfg.IsRegisteredContentType(contentType) {
 		response.Error(c, http.StatusBadRequest, "INVALID_CONTENT_TYPE", "invalid content type")
 		return repository.BrowseHistoryListOptions{}, false
 	}
@@ -198,13 +198,4 @@ func parsePositiveInt(raw string, fallback int) int {
 		return fallback
 	}
 	return value
-}
-
-func validBrowseHistoryContentType(contentType string) bool {
-	switch contentType {
-	case "image", "article", "video", "audio", "template", "sheet_music", "mod", "prompt", "other":
-		return true
-	default:
-		return false
-	}
 }
