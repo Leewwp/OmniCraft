@@ -23,11 +23,14 @@ interface AgentCitationCardProps {
  */
 export function AgentCitationCard({ citation, index, onOpen, highlighted = false }: AgentCitationCardProps) {
   const t = useTranslations();
+  /* FT-5 (#697)：卡片序号与 id 用轮内全局编号（与正文角标同一体系）；
+     历史行/旧轮次无 number 时回退位置序。 */
+  const number = citation.number ?? index + 1;
 
   return (
     <button
       type="button"
-      id={`agent-citation-${index}`}
+      id={`agent-citation-${number}`}
       onClick={(event) => onOpen(citation, event.currentTarget)}
       className={cn(
         "flex h-auto w-full flex-col items-start gap-0.5 rounded-md border bg-card px-3 py-2 text-left transition-colors duration-150 hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring",
@@ -35,7 +38,7 @@ export function AgentCitationCard({ citation, index, onOpen, highlighted = false
       )}
     >
       <span className="flex w-full items-center gap-2 text-sm font-medium text-accent-emphasis">
-        <span className="text-xs text-fg-muted">{String(index + 1).padStart(2, "0")}</span>
+        <span className="text-xs text-fg-muted">{String(number).padStart(2, "0")}</span>
         <span className="truncate">{citation.title}</span>
         {citation.zone === "ip" ? (
           <>

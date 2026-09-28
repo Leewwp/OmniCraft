@@ -21,6 +21,8 @@ export interface AgentCitation {
   source?: "bm25" | "vector" | "hybrid_rrf";
   /** zone="ip" 时的分类 slug（11 类词表单源），卡片渲染分类徽标。 */
   category?: string;
+  /** 轮内全局引用编号（FT-5 #697）：与正文 [n] 角标同一体系；缺席回退位置序。 */
+  number?: number;
 }
 
 export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
@@ -34,6 +36,7 @@ export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
   if (citation.route !== undefined) normalized.route = citation.route;
   if (citation.source !== undefined) normalized.source = citation.source;
   if (citation.category !== undefined) normalized.category = citation.category;
+  if (citation.number !== undefined) normalized.number = citation.number;
   return normalized;
 }
 
@@ -86,6 +89,11 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
       if (typeof category !== "string") return null;
       if (category.trim() !== "") normalized.category = category;
     }
+    const number = candidate.number;
+    if (number !== undefined) {
+      if (typeof number !== "number" || !Number.isInteger(number) || number <= 0) return null;
+      normalized.number = number;
+    }
     return normalized;
   }
   const normalized: AgentStreamCitation = {
@@ -133,6 +141,11 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
   if (hasExpandedFields && (typeof excerpt !== "string" || excerpt.trim() === "")) return null;
   if (typeof excerpt === "string" && excerpt.trim() !== "") {
     normalized.excerpt = excerpt;
+  }
+  const number = candidate.number;
+  if (number !== undefined) {
+    if (typeof number !== "number" || !Number.isInteger(number) || number <= 0) return null;
+    normalized.number = number;
   }
   return normalized;
 }

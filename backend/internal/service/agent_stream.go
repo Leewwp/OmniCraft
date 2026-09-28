@@ -288,8 +288,9 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		traceAgentEvent(traceID, "follow_ups_attached", "count", len(followUps))
 	}
 	// 引用上限之外的 [n] 标注是死引用（前端渲染为不可点角标）：终稿与落库前
-	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。
-	answer = stripOrphanCitationMarkers(answer, len(citations))
+	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。FT-5：保留
+	// 判定按轮内全局编号集合（剔除不压缩），非按数量。
+	answer = stripOrphanCitationMarkers(answer, citationKeptNumbers(citations))
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
 			runner.streamErr = err
@@ -750,13 +751,17 @@ func emitAgentStreamError(handler func(ev AgentStreamEvent) error, code string, 
 	return cause
 }
 
-// stripOrphanCitationMarkers removes plain [n] citation markers that no longer
-// resolve to a kept citation (n 超出保留引用数或非法)。模型自然产出的标注量
-// 常超过 citation_max_count，残留的角标在前端渲染为不可点死引用；终稿与落库
-// 前统一剥离。Markdown 链接形如 [1](url) 的数字文本不受影响。
-func stripOrphanCitationMarkers(answer string, kept int) string {
-	if kept < 0 {
-		return answer
+// stripOrphanCitationMarkers removes plain [n] citation markers whose n does
+// not resolve to a kept citation number（FT-5：编号为轮内全局且复验剔除保留槽
+// 位，保留性是集合而非数量）。模型自然产出的标注量常超过 citation_max_count，
+// 被剔引用的角标与超界角标在前端渲染为不可点死引用；终稿与落库前统一剥离。
+// Markdown 链接形如 [1](url) 的数字文本不受影响。
+func stripOrphanCitationMarkers(answer string, keptNumbers []int) string {
+	kept := make(map[int]bool, len(keptNumbers))
+	for _, n := range keptNumbers {
+		if n > 0 {
+			kept[n] = true
+		}
 	}
 	var b strings.Builder
 	b.Grow(len(answer))
@@ -767,7 +772,7 @@ func stripOrphanCitationMarkers(answer string, kept int) string {
 				if n, ok := parseCitationMarker(inner); ok {
 					next := i + end + 2
 					followedByParen := next < len(answer) && answer[next] == '('
-					if !followedByParen && (n > kept || n <= 0) {
+					if !followedByParen && !kept[n] {
 						i = next
 						continue
 					}
@@ -778,6 +783,22 @@ func stripOrphanCitationMarkers(answer string, kept int) string {
 		i++
 	}
 	return b.String()
+}
+
+// citationKeptNumbers returns the marker-surviving citation numbers: the
+// turn-global number assigned at pool insertion (FT-5), falling back to the
+// positional index for citations built outside the turn pool (legacy rows,
+// positional callers) so those keep the pre-FT-5 count semantics.
+func citationKeptNumbers(citations []AgentCitation) []int {
+	numbers := make([]int, len(citations))
+	for i := range citations {
+		if citations[i].Number > 0 {
+			numbers[i] = citations[i].Number
+		} else {
+			numbers[i] = i + 1
+		}
+	}
+	return numbers
 }
 
 // parseCitationMarker accepts short pure-digit marker bodies only ("12", not

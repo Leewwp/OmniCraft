@@ -67,16 +67,16 @@ var thinkBlockPattern = regexp.MustCompile(`(?s)<(?:mm:)?think>.*?</(?:mm:)?thin
 // context is usually canceled by the disconnect that caused the partial turn.
 //
 // FR-07（中-1 落库面）：落库原文与终稿走同一套展示侧护栏——先过图片白名单
-// 消毒（占位文案按会话语言）、再剥离孤儿引用角标；keptCitations 是该路径
-// 已核验的引用数（未核验路径传 0 = 全部视为孤儿）。ownPrefixes 为本回合
-// 工具签发的自有图 URL 前缀（终稿 sanitize 同源）。
-func (s *AgentService) persistPartialTurn(conversationID int64, partial string, ownPrefixes []string, keptCitations int, lang string) {
+// 消毒（占位文案按会话语言）、再剥离孤儿引用角标；keptCitationNumbers 是该
+// 路径已核验的引用编号集合（FT-5 集合语义；未核验路径传 nil = 全部视为孤
+// 儿）。ownPrefixes 为本回合工具签发的自有图 URL 前缀（终稿 sanitize 同源）。
+func (s *AgentService) persistPartialTurn(conversationID int64, partial string, ownPrefixes []string, keptCitationNumbers []int, lang string) {
 	if s.db == nil {
 		return
 	}
 	if partial != "" {
 		sanitized := SanitizeImageURLs(partial, s.agentImageAllowHosts(), ownPrefixes, lang)
-		sanitized = stripOrphanCitationMarkers(sanitized, keptCitations)
+		sanitized = stripOrphanCitationMarkers(sanitized, keptCitationNumbers)
 		if sanitized != "" {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			content := sanitized

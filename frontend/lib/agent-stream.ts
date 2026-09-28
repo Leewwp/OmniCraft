@@ -19,6 +19,9 @@ export interface AgentStreamCitation {
   source?: "bm25" | "vector" | "hybrid_rrf";
   /** zone="ip" 时的分类 slug（11 类词表）；内容引用不带。 */
   category?: string;
+  /** 轮内全局引用编号（FT-5 #697）：与正文 [n] 角标同一体系，跨检索累计、
+   * 复验剔除不压缩；缺席 = 历史行/旧轮次，回退按数组位置解释。 */
+  number?: number;
 }
 
 export interface AgentStreamTool {

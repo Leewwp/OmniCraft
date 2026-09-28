@@ -156,6 +156,8 @@ func seedCitationContractDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// validContractCitation is the first pool entry of the seeded turn, so its
+// FT-5 turn-global number is 1.
 func validContractCitation() AgentCitation {
 	return AgentCitation{
 		ContentID:      100,
@@ -167,6 +169,7 @@ func validContractCitation() AgentCitation {
 		Route:          "/original/100",
 		Excerpt:        "A server-owned excerpt.",
 		Source:         "hybrid_rrf",
+		Number:         1,
 	}
 }
 

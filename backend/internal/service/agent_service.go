@@ -486,6 +486,9 @@ type ContentSummary struct {
 	Source         string   `json:"source,omitempty"`
 	Score          float64  `json:"-"`
 	Tags           []string `json:"tags,omitempty"`
+	// Cite is the turn-global citation number printed next to this result in
+	// the tool output (FT-5 #697); 0 = not citable this turn.
+	Cite int `json:"cite,omitempty"`
 }
 
 // CheckContentVisible is the handler-side viewer-aware precheck for

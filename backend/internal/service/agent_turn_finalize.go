@@ -91,7 +91,7 @@ func (r *turnRunner) finalizeStreamError() error {
 	// already streamed out; deletion happens only on the user's explicit
 	// DELETE. The request context is commonly canceled on client disconnect,
 	// so persistence runs on a detached bounded context.
-	r.svc.persistPartialTurn(r.conv.ID, r.answerBuf.String(), r.ownImagePrefixes, 0, r.answerLang)
+	r.svc.persistPartialTurn(r.conv.ID, r.answerBuf.String(), r.ownImagePrefixes, nil, r.answerLang)
 	r.recorder.RecordRunEnd(agenttrace.RunEnd{
 		Status:            runTerminalStatus(err),
 		ErrorCode:         safeAgentStreamCode(err),

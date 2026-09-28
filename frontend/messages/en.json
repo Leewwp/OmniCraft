@@ -2863,6 +2863,7 @@
   "markdown": {
     "copyCode": "Copy code",
     "citationJump": "Jump to citation {index}",
+    "citationView": "Click to open the source",
     "imageBlocked": "Image blocked: non-platform source"
   },
   "agentAccess": {

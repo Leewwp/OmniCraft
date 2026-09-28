@@ -622,27 +622,31 @@ func TestAgentStreamPassesThroughProviderUsageTokens(t *testing.T) {
 }
 
 // 2026-09-06 实测修复：模型自然产出的引用标注常超过 citation_max_count，
-// 超限的 [n] 若不剥离会在前端渲染为不可点死引用。
+// 超限的 [n] 若不剥离会在前端渲染为不可点死引用。FT-5：保留性改为编号集合
+// 语义（复验剔除不压缩编号，保留槽位中间可以有洞）。
 func TestStripOrphanCitationMarkers(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
-		kept int
+		kept []int
 		want string
 	}{
-		{name: "keeps markers within limit", in: "雨夜 [1] 与许愿墙 [2]", kept: 2, want: "雨夜 [1] 与许愿墙 [2]"},
-		{name: "strips markers beyond limit", in: "第一篇 [1] 第二篇 [2] 第三篇 [3]", kept: 2, want: "第一篇 [1] 第二篇 [2] 第三篇 "},
-		// SP-25 FR-07 勘正：kept=0 = 无任何保留引用，所有 [n] 均为死引用，
+		{name: "keeps markers within limit", in: "雨夜 [1] 与许愿墙 [2]", kept: []int{1, 2}, want: "雨夜 [1] 与许愿墙 [2]"},
+		{name: "strips markers beyond limit", in: "第一篇 [1] 第二篇 [2] 第三篇 [3]", kept: []int{1, 2}, want: "第一篇 [1] 第二篇 [2] 第三篇 "},
+		// SP-25 FR-07 勘正：kept=空 = 无任何保留引用，所有 [n] 均为死引用，
 		// 全部剥离（partial 落库路径依赖此语义；旧用例断言与命名自相矛盾）。
-		{name: "strips all when nothing kept", in: "全部 [1] 剥离 [2]", kept: 0, want: "全部  剥离 "},
-		{name: "leaves markdown links untouched", in: "见 [1](https://example.com) 与 [2](/x)", kept: 1, want: "见 [1](https://example.com) 与 [2](/x)"},
-		{name: "ignores non-marker brackets", in: "数组写法 [1,2] 与 [abc] 保留 [1]", kept: 1, want: "数组写法 [1,2] 与 [abc] 保留 [1]"},
-		{name: "handles multibyte neighbors", in: "雨夜值班[12]结束", kept: 1, want: "雨夜值班结束"},
+		{name: "strips all when nothing kept", in: "全部 [1] 剥离 [2]", kept: nil, want: "全部  剥离 "},
+		{name: "leaves markdown links untouched", in: "见 [1](https://example.com) 与 [2](/x)", kept: []int{1}, want: "见 [1](https://example.com) 与 [2](/x)"},
+		{name: "ignores non-marker brackets", in: "数组写法 [1,2] 与 [abc] 保留 [1]", kept: []int{1}, want: "数组写法 [1,2] 与 [abc] 保留 [1]"},
+		{name: "handles multibyte neighbors", in: "雨夜值班[12]结束", kept: []int{1}, want: "雨夜值班结束"},
+		// FT-5：编号 2 被复验剔除、1 与 3 保留——[2] 剥离，[1][3] 原样，
+		// 编号不压缩前移（压缩会让 [3] 指错卡片）。
+		{name: "gap preserved when middle citation dropped", in: "引用一 [1] 引用二 [2] 引用三 [3]", kept: []int{1, 3}, want: "引用一 [1] 引用二  引用三 [3]"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := stripOrphanCitationMarkers(tc.in, tc.kept); got != tc.want {
-				t.Fatalf("stripOrphanCitationMarkers(%q, %d) = %q, want %q", tc.in, tc.kept, got, tc.want)
+				t.Fatalf("stripOrphanCitationMarkers(%q, %v) = %q, want %q", tc.in, tc.kept, got, tc.want)
 			}
 		})
 	}

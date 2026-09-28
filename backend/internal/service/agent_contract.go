@@ -135,12 +135,17 @@ type AgentCitation struct {
 	Excerpt        string `json:"excerpt"`
 	Source         string `json:"source"`
 	Category       string `json:"category,omitempty"`
+	// Number is the turn-global citation number (FT-5 #697): assigned when
+	// the candidate enters the turn pool, accumulates across search calls,
+	// and survives revalidation drops uncompressed. 0 = legacy/positional.
+	Number int `json:"number,omitempty"`
 }
 
 // MarshalJSON keeps the pre-RAG citation contract stable while preserving the
 // complete RAG provenance contract, including a valid zero-based chunk index.
 // zone="ip" citations serialize the IP shape: no chunk provenance, an optional
-// category slug, route=/ip/{id}.
+// category slug, route=/ip/{id}. Every shape carries the turn-global number
+// (FT-5) when non-zero; legacy citations omit it.
 func (c AgentCitation) MarshalJSON() ([]byte, error) {
 	if c.Zone == "ip" {
 		return json.Marshal(struct {
@@ -150,6 +155,7 @@ func (c AgentCitation) MarshalJSON() ([]byte, error) {
 			Route     string `json:"route"`
 			Excerpt   string `json:"excerpt,omitempty"`
 			Category  string `json:"category,omitempty"`
+			Number    int    `json:"number,omitempty"`
 		}{
 			ContentID: c.ContentID,
 			Title:     c.Title,
@@ -157,6 +163,7 @@ func (c AgentCitation) MarshalJSON() ([]byte, error) {
 			Route:     c.Route,
 			Excerpt:   c.Excerpt,
 			Category:  c.Category,
+			Number:    c.Number,
 		})
 	}
 	if c.ContentVersion == 0 && c.ChunkKey == "" && c.ChunkIndex == 0 && c.Route == "" && c.Source == "" {
@@ -165,11 +172,13 @@ func (c AgentCitation) MarshalJSON() ([]byte, error) {
 			Title     string `json:"title"`
 			Zone      string `json:"zone"`
 			Excerpt   string `json:"excerpt"`
+			Number    int    `json:"number,omitempty"`
 		}{
 			ContentID: c.ContentID,
 			Title:     c.Title,
 			Zone:      c.Zone,
 			Excerpt:   c.Excerpt,
+			Number:    c.Number,
 		})
 	}
 
@@ -183,6 +192,7 @@ func (c AgentCitation) MarshalJSON() ([]byte, error) {
 		Route          string `json:"route"`
 		Excerpt        string `json:"excerpt"`
 		Source         string `json:"source"`
+		Number         int    `json:"number,omitempty"`
 	}{
 		ContentID:      c.ContentID,
 		ContentVersion: c.ContentVersion,
@@ -193,6 +203,7 @@ func (c AgentCitation) MarshalJSON() ([]byte, error) {
 		Route:          c.Route,
 		Excerpt:        c.Excerpt,
 		Source:         c.Source,
+		Number:         c.Number,
 	})
 }
 
@@ -240,9 +251,9 @@ type AgentErrorDTO struct {
 }
 
 // citationsToModel maps the stream citation contract onto the persistence
-// shape (N4): storage keeps the complete 9-field form including RAG
-// provenance; the stream-side legacy-minimal MarshalJSON stays a wire
-// concern only.
+// shape (N4): storage keeps the complete form including RAG provenance and
+// the FT-5 turn-global number; the stream-side legacy-minimal MarshalJSON
+// stays a wire concern only.
 func citationsToModel(citations []AgentCitation) []model.AgentCitation {
 	if len(citations) == 0 {
 		return nil
@@ -260,6 +271,7 @@ func citationsToModel(citations []AgentCitation) []model.AgentCitation {
 			Excerpt:        citations[i].Excerpt,
 			Source:         citations[i].Source,
 			Category:       citations[i].Category,
+			Number:         citations[i].Number,
 		}
 	}
 	return out

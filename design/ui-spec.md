@@ -3586,7 +3586,7 @@ interface AgentToolStatus {
 
 **关键交互**
 - Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
-- **行内引用锚定（A-06）**：正文句末 `[1][2]` 渲染为可点击 sup 角标（`markdown.citationJump` a11y 名）；点击滚动到对应引用卡片（`#agent-citation-{index}`）并短暂高亮（ring-2，约 1.8s）+ 聚焦；超出引用数或无引用时渲染为纯文本 sup。纯展示层映射，服务端复验语义零改动。
+- **行内引用锚定（A-06 + FT-5 #697）**：正文句末 `[1][2]` 角标按**轮内全局编号**命中引用（跨多次检索累计、复验剔除不压缩；编号键控 `#agent-citation-{number}`）渲染为**标题小卡**——编号 + 引用标题截断（约 10 字，accent-subtle 底）的可点击按钮（`markdown.citationJump` a11y 名带编号）；桌面（hover:hover）悬停约 200ms 弹浮窗（完整标题 + 简介节选 + `markdown.citationView` 查看提示；Esc/移开关闭、滚动跟随、视口钳制），触屏不弹浮窗点按直跳；点击直接打开共享 `ContentDetailOverlay`（IP 引用直接进 `/ip/[id]` 详情页），2026-09-06 实测修复后的直开契约不变。编号未命中（越界/被剔）渲染为纯文本 sup 兜底；无引用轮不渲染角标。纯展示层映射，编号对齐由服务端（工具输出 cite 标注 + 编号集合剥离）保证。
 - 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
 - **参考来源侧栏（FT-4 #696，2026-09-28）**：回答底部「N 条参考来源」入口按钮 toggle 右侧「参考来源」面板（`AgentCitationsSidebar`）——桌面（≥768px）为对话区右缘固定宽 `min(400px,90vw)` 侧栏（顶栏下方起高，flex 推挤对话区左移，消息列 max-w-3xl 与文本宽度不变；双通道关闭 = 再点来源按钮 / 侧栏 X）；移动（<768px）为底部抽屉（把手拖拽过半 / 快滑 / 内容滚动到顶后继续下拉三路关闭，手写 pointer events 不引依赖）。面板内容 = 最近一次点击来源的那条回答的引用卡（复用 AgentCitationCard）；原内联折叠列表（#399 FOLD_THRESHOLD）退役。
 - **IP 引用卡（SP-19 G2-1，Q16/Q5）**：`zone='ip'` 引用卡 = 标题 +「IP」徽标 + 分类徽标（`ipCategory.*` 11 类词表）+ 简介摘录，无统计字段；与内容卡混排同一「参考来源」面板。点击与行内 `[n]` 角标均不走 `ContentDetailOverlay`，直接 `router.push('/ip/[id]')` 落 IP 详情页。
