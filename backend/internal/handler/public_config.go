@@ -45,6 +45,10 @@ type PublicUploadDTO struct {
 	// DocumentPreviewMaxMB (#688): browser-side document preview budget;
 	// over budget the viewer degrades to download-only.
 	DocumentPreviewMaxMB int `json:"document_preview_max_mb"`
+	// #689 3D preview budgets (separate from the upload cap).
+	Model3DMaxPreviewMB int `json:"model3d_max_preview_mb"`
+	Model3DMaxTriangles int `json:"model3d_max_triangles"`
+	GCodeMaxLines       int `json:"gcode_max_lines"`
 }
 
 // PublicCollaborationDTO exposes only the publish-time invitee cap the
@@ -156,6 +160,7 @@ func NewPublicConfigHandler(cfg *config.Config) *PublicConfigHandler {
 
 func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 	upload := h.cfg.Upload.NormalizedGalleryLimits()
+	model3DPreviewMB, model3DMaxTriangles, gcodeMaxLines := h.cfg.Upload.EffectiveModel3DPreviewBuckets()
 	resp := PublicConfigResponse{
 		Features: PublicFeaturesDTO{
 			WebAgentEnabled:       h.cfg.Agent.WebAgentEnabled,
@@ -184,6 +189,9 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 			VideoGalleryMinItems: upload.VideoGalleryMinItems,
 			VideoGalleryMaxItems: upload.VideoGalleryMaxItems,
 			DocumentPreviewMaxMB: h.cfg.Upload.EffectiveDocumentPreviewMaxMB(),
+			Model3DMaxPreviewMB:  model3DPreviewMB,
+			Model3DMaxTriangles:  model3DMaxTriangles,
+			GCodeMaxLines:        gcodeMaxLines,
 		},
 		Collaboration: PublicCollaborationDTO{
 			MaxInviteesPerPublish: h.cfg.Collaboration.MaxInviteesPerPublish,

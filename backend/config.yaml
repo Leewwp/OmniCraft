@@ -383,7 +383,7 @@ content_registry:
     - key: template
       zones: [original]
       form: file
-      upload_file_types: [text, document]
+      upload_file_types: [text, document, model3d]
       judge_eligible: true
     - key: sheet_music
       zones: [original, fanwork]
@@ -424,6 +424,10 @@ content_registry:
       extensions: [".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"]
       max_mb_key: audio_max_mb
       scannable: true
+    - key: model3d
+      extensions: [".stl", ".obj", ".3mf", ".gcode", ".ply", ".mtl"]
+      max_mb_key: model3d_max_mb
+      scannable: true
 
 upload:
   # #688 v2.2：内容 grant TTL 独立（> presign PUT 15min；旧值借用 feedback 300s
@@ -432,6 +436,11 @@ upload:
   # #688 v2.2：文档浏览器预览预算（压缩体积；ExcelJS/Mammoth 解析期内存是
   # 约束，虚拟滚动不解决）；超限优雅降级为下载卡。
   document_preview_max_mb: 10
+  # #689：3D 预览预算与 50MB 上传上限分离（50MB 二进制 STL ≈ 百万面级
+  # 不应无条件渲染；GCode 为同步解析按行数约束）。
+  model3d_max_preview_mb: 15
+  model3d_max_triangles: 1000000
+  gcode_max_lines: 500000
   sheet_music_extensions:
     - ".mid"
     - ".midi"

@@ -94,7 +94,7 @@ func (s *ContentService) validateDocumentAttachment(ctx context.Context, grant U
 			return fmt.Errorf("%w: %v", ErrUploadGrantInvalid, err)
 		}
 		return nil
-	case ".docx", ".xlsx":
+	case ".docx", ".xlsx", ".3mf":
 		quota := defaultDocumentQuota
 		if s.archiveScanCfg != nil {
 			quota = archivezip.QuotaFromConfig(*s.archiveScanCfg)
