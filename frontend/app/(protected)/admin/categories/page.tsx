@@ -269,7 +269,7 @@ export default function AdminCategoriesPage() {
                 id="category-name-zh"
                 ref={createNameRef}
                 type="text"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-border-strong focus:outline-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                 value={createValues.name_zh}
                 onChange={(e) => setCreateValues((v) => ({ ...v, name_zh: e.target.value }))}
                 placeholder={t('home.hottest')}
@@ -282,7 +282,7 @@ export default function AdminCategoriesPage() {
               <input
                 id="category-name-en"
                 type="text"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-border-strong focus:outline-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                 value={createValues.name_en}
                 onChange={(e) => setCreateValues((v) => ({ ...v, name_en: e.target.value }))}
                 placeholder="Recommended"
@@ -294,7 +294,7 @@ export default function AdminCategoriesPage() {
                 id="category-slug"
                 ref={createSlugRef}
                 type="text"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-border-strong focus:outline-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                 value={createValues.slug}
                 onChange={(e) => setCreateValues((v) => ({ ...v, slug: e.target.value }))}
                 placeholder="recommended"
@@ -403,7 +403,7 @@ export default function AdminCategoriesPage() {
                           <input
                             id={`category-edit-name-zh-${cat.id}`}
                             type="text"
-                            className="w-20 rounded border border-border bg-background px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+                            className="w-20 rounded border border-border bg-background px-1.5 py-1 text-xs focus:border-border-strong focus:outline-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                             value={editValues.name_zh || ""}
                             onChange={(e) => setEditValues((v) => ({ ...v, name_zh: e.target.value }))}
                             aria-label={`${t('admin.categories.nameZh')}: ${(cat.name_i18n as Record<string, string>)?.zh || cat.slug}`}
@@ -412,7 +412,7 @@ export default function AdminCategoriesPage() {
                           />
                           <input
                             type="text"
-                            className="w-20 rounded border border-border bg-background px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                            className="w-20 rounded border border-border bg-background px-1.5 py-1 text-xs focus:border-border-strong focus:outline-none"
                             value={editValues.name_en || ""}
                             onChange={(e) => setEditValues((v) => ({ ...v, name_en: e.target.value }))}
                             placeholder="EN"
@@ -428,7 +428,7 @@ export default function AdminCategoriesPage() {
                       <td className="px-4 py-3">
                         <input
                           type="text"
-                          className="w-24 rounded border border-border bg-background px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                          className="w-24 rounded border border-border bg-background px-1.5 py-1 text-xs focus:border-border-strong focus:outline-none"
                           value={editValues.slug || ""}
                           onChange={(e) => setEditValues((v) => ({ ...v, slug: e.target.value }))}
                           aria-label={t('admin.categories.slugFor', { name: (cat.name_i18n as Record<string, string>)?.zh || cat.slug })}
