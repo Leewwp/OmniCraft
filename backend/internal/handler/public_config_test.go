@@ -428,13 +428,13 @@ func TestPublicConfigContentRegistryProjection(t *testing.T) {
 	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &raw))
 
 	contentTypes := raw["content_types"].([]any)
-	require.Len(t, contentTypes, 9)
+	require.Len(t, contentTypes, 10, "#690 adds the 3d_print pilot row")
 	byKey := map[string]map[string]any{}
 	for _, item := range contentTypes {
 		entry := item.(map[string]any)
 		byKey[entry["key"].(string)] = entry
 	}
-	for _, key := range []string{"image", "article", "video", "audio", "template", "sheet_music", "mod", "prompt", "other"} {
+	for _, key := range []string{"image", "article", "video", "audio", "template", "sheet_music", "mod", "prompt", "3d_print", "other"} {
 		require.Contains(t, byKey, key)
 	}
 	require.Equal(t, []any{"fanwork"}, byKey["mod"]["zones"])
@@ -443,6 +443,12 @@ func TestPublicConfigContentRegistryProjection(t *testing.T) {
 	require.Equal(t, "media", byKey["video"]["form"])
 	require.Equal(t, "text", byKey["article"]["form"])
 	require.Equal(t, []any{"mod"}, byKey["mod"]["upload_file_types"])
+
+	// #690 pilot row: registry data alone carries the policy to clients
+	// (model3d explicit + text unrestricted -> client_accept "*").
+	require.Equal(t, []any{"model3d", "text"}, byKey["3d_print"]["upload_file_types"])
+	require.Equal(t, "*", byKey["3d_print"]["client_accept"])
+	require.Equal(t, map[string]any{"required_any_of": []any{"model3d"}}, byKey["3d_print"]["attachment_policy"])
 
 	// client_accept: unrestricted family in the set -> "*"; explicit-only
 	// -> sorted union; no attachments -> absent (omitempty).

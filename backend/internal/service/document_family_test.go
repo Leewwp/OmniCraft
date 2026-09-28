@@ -197,6 +197,15 @@ func TestRegistryBindingAndAttachmentPolicy(t *testing.T) {
 	require.Error(t, evaluateAttachmentPolicy(cfg, "widget", []model.ContentAttachment{{FileType: "text"}}),
 		"pure-document post misses the required family")
 	require.NoError(t, evaluateAttachmentPolicy(cfg, "widget", []model.ContentAttachment{{FileType: "text"}, {FileType: "model3d"}}))
+
+	// #690 pilot: the shipped registry row enforces by configuration alone
+	// (registryCfg nil → DefaultContentRegistry, which mirrors config.yaml).
+	require.True(t, svc.allowedAttachmentFamily("3d_print", "model3d"))
+	require.True(t, svc.allowedAttachmentFamily("3d_print", "text"))
+	require.False(t, svc.allowedAttachmentFamily("3d_print", "document"), "3d_print allows only model3d+text")
+	require.Error(t, evaluateAttachmentPolicy(nil, "3d_print", []model.ContentAttachment{{FileType: "text"}}),
+		"pure-document post is not 3D printing content")
+	require.NoError(t, evaluateAttachmentPolicy(nil, "3d_print", []model.ContentAttachment{{FileType: "text"}, {FileType: "model3d"}}))
 }
 
 func TestScannableFamiliesGeneralized(t *testing.T) {
