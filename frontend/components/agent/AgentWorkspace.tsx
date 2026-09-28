@@ -199,7 +199,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       onClick={toggleDeepThink}
       className={cn(
         "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        deepThink ? "bg-primary/10 text-primary" : "text-fg-subtle hover:text-fg-default",
+        /* FT-2：默认白底黑字；选中仅背景变化，字色不变 */
+        deepThink ? "bg-primary/10 text-fg-default" : "bg-canvas-default text-fg-default hover:bg-canvas-subtle",
       )}
     >
       <Brain className="h-3.5 w-3.5" aria-hidden="true" />
@@ -614,8 +615,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   }
 
   /* #416 O2：空态判定 = 当前会话无任何轮次（含未选会话与已选空会话）。
-     空态下主区不渲染标题、主体中部偏下渲染引导 + 大号输入框（同一表单
-     组件的两种布局形态）。 */
+     空态下主区不渲染标题、主体居中渲染引导 + 输入框（同一表单组件的
+     两种布局形态；FT-2 起两态同形）。 */
   const emptyConversation =
     !messagesLoading && !messagesLoadError && turns.length === 0 && activeTurn === null;
 
@@ -826,21 +827,20 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     );
   }
 
-  /* #416 O2：同一表单的两种布局形态——空态 = 大号输入框（rows 4、宽占比
-     更大）随引导区；会话态 = 底部常规形态（rows 1）。发送按钮与按键语义
-     两形态一致（发送按钮改造属 #417，本轮不动）。 */
   /* #417 F6b：输入区切换到公共 Composer（#413 F6a 产出）——发送/停止按钮
      内嵌右下角背景融合；Enter 发送、Shift+Enter 换行、自动增高 208 上限、
      isComposing 防护随组件内建；URL 预填与流式停止行为保持。 */
-  const renderComposer = (emptyVariant: boolean) => (
-    <div className={emptyVariant ? "w-full" : "shrink-0 bg-canvas-default p-3"}>
+  /* FT-2（#694）两态同形：空态与会话态 rows=1、max-w-3xl(768px) 居中、
+     默认宽度/高度不随形态切换变化（autoresize 208 上限机制不变）。 */
+  const composerNode = (
+    <>
       <Composer
         ref={composerRef}
         value={input}
         onChange={setInput}
         onSubmit={() => handleSend()}
         keyMode="enter"
-        rows={emptyVariant ? 4 : 1}
+        rows={1}
         ariaLabel={t("agent.workspace.composerLabel")}
         placeholder={t("agent.workspace.inputPlaceholder")}
         submitLabel={t("agent.workspace.sendMessage")}
@@ -858,8 +858,18 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         )}
       />
       <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
-    </div>
+    </>
   );
+  const renderComposer = (emptyVariant: boolean) =>
+    emptyVariant ? (
+      /* 空态：外层（空态引导区）已是 max-w-3xl，这里满宽填充 */
+      <div className="w-full">{composerNode}</div>
+    ) : (
+      /* 会话态：钉底容器内 max-w-3xl 居中（与消息列同宽） */
+      <div className="shrink-0 bg-canvas-default p-3">
+        <div className="mx-auto w-full max-w-3xl">{composerNode}</div>
+      </div>
+    );
   return (
     <main
       aria-label={t("agent.workspace.sidebarLabel")}
@@ -965,9 +975,9 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         </header>
 
         {emptyConversation ? (
-          /* #416 O2 空态形态：主体中部偏下 = 引导内容（顺序文案不变）+ 大号
-             输入框；点击示例气泡直接发送 */
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-end overflow-y-auto px-4 pb-[12vh] pt-8 text-center">
+          /* #416 O2 空态形态（FT-2 居中修订）：引导内容（顺序文案不变）+
+             输入框垂直居中；点击示例气泡直接发送 */
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8 text-center">
             <div className="flex size-14 items-center justify-center rounded-full bg-accent-subtle text-accent-emphasis">
               <BookOpen className="size-6" aria-hidden="true" />
             </div>
@@ -988,7 +998,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 </li>
               ))}
             </ul>
-            <div className="mt-8 w-full max-w-2xl text-left">{renderComposer(true)}</div>
+            <div className="mt-8 w-full max-w-3xl text-left">{renderComposer(true)}</div>
           </div>
         ) : (
           <>
