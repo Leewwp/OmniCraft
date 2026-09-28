@@ -540,6 +540,36 @@ func TestAgentSystemV5Golden(t *testing.T) {
 	}
 }
 
+// Boot-race guard (2026-09-29 live evidence): a fresh CreateVersion whose
+// label another process already moved forward must NOT roll the label back.
+func TestSeedUpgradesNeverRollsLabelBackward(t *testing.T) {
+	store := &raceRecordingStore{labelVersion: 5}
+	if err := SeedUpgrades(context.Background(), store); err != nil {
+		t.Fatal(err)
+	}
+	if store.setLabelCalled {
+		t.Fatal("label must not move backward when production already sits at a newer version")
+	}
+}
+
+type raceRecordingStore struct {
+	labelVersion   int
+	setLabelCalled bool
+}
+
+func (s *raceRecordingStore) GetByLabel(_ context.Context, _, _ string) (*model.PromptRegistry, error) {
+	return &model.PromptRegistry{Name: "agent_system", Version: s.labelVersion, Content: "ahead"}, nil
+}
+func (s *raceRecordingStore) CreateVersion(_ context.Context, _ *model.PromptRegistry) error {
+	return nil // every version "freshly created"
+}
+func (s *raceRecordingStore) EnsureLabel(_ context.Context, _, _ string, _ int) error { return nil }
+func (s *raceRecordingStore) SetLabel(_ context.Context, _, _ string, version int) error {
+	s.setLabelCalled = true
+	s.labelVersion = version
+	return nil
+}
+
 func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 	db := testutil.OpenEphemeralPostgres(t)
 	testutil.ApplyMigrationFile(t, db, "../../../migrations/082_prompt_registry.sql")

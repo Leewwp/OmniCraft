@@ -186,6 +186,17 @@ func SeedUpgrades(ctx context.Context, store Store) error {
 			}
 			return err
 		}
+		// Boot-race guard (live evidence, 2026-09-29 deploy): server and
+		// worker seed concurrently; two interleaved SetLabel calls can end
+		// with the older version last (a fresh v4 SetLabel landing after
+		// another process already moved the label to v5 rolled production
+		// back). Moves are forward-only here — a label already at or past
+		// this upgrade stays untouched (admin rollbacks remain absolute:
+		// they go through SetLabel directly, not this path).
+		if current, err := store.GetByLabel(ctx, up.SlotName, ProductionLabel); err == nil && current != nil && current.Version >= up.Version {
+			slog.Info("prompt registry upgrade shipped; label already at or ahead", "slot", up.SlotName, "version", up.Version, "label_version", current.Version)
+			continue
+		}
 		if err := store.SetLabel(ctx, up.SlotName, ProductionLabel, up.Version); err != nil {
 			return err
 		}
