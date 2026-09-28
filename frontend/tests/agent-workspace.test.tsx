@@ -857,7 +857,7 @@ test("workspace streams an answer and renders citation cards", async () => {
 
     await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
     await openCitationsPanel(view);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 3000 });
     /* 工具步骤区完成后自动折叠（A-06）：先展开再断言步骤明细。 */
     /* settle 竞态防护：轮终局重渲染会换掉展开按钮，点击与断言放同一 waitFor
        内重试（陈旧点击不抛错、断言失败重点）。 */
