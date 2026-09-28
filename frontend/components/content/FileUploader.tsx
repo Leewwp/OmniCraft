@@ -64,11 +64,19 @@ interface OSSUploadToken {
 interface FileUploaderProps {
   mode?: "media-gallery" | "attachment";
   className?: string;
-  fileType?: "image" | "video" | "text" | "mod" | "sheet_music";
+  fileType?: "image" | "video" | "text" | "mod" | "sheet_music" | "document" | "audio";
   contentType?: "image" | "video" | string;
   maxMB?: number;
   accept?: string;
   multiple?: boolean;
+  /**
+   * #688 逐文件类型推导：按文件扩展名从 /config/public 能力投影推导
+   * file_type（前端不自建扩展名→族群映射）。返回 null = 该内容类型不
+   * 支持此文件，当场拒绝。缺省回落单一 fileType prop（旧行为）。
+   */
+  deriveFileType?: (file: File) => string | null;
+  /** #688 逐文件大小上限（MB）：按推导出的族群取注册表 max_mb；缺省回落 maxMB prop。 */
+  maxMBForFileType?: (fileType: string) => number | undefined;
   minCount?: number;
   maxCount?: number;
   value?: UploadItem[];
@@ -305,6 +313,8 @@ export function FileUploader({
   disabled = false,
   error: externalError,
   onUploaded,
+  deriveFileType,
+  maxMBForFileType,
 }: FileUploaderProps) {
   const t = useTranslations();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -376,7 +386,6 @@ export function FileUploader({
     if (!fileList || fileList.length === 0) return;
 
     const files = Array.from(fileList);
-    const maxBytes = maxMB * 1024 * 1024;
     setError("");
     setIsUploading(true);
     setProgress(0);
@@ -384,14 +393,23 @@ export function FileUploader({
     try {
       const uploaded: UploadedAsset[] = [];
       for (const file of files) {
-        if (file.size > maxBytes) {
+        const resolvedFileType = deriveFileType
+          ? deriveFileType(file)
+          : (fileType ?? contentType ?? "text");
+        if (resolvedFileType === null || resolvedFileType === undefined) {
+          throw new FileValidationError(
+            "wrongType",
+            t("content.unsupportedFileType", { name: file.name }),
+          );
+        }
+        const effectiveMaxMB = maxMBForFileType?.(resolvedFileType) ?? maxMB;
+        if (file.size > effectiveMaxMB * 1024 * 1024) {
           throw new FileValidationError(
             "fileSizeExceeded",
-            t("content.fileSizeExceeds", { name: file.name, maxMB }),
+            t("content.fileSizeExceeds", { name: file.name, maxMB: effectiveMaxMB }),
           );
         }
 
-        const resolvedFileType = fileType ?? contentType ?? "text";
         const duration = resolvedFileType === "video" ? await readVideoDuration(file) : undefined;
         const token = await requestUploadToken(file, resolvedFileType, duration);
         await uploadWithXHR(token.upload_url, file, setProgress);

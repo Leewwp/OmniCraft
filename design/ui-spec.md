@@ -6121,3 +6121,29 @@ interface SortSelectProps {
 - open: `aria-expanded=true`，弹层可见，焦点在 listbox 内；ArrowUp/ArrowDown 移动，Home/End 到首尾，Enter/Space 选择并关闭，Esc 取消并返回 trigger。
 - focus: `ring-2 ring-accent-emphasis`。
 - disabled: `opacity-50 cursor-not-allowed`（无选项或页面禁用）。
+
+## Component: AttachmentPreview 附件预览分发
+
+详情页附件区的统一预览入口（#688）。主路由 = 附件持久化 `file_type` → 族群内 subtype 按扩展名 → MIME 辅助；无查看器的族群回落下载卡（story 10）。
+
+**布局**
+- 垂直堆叠容器，占满详情主栏宽度；每个附件一张卡，`gap-3`。
+- 卡片基底：`rounded-lg border border-border bg-card p-4`，行内 `flex items-center justify-between gap-3`。
+
+**状态变体**
+- scan-card（扫描门拦截）：`data-testid="attachment-scan-card"`；ShieldAlert 图标 + 扫描状态文案（content.preview.scanStatus.*）+ 右侧下载入口（allow_copy 时）。scannable 族群非 clean（含 not_required 接线异常、pending/scanning/manual_review/blocked/failed/legacy_unscanned）一律此态，与下载门同源同判。
+- viewer（document 族）：移交 DocumentViewer（懒加载）。
+- download-card（无查看器/缺 URL）：FileWarning 图标 + 原始文件名（历史行回退类型标签）+ 大小（MB，两位小数）+ 下载按钮，`data-testid="attachment-download-card"`。
+
+## Component: DocumentViewer 文档查看器
+
+docx = mammoth → DOMPurify 严格 sanitizer → 富文本渲染；xlsx = exceljs 只读网格 + 多 sheet 页签；csv = 文本解析同网格。全站首个 `next/dynamic` 用例（`ssr:false`），重依赖不进主包。
+
+**布局**
+- docx：`prose prose-sm max-w-none rounded-lg border border-border bg-card p-4`；图片 `max-w-full`。
+- 网格：`overflow-x-auto` 表格容器；sheet 页签药丸（`role="tablist"`，选中 `bg-primary text-primary-foreground`）；首屏 100 行，"已显示 x/y 行" 按页加载。
+- 错误/降级/加载态均为单行卡片（图标 + 文案 + 右侧下载入口）：loading = Loader2 旋转；degraded = FileText +「文件较大，暂不提供在线预览」；error = AlertTriangle（destructive）+「预览加载失败，可下载后查看」。三态保留下载入口（story 9）。
+
+**安全合同**
+- 渲染前双重净化：DOMPurify 白名单（标签/属性/URI 协议，禁 script/style/iframe/object/embed/link/meta，禁 data-* 属性）+ DOMParser 后处理（img src 仅接受内嵌 `data:image/*`，外链资源剥除；a 补 rel 并中和危险 href）。
+- 预算合同：`document_preview_max_mb`（压缩体积，默认 10MB）+ 解析规模上限（xlsx 200k cells、docx 2MB HTML）；超限走 degraded，不在浏览器解析。

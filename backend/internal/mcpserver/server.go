@@ -37,6 +37,10 @@ type Deps struct {
 	// corresponding tools are simply not registered.
 	Cfg        *config.Config
 	ContentSvc *service.ContentService
+	// PreviewGate (#688): the attachment preview gate shared with the REST
+	// detail path and the download endpoint. nil keeps legacy unconditional
+	// signing for constructions without one.
+	PreviewGate *service.ArchiveScanGate
 	// SuggestPublishMetadata reuses the in-chat upload-assist LLM logic
 	// (container binds AgentService.UploadAssist).
 	SuggestPublishMetadata func(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error)
@@ -223,7 +227,13 @@ func addGetContentTool(server *sdkmcp.Server, deps Deps) {
 			return nil, nil, fmt.Errorf("content lookup failed")
 		}
 		if deps.DisplaySigner != nil {
-			deps.DisplaySigner.DecorateAttachments(attachments)
+			// #688: MCP 读路径与 REST 详情/下载门同源同判——非 clean 不签
+			// 发 oss_url；scannable 走 scan-aware 短 TTL。
+			scanTTL := 0
+			if deps.Cfg != nil {
+				scanTTL = deps.Cfg.ArchiveScan.URLTTLSec
+			}
+			deps.DisplaySigner.ScanAwareDecorateAttachments(ctx, attachments, deps.PreviewGate, scanTTL)
 		}
 		attViews := make([]map[string]any, 0, len(attachments))
 		for _, a := range attachments {

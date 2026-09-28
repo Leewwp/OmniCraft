@@ -30,6 +30,8 @@ export interface PublicUpload {
   image_gallery_max_items: number;
   video_gallery_min_items: number;
   video_gallery_max_items: number;
+  /** #688 文档浏览器预览预算（MB）；超限查看器降级为下载卡 */
+  document_preview_max_mb?: number;
 }
 
 export interface PublicCollaboration {
@@ -182,10 +184,10 @@ export const FALLBACK_CONTENT_TYPE_ENTRIES: PublicContentTypeEntry[] = [
   { key: "image", zones: ["original", "fanwork"], form: "media", upload_file_types: ["image"], judge_eligible: true },
   { key: "article", zones: ["original", "fanwork"], form: "text", upload_file_types: [], judge_eligible: true },
   { key: "video", zones: ["original", "fanwork"], form: "media", upload_file_types: ["video"], judge_eligible: true },
-  { key: "audio", zones: ["original", "fanwork"], form: "file", upload_file_types: ["text"], judge_eligible: true },
+  { key: "audio", zones: ["original", "fanwork"], form: "file", upload_file_types: ["audio"], judge_eligible: true },
   { key: "mod", zones: ["fanwork"], form: "file", upload_file_types: ["mod"], judge_eligible: false },
   { key: "prompt", zones: ["fanwork"], form: "text", upload_file_types: [], judge_eligible: true },
-  { key: "template", zones: ["original"], form: "file", upload_file_types: ["text"], judge_eligible: true },
+  { key: "template", zones: ["original"], form: "file", upload_file_types: ["text", "document"], judge_eligible: true },
   { key: "sheet_music", zones: ["original", "fanwork"], form: "file", upload_file_types: ["sheet_music"], judge_eligible: true },
   { key: "other", zones: ["original", "fanwork"], form: "text", upload_file_types: [], judge_eligible: true },
 ];
@@ -197,6 +199,8 @@ const FALLBACK_UPLOAD_FILE_TYPE_ENTRIES: PublicUploadFileTypeEntry[] = [
   { key: "text", extensions: null, max_mb: 10 },
   { key: "mod", extensions: null, max_mb: 500 },
   { key: "sheet_music", extensions: [".mid", ".midi", ".xml", ".mxl", ".mscz", ".mscx", ".pdf"], max_mb: 50 },
+  { key: "document", extensions: [".docx", ".xlsx", ".csv"], max_mb: 20 },
+  { key: "audio", extensions: [".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"], max_mb: 50 },
 ];
 
 /** 注册表 content_types 行（投影缺失时走内置兜底，永不 undefined） */

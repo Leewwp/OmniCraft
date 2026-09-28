@@ -107,12 +107,15 @@ test("deriveUploadFamilyForExtension implements the v2.1 derivation contract", (
 
 test("uploadFileTypeMap exposes extension policy (null = unrestricted) and caps", () => {
   const families = uploadFileTypeMap(null);
-  assert.equal(Object.keys(families).length, 6);
+  assert.equal(Object.keys(families).length, 8);
   assert.equal(families["sheet_music"].extensions === null, false, "sheet_music is explicit");
+  assert.equal(families["document"].extensions === null, false, "#688 document is explicit");
+  assert.deepEqual(families["document"].extensions, [".docx", ".xlsx", ".csv"]);
+  assert.equal(families["audio"].max_mb, 50);
   assert.equal(families["mod"].extensions, null, "mod is unrestricted (MIME-driven)");
   assert.equal(families["mod"].max_mb, 500);
   assert.equal(families["avatar"].max_mb, 20, "avatar reuses the image budget");
-  assert.equal(uploadFileTypeEntries(null).length, 6);
+  assert.equal(uploadFileTypeEntries(null).length, 8);
 });
 
 test("contentTypeMap lookup is keyed by type key", () => {
