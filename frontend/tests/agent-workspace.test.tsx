@@ -851,6 +851,78 @@ test("grounded done with follow_ups renders chips; click fills composer without 
   }
 });
 
+test("first-round follow-ups survive the FT-3 route remount via the terminal stash (#715)", async () => {
+  installDom();
+  const now = new Date();
+  const events = streamEvents().map((event) =>
+    event.type === "done"
+      ? { ...event, follow_ups: ["What else by this author?", "Show watercolor tutorials"] }
+      : event,
+  );
+  const stub = installSSEFetch(events);
+  const now2 = new Date();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now2.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 2, conversation_id: 7, role: "assistant", phase: "tools", tools: [{ name: "search_content", status: "success", duration_ms: 42 }] },
+          { id: 3, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const replacesBefore = routerReplaces.length;
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(
+      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" })),
+      { timeout: 8000 },
+    );
+    assert.ok(
+      routerReplaces.slice(replacesBefore).includes("/agent/c/7"),
+      "first-round done replaced into the conversation URL",
+    );
+
+    /* 模拟 FT-3 路由重挂载：unmount 清空内存活动轮（key={id} 换树），
+       重挂载实例只能靠历史回放 + 模块级 stash 重建终态。 */
+    view.unmount();
+    const remounted = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
+    await waitFor(() => assert.ok(remounted.getByText("hello world")), { timeout: 8000 });
+    const chip = await waitFor(
+      () => remounted.getByRole("button", { name: /Show watercolor tutorials/ }),
+      { timeout: 8000 },
+    );
+    assert.ok(
+      remounted.getByRole("group", { name: "Suggested follow-ups" }),
+      "chips revived after the remount history replay",
+    );
+    /* 回填的终态仍接既有交互：chip 点击填 composer。 */
+    fireEvent.click(chip);
+    const composer = remounted.getByRole("textbox") as HTMLTextAreaElement;
+    assert.equal(composer.value, "Show watercolor tutorials", "revived chip still fills the composer");
+
+    /* stash 消费一次即失效：再次重挂载回归历史轮终态缺省（落库契约）。 */
+    remounted.unmount();
+    const third = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
+    await waitFor(() => assert.ok(third.getByText("hello world")), { timeout: 8000 });
+    assert.equal(
+      third.queryByRole("group", { name: "Suggested follow-ups" }),
+      null,
+      "stash is consumed exactly once (history turns keep terminal defaults)",
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
 test("workspace streams an answer and renders citation cards", async () => {
   installDom();
   const now = new Date();
