@@ -33,6 +33,7 @@ import {
   stopAgentTurn,
   type AgentHistoryMessageDTO,
   type AgentTurn,
+  type AgentTurnTerminal,
 } from "@/lib/agent-turn";
 import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
@@ -109,6 +110,12 @@ function toCitationBadgeInfo(citation: AgentStreamCitation, index: number): Cita
     kind: citation.zone === "ip" ? "ip" : "content",
   };
 }
+
+/* #715（审查 P1）：首轮终态（追问/用量/trace）跨 FT-3 路由重挂载搬运——这些
+   字段不落历史 DTO（落库契约），而首轮 done 必发 replace(/agent/c/{id}) 触发
+   key={id} 重挂载清空内存活动轮。模块级 Map：客户端路由切换不重载模块（恰
+   覆盖重挂载窗口），真实整页刷新重置（与历史轮终态缺省契约一致）。 */
+const firstRoundTerminals = new Map<number, AgentTurnTerminal>();
 
 export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
@@ -277,7 +284,18 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           setTurns(mergeTerminalIntoLastTurn(mapped, pending.terminal));
           setActiveTurn(null);
         } else {
-          setTurns(mapped);
+          /* 重挂载路径（FT-3 首轮 replace → key={id} 重挂载，内存活动轮已清空）：
+             首轮终态从模块级 stash 回填一次——历史 DTO 不落追问/用量/trace，
+             不回填则追问 chips 在每个新会话首轮必丢（#715）。stash 不在上方
+             同实例分支清除：replace 总会发生，旧实例的合并结果随卸载丢弃，
+             重挂载后的新实例才是最终态。 */
+          const stashed = firstRoundTerminals.get(activeId);
+          if (stashed !== undefined) firstRoundTerminals.delete(activeId);
+          setTurns(
+            stashed !== undefined && mapped.length > 0
+              ? mergeTerminalIntoLastTurn(mapped, stashed)
+              : mapped,
+          );
         }
       })
       .catch((error) => {
@@ -298,6 +316,15 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+
+  /* #715：首轮 settle 即把终态写入 stash——随后 replace 重挂载的新实例在历史
+     回载时弹出回填（见上 effect）；写入必须发生在卸载前，故挂在状态提交后
+     的 effect 而非 done 回调（回调闭包读不到最新 activeTurn）。 */
+  useEffect(() => {
+    if (!activeTurn || !activeTurn.settled || !activeTurn.firstRound) return;
+    if (activeId === null) return;
+    firstRoundTerminals.set(activeId, activeTurn.terminal);
+  }, [activeTurn, activeId]);
 
   /* 续问轮终局（done/error/stop/关流）：commit 进树后清空活动轮——语义等价
      旧「尾行终稿替换 + 轮级态保留」（终态随轮入树，树尾轮渲染到下一轮开始）。 */
