@@ -2564,7 +2564,7 @@ test("#416 empty state hides the header title and centers the composer (FT-2 uni
 
   // FT-2 两态同形：空态与会话态同 rows=1（多行由 autoresize 长高）
   const composer = view.getByLabelText("Ask the agent");
-  assert.equal(composer.getAttribute("rows"), "1", "empty variant shares the conversation-state one-row shape");
+  assert.equal(composer.getAttribute("rows"), "3", "#725: empty variant shares the conversation-state shape (now 3 rows)");
   assert.ok(view.getByText(/example|suggestion|layout|music|mod/i, { exact: false }) || true);
 });
 
@@ -2588,7 +2588,7 @@ test("#416 conversation state docks the one-row composer and shows the sourced t
   await waitFor(() => assert.ok(view.getByText("已有一轮对话")));
   assert.equal(view.getAllByText("星尘设定集").length >= 2, true, "title appears in list and header from one source");
   const composer = view.getByLabelText("Ask the agent");
-  assert.equal(composer.getAttribute("rows"), "1", "docked variant keeps the regular bottom form");
+  assert.equal(composer.getAttribute("rows"), "3", "#725: docked variant keeps the regular bottom form (3 rows)");
 });
 
 test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blank restores", async () => {
