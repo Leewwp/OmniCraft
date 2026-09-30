@@ -905,13 +905,14 @@ func (s *AgentService) PreheatUsageGuides(ctx context.Context, contentID int64) 
 	if s.usageGuideCache == nil || !s.cfg.Agent.WebAgentEnabled {
 		return
 	}
-	go func() {
+	// 后台 goroutine 必须带 panic 防护（宪法 XV）；预热失败不得击穿进程。
+	recovery.GoSafe(func() {
 		preheatCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 		defer cancel()
 		s.usageGuideCache.PreheatContent(preheatCtx, contentID, func(gctx context.Context, content *model.ContentItem, locale string, _ bool) (string, error) {
 			return s.generateGuideText(gctx, content, locale)
 		})
-	}()
+	})
 }
 
 // usageGuideLanguageName maps a normalized guide locale to the language name
