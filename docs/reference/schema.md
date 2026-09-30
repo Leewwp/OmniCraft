@@ -406,7 +406,7 @@
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `content_id` | `BIGINT` | NOT NULL | content_id |
+| `content_id` | `BIGINT` | NOT NULL -> content_items.id | content_id |
 | `locale` | `VARCHAR(8)` | NOT NULL | locale |
 | `prompt_version` | `INT` | NOT NULL | prompt_version |
 | `input_fingerprint` | `VARCHAR(64)` | NOT NULL | input_fingerprint |

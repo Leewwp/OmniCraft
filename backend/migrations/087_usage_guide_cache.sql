@@ -1,7 +1,8 @@
 -- #728: auto-generated usage-guide cache (independent of author rows).
 --   * content_usage_guides keeps author-confirmed rows only (Upsert fully
 --     overwrites); auto results MUST NOT mix in, hence a separate table.
---   * Invalidation key: input fingerprint (title/description/type/focus)
+--   * Invalidation key: input fingerprint (title/description/type; focus
+--     derives from the type, so hashing it adds nothing)
 --     + prompt registry version; content_updated_at guards stale writers
 --     (an older task never overwrites a newer cache row).
 CREATE TABLE content_usage_guide_cache (
