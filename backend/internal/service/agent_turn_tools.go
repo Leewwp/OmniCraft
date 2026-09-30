@@ -36,12 +36,14 @@ type ToolRuntime interface {
 
 // ToolScope carries the execution scoping the answer turn establishes once:
 // the viewer behind the request, the conversation (per-conversation
-// budgets), the live-turn image count, and the optional publish snapshot.
+// budgets), the live-turn image count, the optional publish snapshot, and
+// the #723 requester locale (empty = historic zh default).
 type ToolScope struct {
 	ViewerID       int64
 	ConversationID int64
 	TurnImages     int
 	Snapshot       *AgentPublishSnapshot
+	Locale         string
 }
 
 // localToolRuntime adapts the fixed local registry (toolRegistry map +
@@ -63,6 +65,7 @@ func (r *localToolRuntime) ExecuteTool(ctx context.Context, name string, rawArgs
 		ConversationID: scope.ConversationID,
 		TurnImages:     scope.TurnImages,
 		Snapshot:       scope.Snapshot,
+		Locale:         scope.Locale,
 	})
 	return outcome, withToolError(outcome, name, err, start)
 }

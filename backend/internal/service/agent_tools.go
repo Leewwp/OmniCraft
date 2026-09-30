@@ -274,13 +274,14 @@ func (s *AgentService) resolveVisibleContent(ctx context.Context, viewerID, cont
 
 // agentToolScope carries the per-turn execution context into tool handlers:
 // viewer identity, the conversation for budget-scoped tools, the live-turn
-// image count (the durable #538 rows only land at end of turn), and the
-// typed publish snapshot.
+// image count (the durable #538 rows only land at end of turn), the typed
+// publish snapshot, and the #723 requester locale.
 type agentToolScope struct {
 	ViewerID       int64
 	ConversationID int64
 	TurnImages     int
 	Snapshot       *AgentPublishSnapshot
+	Locale         string
 }
 
 type agentToolHandler func(context.Context, json.RawMessage, agentToolScope) (*AgentToolOutcome, error)
@@ -298,7 +299,7 @@ func (s *AgentService) toolRegistry() map[string]agentToolHandler {
 			return s.toolGetContentDetail(ctx, args, scope.ViewerID)
 		},
 		ToolGetUsageGuide: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
-			return s.toolGetUsageGuide(ctx, args, scope.ViewerID)
+			return s.toolGetUsageGuide(ctx, args, scope.ViewerID, scope.Locale)
 		},
 		ToolSuggestPublishMetadata: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
 			return s.toolSuggestPublishMetadata(ctx, args, scope.Snapshot)
@@ -665,7 +666,7 @@ func (s *AgentService) toolGetContentDetail(ctx context.Context, rawArgs json.Ra
 	return &AgentToolOutcome{Detail: summary}, nil
 }
 
-func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMessage, viewerID int64) (*AgentToolOutcome, error) {
+func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMessage, viewerID int64, locale string) (*AgentToolOutcome, error) {
 	var args contentIDToolArgs
 	if err := decodeToolArgs(rawArgs, &args); err != nil {
 		return nil, err
@@ -677,8 +678,9 @@ func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMe
 		return nil, err
 	}
 	// Structured-first applies to the in-chat tool too (SP-16 #447):
-	// persisted specifics render without an LLM round-trip.
-	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID, false)
+	// persisted specifics render without an LLM round-trip. Locale comes
+	// from the turn's request context (#723); empty keeps the zh default.
+	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID, false, locale)
 	if err != nil {
 		return nil, err
 	}

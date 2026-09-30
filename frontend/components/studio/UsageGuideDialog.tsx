@@ -96,7 +96,8 @@ export function UsageGuideDialog({ contentId, contentType, onClose }: UsageGuide
   async function requestDraft() {
     setDrafting(true);
     try {
-      const res = await api.get(`/api/v1/agent/usage-guide/${contentId}?draft=true`) as Record<string, unknown>;
+      // #723：草稿语言跟随编辑器当前选定的指导语言（可不同于站点语言）。
+      const res = await api.get(`/api/v1/agent/usage-guide/${contentId}?draft=true&locale=${locale}`) as Record<string, unknown>;
       const guide = typeof res?.guide === "string" ? res.guide : "";
       if (guide) {
         // 草稿是 Markdown 文本，直接进 notes 作为起点；作者确认/改写后保存。

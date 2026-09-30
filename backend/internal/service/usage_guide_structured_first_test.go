@@ -65,7 +65,7 @@ func TestUsageGuideStructuredFirst(t *testing.T) {
 	}
 
 	t.Run("no specifics still reaches the LLM", func(t *testing.T) {
-		if _, err := svc.UsageGuide(ctx, 0, 801, false); err == nil {
+		if _, err := svc.UsageGuide(ctx, 0, 801, false, "zh"); err == nil {
 			t.Fatal("failing provider must surface its error when no specifics exist")
 		}
 	})
@@ -81,11 +81,11 @@ func TestUsageGuideStructuredFirst(t *testing.T) {
 			t.Fatalf("seed specifics: %v", err)
 		}
 
-		if !svc.HasStructuredGuide(ctx, 801) {
+		if !svc.HasStructuredGuide(ctx, 801, "zh") {
 			t.Fatal("HasStructuredGuide must be true after specifics are saved")
 		}
 
-		result, err := svc.UsageGuide(ctx, 0, 801, false)
+		result, err := svc.UsageGuide(ctx, 0, 801, false, "zh")
 		if err != nil {
 			t.Fatalf("structured read hit the LLM: %v", err)
 		}
@@ -97,7 +97,7 @@ func TestUsageGuideStructuredFirst(t *testing.T) {
 		}
 
 		var deltas []string
-		err = svc.UsageGuideStream(ctx, 0, 801, false, func(delta string, done bool) error {
+		err = svc.UsageGuideStream(ctx, 0, 801, false, "zh", func(delta string, done bool) error {
 			if delta != "" {
 				deltas = append(deltas, delta)
 			}
@@ -112,7 +112,7 @@ func TestUsageGuideStructuredFirst(t *testing.T) {
 	})
 
 	t.Run("draft=true forces the LLM path", func(t *testing.T) {
-		if _, err := svc.UsageGuide(ctx, 0, 801, true); err == nil {
+		if _, err := svc.UsageGuide(ctx, 0, 801, true, "zh"); err == nil {
 			t.Fatal("draft=true must bypass specifics and reach the (failing) provider")
 		}
 	})

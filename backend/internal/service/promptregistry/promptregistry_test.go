@@ -100,17 +100,9 @@ Respond ONLY with valid JSON: {"risk_level":"safe|warning|violation","reason":""
 				"T", "D", "mod"),
 			values: map[string]string{"title": "T", "description": "D", "content_type": "mod"},
 		},
-		{
-			slot: "usage_guide_prompt",
-			old: fmt.Sprintf(`Generate a concise usage guide for this content:
-Title: %s
-Type: %s
-Description: %s
-
-Focus on: %s
-Format as Markdown.`, "T", "guide", "D", "usage instructions and best practices"),
-			values: map[string]string{"title": "T", "content_type": "guide", "description": "D", "guide_focus": "usage instructions and best practices"},
-		},
+		// usage_guide_prompt 的 v1 字节等价 golden 已随 #723 有意解除：
+		// Builtin 升为 v2 内容（language 必需占位符 + 输出语言条款），
+		// 等价性改由 TestUsageGuideV2CarriesLanguageClause 钉住。
 		{
 			slot: "content_moderation_prompt",
 			old: fmt.Sprintf(`Moderate this content for policy violations:
@@ -624,5 +616,40 @@ func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 	content, version := resolver.Resolve(ctx, slot)
 	if version != 2 || content != agentSystemV2() {
 		t.Fatalf("resolver must serve shipped v2, got v%d", version)
+	}
+}
+
+func TestUsageGuideV2CarriesLanguageClause(t *testing.T) {
+	content := usageGuideV2()
+	if err := ValidateTemplate(SlotUsageGuide, content); err != nil {
+		t.Fatalf("v2 template placeholders: %v", err)
+	}
+	values := map[string]string{
+		"title": "T", "content_type": "mod", "description": "D",
+		"guide_focus": "usage instructions and best practices",
+		"language":    "English",
+	}
+	rendered := Render(content, values)
+	if !strings.Contains(rendered, "Write the entire guide in English.") {
+		t.Fatalf("v2 render misses language clause: %q", rendered)
+	}
+	values["language"] = "Simplified Chinese"
+	if Render(content, values) == rendered {
+		t.Fatal("language placeholder must change the rendered prompt")
+	}
+	// #723：Builtin 即 v2 内容（新库 SeedV1 直接落 v2；存量库 v1 行不可变，
+	// 经 RegistryUpgrades 升版）——「builtin 满足自身契约」不变量保持。
+	if SlotUsageGuide.Builtin != usageGuideV2() {
+		t.Fatal("builtin must equal the shipped v2 content")
+	}
+	// 升版清单携带 v2。
+	found := false
+	for _, up := range RegistryUpgrades {
+		if up.SlotName == SlotUsageGuide.Name && up.Version == 2 && up.Content == content {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("RegistryUpgrades must ship usage_guide_prompt v2")
 	}
 }
