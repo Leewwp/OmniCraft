@@ -151,6 +151,7 @@ var RegistryUpgrades = []UpgradeSeed{
 	{SlotName: SlotAgentSystem.Name, Version: 3, Content: agentSystemV3()},
 	{SlotName: SlotAgentSystem.Name, Version: 4, Content: agentSystemV4()},
 	{SlotName: SlotAgentSystem.Name, Version: 5, Content: agentSystemV5()},
+	{SlotName: SlotUsageGuide.Name, Version: 2, Content: usageGuideV2()},
 }
 
 // SeedUpgrades applies code-shipped version bumps after SeedV1. Each entry

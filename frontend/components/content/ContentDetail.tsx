@@ -25,7 +25,7 @@ import { AttachmentPreview, type PreviewableAttachment } from "@/components/cont
 import { DownloadButton } from "@/components/content/DownloadButton";
 import { CollectionPicker } from "@/components/content/CollectionPicker";
 import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
-import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
+import { UsageGuidePanel, usageGuidePanelTarget } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { FollowButton } from "@/components/social/FollowButton";
@@ -528,9 +528,11 @@ export function ContentDetail({
       )}
       </AgentFeatureGate>
 
-      {/* AI Usage Guide */}
+      {/* AI Usage Guide（#723 适用范围：mod/template/3d_print/sheet_music
+          或带 document 族附件；article 隐藏；feature gate 与 published
+          优先叠加）。 */}
       <AgentFeatureGate capability="webAgent">
-        {(contentType === "mod" || contentType === "sheet_music") && data.status === "published" && (
+        {usageGuidePanelTarget(contentType, data.attachments) && data.status === "published" && (
           <UsageGuidePanel contentId={data.id} />
         )}
       </AgentFeatureGate>

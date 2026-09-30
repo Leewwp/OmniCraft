@@ -538,9 +538,13 @@ type UsageGuideResult struct {
 	Source     string `json:"source,omitempty"`
 }
 
-func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64, forceLLM bool) (*UsageGuideResult, error) {
+func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, locale string) (*UsageGuideResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
+	}
+	locale, err := normalizeLocale(locale)
+	if err != nil {
+		return nil, err
 	}
 
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
@@ -551,9 +555,9 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 	// SP-16 #447 structured-first: persisted specifics render without any
 	// LLM call; forceLLM (studio draft button) regenerates instead.
 	if !forceLLM {
-		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID, locale); ok {
 			return &UsageGuideResult{
-				Guide:      RenderUsageGuideMarkdown(view),
+				Guide:      RenderUsageGuideMarkdown(view, locale),
 				Structured: true,
 				Source:     view.Source,
 			}, nil
@@ -575,6 +579,9 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 		"content_type": content.ContentType,
 		"description":  content.Description,
 		"guide_focus":  guideType,
+		// #723 v2 槽位：输出语言跟随请求 locale（v1 模板无此 token，
+		// 多传无害）。
+		"language": usageGuideLanguageName(locale),
 	})
 
 	req := llm.ChatRequest{
@@ -595,9 +602,13 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 	return &UsageGuideResult{Guide: resp.Content}, nil
 }
 
-func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, handler func(delta string, done bool) error) error {
+func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, locale string, handler func(delta string, done bool) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
+	}
+	locale, err := normalizeLocale(locale)
+	if err != nil {
+		return err
 	}
 
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
@@ -608,17 +619,38 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 	// SP-16 #447 structured-first on the stream contract: one delta carries
 	// the rendered markdown, then done.
 	if !forceLLM {
-		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
-			if err := handler(RenderUsageGuideMarkdown(view), false); err != nil {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID, locale); ok {
+			if err := handler(RenderUsageGuideMarkdown(view, locale), false); err != nil {
 				return err
 			}
 			return handler("", true)
 		}
 	}
 
-	prompt := fmt.Sprintf("Generate a concise usage guide for: %s (type: %s)", content.Title, content.ContentType)
+	// #723：stream 不再用代码内硬编码英文 prompt——与非流式共用同一
+	// usage_guide_prompt 槽位（含 guide_focus 分型与 v2 输出语言条款），
+	// 消除双链漂移。
+	var guideType string
+	switch content.ContentType {
+	case "mod":
+		guideType = "installation steps, compatibility requirements, and conflict resolution"
+	case "sheet_music":
+		guideType = "recommended software, playback instructions, and printing tips"
+	default:
+		guideType = "usage instructions and best practices"
+	}
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
+		"title":        content.Title,
+		"content_type": content.ContentType,
+		"description":  content.Description,
+		"guide_focus":  guideType,
+		"language":     usageGuideLanguageName(locale),
+	})
 	req := llm.ChatRequest{
-		Messages:    []llm.ChatMessage{{Role: "user", Content: prompt}},
+		Messages: []llm.ChatMessage{
+			{Role: "system", Content: "You are a helpful content guide writer."},
+			{Role: "user", Content: prompt},
+		},
 		MaxTokens:   800,
 		Temperature: 0.5,
 		Stream:      true,
@@ -745,11 +777,11 @@ func (s *AgentService) SetUsageGuideService(svc *UsageGuideService) {
 // structuredUsageGuide returns the merged view when the content has
 // persisted specifics (pure templates never short-circuit the LLM here —
 // they are generic, not content-specific guidance).
-func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID int64) (*UsageGuideView, bool) {
+func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID int64, locale string) (*UsageGuideView, bool) {
 	if s.usageGuideSvc == nil {
 		return nil, false
 	}
-	view, err := s.usageGuideSvc.GetMergedView(ctx, contentItemID, "zh")
+	view, err := s.usageGuideSvc.GetMergedView(ctx, contentItemID, locale)
 	if err != nil || view == nil || view.Source == "" {
 		return nil, false
 	}
@@ -758,28 +790,47 @@ func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID i
 
 // HasStructuredGuide reports whether the usage-guide read will be served
 // from persisted specifics, letting the handler skip quota reservation for
-// non-LLM answers.
-func (s *AgentService) HasStructuredGuide(ctx context.Context, contentItemID int64) bool {
-	_, ok := s.structuredUsageGuide(ctx, contentItemID)
+// non-LLM answers. Locale-participating since #723: a structured row only
+// 免配额 when it exists for the requested language.
+func (s *AgentService) HasStructuredGuide(ctx context.Context, contentItemID int64, locale string) bool {
+	_, ok := s.structuredUsageGuide(ctx, contentItemID, locale)
 	return ok
 }
 
+// usageGuideLanguageName maps a normalized guide locale to the language name
+// injected into the v2 prompt clause.
+func usageGuideLanguageName(locale string) string {
+	if locale == "en" {
+		return "English"
+	}
+	return "Simplified Chinese"
+}
+
 // RenderUsageGuideMarkdown flattens a merged guide view into the Markdown
-// shape the in-site agent surface has always served.
-func RenderUsageGuideMarkdown(view *UsageGuideView) string {
+// shape the in-site agent surface has always served. Section headings
+// follow the requested locale (#723); the default keeps the historic
+// Chinese headings.
+func RenderUsageGuideMarkdown(view *UsageGuideView, locale string) string {
+	type headings struct{ requirements, steps, notes, safety string }
+	var h headings
+	if locale == "en" {
+		h = headings{requirements: "Requirements", steps: "How to Use", notes: "Notes", safety: "Safety"}
+	} else {
+		h = headings{requirements: "前置要求", steps: "使用步骤", notes: "说明", safety: "安全提示"}
+	}
 	var b strings.Builder
-	b.WriteString("## 前置要求\n")
+	b.WriteString("## " + h.requirements + "\n")
 	for _, item := range view.Requirements {
 		b.WriteString("- " + item + "\n")
 	}
-	b.WriteString("\n## 使用步骤\n")
+	b.WriteString("\n## " + h.steps + "\n")
 	for i, step := range view.Steps {
 		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, step))
 	}
 	if strings.TrimSpace(view.Notes) != "" {
-		b.WriteString("\n## 说明\n" + view.Notes + "\n")
+		b.WriteString("\n## " + h.notes + "\n" + view.Notes + "\n")
 	}
-	b.WriteString("\n## 安全提示\n")
+	b.WriteString("\n## " + h.safety + "\n")
 	for _, item := range view.Safety {
 		b.WriteString("- " + item + "\n")
 	}

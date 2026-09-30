@@ -3,6 +3,7 @@
 import { isValidElement, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -261,6 +262,14 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
   const ossDomain = useImageHostAllowlist();
 
   const renderers: Components = {
+    // #723 溢出防御：生成内容的长表格包横向滚动容器（表自身不撑宽页面）。
+    table({ children, ...props }) {
+      return (
+        <div className="w-full overflow-x-auto">
+          <table {...props}>{children}</table>
+        </div>
+      );
+    },
     img({ src, alt, ...props }) {
       if (!isAllowedImageSrc(typeof src === "string" ? src : undefined, ossDomain)) {
         return (
@@ -331,7 +340,7 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
   return (
     <div
       className={cn(
-        "prose prose-sm max-w-none dark:prose-invert",
+        "prose prose-sm max-w-none break-words dark:prose-invert",
         "prose-headings:text-foreground prose-p:text-foreground/90 prose-a:text-accent-primary",
         "prose-code:rounded prose-code:border prose-code:border-border prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:text-sm prose-code:font-mono",
         "prose-pre:rounded-md prose-pre:border prose-pre:border-border prose-pre:bg-muted/30 prose-pre:",
@@ -341,7 +350,7 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
         className,
       )}
     >
-      <ReactMarkdown rehypePlugins={[rehypeHighlight]} components={renderers}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={renderers}>
         {source}
       </ReactMarkdown>
     </div>
