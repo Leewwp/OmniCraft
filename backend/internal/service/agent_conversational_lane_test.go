@@ -332,13 +332,14 @@ func TestChitchatShortcutMatchingRules(t *testing.T) {
 }
 
 // TestConversationalLaneSystemPromptDirective pins that the A2 instruction is
-// appended after the 2026-09-06 must-search directive, whose wording must stay
-// byte-identical (spec: 既有指令原文不动).
+// appended after the 2026-09-06 must-search directive. #754 D：must-search 与
+// A2 条款勘正幽灵工具名 cited_search → search_content/search_ips（v6 起
+// 生效）；本测试随之钉 v6 措辞与顺序。
 func TestConversationalLaneSystemPromptDirective(t *testing.T) {
 	svc, _ := newStreamTestService(t, &conversationalLaneProvider{}, conversationalLaneTestConfig())
 	prompt := svc.serverOwnedSystemPrompt(context.Background(), model.AgentChatSurfaceGlobal, nil).Content
 
-	mustSearch := "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge"
+	mustSearch := "for any request to find, search, recommend, compare or summarize site content, you must call search_content first — search_ips for IP (original settings/worlds) requests — and ground the answer only in their results; never recommend or describe site content or IPs from your own knowledge"
 	if idx := strings.Index(prompt, mustSearch); idx < 0 {
 		t.Fatalf("must-search directive missing or reworded: %q", prompt)
 	} else if conversationalIdx := strings.Index(prompt, "for pure greetings, thanks, farewells"); conversationalIdx < idx {
@@ -347,7 +348,7 @@ func TestConversationalLaneSystemPromptDirective(t *testing.T) {
 	if !strings.Contains(prompt, "no searchable text at all") || !strings.Contains(prompt, "one clarifying question") {
 		t.Fatalf("conversational directive incomplete: %q", prompt)
 	}
-	if !strings.Contains(prompt, "always call the cited_search tool with it before replying, even if the intent seems ambiguous") {
+	if !strings.Contains(prompt, "always call search_content (or search_ips for IP requests) with it before replying, even if the intent seems ambiguous") {
 		t.Fatalf("gate tightening missing (bare titles/quotes must search first): %q", prompt)
 	}
 }

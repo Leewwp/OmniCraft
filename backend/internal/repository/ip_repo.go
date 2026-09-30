@@ -117,15 +117,17 @@ func (r *IPRepository) ListIPs(f ListIPsFilter) ([]model.IP, int64, error) {
 
 	switch f.Sort {
 	// T24（FIX-40⑤）：前端词表为 most_contents（复数），后端历史词为
-	// most_content——双收别名防再次漂移。
+	// most_content——双收别名防再次漂移。#754 A：补 id 同分排序保证确定性
+	// （agent 显式浏览把该序当稳定口径披露）。
 	case "most_content", "most_contents":
 		q = q.Select("ips.*, (SELECT COUNT(*) FROM content_items WHERE ip_id = ips.id AND status = 'published') AS content_count").
-			Order("content_count DESC")
+			Order("content_count DESC, ips.id DESC")
 	case "name":
 		// SP-19 G1-3（Q15-A）：名称排序；中文按 PG 默认排序规则，演示可接受。
 		q = q.Order("ips.name ASC")
 	default:
-		q = q.Order("ips.created_at DESC")
+		// newest（含默认）：created_at DESC + id 同分排序（#754 A 确定性）。
+		q = q.Order("ips.created_at DESC, ips.id DESC")
 	}
 
 	offset := (page - 1) * pageSize

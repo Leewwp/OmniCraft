@@ -48,6 +48,11 @@ type AgentService struct {
 	// G2-1): production wiring closes over SearchRepository.SearchIPs; tests
 	// inject a fake because the tsvector SQL is PostgreSQL-only.
 	ipSearch func(ctx context.Context, query, category string, limit int) ([]model.IP, error)
+	// ipBrowse is the approved-IP explicit-browse seam consumed by search_ips
+	// (#754 A): production wiring closes over IPRepository.ListIPs (newest /
+	// most_contents with approved+category applied before the LIMIT); tests
+	// inject a fake. nil keeps the browse lane unavailable.
+	ipBrowse func(ctx context.Context, sort, category string, limit int) ([]model.IP, error)
 	// prompts resolves versioned prompt templates (SP-21 T5): nil = the
 	// compiled-in builtin of every slot; DB production rows override.
 	prompts *promptregistry.PromptResolver
@@ -812,6 +817,32 @@ func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
 	}
 }
 
+// SetIPBrowseRepository wires the search_ips explicit-browse seam (#754 A).
+// The limit is normalized to the repository page-size range (1..100) so the
+// tool budget can never be silently widened by the ListIPs pageSize floor,
+// and filters (approved + category) run in SQL before the LIMIT.
+func (s *AgentService) SetIPBrowseRepository(repo *repository.IPRepository) {
+	if repo == nil {
+		return
+	}
+	s.ipBrowse = func(ctx context.Context, sort, category string, limit int) ([]model.IP, error) {
+		if limit < 1 {
+			limit = 1
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		ips, _, err := repo.ListIPs(repository.ListIPsFilter{
+			Category: category,
+			Status:   "approved",
+			Sort:     sort,
+			Page:     1,
+			PageSize: limit,
+		})
+		return ips, err
+	}
+}
+
 // SetUsageGuideCacheService wires the #728 auto-generation cache.
 func (s *AgentService) SetUsageGuideCacheService(svc *UsageGuideCacheService) {
 	s.usageGuideCache = svc
@@ -1029,8 +1060,10 @@ func (s *AgentService) serverOwnedSystemPrompt(ctx context.Context, surface mode
 	})
 	// SP-19 G2-1: the IP-category clause depends on config, not on prompt
 	// management, so it stays dynamic and appends after the rendered slot.
+	// #754 A/D: keyword and browse lanes are both described — the clause no
+	// longer forces a self-contained keyword query for every IP request.
 	if s.cfg != nil && len(s.cfg.IPCategories) > 0 {
-		prompt += "; " + fmt.Sprintf("when the user asks to find, recommend, or browse IPs (original settings/worlds), call the search_ips tool with a self-contained keyword query; when the user names a genre, pass category with one of these slugs only: %s; cite the IPs you used with the same [n] marks as content results", strings.Join(s.cfg.IPCategories, ", "))
+		prompt += "; " + fmt.Sprintf("when the user asks to find or recommend IPs (original settings/worlds), call the search_ips tool with a self-contained keyword query; for browse or listing requests with no specific keyword (for example 「最近热门的 ip」), call search_ips with sort=newest or sort=most_contents and an empty query instead of guessing keywords; when the user names a genre, pass category with one of these slugs only: %s; cite the IPs you used with the same [n] marks as content results", strings.Join(s.cfg.IPCategories, ", "))
 	}
 	return llm.ChatMessage{
 		Role:    "system",
