@@ -955,7 +955,7 @@ test("workspace streams an answer and renders citation cards", async () => {
     /* settle 竞态防护：轮终局重渲染会换掉展开按钮，点击与断言放同一 waitFor
        内重试（陈旧点击不抛错、断言失败重点）。 */
     await waitFor(() => {
-      fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
+      fireEvent.click(view.getByRole("button", { name: "1 tool steps" }));
       assert.ok(view.getByText("Searched site content"));
     });
     assert.ok(view.getByText("Original"), "citation card exposes the zone label");
@@ -1270,11 +1270,12 @@ test("gap-numbered citations keep badge alignment by turn-global number", async 
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText(/第一/)), { timeout: 3000 });
 
-    /* 编号 3 命中第二条引用：小卡标题 = Third numbered，非数组第 3 项。 */
-    const badge3 = await waitFor(() => view.getByRole("button", { name: "Jump to citation 3" }), { timeout: 8000 });
-        assert.ok((badge3.textContent ?? "").startsWith("3"), "chip leads with the turn-global number");
+    /* #719 展示号：可见列表 [1,3] 连续映射——角标 [3] 文字/读屏用展示号 2，
+       小卡标题仍按原全局编号命中（Third numbered，非数组第 3 项）。 */
+    const badge3 = await waitFor(() => view.getByRole("button", { name: "Jump to citation 2" }), { timeout: 8000 });
+    assert.ok((badge3.textContent ?? "").startsWith("2"), "chip leads with the DISPLAY number (hole collapsed)");
     assert.ok((badge3.textContent ?? "").includes("Third numb"), "badge chip carries the matched citation title (truncated)");
-    /* 编号 1 命中第一条引用。 */
+    /* 编号 1 命中第一条引用（展示号 1 不变）。 */
     const badge1 = view.getByRole("button", { name: "Jump to citation 1" });
     assert.ok((badge1.textContent ?? "").includes("Cited cont"));
     /* 越界编号 2 无引用可命中 = 纯文本 sup 兜底，不产生第三个角标按钮。 */
@@ -1284,7 +1285,7 @@ test("gap-numbered citations keep badge alignment by turn-global number", async 
     let dialog: HTMLElement | undefined;
     for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
       try {
-        fireEvent.click(view.getByRole("button", { name: "Jump to citation 3" }));
+        fireEvent.click(view.getByRole("button", { name: "Jump to citation 2" }));
       } catch {
         /* 消息树替换过渡帧：下一轮重查再点。 */
       }
@@ -1296,12 +1297,14 @@ test("gap-numbered citations keep badge alignment by turn-global number", async 
       { timeout: 2000 },
     );
 
-    /* 侧栏卡片按编号展示（01 / 03），id 键控编号。 */
+    /* 侧栏卡片：展示号按可见列表顺序连续（01 / 02，无空洞），id 仍键控
+       原全局编号（目标查找与存储不变）。 */
     await openCitationsPanel(view);
     await waitFor(() => {
       assert.ok(view.container.querySelector("#agent-citation-1"), "card id keyed by turn-global number");
       assert.ok(view.container.querySelector("#agent-citation-3"));
       assert.ok(!view.container.querySelector("#agent-citation-2"), "dropped number leaves no card");
+      assert.ok(view.getByText("02"), "sidebar shows consecutive display numbers");
     }, { timeout: 8000 });
   } finally {
     globalThis.fetch = originalFetch;
@@ -2219,7 +2222,7 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
 
     /* 工具步骤区：折叠态展示计数，展开可见参数摘要与命中数。 */
     await waitFor(() => {
-      fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
+      fireEvent.click(view.getByRole("button", { name: "1 tool steps" }));
       assert.ok(view.getByText("Searched site content"));
     }, { timeout: 3000 });
     assert.ok(view.getByText(/治愈 素材/), "args summary incl. expansion terms is visible");

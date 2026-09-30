@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronDown, Loader2, Minus, X } from "lucide-react";
+import { Check, Loader2, Minus, Wrench, X } from "lucide-react";
 import type { AgentStreamTool } from "@/lib/agent-stream";
 import { cn } from "@/lib/utils";
+
+import { AgentMetaPill } from "@/components/agent/AgentMetaPill";
 
 interface AgentToolStatusProps {
   tools: AgentStreamTool[];
@@ -83,26 +85,16 @@ export function AgentToolStatus({ tools, live = false }: AgentToolStatusProps) {
   if (tools.length === 0) return null;
 
   return (
-    <div className="max-w-[85%] rounded-md border border-border-default bg-card">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={t("agent.tools.title")}
+    <div className="max-w-[85%] space-y-1.5">
+      <AgentMetaPill
+        icon={Wrench}
+        label={t("agent.tools.stepsSummary", { count: tools.length })}
+        expanded={open}
+        streaming={tools.some((tool) => tool.status === "running")}
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
-      >
-        <StatusIcon status={tools.some((tool) => tool.status === "running") ? "running" : "success"} />
-        <span className="font-medium">{t("agent.tools.stepsSummary", { count: tools.length })}</span>
-        <ChevronDown
-          className={cn(
-            "ml-auto h-3.5 w-3.5 shrink-0 transition-transform duration-150",
-            open && "rotate-180",
-          )}
-          aria-hidden="true"
-        />
-      </button>
+      />
       {open && (
-        <ul className="space-y-1.5 border-t border-border-default px-3 py-2">
+        <ul className="space-y-1.5 rounded-md border border-border-default bg-card px-3 py-2">
           {tools.map((tool, index) => {
             const labelKey =
               TOOL_RESULT_KEYS[tool.name]?.[tool.status] ?? FALLBACK_RESULT_KEYS[tool.status];

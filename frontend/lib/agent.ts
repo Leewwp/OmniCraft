@@ -296,3 +296,32 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
       return null;
   }
 }
+
+/**
+ * #719 展示号映射：可见引用列表按当前渲染顺序连续重映射（displayNumber =
+ * 位置 + 1），消除服务端复验剔除留下的编号空洞。单向、纯渲染层——原全局
+ * 编号继续负责目标查找与存储（FT-5 保槽契约不动），turn.answer 原文不改写；
+ * 正文角标、侧栏卡片、复制文本、读屏编号共用同一映射（单一来源）。
+ * 历史旧轮无 number 字段的回退 = 位置序（行为不变）。
+ */
+export function citationDisplayMapOf(citations: readonly { number?: number }[]): Map<number, number> {
+  const map = new Map<number, number>();
+  citations.forEach((citation, position) => {
+    const original = citation.number ?? position + 1;
+    if (!map.has(original)) map.set(original, position + 1);
+  });
+  return map;
+}
+
+/**
+ * #719：复制文本中的 [n] 角标编号经展示号映射替换（屏显/剪贴板一致，
+ * 不出现「屏幕 [6] / 剪贴板 [7]」）。未命中映射的编号原样保留；不改写
+ * 真实链接 [1](url)、引用定义 [1]: 与图片 ![1]（与 withCitationAnchors
+ * 同一边界）。纯函数：返回新串，不改原文。
+ */
+export function remapCitationMarks(text: string, map: Map<number, number>): string {
+  return text.replace(/(?<!!)\[(\d{1,2})\](?![:([])/g, (match, digits: string) => {
+    const display = map.get(Number.parseInt(digits, 10));
+    return display !== undefined ? `[${display}]` : match;
+  });
+}

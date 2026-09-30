@@ -38,7 +38,9 @@ import {
 import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
 import { AgentThinkingPlaceholder } from "@/components/agent/AgentThinkingPlaceholder";
+import { AgentMetaPill } from "@/components/agent/AgentMetaPill";
 import { shouldShowThinkingPlaceholder } from "@/lib/agent-turn";
+import { citationDisplayMapOf, remapCitationMarks } from "@/lib/agent";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
   AgentConversationSidebar,
@@ -708,6 +710,13 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   function renderTurnBlocks(turn: AgentTurn, options: { isLive: boolean }) {
     const terminal = turn.terminal;
     const badgeCitations = turn.answerCitations ?? (options.isLive ? terminal.citations : []);
+    /* #719 展示号映射（单一来源）：正文角标 / 复制替换共用；侧栏按同一
+       列表顺序渲染（位置即展示号），目标查找仍用原全局编号。 */
+    const displayMap = citationDisplayMapOf(badgeCitations);
+    const badgeInfos = badgeCitations.map((citation, index) => {
+      const info = toCitationBadgeInfo(citation, index);
+      return { ...info, displayNumber: displayMap.get(info.number) };
+    });
     return (
       <Fragment key={turn.id}>
         <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
@@ -740,19 +749,21 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         ) : turn.answer !== "" ? (
           <>
             <div className="group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm">
-              {/* 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验） */}
+              {/* 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验）。
+                  #719 展示号：角标文字/读屏用 displayNumber（可见列表顺序连续），
+                  点击命中仍传原全局编号。 */}
               <MarkdownRenderer
                 content={turn.answer}
                 onCitationRef={(citationRef) => handleCitationRef(citationRef, badgeCitations)}
                 citationCount={badgeCitations.length}
-                citations={badgeCitations.map(toCitationBadgeInfo)}
+                citations={badgeInfos}
               />
               {!streaming && actionsTurnId === turn.id && (
                 <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100">
                   <button
                     type="button"
                     aria-label={t("agent.workspace.copyMessage")}
-                    onClick={() => void handleCopyMessage(turn.answer)}
+                    onClick={() => void handleCopyMessage(remapCitationMarks(turn.answer, displayMap))}
                     className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <Copy className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1166,18 +1177,17 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
 
 /** FT-4（#696）：回答底部「N 条参考来源」入口按钮（侧栏 toggle 通道之一；
-    另一通道 = 侧栏 X）。原内联折叠列表退役。 */
+    另一通道 = 侧栏 X）。原内联折叠列表退役。#719：统一 AgentMetaPill
+    胶囊外观（点击仍开侧栏）。 */
 function CitationsEntryButton({ count, active, onToggle }: { count: number; active: boolean; onToggle: () => void }) {
   const t = useTranslations();
   return (
-    <button
-      type="button"
+    <AgentMetaPill
+      icon={BookOpenText}
+      label={t("agent.citations.entry", { count })}
+      pressed={active}
       onClick={onToggle}
-      aria-pressed={active}
-      className="mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring"
-    >
-      <BookOpenText className="size-3.5" aria-hidden="true" />
-      {t("agent.citations.entry", { count })}
-    </button>
+      className="mt-1"
+    />
   );
 }
