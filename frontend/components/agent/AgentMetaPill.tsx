@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 interface AgentMetaPillProps {
   /** 图标组件（streaming 时替换为旋转 Loader2）。 */
   icon: LucideIcon;
+  /** #721：按钮 ref（抽屉关闭后的焦点返回目标）。 */
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
   label: string;
   count?: number;
   /** 展开指示（chevron 旋转 + aria-expanded）。 */
@@ -34,6 +36,7 @@ interface AgentMetaPillProps {
 export function AgentMetaPill({
   icon: Icon,
   label,
+  buttonRef,
   count,
   expanded,
   pressed,
@@ -46,6 +49,7 @@ export function AgentMetaPill({
   return (
     <button
       type="button"
+      ref={buttonRef}
       onClick={onClick}
       aria-expanded={expanded}
       aria-pressed={pressed}
