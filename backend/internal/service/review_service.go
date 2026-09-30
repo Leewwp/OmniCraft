@@ -17,6 +17,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/events"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/pkg/rediskeys"
 	"omnicraft/backend/internal/repository"
 )
@@ -88,6 +89,14 @@ type ReviewService struct {
 	outbox      repository.OutboxWriter
 	archiveGate *ArchiveScanGate
 	notifSvc    *NotificationService
+	/* #728 发布转正式后的使用指导双语预热钩子（异步，失败不阻塞发布）。
+	   接口化避免 review → agent 服务硬依赖。 */
+	usageGuidePreheat func(context.Context, int64)
+}
+
+// SetUsageGuidePreheater wires the #728 publish-time preheat hook.
+func (s *ReviewService) SetUsageGuidePreheater(hook func(context.Context, int64)) {
+	s.usageGuidePreheat = hook
 }
 
 func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputSvc *ReputationService) *ReviewService {
@@ -304,6 +313,8 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 	// content whose status may have changed, and a commit failure skips the
 	// invalidation entirely.
 	var invalidated []int64
+	/* #728：预热意图在事务内收集、提交后执行。 */
+	var preheatIDs []int64
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		recorded, err := s.recordAIReview(ctx, tx, in.TargetType, in.TargetID, result, in.RawResponse, providerTaskID)
 		if err != nil {
@@ -324,7 +335,7 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 		if !strings.EqualFold(in.TargetType, "content") {
 			return nil
 		}
-		if err := s.applyContentReviewResult(ctx, tx, in.TargetID, result); err != nil {
+		if err := s.applyContentReviewResult(ctx, tx, in.TargetID, result, &preheatIDs); err != nil {
 			return err
 		}
 		invalidated = []int64{in.TargetID}
@@ -334,6 +345,8 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 		return err
 	}
 	InvalidateContentCaches(s.rdb, invalidated...)
+	// #728：提交后触发预热（异步、失败不阻塞发布流程）。
+	s.dispatchUsageGuidePreheat(ctx, preheatIDs)
 	return nil
 }
 
@@ -343,7 +356,7 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 // a banned row, so a late async result cannot resurrect blocked content.
 // The block branch stays idempotent: an already-banned row is not
 // re-penalized.
-func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.DB, contentID int64, result string) error {
+func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.DB, contentID int64, result string, preheatIDs *[]int64) error {
 	var content model.ContentItem
 	if err := tx.First(&content, contentID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -414,6 +427,12 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 		if err := s.emitContentEvent(ctx, tx, events.TopicContentPublished, content, "published"); err != nil {
 			return err
 		}
+		// #728：发布转正式 → 双语指导预热。事务内只收集意图；执行在
+		// 事务提交后由调用方触发（提交前异步读会看到旧 status，预热会
+		// 静默跳过——双轴审查 P1）。
+		if s.usageGuidePreheat != nil && preheatIDs != nil {
+			*preheatIDs = append(*preheatIDs, content.ID)
+		}
 	}
 	return nil
 }
@@ -439,6 +458,8 @@ func (s *ReviewService) ArchiveScanClean(ctx context.Context, attachmentID int64
 		return errors.New("review service not initialized")
 	}
 	var invalidated int64
+	/* #728：预热意图在事务内收集、提交后执行。 */
+	var preheatIDs []int64
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var attachment model.ContentAttachment
 		if err := tx.Where("id = ?", attachmentID).First(&attachment).Error; err != nil {
@@ -468,7 +489,7 @@ func (s *ReviewService) ArchiveScanClean(ctx context.Context, attachmentID int64
 		if latest.Result != "pass" {
 			return nil
 		}
-		if err := s.applyContentReviewResult(ctx, tx, content.ID, "pass"); err != nil {
+		if err := s.applyContentReviewResult(ctx, tx, content.ID, "pass", &preheatIDs); err != nil {
 			return err
 		}
 		invalidated = content.ID
@@ -482,7 +503,31 @@ func (s *ReviewService) ArchiveScanClean(ctx context.Context, attachmentID int64
 	if invalidated > 0 {
 		InvalidateContentCaches(s.rdb, invalidated)
 	}
+	// #728：提交后触发预热。
+	s.dispatchUsageGuidePreheat(ctx, preheatIDs)
 	return nil
+}
+
+// dispatchUsageGuidePreheat fires the #728 bilingual guide preheat after the
+// status transaction has committed; the preheat itself is asynchronous and
+// never blocks the publish flow (its own goroutine carries the panic guard).
+// DispatchUsageGuidePreheat is the exported post-commit trigger (#728) for
+// callers outside the review service (content edit re-review path).
+func (s *ReviewService) DispatchUsageGuidePreheat(ctx context.Context, contentIDs []int64) {
+	s.dispatchUsageGuidePreheat(ctx, contentIDs)
+}
+
+func (s *ReviewService) dispatchUsageGuidePreheat(ctx context.Context, contentIDs []int64) {
+	if s.usageGuidePreheat == nil || len(contentIDs) == 0 {
+		return
+	}
+	preheatCtx := context.WithoutCancel(ctx)
+	for _, id := range contentIDs {
+		contentID := id
+		recovery.GoSafe(func() {
+			s.usageGuidePreheat(preheatCtx, contentID)
+		})
+	}
 }
 
 // emitContentEvent writes one outbox row inside the caller's transaction, so

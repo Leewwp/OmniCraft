@@ -28,13 +28,15 @@ var ErrAgentDisabled = errors.New("web agent is disabled")
 var ErrAgentFileTooLarge = errors.New("file too large for upload assist")
 
 type AgentService struct {
-	llmProvider     llm.LLMProvider
-	chatStreamer    agentChatStreamer
-	modelRouter     llm.ModelRouter
-	embeddingRepo   *repository.EmbeddingRepository
-	contentRepo     *repository.ContentRepository
-	searchRepo      *repository.SearchRepository
-	usageGuideSvc   *UsageGuideService
+	llmProvider   llm.LLMProvider
+	chatStreamer  agentChatStreamer
+	modelRouter   llm.ModelRouter
+	embeddingRepo *repository.EmbeddingRepository
+	contentRepo   *repository.ContentRepository
+	searchRepo    *repository.SearchRepository
+	usageGuideSvc *UsageGuideService
+	/* #728 自动生成缓存（发布预热 + 存量懒生成共用入口）。 */
+	usageGuideCache *UsageGuideCacheService
 	ragChunkRepo    *repository.RagChunkRepository
 	hybridRetriever AgentContentRetriever
 	greenClient     agentGreenScanner
@@ -562,44 +564,32 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 				Source:     view.Source,
 			}, nil
 		}
+		// #728 缓存命中（免配额、零 LLM；作者行优先已在上方）。
+		if s.usageGuideCache != nil {
+			if cached, ok := s.usageGuideCache.FindValid(ctx, content, locale); ok {
+				return &UsageGuideResult{Guide: cached, Source: model.UsageGuideCacheSourceAuto}, nil
+			}
+		}
 	}
 
-	var guideType string
-	switch content.ContentType {
-	case "mod":
-		guideType = "installation steps, compatibility requirements, and conflict resolution"
-	case "sheet_music":
-		guideType = "recommended software, playback instructions, and printing tips"
-	default:
-		guideType = "usage instructions and best practices"
+	generateOnce := func(gctx context.Context) (string, error) {
+		return s.generateGuideText(gctx, content, locale)
 	}
 
-	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
-		"title":        content.Title,
-		"content_type": content.ContentType,
-		"description":  content.Description,
-		"guide_focus":  guideType,
-		// #723 v2 槽位：输出语言跟随请求 locale（v1 模板无此 token，
-		// 多传无害）。
-		"language": usageGuideLanguageName(locale),
-	})
-
-	req := llm.ChatRequest{
-		Messages: []llm.ChatMessage{
-			{Role: "system", Content: "You are a helpful content guide writer."},
-			{Role: "user", Content: prompt},
-		},
-		MaxTokens:   800,
-		Temperature: 0.5,
+	// #728：draft 直生成（不读不写缓存）；正式路径经统一缓存入口
+	//（跨进程去重 + 守卫写）。
+	if forceLLM || s.usageGuideCache == nil {
+		text, err := generateOnce(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &UsageGuideResult{Guide: text}, nil
 	}
-
-	resp, err := s.auxLLMTrace(ctx, "aux_guide", promptregistry.SlotUsageGuide, agenttrace.NodeTypeGuide, func() (*llm.ChatResponse, error) {
-		return s.llmProvider.Chat(ctx, req)
-	})
+	text, err := s.usageGuideCache.GetOrGenerate(ctx, content, locale, false, generateOnce)
 	if err != nil {
 		return nil, err
 	}
-	return &UsageGuideResult{Guide: resp.Content}, nil
+	return &UsageGuideResult{Guide: text}, nil
 }
 
 func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, locale string, handler func(delta string, done bool) error) error {
@@ -624,6 +614,16 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 				return err
 			}
 			return handler("", true)
+		}
+		// #728 缓存命中：单 delta 全文 + done（零 LLM、免配额——配额
+		// 预留在 handler 层，命中在预留之前由 HasCachedGuide 判定跳过）。
+		if s.usageGuideCache != nil {
+			if cached, ok := s.usageGuideCache.FindValid(ctx, content, locale); ok {
+				if err := handler(cached, false); err != nil {
+					return err
+				}
+				return handler("", true)
+			}
 		}
 	}
 
@@ -656,9 +656,53 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 		Stream:      true,
 	}
 
-	return s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
+	forwardStream := func(sctx context.Context) error {
+		return s.llmProvider.ChatStream(sctx, req, func(delta llm.ChatDelta) error {
+			return handler(delta.Content, delta.Done)
+		})
+	}
+
+	// #728：draft 直流式（不读不写缓存）。
+	if forceLLM || s.usageGuideCache == nil {
+		return forwardStream(ctx)
+	}
+
+	lease, cacheHit, cached := s.usageGuideCache.AcquireForStream(ctx, content, locale)
+	if cacheHit {
+		if err := handler(cached, false); err != nil {
+			return err
+		}
+		return handler("", true)
+	}
+	if lease == nil {
+		// 缓存服务不可用（无 repo）：退化为直生成。
+		return forwardStream(ctx)
+	}
+	if !lease.Owner() {
+		// 与预热/其他进程的生成合并：等待共享结果（单等待者断开只取消
+		// 自身等待）；超时本地兜底。
+		if shared, ok := s.usageGuideCache.WaitShared(ctx, content, locale); ok {
+			if err := handler(shared, false); err != nil {
+				return err
+			}
+			return handler("", true)
+		}
+	}
+
+	// 租约持有者：边流式转发边累计；仅完整成功（ChatStream 无错返回）
+	// 落缓存——半截流/失败不缓存。
+	var accumulated strings.Builder
+	streamErr := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
+		accumulated.WriteString(delta.Content)
 		return handler(delta.Content, delta.Done)
 	})
+	if streamErr == nil && strings.TrimSpace(accumulated.String()) != "" {
+		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		s.usageGuideCache.SaveComplete(saveCtx, content, locale, accumulated.String())
+		cancel()
+	}
+	lease.Release()
+	return streamErr
 }
 
 type ModerationResult struct {
@@ -768,6 +812,11 @@ func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
 	}
 }
 
+// SetUsageGuideCacheService wires the #728 auto-generation cache.
+func (s *AgentService) SetUsageGuideCacheService(svc *UsageGuideCacheService) {
+	s.usageGuideCache = svc
+}
+
 // SetUsageGuideService wires the merged guide view the in-site agent reads
 // before falling back to LLM generation (SP-16 #447).
 func (s *AgentService) SetUsageGuideService(svc *UsageGuideService) {
@@ -795,6 +844,74 @@ func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID i
 func (s *AgentService) HasStructuredGuide(ctx context.Context, contentItemID int64, locale string) bool {
 	_, ok := s.structuredUsageGuide(ctx, contentItemID, locale)
 	return ok
+}
+
+// generateGuideText is the raw #723 slot-based guide generation (prompt
+// render + aux trace + one Chat call). It deliberately contains NO cache or
+// structured-first logic so the cache entry and the preheat hook can reuse
+// it without recursion.
+func (s *AgentService) generateGuideText(ctx context.Context, content *model.ContentItem, locale string) (string, error) {
+	var guideType string
+	switch content.ContentType {
+	case "mod":
+		guideType = "installation steps, compatibility requirements, and conflict resolution"
+	case "sheet_music":
+		guideType = "recommended software, playback instructions, and printing tips"
+	default:
+		guideType = "usage instructions and best practices"
+	}
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
+		"title":        content.Title,
+		"content_type": content.ContentType,
+		"description":  content.Description,
+		"guide_focus":  guideType,
+		"language":     usageGuideLanguageName(locale),
+	})
+	resp, err := s.auxLLMTrace(ctx, "aux_guide", promptregistry.SlotUsageGuide, agenttrace.NodeTypeGuide, func() (*llm.ChatResponse, error) {
+		return s.llmProvider.Chat(ctx, llm.ChatRequest{
+			Messages: []llm.ChatMessage{
+				{Role: "system", Content: "You are a helpful content guide writer."},
+				{Role: "user", Content: prompt},
+			},
+			MaxTokens:   800,
+			Temperature: 0.5,
+		})
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.Content, nil
+}
+
+// HasCachedGuide reports a valid #728 auto-cache row for the content —
+// the handler skips generation-quota reservation on this path (cache hit
+// performs zero LLM calls). Visibility has already been checked by the
+// caller before any quota work.
+func (s *AgentService) HasCachedGuide(ctx context.Context, contentItemID int64, locale string) bool {
+	if s.usageGuideCache == nil {
+		return false
+	}
+	content, err := s.contentRepo.FindByID(contentItemID)
+	if err != nil || content == nil {
+		return false
+	}
+	_, ok := s.usageGuideCache.FindValid(ctx, content, locale)
+	return ok
+}
+
+// PreheatUsageGuides is the #728 publish hook: 双语指导就绪任务（作者行
+// 语言直接满足，缺失语言生成落缓存；失败不阻塞发布——异步执行）。
+func (s *AgentService) PreheatUsageGuides(ctx context.Context, contentID int64) {
+	if s.usageGuideCache == nil || !s.cfg.Agent.WebAgentEnabled {
+		return
+	}
+	go func() {
+		preheatCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
+		defer cancel()
+		s.usageGuideCache.PreheatContent(preheatCtx, contentID, func(gctx context.Context, content *model.ContentItem, locale string, _ bool) (string, error) {
+			return s.generateGuideText(gctx, content, locale)
+		})
+	}()
 }
 
 // usageGuideLanguageName maps a normalized guide locale to the language name
