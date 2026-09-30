@@ -52,6 +52,8 @@ let authUser: {
   username: string;
   email: string;
   email_verified_at: string | null;
+  /* #750：本轮详情管理员 trace 链接差异需要 role 参与 stub。 */
+  role?: string;
 } | null = null;
 const routerPushes: string[] = [];
 const routerReplaces: string[] = [];
@@ -2230,6 +2232,74 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     assert.ok(view.getByText("2s"), "duration summary is visible");
   } finally {
     stub.restore();
+  }
+});
+
+/* #750：本轮详情从裸 details/summary 换成共享胶囊触发器——单一可聚焦
+   button 触发（不嵌套 summary，杜绝双切换），aria-expanded 与内容可见
+   状态同源，usage/trace 条件与管理员 trace 链接语义保持。 */
+test("turn details pill: single button trigger, aria-expanded tracks content, admin trace link kept", async () => {
+  installDom();
+  authUser = { id: 1, username: "admin", email: "a@example.com", email_verified_at: "2026-01-01T00:00:00Z", role: "admin" };
+  const events = [
+    { type: "start", trace_id: "t-750", conversation_id: 31, answer_kind: "grounded_content" },
+    { type: "delta", delta: "answer body" },
+    {
+      type: "done",
+      conversation_id: 31,
+      message_id: 311,
+      trace_id: "t-750",
+      answer_kind: "grounded_content",
+      answer: "answer body",
+      citations: [],
+      tools: [],
+      usage: { prompt_tokens: 812, completion_tokens: 240 },
+    },
+  ];
+  const stub = installSSEFetch(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/31",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 31, role: "user", content: "any question" },
+          { id: 2, conversation_id: 31, role: "assistant", content: "answer body" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "any question" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("answer body")), { timeout: 3000 });
+
+    /* 默认折叠：单一 button 触发（无 summary 嵌套），usage 不可见。 */
+    const trigger = await waitFor(() => view.getByRole("button", { name: "Turn details" }));
+    assert.equal(trigger.tagName, "BUTTON", "trigger must be a plain button, not nested in summary");
+    assert.equal(view.container.querySelector("summary"), null, "native details/summary must be gone");
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.equal(view.queryByText(/Token usage/), null, "usage hidden while collapsed");
+
+    /* 点击一次展开一次；内容与 aria-expanded 同源。 */
+    fireEvent.click(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    assert.ok(view.getByText("Token usage: 812 in / 240 out"));
+    const traceLink = view.getByRole("link", { name: "t-750" });
+    assert.ok(
+      (traceLink.getAttribute("href") ?? "").includes("/admin/traces/t-750"),
+      "admin sees trace deep link",
+    );
+
+    /* 再点收起：内容卸载、aria-expanded 回 false。 */
+    fireEvent.click(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.equal(view.queryByText(/Token usage/), null, "usage unmounts on collapse");
+  } finally {
+    stub.restore();
+    authUser = null;
   }
 });
 
