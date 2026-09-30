@@ -101,7 +101,7 @@ export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountCha
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
             <MessageSquare className="h-6 w-6 text-fg-muted" aria-hidden="true" />
             <p className="text-sm text-fg-muted">{t("messages.error.conversations")}</p>
-            <button type="button" onClick={() => { void loadConversations(); onRetry?.(); }} className="min-h-11 rounded-md border border-border-default px-3 text-sm text-accent-emphasis hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-accent-emphasis">
+            <button type="button" onClick={() => { void loadConversations(); onRetry?.(); }} className="min-h-11 rounded-md border border-border-default px-3 text-sm text-accent-emphasis hover:bg-canvas-subtle focus:outline-none focus-visible:ring-1 focus:ring-accent-emphasis">
               {t("messages.conversations.retry")}
             </button>
           </div>
@@ -133,7 +133,7 @@ export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountCha
                   }
                 }}
                 aria-current={activeId === conversation.id ? "true" : undefined}
-                className={`flex min-h-16 w-full cursor-pointer items-center border-b border-border-default border-l-2 px-3 py-3 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-emphasis ${activeId === conversation.id ? "border-l-accent-emphasis bg-canvas-subtle" : "border-l-transparent"}`}
+                className={`flex min-h-16 w-full cursor-pointer items-center border-b border-border-default border-l-2 px-3 py-3 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus-visible:ring-1 focus:ring-inset focus:ring-accent-emphasis ${activeId === conversation.id ? "border-l-accent-emphasis bg-canvas-subtle" : "border-l-transparent"}`}
               >
                 <div className="flex min-w-0 w-full items-center gap-3">
                   {other?.id ? (

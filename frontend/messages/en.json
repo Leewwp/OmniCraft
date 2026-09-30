@@ -319,6 +319,28 @@
     "fileSizeExceeds": "{name} exceeds {maxMB}MB limit",
     "uploadFailed": "Upload failed",
     "limitMb": "Limit: {maxMB}MB",
+    "uploadFamily": {
+      "name": {
+        "model3d": "Model files",
+        "text": "Readme files",
+        "document": "Documents",
+        "audio": "Audio",
+        "video": "Videos",
+        "image": "Images",
+        "mod": "Mod packages",
+        "sheet_music": "Sheet music"
+      },
+      "mimeNote": {
+        "text": "Text files and PDF",
+        "video": "Common video formats",
+        "image": "Common image formats",
+        "mod": "ZIP archives"
+      },
+      "maxMb": "Max {maxMB}MB",
+      "requiredAny": "At least one required",
+      "requiredAnyOf": "Required (any one of the listed)",
+      "optional": "Optional"
+    },
     "uploading": "Uploading...",
     "selectFile": "Select file",
     "uploadProgress": "Upload progress {progress}%",
@@ -343,6 +365,13 @@
       "sheets": "Worksheets",
       "moreRows": "Showing {shown}/{total} rows — load more",
       "noViewer": "{fileType} file",
+      "previewAction": "Preview",
+      "previewButtonLabel": "Preview {name}",
+      "familyLabel": {
+        "document": "Document",
+        "model3d": "3D model",
+        "audio": "Audio"
+      },
       "scanStatus": {
         "pending": "Attachment is queued for security scanning",
         "scanning": "Attachment is being security-scanned",
@@ -362,6 +391,13 @@
           "side": "Side",
           "top": "Top"
         }
+      },
+      "audio": {
+        "play": "Play",
+        "pause": "Pause",
+        "seekLabel": "Playback position",
+        "playerLabel": "Audio preview of {name}",
+        "loading": "Loading audio…"
       }
     }
   },
@@ -1570,6 +1606,7 @@
     "complianceWarning": "Warning",
     "complianceViolation": "Violation",
     "usageGuideTitle": "AI Usage Guide",
+    "thinkingLabel": "Thinking…",
     "loadingGuide": "Generating usage guide...",
     "noGuideAvailable": "No usage guide available",
     "guideError": "Failed to generate usage guide. Please try again later.",
@@ -2483,6 +2520,7 @@
         "other": "Other fan creation content"
       },
       "attachments": {
+        "requiredFamilyMissing": "Upload at least one of: {families}",
         "selected": "Selected attachments",
         "remove": "Remove {name}"
       }

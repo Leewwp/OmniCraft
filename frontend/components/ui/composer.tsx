@@ -44,6 +44,9 @@ interface ComposerProps {
   /** 左下角控件插槽（#539 深度思考开关等）；渲染于底部预留区，不与文本重叠。 */
   leading?: ReactNode;
   rows?: number;
+  /** #725：移动端触控命中扩展——发送/停止钮视觉保持 36px 契约，伪元素
+   * 外扩命中区（≥44px，仅移动端生效）；默认 false = 私信/评论现状。 */
+  expandMobileHit?: boolean;
   maxHeight?: number;
   maxLength?: number;
   className?: string;
@@ -61,6 +64,7 @@ export const Composer = forwardRef(function Composer({
   submitDisabled,
   submitting,
   rows = 1,
+  expandMobileHit = false,
   maxHeight = COMPOSER_MAX_HEIGHT,
   maxLength,
   className,
@@ -136,7 +140,10 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
           type="button"
           aria-label={stopLabel}
           onClick={onStop}
-          className="absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-default"
+          className={cn(
+            "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            expandMobileHit && "after:absolute after:-inset-2 after:content-[''] md:after:inset-0",
+          )}
         >
           <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
           <span className="sr-only">{stopLabel}</span>
@@ -148,7 +155,8 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
         onClick={onSubmit}
         disabled={submitDisabled || disabled}
         className={cn(
-          "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-default",
+          "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          expandMobileHit && "after:absolute after:-inset-2 after:content-[''] md:after:inset-0",
           submitting || !(submitDisabled || disabled)
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
             : "bg-canvas-subtle text-fg-subtle",

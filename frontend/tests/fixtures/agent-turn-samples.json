@@ -9,7 +9,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -21,7 +21,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "1 tool steps",
         "attrs": {},
         "toggles": [
@@ -39,7 +39,7 @@
       },
       {
         "tag": "button",
-        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -88,7 +88,7 @@
       },
       {
         "tag": "button",
-        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -154,7 +154,7 @@
       },
       {
         "tag": "button",
-        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring border-accent-emphasis/60 bg-accent-subtle text-accent-emphasis mt-1",
         "text": "2 reference sources",
         "attrs": {}
       }
@@ -170,7 +170,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -220,7 +220,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -254,7 +254,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -266,7 +266,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "1 tool steps",
         "attrs": {},
         "toggles": [
@@ -284,7 +284,7 @@
       },
       {
         "tag": "button",
-        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
         "text": "1 reference sources",
         "attrs": {}
       }
@@ -306,7 +306,7 @@
       },
       {
         "tag": "button",
-        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -324,7 +324,7 @@
       },
       {
         "tag": "button",
-        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -342,7 +342,7 @@
       },
       {
         "tag": "button",
-        "cls": "mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },

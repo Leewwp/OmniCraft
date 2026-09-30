@@ -78,7 +78,7 @@ export function OverlayRelatedBlock({
             data-slot="related-source-btn"
             onClick={(event) => onOpenRelated({ id: sourceOriginal.id, zone: "original" }, event.currentTarget)}
             aria-label={t("contentDetailOverlay.openRelated", { title: sourceOriginal.title })}
-            className="flex w-full items-center gap-2 rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex w-full items-center gap-2 rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
               {t("overlayVariant.originalBadge")}
@@ -110,7 +110,7 @@ export function OverlayRelatedBlock({
                   ? t("overlayVariant.previousChapterA11y", { title: previous.title })
                   : t("overlayVariant.previousChapter")
               }
-              className="inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+              className="inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
             >
               <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
               {t("overlayVariant.previousChapter")}
@@ -122,7 +122,7 @@ export function OverlayRelatedBlock({
               aria-label={
                 next ? t("overlayVariant.nextChapterA11y", { title: next.title }) : t("overlayVariant.nextChapter")
               }
-              className="inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+              className="inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
             >
               {t("overlayVariant.nextChapter")}
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -138,7 +138,7 @@ export function OverlayRelatedBlock({
                   type="button"
                   onClick={(event) => onOpenRelated({ id: entry.id, zone: entry.zone }, event.currentTarget)}
                   aria-label={t("contentDetailOverlay.openRelated", { title: entry.title })}
-                  className="flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <span className="h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
                     {entry.coverUrl ? (

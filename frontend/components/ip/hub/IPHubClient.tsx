@@ -277,7 +277,7 @@ export function IPHubClient({ ip, stats, apiBase }: IPHubClientProps) {
                   type="button"
                   onClick={() => switchFilter({ tab: key, sort: sortForTab(key, sort) })}
                   aria-pressed={active}
-                  className={`inline-flex min-h-9 flex-shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors duration-150 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  className={`inline-flex min-h-9 flex-shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors duration-150 whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                     active
                       ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
                       : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"

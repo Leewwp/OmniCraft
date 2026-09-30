@@ -52,6 +52,9 @@ export interface AgentTurn {
   settled: boolean;
   /** 首轮（发起时会话 id 尚未产生）：done 后活到历史回载替换树；续问轮 done 即 commit。 */
   firstRound: boolean;
+  /** #727：轮发起时间（epoch ms）——「正在思考」占位计时的唯一起点；
+   * 重新生成即新轮新起点，历史回放不消费（占位仅 live 轮渲染）。 */
+  startedAt: number;
   terminal: AgentTurnTerminal;
 }
 
@@ -67,6 +70,7 @@ export function createAgentTurn(
     streaming: true,
     settled: false,
     firstRound: options.firstRound,
+    startedAt: Date.now(),
     terminal: {
       answerKind: null,
       degraded: false,
@@ -81,6 +85,29 @@ export function createAgentTurn(
       errorCode: null,
     },
   };
+}
+
+/**
+ * #727 首个「可见内容」判定（与实际块渲染一致，不能用 segments.length
+ * 替代——空 think segment 不渲染任何东西）：非空白 think 内容、非空
+ * 工具步骤、答案或 moderation 占位任一成立即可见。start/心跳/仅引用
+ * 事件不产生可见内容。
+ */
+export function hasVisibleAssistantContent(turn: AgentTurn): boolean {
+  if (turn.moderationBlocked) return true;
+  if (turn.answer !== "") return true;
+  return turn.segments.some((segment) =>
+    segment.kind === "think" ? segment.content.trim() !== "" : segment.tools.length > 0,
+  );
+}
+
+/**
+ * #727 「正在思考」占位渲染条件：live 流中、尚无可见内容。与
+ * hasVisibleAssistantContent 互斥（首个可见内容同帧移除占位）；终态
+ * （done/error/stop）由 streaming=false 覆盖——空 done 亦移除。
+ */
+export function shouldShowThinkingPlaceholder(turn: AgentTurn, isLive: boolean): boolean {
+  return isLive && turn.streaming && !hasVisibleAssistantContent(turn);
 }
 
 function withTerminal(turn: AgentTurn, patch: Partial<AgentTurnTerminal>): AgentTurn {

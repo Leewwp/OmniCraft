@@ -47,6 +47,10 @@ type ChatTurnInput struct {
 	// model id pinned ahead of the routing chain. Empty uses the configured
 	// primary; the handler rejects unknown ids before any quota work.
 	Model string
+	// Locale is the #723 requester language (zh/en) for the turn: it flows
+	// into tool scope so in-chat usage-guide generation follows the
+	// requester. Empty keeps the historic zh default.
+	Locale string
 }
 
 const (

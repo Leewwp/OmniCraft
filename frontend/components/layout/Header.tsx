@@ -104,7 +104,7 @@ export function Header() {
             href="/recommend"
             aria-current={pathname.startsWith("/recommend") ? "page" : undefined}
             className={cn(
-              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
               pathname.startsWith("/recommend") && "font-semibold text-foreground after:opacity-100",
             )}
           >
@@ -114,7 +114,7 @@ export function Header() {
             href="/"
             aria-current={pathname === "/" ? "page" : undefined}
             className={cn(
-              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
               pathname === "/" && "font-semibold text-foreground after:opacity-100",
             )}
           >
@@ -124,7 +124,7 @@ export function Header() {
             href="/original"
             aria-current={pathname.startsWith("/original") ? "page" : undefined}
             className={cn(
-              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
               pathname.startsWith("/original") && "font-semibold text-foreground after:opacity-100",
             )}
           >
@@ -135,7 +135,7 @@ export function Header() {
               href="/agent"
               aria-current={pathname.startsWith("/agent") ? "page" : undefined}
               className={cn(
-                "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
                 pathname.startsWith("/agent") && "font-semibold text-foreground after:opacity-100",
               )}
             >
@@ -155,7 +155,7 @@ export function Header() {
             <button
               type="button"
               aria-label={t("common.search")}
-              className="inline-flex size-11 items-center justify-center rounded-md hover:bg-canvas-subtle focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex size-11 items-center justify-center rounded-md hover:bg-canvas-subtle focus-visible:ring-1 focus-visible:ring-ring"
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
             >
               <Search className="h-4 w-4" />
@@ -167,7 +167,8 @@ export function Header() {
           {/* Language switcher */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "hidden min-[701px]:inline-flex")}
+              /* #721：语言入口小屏保留（主题仍桌面顶栏，抽屉内有第二入口）。 */
+              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "inline-flex")}
             >
               <Globe className="h-4 w-4" />
               <span className="sr-only">{t("nav.language")}</span>
@@ -345,7 +346,7 @@ export function Header() {
                 aria-label={t("studio.sidebar.collapse")}
                 title={t("studio.sidebar.collapse")}
                 onClick={() => setMobileMenuOpen(false)}
-                className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <X className="size-5" />
               </button>
@@ -359,7 +360,7 @@ export function Header() {
                 aria-current={pathname.startsWith("/recommend") ? "page" : undefined}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring",
                   pathname.startsWith("/recommend") && "bg-accent-subtle font-semibold text-accent-emphasis",
                 )}
               >
@@ -370,7 +371,7 @@ export function Header() {
                 aria-current={pathname === "/" ? "page" : undefined}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring",
                   pathname === "/" && "bg-accent-subtle font-semibold text-accent-emphasis",
                 )}
               >
@@ -381,7 +382,7 @@ export function Header() {
                 aria-current={pathname.startsWith("/original") ? "page" : undefined}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring",
                   pathname.startsWith("/original") && "bg-accent-subtle font-semibold text-accent-emphasis",
                 )}
               >
@@ -393,7 +394,7 @@ export function Header() {
                   aria-current={pathname.startsWith("/agent") ? "page" : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                    "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring",
                     pathname.startsWith("/agent") && "bg-accent-subtle font-semibold text-accent-emphasis",
                   )}
                 >
@@ -428,6 +429,53 @@ export function Header() {
                   <button type="button" onClick={() => goTo("/register")} className="min-h-11 rounded-md bg-primary px-3 text-left text-sm font-medium text-primary-foreground hover:bg-accent-hover">{t("nav.register")}</button>
                 </>
               )}
+            </div>
+
+            {/* #721 手机端语言/主题第二入口（菜单抽屉底部设置组）。 */}
+            <div className="my-4 h-px bg-border" />
+            <div className="flex flex-col gap-2" aria-label={t("nav.language")}>
+              <p className="px-3 text-xs font-medium text-fg-muted">{t("nav.language")}</p>
+              <div className="flex gap-2 px-3">
+                <button
+                  type="button"
+                  onClick={() => handleLocaleChange("zh")}
+                  aria-pressed={locale === "zh"}
+                  className={cn(
+                    "min-h-9 flex-1 rounded-md border border-border px-3 text-sm transition-colors hover:bg-canvas-subtle focus-visible:ring-1 focus-visible:ring-ring",
+                    locale === "zh" ? "bg-accent-subtle font-medium text-accent-emphasis" : "text-fg-muted",
+                  )}
+                >
+                  {t("nav.langZh")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLocaleChange("en")}
+                  aria-pressed={locale === "en"}
+                  className={cn(
+                    "min-h-9 flex-1 rounded-md border border-border px-3 text-sm transition-colors hover:bg-canvas-subtle focus-visible:ring-1 focus-visible:ring-ring",
+                    locale === "en" ? "bg-accent-subtle font-medium text-accent-emphasis" : "text-fg-muted",
+                  )}
+                >
+                  {t("nav.langEn")}
+                </button>
+              </div>
+              <p className="px-3 pt-2 text-xs font-medium text-fg-muted">{t("nav.themeSwitch")}</p>
+              <div className="flex gap-2 px-3 pb-2">
+                {([["light", t("nav.themeLight")], ["dark", t("nav.themeDark")], ["system", t("nav.themeSystem")]] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTheme(value)}
+                    aria-pressed={theme === value}
+                    className={cn(
+                      "min-h-9 flex-1 rounded-md border border-border px-2 text-sm transition-colors hover:bg-canvas-subtle focus-visible:ring-1 focus-visible:ring-ring",
+                      theme === value ? "bg-accent-subtle font-medium text-accent-emphasis" : "text-fg-muted",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </aside>
         </div>

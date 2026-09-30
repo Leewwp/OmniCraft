@@ -507,7 +507,7 @@ function ProposalCreateForm({ ipId, onCreated, onCancel }: { ipId: number; onCre
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
-          className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           placeholder={t('proposal.descriptionPlaceholder')}
         />
       </div>
@@ -520,7 +520,7 @@ function ProposalCreateForm({ ipId, onCreated, onCancel }: { ipId: number; onCre
           type="url"
           value={coverUrl}
           onChange={(e) => setCoverUrl(e.target.value)}
-          className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           placeholder={t('proposal.coverPlaceholder')}
         />
       </div>
@@ -533,7 +533,7 @@ function ProposalCreateForm({ ipId, onCreated, onCancel }: { ipId: number; onCre
             id="proposal-tag-add"
             value={tagAdd}
             onChange={(e) => setTagAdd(e.target.value)}
-            className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         </div>
         <div>
@@ -544,7 +544,7 @@ function ProposalCreateForm({ ipId, onCreated, onCancel }: { ipId: number; onCre
             id="proposal-tag-remove"
             value={tagRemove}
             onChange={(e) => setTagRemove(e.target.value)}
-            className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         </div>
       </div>

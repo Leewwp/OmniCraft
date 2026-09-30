@@ -151,12 +151,15 @@
 - **药丸（`rounded-full`）= 选择与信息**：筛选/类目选择控件、TagBadge、状态徽标。
 - 同一概念控件不得出现两套形态；筛选类控件一律用药丸（见「筛选选择控件」），操作按钮一律用矩形。
 
-### 焦点反馈分级（2026-09-28 修复轮 FT-1，全站规则）
+### 焦点反馈分级（2026-09-28 FT-1 立档；2026-09-30 #720 修订为三层框架，全站规则）
 
-按控件状态是否「写在脸上」分两档：
+三层框架（用户立场：**有且只有筛选/状态类组件保留选中态**）：
 
-- **第一类：自明态控件 → 软化聚焦**。文本输入框（input/textarea/Composer/搜索框）与下拉触发器（SortSelect、原生 select 触发器）：聚焦时仅边框加深一档（`border-strong`），**无 ring、无背景变化**；文本输入的键盘可及性由输入光标 + 边框变化承载，下拉触发器键盘 `focus-visible` 保留 1px 细描边（`ring-1 ring-ring`，`--ring` 保留为此用途）。
-- **第二类：状态承载控件 → 原样保留**。筛选药丸/标签筛选/勾选框/开关的选中态与下拉项的 selected 高亮不动；按钮/链接维持键盘 `focus-visible` 2px ring（鼠标不触发，不构成侵入）。
+- **层 1 · 鼠标点击零粗环**。交互组件（对话/Agent 区、弹层抽屉、全局公共区）不使用任何「点击即出」的 `focus:ring-*`/outline 声明；鼠标反馈一律由 hover/active 背景微变表达。机制注：`:focus-visible` 匹配由浏览器启发式决定（非规范强制恒匹配），文本输入类与原生 select 的表现在浏览器/系统间有差异——按目标浏览器实测区分 CSS focus 样式、UA outline 与系统菜单高亮，不假定恒匹配。
+- **层 2 · 键盘可及性 = 1px 细描边**。所有交互组件（含 `ui/button.tsx` 全站 Button 基座）的键盘焦点指示统一为 `focus-visible:ring-1 focus-visible:ring-ring`（无 ring-offset；1px 形态为设计选择，WCAG 2.4.7 要求焦点可见而非描边形态）。亮暗两主题下均须可见。
+- **层 3 · 选中态（状态承载）只留筛选/状态类**。筛选药丸、勾选框、开关、tab、深度思考开关、会话列表项、发布品类格等保留既有选中表达（背景/边框/实底）；其余组件（参考来源按钮、思考/工具/角标折叠头、消息动作、代码复制钮等）不设选中环，激活/选中用背景微变表达。
+- **select 展开态**：边框微加深（`focus:border-border-strong focus:outline-none`），键盘 1px 细描边兜底；无样式原生 select 一律接此软基座（UA 直角环清零）。OS 原生展开菜单的系统级高亮（如 macOS select 展开项）是系统行为，不在治理范围。
+- **禁止项**：`ring-accent`（裸色，亮色近白的隐形坏环——以全仓 grep 清零为准，不含 ring-accent-emphasis）；非常规 ring 粗细（ring-3/ring-1 选中环）；「状态即环」的选中表达（选中用背景/边框）。
 - skip-link 等:help 无障碍焦点样式不受本规则影响。
 
 ### 按钮 (Button)
@@ -168,7 +171,7 @@
 - Primary 按钮使用 `bg-primary text-primary-foreground`
 - Hover: 加深一档亮度（`--accent-hover`，双主题白字 ≥AA）
 - Disabled: `opacity-50 cursor-not-allowed`
-- Focus: 键盘 `focus-visible` 才出 `ring-2 ring-ring ring-offset-2`（鼠标聚焦不出，见「焦点反馈分级」）
+- Focus: 键盘 `focus-visible` 出 `ring-1 ring-ring` 1px 细描边（#720 起 Button 基座同步降级，无 offset；见「焦点反馈分级」层 2）
 
 ### 卡片 (Card)
 

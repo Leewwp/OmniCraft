@@ -290,7 +290,7 @@ export function MediaViewer({
               <button
                 type="button"
                 onClick={retry}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-white/30 px-3 text-sm text-white transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-ring"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-white/30 px-3 text-sm text-white transition-colors hover:bg-white/10 focus:outline-none focus-visible:ring-1 focus:ring-ring"
               >
                 {t("media.viewer.error.retry")}
               </button>
@@ -326,7 +326,7 @@ export function MediaViewer({
           type="button"
           onClick={() => onOpenChange(false)}
           aria-label={t("media.viewer.close")}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-ring"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus:ring-ring"
         >
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -339,7 +339,7 @@ export function MediaViewer({
             onClick={goPrevious}
             disabled={currentIndex === 0}
             aria-label={t("media.viewer.previous")}
-            className="absolute left-2 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-40 lg:left-4"
+            className="absolute left-2 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-40 lg:left-4"
           >
             <ChevronLeft className="h-6 w-6" aria-hidden="true" />
           </button>
@@ -348,7 +348,7 @@ export function MediaViewer({
             onClick={goNext}
             disabled={currentIndex === items.length - 1}
             aria-label={t("media.viewer.next")}
-            className="absolute right-2 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-40 lg:right-4"
+            className="absolute right-2 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-40 lg:right-4"
           >
             <ChevronRight className="h-6 w-6" aria-hidden="true" />
           </button>
@@ -378,7 +378,7 @@ export function MediaViewer({
             onClick={() => updateZoom(zoomRef.current / ZOOM_BUTTON_STEP)}
             disabled={zoom <= ZOOM_MIN}
             aria-label={t("media.viewer.zoomOut")}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
           >
             <Minus className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -387,7 +387,7 @@ export function MediaViewer({
             onClick={() => updateZoom(ZOOM_MIN)}
             disabled={zoom <= ZOOM_MIN}
             aria-label={t("media.viewer.zoomReset")}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
           >
             <RotateCcw className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -396,7 +396,7 @@ export function MediaViewer({
             onClick={() => updateZoom(zoomRef.current * ZOOM_BUTTON_STEP)}
             disabled={zoom >= ZOOM_MAX}
             aria-label={t("media.viewer.zoomIn")}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
           >
             <Plus className="h-5 w-5" aria-hidden="true" />
           </button>

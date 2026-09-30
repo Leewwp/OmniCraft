@@ -43,7 +43,7 @@ var (
 	// #688: registry-driven publish binding and attachment_policy errors.
 	ErrAttachmentFamilyNotAllowed = errors.New("attachment file type is not allowed for this content type")
 	ErrAttachmentPolicyRequired   = errors.New("content type requires at least one attachment of a required family")
-	ErrArchiveScanUnavailable      = errors.New("archive scan repository is unavailable")
+	ErrArchiveScanUnavailable     = errors.New("archive scan repository is unavailable")
 )
 
 type ContentService struct {
@@ -440,17 +440,17 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					originalFileName = &name
 				}
 				attachments = append(attachments, model.ContentAttachment{
-					ContentItemID: content.ID,
-					FileType:      a.FileType,
-					OSSKey:        a.OSSKey,
-					FileSize:      a.FileSize,
-					MimeType:      a.MimeType,
+					ContentItemID:    content.ID,
+					FileType:         a.FileType,
+					OSSKey:           a.OSSKey,
+					FileSize:         a.FileSize,
+					MimeType:         a.MimeType,
 					OriginalFileName: originalFileName,
-					DurationSec:   a.DurationSec,
-					Width:         a.Width,
-					Height:        a.Height,
-					SortOrder:     a.SortOrder,
-					IsPrimary:     legacyPrimary(a.IsPrimary),
+					DurationSec:      a.DurationSec,
+					Width:            a.Width,
+					Height:           a.Height,
+					SortOrder:        a.SortOrder,
+					IsPrimary:        legacyPrimary(a.IsPrimary),
 				})
 			}
 			// Cover derivation for image content: the sort_order=0 item (the
@@ -1103,12 +1103,15 @@ func (s *ContentService) updatePublishedWithReReview(ctx context.Context, conten
 		raw["green_skipped"] = true
 	}
 
+	/* #728：预热意图在事务内收集、提交后执行（nil = 该路径不接预热，
+	   编辑重审转正式同样应预热——与 #347 invalidation 同位触发）。 */
+	var preheatIDs []int64
 	if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
 		tx := txRepo.DB()
 		if _, err := s.reviewSvc.recordAIReview(ctx, tx, "content", content.ID, result, raw, ""); err != nil {
 			return err
 		}
-		if err := s.reviewSvc.applyContentReviewResult(ctx, tx, content.ID, result); err != nil {
+		if err := s.reviewSvc.applyContentReviewResult(ctx, tx, content.ID, result, &preheatIDs); err != nil {
 			return err
 		}
 		if result == "block" {
@@ -1127,6 +1130,8 @@ func (s *ContentService) updatePublishedWithReReview(ctx context.Context, conten
 	}
 
 	s.invalidateContentCache(content.ID)
+	// #728：提交后触发预热（编辑重审转正式）。
+	s.reviewSvc.DispatchUsageGuidePreheat(ctx, preheatIDs)
 	return nil
 }
 

@@ -25,7 +25,7 @@ import { AttachmentPreview, type PreviewableAttachment } from "@/components/cont
 import { DownloadButton } from "@/components/content/DownloadButton";
 import { CollectionPicker } from "@/components/content/CollectionPicker";
 import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
-import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
+import { UsageGuidePanel, usageGuidePanelTarget } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { FollowButton } from "@/components/social/FollowButton";
@@ -400,14 +400,14 @@ export function ContentDetail({
       {/* Attachments download list: media-set entries (image/video items of
           image/video content) are excluded — they are browsed in the gallery.
           Other content types keep the full attachment list semantics (AC3). */}
-      {/* #688/#689 附件预览分发：document + model3d 族走懒加载查看器
-          （#691 冒烟实证：model3d 此前未进分发、3D 预览从不渲染；无 URL
-          的非 clean 行由后端不签发 + 组件渲染扫描状态卡；.mtl 在组件内
-          回落下载卡）。 */}
-      {downloadItems.some((att) => att.file_type === "document" || att.file_type === "model3d") && (
+      {/* #688/#689/#722 附件预览分发：document + model3d + audio 族走预览
+          入口卡（点击后挂载懒加载查看器/播放器；#691 冒烟实证 model3d 此前
+          未进分发；无 URL 的非 clean 行由后端不签发 + 组件渲染扫描状态卡；
+          .mtl 在组件内回落下载卡）。 */}
+      {downloadItems.some((att) => att.file_type === "document" || att.file_type === "model3d" || att.file_type === "audio") && (
         <section className="space-y-3">
           {downloadItems
-            .filter((att) => att.file_type === "document" || att.file_type === "model3d")
+            .filter((att) => att.file_type === "document" || att.file_type === "model3d" || att.file_type === "audio")
             .map((att) => (
               <AttachmentPreview
                 key={att.id}
@@ -419,11 +419,11 @@ export function ContentDetail({
         </section>
       )}
 
-      {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d").length > 0 && contentType !== "sheet_music" && (
+      {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d" && att.file_type !== "audio").length > 0 && contentType !== "sheet_music" && (
         <section className="space-y-2 rounded-md border border-border bg-card p-4 ">
           <h2 className="text-sm font-semibold">{t('content.attachments')}</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d").map((att) => (
+            {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d" && att.file_type !== "audio").map((att) => (
               <div
                 key={att.id}
                 className="flex items-center justify-between rounded border border-border bg-muted/10 p-2"
@@ -528,9 +528,11 @@ export function ContentDetail({
       )}
       </AgentFeatureGate>
 
-      {/* AI Usage Guide */}
+      {/* AI Usage Guide（#723 适用范围：mod/template/3d_print/sheet_music
+          或带 document 族附件；article 隐藏；feature gate 与 published
+          优先叠加）。 */}
       <AgentFeatureGate capability="webAgent">
-        {(contentType === "mod" || contentType === "sheet_music") && data.status === "published" && (
+        {usageGuidePanelTarget(contentType, data.attachments) && data.status === "published" && (
           <UsageGuidePanel contentId={data.id} />
         )}
       </AgentFeatureGate>

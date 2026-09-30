@@ -82,7 +82,7 @@ export default function TagSuggestionsPage() {
           value={contentId}
           onChange={(e) => setContentId(e.target.value)}
           placeholder={t("tagSuggestions.contentIdPlaceholder")}
-          className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring"
         />
         <Button size="sm" variant="outline" className="mt-2" onClick={loadSuggestions}>
           {t("tagSuggestions.refresh")}
