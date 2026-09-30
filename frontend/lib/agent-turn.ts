@@ -1,4 +1,4 @@
-import { normalizeAgentCitation } from "@/lib/agent";
+import { isProviderDegradation, normalizeAgentCitation } from "@/lib/agent";
 import type { AgentStreamCitation, AgentStreamEvent, AgentStreamTool } from "@/lib/agent-stream";
 
 /**
@@ -25,10 +25,10 @@ export interface AgentTurnTerminal {
   traceId: string | null;
   /** #610 空轮：no_evidence 且零成功工具（零调用或全部失败）。 */
   emptyNoEvidence: boolean;
-  /** provider 降级待关键词回退：applyError 降级分支置位，回退结果落轮
-      （applyKeywordFallbackCitations）清除。回退请求本身由组件从原始 error
-      事件同 tick 发起（#678 时序契约，非读本字段）——本字段目前只是回退
-      挂起的状态记录，仅测试断言消费（双真源收口待 #684 裁决）。 */
+  /** 回退挂起状态记录（#684 B+ 正式定位）：applyError 降级分支置位，回退
+      结果落轮（applyKeywordFallbackCitations）清除。回退请求本身由组件从
+      原始 error 事件同 tick 发起（#678 时序契约，非读本字段）——本字段供
+      测试断言与诊断消费，不是触发真源。 */
   needsKeywordFallback: boolean;
   stopped: boolean;
   error: boolean;
@@ -232,10 +232,12 @@ function applyDone(turn: AgentTurn, event: DoneEvent): AgentTurn {
 
 type ErrorEvent = Extract<AgentStreamEvent, { type: "error" }>;
 
-/** error 终局：provider_error 降级撤答（关键词回退请求由调用方副作用发起）；
-    其余错误置错误态（横幅渲染条件 = 错误且无正文，由渲染层判定）。 */
+/** error 终局：provider_error 降级撤答（关键词回退请求由组件从原始 error 事件
+    同 tick 发起，#678 时序契约，#684 B+ 确认不重开；降级判定唯一真源 =
+    lib/agent.ts isProviderDegradation）；其余错误置错误态（横幅渲染条件 =
+    错误且无正文，由渲染层判定）。 */
 function applyError(turn: AgentTurn, event: ErrorEvent): AgentTurn {
-  if (event.degraded && event.degraded_reason === "provider_error") {
+  if (isProviderDegradation(event)) {
     return {
       ...turn,
       streaming: false,
