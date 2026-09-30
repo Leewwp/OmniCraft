@@ -286,7 +286,7 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
       if (typeof errorCode === "string" && errorCode !== "") event.error_code = errorCode;
       const errorMessage = candidate.error_message;
       if (typeof errorMessage === "string" && errorMessage !== "") event.error_message = errorMessage;
-      if (candidate.degraded === true && candidate.degraded_reason === "provider_error") {
+      if (isProviderDegradation(candidate)) {
         event.degraded = true;
         event.degraded_reason = "provider_error";
       }
@@ -295,6 +295,18 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
     default:
       return null;
   }
+}
+
+/** provider 降级判定——error 事件的 `degraded === true && degraded_reason
+ *  === "provider_error"` 收口为全仓唯一真源（#684 B+ 裁决：条件单真源、触发
+ *  时序维持双处）。三处消费方：normalizeAgentEvent 归一化（对 unknown 窄化，
+ *  拒绝 "yes"/1 等脏值）、agent-turn.ts applyError（置回退挂起记录
+ *  terminal.needsKeywordFallback）、AgentWorkspace handleStreamEvent（同 tick
+ *  发起关键词回退，#678 时序契约）。归一化后事件 degraded ∈ {undefined, true}，
+ *  与 truthy 判定行为一致。置于本模块而非 agent-stream.ts：后者运行时依赖
+ *  normalizeAgentEvent，反向引用成环。 */
+export function isProviderDegradation(event: { degraded?: unknown; degraded_reason?: unknown }): boolean {
+  return event.degraded === true && event.degraded_reason === "provider_error";
 }
 
 /**
