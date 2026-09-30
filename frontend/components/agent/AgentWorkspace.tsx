@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Menu, RotateCw, BookOpenText } from "lucide-react";
+import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, History, RotateCw, BookOpenText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/ui/composer";
@@ -41,6 +41,7 @@ import { AgentThinkingPlaceholder } from "@/components/agent/AgentThinkingPlaceh
 import { AgentMetaPill } from "@/components/agent/AgentMetaPill";
 import { shouldShowThinkingPlaceholder } from "@/lib/agent-turn";
 import { citationDisplayMapOf, remapCitationMarks } from "@/lib/agent";
+import { useDelayedUnmount } from "@/lib/use-delayed-unmount";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
   AgentConversationSidebar,
@@ -146,10 +147,22 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  /* #721：抽屉动效（延迟卸载走完退出动画）+ 关闭后焦点返回触发按钮。 */
+  const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const citationsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const closeHistoryDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    historyTriggerRef.current?.focus();
+  }, []);
+  const historyDrawerMounted = useDelayedUnmount(drawerOpen, 220);
   /* FT-4：参考来源侧栏——保存源数组引用（同一回答再点即收起），渲染时映射。 */
   const [panelSource, setPanelSource] = useState<AgentStreamCitation[] | null>(null);
   const citationsPanel = panelSource ? panelSource.map(toAgentCitation) : null;
-  const closeCitationsPanel = useCallback(() => setPanelSource(null), []);
+  /* #721：关闭引用侧栏（Esc/遮罩/X/再次点击）后焦点返回打开它的入口按钮。 */
+  const closeCitationsPanel = useCallback(() => {
+    setPanelSource(null);
+    citationsTriggerRef.current?.focus();
+  }, []);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -788,6 +801,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 count={turn.answerCitations.length}
                 active={panelSource === turn.answerCitations}
                 onToggle={() => setPanelSource(turn.answerCitations ?? [])}
+                triggerRef={citationsTriggerRef}
               />
             )}
           </>
@@ -890,6 +904,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 count={terminal.citations.length}
                 active={panelSource === terminal.citations}
                 onToggle={() => setPanelSource(terminal.citations)}
+                triggerRef={citationsTriggerRef}
               />
             )}
 
@@ -998,28 +1013,46 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         />
       </div>
 
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 min-[701px]:hidden" role="dialog" aria-modal="true" aria-label={t("agent.workspace.sidebarLabel")}>
+      {/* #721：滑入滑出（含关闭方向）+ 遮罩淡出——延迟卸载走完退出动画；
+          退出帧剥离 dialog 语义/指针事件（不干扰可达性树与后续交互）。 */}
+      {historyDrawerMounted && (
+        <div
+          className="fixed inset-0 z-50 min-[701px]:hidden"
+          {...(drawerOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true, "inert": true as never })}
+          aria-label={t("agent.workspace.sidebarLabel")}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeHistoryDrawer();
+          }}
+        >
           <button
             type="button"
+            tabIndex={drawerOpen ? undefined : -1}
             aria-label={t("agent.workspace.closeConversations")}
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setDrawerOpen(false)}
+            className={cn(
+              "absolute inset-0 bg-black/50 transition-opacity duration-200 motion-reduce:transition-none",
+              drawerOpen ? "opacity-100" : "opacity-0",
+            )}
+            onClick={closeHistoryDrawer}
           />
-          <div className="relative h-full w-[85vw] max-w-[320px] bg-card shadow-md">
+          <div
+            className={cn(
+              "relative h-full w-[85vw] max-w-[320px] bg-card shadow-md transition-transform duration-200 ease-out motion-reduce:transition-none [&_aside]:w-full [&_aside]:border-r-0",
+              drawerOpen ? "translate-x-0" : "-translate-x-full",
+            )}
+          >
             <AgentConversationSidebar
               conversations={conversations}
               activeId={activeId}
               collapsed={false}
               loading={conversationsLoading}
               disabled={streaming}
-              onToggleCollapse={() => setDrawerOpen(false)}
+              onToggleCollapse={closeHistoryDrawer}
               onSelect={handleSelectConversation}
               onNewConversation={handleNewConversation}
               onRename={handleRename}
               onTogglePin={handleTogglePin}
               onDelete={(id) => setConfirmDeleteId(id)}
-              onRequestClose={() => setDrawerOpen(false)}
+              onRequestClose={closeHistoryDrawer}
             />
           </div>
         </div>
@@ -1027,16 +1060,21 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
       <section
         aria-label={t("agent.workspace.transcriptLabel")}
-        className="relative flex min-w-0 flex-1 flex-row border-l border-border-default"
+        className="relative flex min-w-0 flex-1 flex-col min-[701px]:flex-row min-[701px]:border-l min-[701px]:border-border-default"
       >
-        <header className="flex h-14 shrink-0 items-center gap-2 px-2">
+        {/* #721：≤700px 主区纵向布局——标题栏为顶部横条（做薄），对话内容
+            与底部输入框全宽不再被挤压；≥701px 维持横向现状。 */}
+        <header className="flex h-12 w-full shrink-0 items-center gap-2 px-2 min-[701px]:h-14 min-[701px]:w-auto">
           <button
             type="button"
+            ref={historyTriggerRef}
             aria-label={t("agent.workspace.openConversations")}
             onClick={() => setDrawerOpen(true)}
             className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-[701px]:hidden"
           >
-            <Menu className="h-4 w-4" aria-hidden="true" />
+            {/* #721：历史记录语义的时钟类图标（原通用菜单图标与右上角侧栏
+                图标撞语义）。 */}
+            <History className="h-4 w-4" aria-hidden="true" />
           </button>
           {/* #416 O2：空态不渲染标题（消除与侧栏「开启新对话」的语义重复）；
               会话态标题与会话列表同源，点击进入原地编辑 */}
@@ -1184,7 +1222,12 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 /** FT-4（#696）：回答底部「N 条参考来源」入口按钮（侧栏 toggle 通道之一；
     另一通道 = 侧栏 X）。原内联折叠列表退役。#719：统一 AgentMetaPill
     胶囊外观（点击仍开侧栏）。 */
-function CitationsEntryButton({ count, active, onToggle }: { count: number; active: boolean; onToggle: () => void }) {
+function CitationsEntryButton({ count, active, onToggle, triggerRef }: {
+  count: number;
+  active: boolean;
+  onToggle: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+}) {
   const t = useTranslations();
   return (
     <AgentMetaPill
@@ -1193,6 +1236,7 @@ function CitationsEntryButton({ count, active, onToggle }: { count: number; acti
       pressed={active}
       onClick={onToggle}
       className="mt-1"
+      buttonRef={triggerRef}
     />
   );
 }

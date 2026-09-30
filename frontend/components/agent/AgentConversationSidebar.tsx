@@ -113,40 +113,41 @@ export function AgentConversationSidebar({
     if (trimmed !== "") onRename?.(id, trimmed.slice(0, TITLE_MAX_RUNES));
   }
 
-  if (collapsed) {
-    return (
-      <aside
-        aria-label={t("agent.workspace.sidebarLabel")}
-        className="flex w-14 shrink-0 flex-col items-center gap-2 border-r border-border-default bg-canvas-default py-3"
-      >
-        <button
-          type="button"
-          title={expandLabel}
-          aria-label={expandLabel}
-          onClick={onRequestClose ?? onToggleCollapse}
-          className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          title={t("agent.workspace.newConversation")}
-          aria-label={t("agent.workspace.newConversation")}
-          onClick={onNewConversation}
-          disabled={disabled}
-          className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </aside>
-    );
-  }
-
+  /* #721：单一 aside + 条件宽度 + transition-[width]（对齐全站 Sidebar
+     参照模式，motion-reduce 降级）；内容按状态渲染，展开内容带渐入。 */
   return (
     <aside
       aria-label={t("agent.workspace.sidebarLabel")}
-      className="flex w-64 shrink-0 flex-col border-r border-border-default bg-canvas-default"
+      className={
+        collapsed
+          ? "flex w-14 shrink-0 flex-col items-center gap-2 border-r border-border-default bg-canvas-default py-3 transition-[width] duration-200 motion-reduce:transition-none"
+          : "flex w-64 shrink-0 flex-col border-r border-border-default bg-canvas-default transition-[width] duration-200 motion-reduce:transition-none"
+      }
     >
+      {collapsed ? (
+        <>
+          <button
+            type="button"
+            title={expandLabel}
+            aria-label={expandLabel}
+            onClick={onRequestClose ?? onToggleCollapse}
+            className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            title={t("agent.workspace.newConversation")}
+            aria-label={t("agent.workspace.newConversation")}
+            onClick={onNewConversation}
+            disabled={disabled}
+            className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-[agent-side-fade-in_200ms_ease-out]">
       <div className="flex h-14 shrink-0 items-center justify-between px-2">
         <span className="px-2 text-sm font-medium text-fg-default">
           {t("agent.workspace.sidebarLabel")}
@@ -287,6 +288,8 @@ export function AgentConversationSidebar({
       <p className="shrink-0 px-3 py-2 text-xs text-fg-muted">
         {t("agent.workspace.privacyHint")}
       </p>
+        </div>
+      )}
     </aside>
   );
 }

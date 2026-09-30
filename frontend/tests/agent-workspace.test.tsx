@@ -2547,8 +2547,9 @@ test("#416 page-level horizontal dividers are removed from agent workspace shell
   const sidebarDividers = (sidebar.match(/border-b border-border-default|border-t border-border-default/g) ?? []);
   assert.deepEqual(workspaceDividers, [], "workspace must not render page-level horizontal dividers");
   assert.deepEqual(sidebarDividers, [], "conversation sidebar must not render page-level horizontal dividers");
-  // 竖向面板分隔线保留（非本轮范围）
-  assert.match(workspace, /border-l border-border-default/, "vertical panel divider stays");
+  // 竖向面板分隔线保留（非本轮范围；#721 起随 min-[701px] 断点施加——
+  // ≤700px 纵向布局无左缘分隔线）。
+  assert.match(workspace, /min-\[701px\]:border-l min-\[701px\]:border-border-default/, "vertical panel divider stays (desktop)");
   assert.match(sidebar, /border-r border-border-default/, "vertical panel divider stays");
 });
 
