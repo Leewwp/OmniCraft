@@ -10,12 +10,15 @@ import { AgentCitationCard } from "@/components/agent/AgentCitationCard";
 
 /**
  * FT-4（#696）「参考来源」侧栏：
- * - 桌面（≥768px）：对话区右缘固定宽侧栏（min(400px,90vw)，顶栏下方起高），
- *   作为 flex 兄弟列推挤对话区——消息列 max-w-3xl 与文本宽度不变。
- * - 移动（<768px）：底部抽屉，手写 pointer events 三路关闭
+ * - 桌面（≥768px）：对话区右缘固定宽侧栏（#751：min(440px,38vw)，最大
+ *   440px、窄桌面按 38vw 收窄，顶栏下方起高），作为 flex 兄弟列推挤对话
+ *   区——消息列 max-w-3xl 与文本宽度不变。
+ * - 移动（<768px）：底部抽屉全宽，手写 pointer events 三路关闭
  *   （把手拖拽过半 / 快滑 / 内容滚动到顶后继续下拉），不引第三方依赖。
  * 内容 = 最近一次点击「N 条参考来源」的那条回答的 citations（复用
  * AgentCitationCard）。原内联折叠列表（AgentCitationList）随本票退役。
+ * #751：两分支滚动区只留纵向；列表 grid-cols-1 + li min-w-0 + 卡片截断链
+ * 共同消灭横向溢出（overflow-x-hidden 仅兜底）。
  */
 
 interface AgentCitationsSidebarProps {
@@ -137,10 +140,10 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
               <X className="size-4" aria-hidden="true" />
             </button>
           </div>
-          {/* 内容区：滚动到顶后继续下拉 → 接管手势关闭 */}
+          {/* 内容区：滚动到顶后继续下拉 → 接管手势关闭（#751：横向同兜底） */}
           <div
             ref={contentRef}
-            className="min-h-0 flex-1 touch-pan-y overflow-y-auto px-3 pb-6"
+            className="min-h-0 flex-1 touch-pan-y overflow-y-auto overflow-x-hidden px-3 pb-6"
             onPointerDown={(e) => {
               if ((contentRef.current?.scrollTop ?? 0) <= 0) beginDrag(e, true);
             }}
@@ -152,9 +155,9 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
-            <ul className="grid gap-2">
+            <ul className="grid grid-cols-1 gap-2">
               {citations.map((citation, index) => (
-                <li key={`${citation.contentId}-${index}`}>
+                <li key={`${citation.contentId}-${index}`} className="min-w-0">
                   <AgentCitationCard
                     citation={citation}
                     index={index}
@@ -170,13 +173,15 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
     );
   }
 
-  /* 桌面：对话区右缘侧栏（flex 兄弟列推挤，非覆盖）。 */
+  /* 桌面：对话区右缘侧栏（flex 兄弟列推挤，非覆盖）。#751：最大 440px、
+     窄桌面按 38vw 收窄（min(440px,38vw)）；内容滚动只留纵向，横向以
+     overflow-x-hidden 兜底（截断链修复见卡片与列表层，不靠裁内容冒充）。 */
   return (
     <aside
       aria-label={t("agent.citations.title")}
       data-testid="citations-sidebar"
       className={cn(
-        "hidden w-[min(400px,90vw)] shrink-0 flex-col border-l border-border-default bg-canvas-default md:flex",
+        "hidden w-[min(440px,38vw)] shrink-0 flex-col border-l border-border-default bg-canvas-default md:flex",
         "transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
         open ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
       )}
@@ -197,10 +202,10 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
           <X className="size-4" aria-hidden="true" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <ul className="grid gap-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+        <ul className="grid grid-cols-1 gap-2">
           {citations.map((citation, index) => (
-            <li key={`${citation.contentId}-${index}`}>
+            <li key={`${citation.contentId}-${index}`} className="min-w-0">
               <AgentCitationCard
                 citation={citation}
                 index={index}
