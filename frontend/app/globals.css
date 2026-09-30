@@ -404,3 +404,16 @@ html[data-vt-close]::view-transition-new(content-detail-cover) {
   transition: none !important;
   transform: none !important;
 }
+
+/* #721 Agent 侧栏动效：桌面内容渐入（宽度过渡由组件 transition-[width]
+   承担）；尊重 prefers-reduced-motion（组件用 motion-safe: 前缀引用）。 */
+@keyframes agent-side-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
