@@ -40,7 +40,7 @@ import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
 import { AgentThinkingPlaceholder } from "@/components/agent/AgentThinkingPlaceholder";
 import { AgentMetaPill } from "@/components/agent/AgentMetaPill";
 import { shouldShowThinkingPlaceholder } from "@/lib/agent-turn";
-import { citationDisplayMapOf, remapCitationMarks } from "@/lib/agent";
+import { citationDisplayMapOf, isProviderDegradation, remapCitationMarks } from "@/lib/agent";
 import { useDelayedUnmount } from "@/lib/use-delayed-unmount";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
@@ -588,10 +588,13 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       }
       if (event.type === "error") {
         controllerRef.current?.abort();
-        /* provider 降级撤答：关键词回退与降级终态同 tick 发起（旧语义，agent-turn.ts
+        /* provider 降级撤答：关键词回退与降级终态同 tick 发起（agent-turn.ts
            applyError 契约「回退请求由调用方副作用发起」）。改由 effect 驱动会晚一拍——
-           降级文案先渲染而回退引用未落，依赖同步断言的既有测试稳定红（#663 后时序回归）。 */
-        if (event.degraded && event.degraded_reason === "provider_error") {
+           降级文案先渲染而回退引用未落，依赖同步断言的既有测试稳定红（#663 后时序回归；
+           #684 B+ 裁决：触发时序维持组件同 tick 双处，不重开；降级判定唯一真源 =
+           lib/agent.ts isProviderDegradation，terminal.needsKeywordFallback = 回退
+           挂起记录非触发真源）。 */
+        if (isProviderDegradation(event)) {
           void loadKeywordFallback(turnQuery, fallbackRequestRef.current);
         }
       }
