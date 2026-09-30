@@ -437,7 +437,7 @@ export function ContentDetailOverlayLayer({
         !isFanwork && relatedTotal > 8 ? (
           <Link
             href={`/original/${content.id}/fanworks`}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
           >
             {t("contentDetailOverlay.viewAll")}
           </Link>

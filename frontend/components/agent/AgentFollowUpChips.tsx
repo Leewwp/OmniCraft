@@ -29,7 +29,7 @@ export function AgentFollowUpChips({ followUps, onFill }: AgentFollowUpChipsProp
           type="button"
           onClick={() => onFill(followUp)}
           aria-label={`${followUp} — ${t("followUpFill")}`}
-          className="inline-flex items-center rounded-full border border-border-default bg-canvas-default px-3.5 py-1.5 text-sm text-fg-default transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle hover:text-accent-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex items-center rounded-full border border-border-default bg-canvas-default px-3.5 py-1.5 text-sm text-fg-default transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle hover:text-accent-emphasis focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           {followUp}
         </button>

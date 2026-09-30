@@ -132,7 +132,7 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
               type="button"
               aria-label={t("agent.citations.close")}
               onClick={onClose}
-              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
             >
               <X className="size-4" aria-hidden="true" />
             </button>
@@ -192,7 +192,7 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
           type="button"
           aria-label={t("agent.citations.close")}
           onClick={onClose}
-          className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

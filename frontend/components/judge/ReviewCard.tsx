@@ -273,7 +273,7 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote, on
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring"
           />
           <div className="flex gap-2">
             <Button size="sm" disabled={submitting} onClick={confirmVote}>

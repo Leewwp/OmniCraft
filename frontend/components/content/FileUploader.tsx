@@ -730,7 +730,7 @@ export function FileUploader({
                   setDraggedID(null);
                   setDropTargetID(null);
                 }}
-                className={`min-w-0 rounded-md border border-border bg-background p-1 transition-opacity motion-reduce:transition-none ${draggedID === item.id ? "opacity-40" : ""} ${dropTargetID === item.id ? "ring-2 ring-ring" : ""}`}
+                className={`min-w-0 rounded-md border border-border bg-background p-1 transition-opacity motion-reduce:transition-none ${draggedID === item.id ? "opacity-40" : ""} ${dropTargetID === item.id ? "border-accent-emphasis" : ""}`}
               >
                 <div className="relative aspect-square overflow-hidden rounded-sm bg-muted">
                   {item.previewUrl || item.posterUrl ? (
@@ -813,7 +813,7 @@ export function FileUploader({
       ) : (
         <button
           type="button"
-          className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-4 text-center text-sm text-muted-foreground transition-colors hover:border-ring hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+          className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-4 text-center text-sm text-muted-foreground transition-colors hover:border-ring hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
           disabled={!canAddMore}
           onClick={() => inputRef.current?.click()}
         >

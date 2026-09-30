@@ -309,7 +309,7 @@ export function MediaGallery({
             onClick={goPrevious}
             disabled={clampIndex(index, items.length) === 0}
             aria-label={t("media.gallery.previous")}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -332,7 +332,7 @@ export function MediaGallery({
             onClick={goNext}
             disabled={clampIndex(index, items.length) === items.length - 1}
             aria-label={t("media.gallery.next")}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-40"
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>

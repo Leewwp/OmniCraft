@@ -124,7 +124,7 @@ export function CreatorSupportPanel({ supportInfo, isOwner, className }: Creator
           value={imageUrl}
           onChange={(e) => setImageUrl(e.target.value)}
           placeholder="https://..."
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring"
         />
       </div>
 
@@ -139,7 +139,7 @@ export function CreatorSupportPanel({ supportInfo, isOwner, className }: Creator
               value={url}
               onChange={(e) => updateLink(idx, e.target.value)}
               placeholder="https://..."
-              className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring"
             />
             <Button size="sm" variant="ghost" className="text-destructive h-9 w-9 p-0" onClick={() => removeLink(idx)}>×</Button>
           </div>

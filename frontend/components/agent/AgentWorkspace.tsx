@@ -247,7 +247,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       onClick={toggleDeepThink}
       /* #725 底部控件带收紧：开关视觉降级（h-6 紧凑形态，行为/可达性不变）。 */
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         /* FT-2：默认白底黑字；选中仅背景变化，字色不变 */
         deepThink ? "bg-primary/10 text-fg-default" : "bg-canvas-default text-fg-default hover:bg-canvas-subtle",
       )}
@@ -266,7 +266,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           window.localStorage.setItem(MODEL_STORAGE_KEY, event.target.value);
         }}
         /* #725：模型选择器同步紧凑形态。 */
-        className="h-6 rounded-md border border-border-default bg-canvas-default px-1 text-[11px] text-fg-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-6 rounded-md border border-border-default bg-canvas-default px-1 text-[11px] text-fg-default focus:border-border-strong focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         {modelOptions.map((option) => (
           <option key={option.id} value={option.id}>
@@ -779,7 +779,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                     type="button"
                     aria-label={t("agent.workspace.copyMessage")}
                     onClick={() => void handleCopyMessage(remapCitationMarks(turn.answer, displayMap))}
-                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
                   >
                     <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -787,7 +787,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                     type="button"
                     aria-label={t("agent.workspace.regenerate")}
                     onClick={handleRegenerate}
-                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
                   >
                     <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -872,7 +872,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   {turn.query && (
                     <Link
                       href={`/search?q=${encodeURIComponent(turn.query)}`}
-                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus-visible:ring-1 focus:ring-ring"
                     >
                       {t("agent.noEvidence.searchCta")}
                     </Link>
@@ -890,7 +890,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   {turn.query && (
                     <Link
                       href={`/search?q=${encodeURIComponent(turn.query)}`}
-                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus-visible:ring-1 focus:ring-ring"
                     >
                       {t("agent.noEvidence.searchCta")}
                     </Link>
@@ -1070,7 +1070,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             ref={historyTriggerRef}
             aria-label={t("agent.workspace.openConversations")}
             onClick={() => setDrawerOpen(true)}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-[701px]:hidden"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring min-[701px]:hidden"
           >
             {/* #721：历史记录语义的时钟类图标（原通用菜单图标与右上角侧栏
                 图标撞语义）。 */}
@@ -1132,7 +1132,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   <button
                     type="button"
                     onClick={() => handleSend(t(key))}
-                    className="inline-flex items-center rounded-full border border-border-default bg-card px-3 py-1.5 text-sm text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="inline-flex items-center rounded-full border border-border-default bg-card px-3 py-1.5 text-sm text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
                   >
                     {t(key)}
                   </button>

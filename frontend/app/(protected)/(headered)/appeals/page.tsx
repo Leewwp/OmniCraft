@@ -201,7 +201,7 @@ function AppealsPageContent() {
               <select
                 value={form.target_type}
                 onChange={(e) => setForm((f) => ({ ...f, target_type: e.target.value }))}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none"
               >
                 <option value="content">{t('appeals.typeContent')}</option>
                 <option value="comment">{t('appeals.typeComment')}</option>
@@ -213,7 +213,7 @@ function AppealsPageContent() {
                   placeholder={t('appeals.targetId')}
                   value={form.target_id}
                   onChange={(e) => setForm((f) => ({ ...f, target_id: e.target.value }))}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none"
                 />
               )}
               {form.target_type === "account" && (
@@ -224,7 +224,7 @@ function AppealsPageContent() {
                 value={form.reason}
                 onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
                 rows={3}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none"
               />
               <div className="flex gap-2">
                 <Button size="sm" disabled={submitting} onClick={() => void submitAppeal()}>
