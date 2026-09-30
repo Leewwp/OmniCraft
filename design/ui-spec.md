@@ -3557,6 +3557,8 @@ interface AgentToolStatus {
 - 页面外层：受保护的全高工作区，位于共享 Header 下方。
 - 桌面布局：会话侧栏 + 主对话区；主区包含会话标题行、消息流（三层生成形态）、引用列表和固定输入区。
 - **三层生成形态（A-06 核心，DeepSeek 同构顺序）**：思考折叠区（AgentThinkingBlock，流式展开→完成自动折叠，可手动重开）→ 工具步骤区（AgentToolStatus 可折叠，流式展开→完成折叠，展示步骤数/命中数/参数摘要/耗时）→ 逐字正文（react-markdown 受控渲染 + 行内 [n] 角标）。
+- **回合级折叠组件族 V4 边框（#750，2026-10-01）**：思考内容框、工具步骤列表框、本轮详情内容框、引用卡外框四类主框 = `rounded-md border-[1.5px] border-border-strong bg-canvas-default px-3 py-2`（与页面默认底同色，靠边框分层）；折叠头胶囊（AgentMetaPill，含「已深度思考 / N 个工具步骤 / 本轮详情 / N 条参考来源」）同步 1.5px `border-strong` + `bg-canvas-default` 底、保持 `rounded-full` 与紧凑视觉高度，coarse 指针命中区放大至 ≥44px；激活态（参考来源入口）保留 `accent-subtle` 背景反馈，#720 键盘焦点仍为 1px 细描边；卡片内部徽标/侧栏分隔线/错误卡/消息气泡不在此例外内（例外登记见 design-system.md 核心原则 2）。
+- **本轮详情胶囊触发（#750）**：一轮终态的用量/trace 入口从裸 `details/summary` 换成共享胶囊触发器（TurnDetailsDisclosure）——单一受控 button 触发（不嵌套 summary，杜绝双切换），默认折叠、可反复开合，`aria-expanded` 与内容可见状态同源；usage/trace 展示条件与管理员 trace 链接（普通用户纯文本 trace id）语义不变。
 - 会话侧栏：展开态自上而下为 折叠按钮 → 全宽”开启新对话” → 会话历史；**置顶分组（Pinned）在最前，其后 Today/Yesterday/Earlier 时间分组**；每项显示 title（无 title 显示「未命名」）+ 置顶图钉 + 更新时间；悬停/聚焦显示 ⋯ 菜单 = 重命名 / 置顶(取消置顶) / 删除。可收为 56px 窄栏并持久化（localStorage）。
 - 移动布局：单列全高页面，会话导航收进抽屉（Esc 关闭），顶部标题与底部输入区保持可达。
 - 图标: `<Icon className=”text-fg-muted w-4 h-4” />`

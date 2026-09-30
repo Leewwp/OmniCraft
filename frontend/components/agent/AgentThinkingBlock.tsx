@@ -44,7 +44,7 @@ export function AgentThinkingBlock({ content, streaming }: AgentThinkingBlockPro
       {open && (
         <div
           ref={bodyRef}
-          className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md border border-border-default bg-card px-3 py-2 text-xs leading-5 text-fg-muted"
+          className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md border-[1.5px] border-border-strong bg-canvas-default px-3 py-2 text-xs leading-5 text-fg-muted"
         >
           {content}
         </div>

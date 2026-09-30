@@ -39,7 +39,7 @@
       },
       {
         "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -53,10 +53,16 @@
         }
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsToken usage: 10 in / 20 outTrace ID: t1",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       }
     ]
   },
@@ -88,15 +94,21 @@
       },
       {
         "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsTrace ID: t2",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       }
     ]
   },
@@ -154,7 +166,7 @@
       },
       {
         "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring border-accent-emphasis/60 bg-accent-subtle text-accent-emphasis mt-1",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] px-3 text-xs transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 border-accent-emphasis/60 bg-accent-subtle text-accent-emphasis mt-1",
         "text": "2 reference sources",
         "attrs": {}
       }
@@ -197,10 +209,16 @@
         "attrs": {}
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsTrace ID: t-err",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       },
       {
         "tag": "div",
@@ -284,7 +302,7 @@
       },
       {
         "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
         "text": "1 reference sources",
         "attrs": {}
       }
@@ -306,7 +324,7 @@
       },
       {
         "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -324,7 +342,7 @@
       },
       {
         "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -342,15 +360,21 @@
       },
       {
         "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring mt-1",
+        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
         "text": "1 reference sources",
         "attrs": {}
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsTrace ID: t2",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       }
     ]
   }

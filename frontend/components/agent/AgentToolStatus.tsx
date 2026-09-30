@@ -94,7 +94,7 @@ export function AgentToolStatus({ tools, live = false }: AgentToolStatusProps) {
         onClick={() => setOpen((value) => !value)}
       />
       {open && (
-        <ul className="space-y-1.5 rounded-md border border-border-default bg-card px-3 py-2">
+        <ul className="space-y-1.5 rounded-md border-[1.5px] border-border-strong bg-canvas-default px-3 py-2">
           {tools.map((tool, index) => {
             const labelKey =
               TOOL_RESULT_KEYS[tool.name]?.[tool.status] ?? FALLBACK_RESULT_KEYS[tool.status];

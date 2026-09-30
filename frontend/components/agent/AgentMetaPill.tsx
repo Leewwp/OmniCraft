@@ -7,9 +7,11 @@ import { cn } from "@/lib/utils";
 
 /**
  * #719 回合元数据三卡（已深度思考 / N 个工具步骤 / N 条参考来源）共享的
- * 轻量小胶囊触发器（DeepSeek「思考结束」形态参考）：一行高、大圆角、极浅
- * 边框、图标 + 文字 + 计数 + 右侧 chevron 展开指示；宽度随文字自然伸缩，
+ * 轻量小胶囊触发器（DeepSeek「思考结束」形态参考）：一行高、大圆角、
+ * 图标 + 文字 + 计数 + 右侧 chevron 展开指示；宽度随文字自然伸缩，
  * 窄视口（390px）由父容器 flex-wrap 换行不溢出。
+ * #750 V4：边框统一 1.5px border-strong + canvas-default 底（含本胶囊），
+ * coarse 指针下命中区放大到 44px（视觉高度保持 min-h-7 紧凑）。
  *
  * 只统一外观——流式顺序、自动折叠、点击行为（思考/工具原地展开、参考
  * 来源开侧栏）由各使用方维持不变。
@@ -55,7 +57,9 @@ export function AgentMetaPill({
       aria-pressed={pressed}
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        /* #750 V4：普通态胶囊 1.5px 强边框 + 与页面默认底同色（亮暗 token
+           各自映射）；#720 键盘焦点仍为 1px 细描边，不随边框加粗。 */
+        "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11",
         /* #720 层3：非筛选类的激活/选中表达用背景微变（无选中环）。 */
         pressed && "border-accent-emphasis/60 bg-accent-subtle text-accent-emphasis",
         className,
