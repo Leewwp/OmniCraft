@@ -177,7 +177,7 @@ export function FeedbackFormInner({
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none"
           required
         >
           <option value="">{t("feedback.selectCategory")}</option>

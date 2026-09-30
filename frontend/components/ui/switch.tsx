@@ -16,7 +16,7 @@ function Switch({ checked, onCheckedChange, className, disabled, onClick, ...pro
       disabled={disabled}
       data-slot="switch"
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-border outline-none transition-[background-color,border-color,box-shadow] duration-150 hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border",
+        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-border outline-none transition-[background-color,border-color,box-shadow] duration-150 hover:border-border-strong focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border",
         checked ? "bg-primary" : "bg-muted",
         className,
       )}

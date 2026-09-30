@@ -752,7 +752,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
               onChange={(e) => setBriefDesc(e.target.value)}
               rows={3}
               placeholder={t('studio.publish.bodyPlaceholder')}
-              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus-visible:ring-1 focus:ring-ring/20 resize-none"
             />
           </div>
         </div>

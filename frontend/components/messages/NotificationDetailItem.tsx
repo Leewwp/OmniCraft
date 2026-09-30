@@ -186,7 +186,7 @@ export function NotificationDetailItem({ notification: n, onMarkRead }: Notifica
               if (!n.is_read) onMarkRead(n.id);
               router.push(summary.url!);
             }}
-            className="flex max-w-md items-center gap-2 rounded-md border border-border-default bg-canvas-subtle px-3 py-1.5 text-xs text-fg-muted transition-colors hover:border-accent-emphasis/40 hover:text-fg-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex max-w-md items-center gap-2 rounded-md border border-border-default bg-canvas-subtle px-3 py-1.5 text-xs text-fg-muted transition-colors hover:border-accent-emphasis/40 hover:text-fg-default focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {kindLabel && <span className="shrink-0 rounded bg-background px-1.5 py-0.5 text-[10px] text-fg-muted">{kindLabel}</span>}
             <span className="truncate text-fg-default">{summary.title}</span>

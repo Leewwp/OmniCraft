@@ -73,7 +73,7 @@ export function NotificationDropdown() {
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         aria-label={t("nav.notifications")}
-        className="relative inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors duration-150 hover:bg-canvas-subtle active:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-accent-emphasis data-popup-open:bg-canvas-subtle"
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors duration-150 hover:bg-canvas-subtle active:bg-canvas-subtle focus:outline-none focus-visible:ring-1 focus:ring-accent-emphasis data-popup-open:bg-canvas-subtle"
       >
         <Bell className="h-4 w-4" />
         {unreadCounts.total > 0 && (

@@ -460,7 +460,7 @@ function CommentItem({
           {editing ? (
             <div className="mt-1.5 space-y-1.5">
               <textarea
-                className="min-h-[52px] w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+                className="min-h-[52px] w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground focus:border-ring focus:outline-none focus-visible:ring-1 focus:ring-ring"
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
                 maxLength={5000}
@@ -720,7 +720,7 @@ function ReplyItem({
       {editing ? (
         <div className="mt-1 space-y-1.5">
           <textarea
-            className="min-h-[44px] w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+            className="min-h-[44px] w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none focus-visible:ring-1 focus:ring-ring"
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
             maxLength={5000}

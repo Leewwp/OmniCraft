@@ -32,7 +32,7 @@ export default function ExamQuestion({ question, selectedKey, onSelect, disabled
               type="button"
               disabled={disabled}
               onClick={() => onSelect(key)}
-              className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+              className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-all outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                 isSelected
                   ? "border-accent bg-accent/10 text-accent-foreground"
                   : "border-border bg-background text-foreground hover:bg-muted"

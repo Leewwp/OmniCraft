@@ -102,7 +102,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) =
           setVisible(false);
           setTimeout(() => onRemove(toast.id), getExitAnimationMs());
         }}
-        className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors duration-150 hover:bg-background/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:size-11"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors duration-150 hover:bg-background/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:size-11"
       >
         <X className="h-4 w-4" />
       </button>

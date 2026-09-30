@@ -55,7 +55,9 @@ export function AgentMetaPill({
       aria-pressed={pressed}
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border-default/50 bg-canvas-subtle px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        /* #720 层3：非筛选类的激活/选中表达用背景微变（无选中环）。 */
+        pressed && "border-accent-emphasis/60 bg-accent-subtle text-accent-emphasis",
         className,
       )}
     >

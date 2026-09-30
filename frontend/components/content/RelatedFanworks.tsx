@@ -153,7 +153,7 @@ export function RelatedFanworks({
           {showViewAll && viewAllHref && (
             <Link
               href={viewAllHref}
-              className="inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
             >
               {t("relatedFanworks.actions.viewAll")}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

@@ -317,7 +317,7 @@ export default function TagGroupsPage() {
                 type="text"
                 value={modalName}
                 onChange={(e) => setModalName(e.target.value)}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                 placeholder={t("tagGroups.groupNamePlaceholder")}
                 aria-invalid={Boolean(modalError && !modalName.trim())}
                 aria-describedby={modalError ? "tag-group-error" : undefined}
@@ -341,7 +341,7 @@ export default function TagGroupsPage() {
                       addTag();
                     }
                   }}
-                  className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+                  className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                   placeholder={t("tagGroups.tagPlaceholder")}
                   aria-invalid={Boolean(modalError && modalTags.length === 0)}
                   aria-describedby={modalError ? "tag-group-error" : undefined}

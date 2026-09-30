@@ -141,7 +141,7 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
           aria-label={stopLabel}
           onClick={onStop}
           className={cn(
-            "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-default",
+            "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             expandMobileHit && "after:absolute after:-inset-2 after:content-[''] md:after:inset-0",
           )}
         >
@@ -155,7 +155,7 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
         onClick={onSubmit}
         disabled={submitDisabled || disabled}
         className={cn(
-          "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-default",
+          "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           expandMobileHit && "after:absolute after:-inset-2 after:content-[''] md:after:inset-0",
           submitting || !(submitDisabled || disabled)
             ? "bg-primary text-primary-foreground hover:bg-primary/90"

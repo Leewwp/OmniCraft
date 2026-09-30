@@ -115,7 +115,7 @@ export default function SeriesDetailPage({ params }: SeriesDetailPageProps) {
             <span className="text-xs text-fg-muted">{t("series.detail.header.itemCount", { count: series.item_count })}</span>
           </div>
           <h1 className="text-2xl font-semibold text-fg-default">{series.title}</h1>
-          <Link href={`/user/${series.owner.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm text-accent-emphasis underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-emphasis">
+          <Link href={`/user/${series.owner.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm text-accent-emphasis underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-emphasis">
             {t("series.detail.header.owner", { username: series.owner.username })}
           </Link>
           {series.description && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-fg-muted">{series.description}</p>}
@@ -130,7 +130,7 @@ export default function SeriesDetailPage({ params }: SeriesDetailPageProps) {
           <ol className="divide-y divide-border-default rounded-lg border border-border-default bg-card" aria-label={t("series.detail.items.ariaLabel")}>
             {visibleItems.map((item, index) => (
               <li key={item.id}>
-                <Link href={item.content.zone === "original" ? `/original/${item.content.id}` : `/content/${item.content.id}`} className="flex min-h-11 items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-canvas-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-emphasis">
+                <Link href={item.content.zone === "original" ? `/original/${item.content.id}` : `/content/${item.content.id}`} className="flex min-h-11 items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-canvas-subtle focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent-emphasis">
                   <span className="w-12 shrink-0 text-xs text-fg-muted">{t("series.detail.items.itemLabel", { index: index + 1 })}</span>
                   <span className="min-w-0 flex-1 font-medium text-fg-default">{item.content.title}</span>
                   <span className="shrink-0 text-xs text-fg-muted">{item.content.zone === "fanwork" ? t("series.detail.header.zoneFanwork") : t("series.detail.header.zoneOriginal")}</span>

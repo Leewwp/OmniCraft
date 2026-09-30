@@ -254,7 +254,7 @@ export function UserHoverCard({
         ref={triggerRef}
         href={`/user/${userId}`}
         aria-expanded={hoverCapable ? open : undefined}
-        className="flex min-w-0 items-center gap-2 rounded-md font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 items-center gap-2 rounded-md font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         onClick={(event) => {
           event.stopPropagation();
           closeNow();
@@ -278,7 +278,7 @@ export function UserHoverCard({
             <span className="min-w-0 flex-1">
               <Link
                 href={`/user/${userId}`}
-                className="block truncate text-sm font-semibold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block truncate text-sm font-semibold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={(event) => {
                   event.stopPropagation();
                   closeNow();
@@ -309,7 +309,7 @@ export function UserHoverCard({
             {isSelf ? (
               <Link
                 href={`/user/${userId}`}
-                className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={(event) => {
                   event.stopPropagation();
                   closeNow();

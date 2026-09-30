@@ -93,7 +93,7 @@ test("search and home preserve responsive, keyboard, loading, empty, and error c
   assert.match(search, /shadow-\[var\(--elevation-3\)\]/);
   assert.match(search, /w-\[228px\].*min-\[1101px\]:w-\[260px\]/);
   assert.match(search, /role="dialog"/);
-  assert.match(search, /focus:ring-2/);
+  assert.match(search, /focus-visible:ring-1/);
   assert.match(search, /search\.gridView/);
   assert.match(search, /search\.listView/);
   assert.match(search, /pointer:coarse.*min-h-11/);
@@ -102,11 +102,11 @@ test("search and home preserve responsive, keyboard, loading, empty, and error c
   assert.match(search, /<EmptyState/);
   assert.match(search, /common\.retry/);
   assert.match(home, /<OverlayMasonryGrid/);
-  assert.match(facets, /focus:ring-2/);
+  assert.match(facets, /focus-visible:ring-1/);
   assert.match(facets, /shadow-none/);
   assert.doesNotMatch(facets, /"flex flex-col border border-border rounded-md bg-card p-4 gap-4[^\"]*shadow-/);
   assert.match(read("components/ip/IPCard.tsx"), /dark:bg-canvas-subtle/);
-  assert.match(read("components/ip/IPCard.tsx"), /focus-visible:ring-2/);
+  assert.match(read("components/ip/IPCard.tsx"), /focus-visible:ring-1/);
   assert.match(read("components/ip/IPCard.tsx"), /motion-reduce:transform-none/);
   assert.match(read("components/ip/IPCard.tsx"), /variant === "browse"/);
   assert.match(read("components/ip/IPCard.tsx"), /hover:shadow-\[var\(--elevation-2\)\]/);

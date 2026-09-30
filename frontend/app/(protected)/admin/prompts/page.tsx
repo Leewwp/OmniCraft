@@ -280,7 +280,7 @@ export default function AdminPromptsPage() {
                       diff:
                       <select
                         aria-label={t("admin.prompts.diffFrom")}
-                        className="h-7 rounded border border-border bg-background px-1 text-xs"
+                        className="h-7 rounded border border-border bg-background px-1 text-xs focus:border-border-strong focus:outline-none"
                         value={diffFrom ?? ""}
                         onChange={(e) => setDiffFrom(e.target.value ? Number(e.target.value) : null)}
                       >
@@ -292,7 +292,7 @@ export default function AdminPromptsPage() {
                       →
                       <select
                         aria-label={t("admin.prompts.diffTo")}
-                        className="h-7 rounded border border-border bg-background px-1 text-xs"
+                        className="h-7 rounded border border-border bg-background px-1 text-xs focus:border-border-strong focus:outline-none"
                         value={diffTo ?? ""}
                         onChange={(e) => setDiffTo(e.target.value ? Number(e.target.value) : null)}
                       >

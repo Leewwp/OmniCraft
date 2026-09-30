@@ -131,7 +131,7 @@ export function AgentConversationSidebar({
             title={expandLabel}
             aria-label={expandLabel}
             onClick={onRequestClose ?? onToggleCollapse}
-            className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
           >
             <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -141,7 +141,7 @@ export function AgentConversationSidebar({
             aria-label={t("agent.workspace.newConversation")}
             onClick={onNewConversation}
             disabled={disabled}
-            className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-50"
+            className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-50"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -156,7 +156,7 @@ export function AgentConversationSidebar({
           type="button"
           aria-label={t("agent.workspace.collapseSidebar")}
           onClick={onToggleCollapse}
-          className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
         >
           <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -167,7 +167,7 @@ export function AgentConversationSidebar({
           type="button"
           onClick={onNewConversation}
           disabled={disabled}
-          className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-border-default bg-canvas-default px-3 text-sm font-medium text-foreground transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-border-default bg-canvas-default px-3 text-sm font-medium text-foreground transition-colors hover:bg-canvas-subtle focus:outline-none focus-visible:ring-1 focus:ring-ring disabled:pointer-events-none disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           {t("agent.workspace.newConversation")}
@@ -212,7 +212,7 @@ export function AgentConversationSidebar({
                               }
                             }}
                             onBlur={() => commitRename(conversation.id)}
-                            className="h-10 w-full rounded-md border border-ring bg-canvas-default px-2 text-sm text-fg-default focus:outline-none focus:ring-2 focus:ring-ring"
+                            className="h-10 w-full rounded-md border border-border-strong bg-canvas-default px-2 text-sm text-fg-default focus:border-accent-emphasis focus:outline-none"
                           />
                         ) : (
                           <div
@@ -233,7 +233,7 @@ export function AgentConversationSidebar({
                               aria-current={active ? "page" : undefined}
                               onClick={() => onSelect(conversation.id)}
                               disabled={disabled}
-                              className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch rounded-md py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                              className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch rounded-md py-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                             >
                               {pinned && <Pin className="h-3 w-3 shrink-0" aria-hidden="true" />}
                               <span className="truncate">
@@ -249,7 +249,7 @@ export function AgentConversationSidebar({
                             <DropdownMenu>
                               <DropdownMenuTrigger
                                 aria-label={t("agent.workspace.menuLabel", { id: conversation.id })}
-                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100"
+                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100"
                               >
                                 <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                               </DropdownMenuTrigger>

@@ -75,7 +75,7 @@ export function ContentSidebar({
           type="button"
           onClick={(event) => onOpenRelatedItem?.(item, event.currentTarget)}
           aria-label={t("contentDetailOverlay.openRelated", { title: item.title })}
-          className="flex w-full items-center gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex w-full items-center gap-2.5 rounded-md p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
         >
           {item.coverUrl ? (
             <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted">
@@ -105,7 +105,7 @@ export function ContentSidebar({
             onClick={(event) =>
               onOpenRelated({ id: sourceOriginal.id, zone: "original" }, event.currentTarget)
             }
-            className="inline-flex max-w-full items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex max-w-full items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-emphasis focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
           >
             <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="truncate">

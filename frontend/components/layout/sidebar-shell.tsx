@@ -74,7 +74,7 @@ export function SidebarTooltip({ label }: { label: string }) {
  * （opacity + translateX）不推动图标位置。
  */
 export const SIDEBAR_ITEM_BASE =
-  "flex min-h-[44px] w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium outline-none transition-[color,background-color] duration-150 select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "flex min-h-[44px] w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium outline-none transition-[color,background-color] duration-150 select-none focus-visible:ring-1 focus-visible:ring-ring";
 
 /** 收起态行的文字 overlay：绝对定位（不推动图标），opacity+translateX 进出。 */
 export const SIDEBAR_ITEM_TEXT_CLASS =

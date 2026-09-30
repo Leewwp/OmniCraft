@@ -281,7 +281,7 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
                 onKeyDown={(event) => handleTabKeyDown(event, index)}
                 className={cn(
                   "inline-flex min-h-11 max-w-48 cursor-pointer items-center rounded-md px-3 text-sm font-medium transition-colors duration-200",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ",
                   safeActiveIndex === index
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -311,7 +311,7 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
                 }}
                 className={cn(
                   buttonVariants({ variant: "ghost" }),
-                  "min-h-11 shrink-0 cursor-pointer px-3 focus-visible:ring-2 focus-visible:ring-ring",
+                  "min-h-11 shrink-0 cursor-pointer px-3 focus-visible:ring-1 focus-visible:ring-ring",
                 )}
               >
                 {t("more", { count: overflow.length })}
@@ -330,7 +330,7 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
                       href={`/series/${membership.series_id}`}
                       onClick={() => setMoreOpen(false)}
                       onKeyDown={(event) => handleMoreItemKeyDown(event, index)}
-                      className="flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm outline-none transition-colors duration-200 hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm outline-none transition-colors duration-200 hover:bg-muted focus-visible:bg-muted focus-visible:ring-1 focus-visible:ring-ring"
                     >
                       {membership.series_title}
                     </Link>
@@ -445,7 +445,7 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
                         onClick={() => loadDirectory(active.series_id)}
                         className={cn(
                           buttonVariants({ variant: "outline", size: "sm" }),
-                          "mt-2 min-h-11 cursor-pointer focus-visible:ring-2 focus-visible:ring-ring",
+                          "mt-2 min-h-11 cursor-pointer focus-visible:ring-1 focus-visible:ring-ring",
                         )}
                       >
                         {t("directory.retry")}
@@ -476,7 +476,7 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
                           onClick={() => activateChapter(item, index)}
                           onKeyDown={(event) => handleOptionKeyDown(event, index)}
                           className={cn(
-                            "flex min-h-11 w-full cursor-pointer items-center rounded-md px-3 text-sm outline-none transition-colors duration-200 hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                            "flex min-h-11 w-full cursor-pointer items-center rounded-md px-3 text-sm outline-none transition-colors duration-200 hover:bg-muted focus-visible:bg-muted focus-visible:ring-1 focus-visible:ring-ring",
                             current && "bg-muted/60 font-medium",
                           )}
                         >

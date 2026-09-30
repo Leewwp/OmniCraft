@@ -110,7 +110,7 @@ export default function AdminAppealPage() {
             setStatusFilter(e.target.value as typeof statusFilter);
           }}
           aria-label={t('admin.appeals.statusFilter')}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none"
         >
           <option value="pending">{t('admin.appeals.statusPending')}</option>
           <option value="approved">{t('admin.appeals.statusApproved')}</option>

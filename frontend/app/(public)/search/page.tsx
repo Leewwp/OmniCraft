@@ -174,7 +174,7 @@ export default function SearchPage() {
             <span className="text-muted-foreground">{t("agent.searchAgentEntryHint")}</span>
             <Link
               href={agentEntryHref}
-              className="inline-flex items-center gap-1 font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+              className="inline-flex items-center gap-1 font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus-visible:ring-1 focus:ring-ring"
             >
               {t("agent.searchAgentEntryCta")}
               <span aria-hidden="true">→</span>
@@ -242,7 +242,7 @@ export default function SearchPage() {
                   type="button"
                   ref={closeFilterButtonRef}
                   onClick={closeFilterDrawer}
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-muted focus:outline-none focus-visible:ring-1 focus:ring-ring"
                   aria-label={t("common.close")}
                 >
                   <X className="h-4 w-4" />
@@ -336,7 +336,7 @@ export default function SearchPage() {
                       value={saveName}
                       onChange={(e) => setSaveName(e.target.value)}
                       placeholder={t("search.saveNamePlaceholder")}
-                      className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus-visible:ring-1 focus:ring-ring"
                     />
                     <Button size="sm" className="h-6 text-xs" onClick={handleSaveSearch} disabled={saveBusy}>
                       {t("common.save")}
