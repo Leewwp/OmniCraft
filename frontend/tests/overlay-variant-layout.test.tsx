@@ -33,7 +33,7 @@ function installOverlayTestStubs({ splitViewport = false }: { splitViewport?: bo
      必须还原，否则后续「非 desktop」用例被污染走 variant 路径。 */
   if (splitViewport) {
     window.matchMedia = ((query: string) => ({
-      matches: query === "(min-width: 1100px)",
+      matches: query === "(min-width: 960px)",
       media: query,
       onchange: null,
       addListener: () => undefined,
@@ -373,7 +373,9 @@ test("#397 portrait media set renders the variant layout on desktop viewport", a
   /* 布局不变量：锚点盒不含翻页控件（箭头/角标/指示点是 pane 的子节点而非锚点子节点）。 */
   const controlsInsideAnchor = cover?.querySelectorAll("button");
   assert.equal(controlsInsideAnchor?.length ?? 0, 0, "detail-cover anchor box must not contain paging controls");
-  assert.ok(pane?.querySelectorAll("button").length >= 4, "arrows + side zones live outside the anchor");
+  /* #753：1/3 隐形热区移除后 pane 内按钮 = 左右箭头 + 右栏内容内按钮；
+     布局不变量仍是「锚点盒内零翻页控件」。 */
+  assert.ok((pane?.querySelectorAll("button").length ?? 0) >= 2, "explicit arrows live outside the anchor");
 
   /* 右栏 = 唯一滚动容器（layer-scroller），正文在其中。 */
   const scroller = document.querySelector('[data-slot="layer-scroller"]');
@@ -409,7 +411,7 @@ test("#397 portrait set on non-desktop viewport stays on the legacy path", async
   installApiMock();
   const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, false);
   await openOverlay(view, "Portrait Set Work");
-  assert.equal(document.querySelector('[data-slot="variant-media-pane"]'), null, "<1100px keeps the single-column design");
+  assert.equal(document.querySelector('[data-slot="variant-media-pane"]'), null, "<960px keeps the single-column design");
   assert.ok(document.querySelector("header"));
 });
 
