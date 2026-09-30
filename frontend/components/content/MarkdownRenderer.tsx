@@ -9,9 +9,13 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { isAllowedImageSrc, useImageHostAllowlist } from "@/lib/image-guard";
 
-/** FT-5 (#697) 角标标题小卡数据：number 与正文 [n] 同一轮内全局编号体系。 */
+/** FT-5 (#697) 角标标题小卡数据：number 与正文 [n] 同一轮内全局编号体系
+ * （目标查找与存储的锚）。displayNumber（#719）= 渲染层展示号——可见引用
+ * 列表按渲染顺序连续重映射的「文字」，角标显示与读屏用它；未提供时回退
+ * 原全局编号（旧行为）。 */
 export interface CitationBadgeInfo {
   number: number;
+  displayNumber?: number;
   title: string;
   excerpt?: string;
   kind: "content" | "ip";
@@ -212,19 +216,22 @@ function CitationBadge({ info, onJump }: { info: CitationBadgeInfo; onJump: () =
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, closeNow]);
 
+  /* #719 展示号：文字与读屏用展示号（缺省回退原全局编号），点击命中
+     （onJump）仍由调用方以原编号解析目标。 */
+  const shownNumber = info.displayNumber ?? info.number;
   return (
     <>
       <button
         type="button"
         ref={triggerRef}
-        aria-label={t("markdown.citationJump", { index: info.number })}
+        aria-label={t("markdown.citationJump", { index: shownNumber })}
         onClick={onJump}
         {...(hoverCapable
           ? { onPointerEnter: scheduleOpen, onPointerLeave: scheduleClose, onFocus: showNow, onBlur: scheduleClose }
           : {})}
         className="mx-0.5 inline-flex h-4 max-w-40 -translate-y-1 items-center justify-center gap-0.5 rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1.5 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus:ring-2 focus:ring-ring"
       >
-        <span aria-hidden className="text-[0.85em] opacity-70">{info.number}</span>
+        <span aria-hidden className="text-[0.85em] opacity-70">{shownNumber}</span>
         <span className="truncate">{truncateBadgeTitle(info.title)}</span>
       </button>
       {open && position && (
@@ -236,7 +243,7 @@ function CitationBadge({ info, onJump }: { info: CitationBadgeInfo; onJump: () =
           className="pointer-events-auto flex flex-col gap-1 rounded-md border border-border-default bg-card p-3 shadow-lg"
         >
           <span className="flex items-center gap-1.5 text-sm font-medium text-accent-emphasis">
-            <span className="text-xs font-normal text-fg-muted">{info.number}</span>
+            <span className="text-xs font-normal text-fg-muted">{shownNumber}</span>
             <span className="line-clamp-2">{info.title}</span>
             {info.kind === "ip" && (
               <span className="ml-auto shrink-0 rounded border border-border-default px-1.5 py-0.5 text-xs font-normal text-fg-muted">
