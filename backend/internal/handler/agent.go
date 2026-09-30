@@ -178,8 +178,10 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	}
 	// SP-16 #447: structured-first reads are a DB render, not an LLM call —
 	// they skip quota; draft=true (studio LLM suggestion) forces generation.
+	// #728: a valid auto-cache hit also performs zero LLM calls and skips
+	// quota reservation (checked BEFORE reserveGenerationQuota).
 	forceLLM := c.Query("draft") == "true"
-	if !forceLLM && h.agentSvc.HasStructuredGuide(c.Request.Context(), id, locale) {
+	if !forceLLM && (h.agentSvc.HasStructuredGuide(c.Request.Context(), id, locale) || h.agentSvc.HasCachedGuide(c.Request.Context(), id, locale)) {
 		result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id, false, locale)
 		if err != nil {
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)

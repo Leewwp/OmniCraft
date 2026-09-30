@@ -401,6 +401,22 @@
 | `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
 | `tag` | `VARCHAR(50)` | NOT NULL | tag |
 
+### content_usage_guide_cache
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_id` | `BIGINT` | NOT NULL | content_id |
+| `locale` | `VARCHAR(8)` | NOT NULL | locale |
+| `prompt_version` | `INT` | NOT NULL | prompt_version |
+| `input_fingerprint` | `VARCHAR(64)` | NOT NULL | input_fingerprint |
+| `content_updated_at` | `TIMESTAMPTZ` | NOT NULL | content_updated_at |
+| `guide_markdown` | `TEXT` | NOT NULL | guide_markdown |
+| `source` | `VARCHAR(16)` | NOT NULL DEFAULT 'auto' | source |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | updated_at |
+| — | — | UNIQUE (`content_id`, `locale`) | table constraint |
+
 ### content_usage_guides
 
 | 列名 | 类型 | 约束 | 说明 |
