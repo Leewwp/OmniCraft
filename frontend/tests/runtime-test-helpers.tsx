@@ -154,6 +154,7 @@ export const testMessages = {
       position: "{current} / {total}",
       previous: "Previous media",
       next: "Next media",
+      viewFullImage: "View full image",
       imageAlt: "Media {current} of {total}",
       error: {
         loadFailed: "Failed to load media",
