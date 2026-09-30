@@ -275,8 +275,9 @@ test("search grid mixes fanwork and original cards from the shared fact source",
 
   const fanwork = page.locator('[aria-label="Fanwork extreme 1:5"]');
   await expect(fanwork).toHaveClass(/border border-border/);
-  /* #753：1:5 超宽 → 3:4 档（限高退役）；legacy video 实测 16:10 → 3:4 档。 */
-  await expect(aspectFrame(page, "Fanwork extreme 1:5")).toHaveAttribute("style", /aspect-ratio:\s*3 \/ 4/);
+  /* #753：1:5 = 300×1500 竖长图（h/w=5 > 4/3）→ 9:16 档（限高退役）；
+     legacy video 实测 16:10（h/w=0.625）→ 3:4 档。 */
+  await expect(aspectFrame(page, "Fanwork extreme 1:5")).toHaveAttribute("style", /aspect-ratio:\s*9 \/ 16/);
   await expectMeasuredAspectRatio(page, "Fanwork legacy video", 3 / 4);
 
   await assertCardsFitViewport(page);
