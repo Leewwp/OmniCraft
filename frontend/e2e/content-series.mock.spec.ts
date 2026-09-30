@@ -187,7 +187,8 @@ test("studio series exercises create, edit, add, reorder, remove, and delete con
   await page.getByRole("button", { name: /保存更改|Save changes/i }).click();
   await expect.poll(() => calls.update.length).toBe(1);
 
-  await page.getByRole("textbox", { name: /搜索可添加内容|Search content to add/i }).fill("第三章");
+  /* SearchInput 渲染 <input type="search">，ARIA role 是 searchbox 而非 textbox。 */
+  await page.getByRole("searchbox", { name: /搜索可添加内容|Search content to add/i }).fill("第三章");
   await expect(page.getByText("第三章：新路")).toBeVisible();
   await page.getByRole("button", { name: /^添加$|^Add$/i }).click();
   await expect.poll(() => calls.add.length).toBe(1);

@@ -963,7 +963,7 @@ export function ContentDetailOverlay({
               type="button"
               onClick={handleBack}
               aria-label={returnLabel}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -982,7 +982,7 @@ export function ContentDetailOverlay({
               type="button"
               onClick={handleExit}
               aria-label={t("contentDetailOverlay.close")}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -1003,7 +1003,7 @@ export function ContentDetailOverlay({
                 type="button"
                 onClick={handleBack}
                 aria-label={backTooltip}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/50 focus:outline-none focus-visible:ring-1 focus:ring-ring"
               >
                 <ArrowLeft className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -1019,7 +1019,7 @@ export function ContentDetailOverlay({
               onClick={handleExit}
               aria-label={t("contentDetailOverlay.close")}
               title={t("contentDetailOverlay.close")}
-              className="absolute right-4 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur transition-colors hover:bg-black/45 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="absolute right-4 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur transition-colors hover:bg-black/45 focus:outline-none focus-visible:ring-1 focus:ring-ring"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>

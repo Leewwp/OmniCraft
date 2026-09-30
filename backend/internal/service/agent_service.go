@@ -28,13 +28,15 @@ var ErrAgentDisabled = errors.New("web agent is disabled")
 var ErrAgentFileTooLarge = errors.New("file too large for upload assist")
 
 type AgentService struct {
-	llmProvider     llm.LLMProvider
-	chatStreamer    agentChatStreamer
-	modelRouter     llm.ModelRouter
-	embeddingRepo   *repository.EmbeddingRepository
-	contentRepo     *repository.ContentRepository
-	searchRepo      *repository.SearchRepository
-	usageGuideSvc   *UsageGuideService
+	llmProvider   llm.LLMProvider
+	chatStreamer  agentChatStreamer
+	modelRouter   llm.ModelRouter
+	embeddingRepo *repository.EmbeddingRepository
+	contentRepo   *repository.ContentRepository
+	searchRepo    *repository.SearchRepository
+	usageGuideSvc *UsageGuideService
+	/* #728 自动生成缓存（发布预热 + 存量懒生成共用入口）。 */
+	usageGuideCache *UsageGuideCacheService
 	ragChunkRepo    *repository.RagChunkRepository
 	hybridRetriever AgentContentRetriever
 	greenClient     agentGreenScanner
@@ -538,9 +540,13 @@ type UsageGuideResult struct {
 	Source     string `json:"source,omitempty"`
 }
 
-func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64, forceLLM bool) (*UsageGuideResult, error) {
+func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, locale string) (*UsageGuideResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
+	}
+	locale, err := normalizeLocale(locale)
+	if err != nil {
+		return nil, err
 	}
 
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
@@ -551,53 +557,48 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 	// SP-16 #447 structured-first: persisted specifics render without any
 	// LLM call; forceLLM (studio draft button) regenerates instead.
 	if !forceLLM {
-		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID, locale); ok {
 			return &UsageGuideResult{
-				Guide:      RenderUsageGuideMarkdown(view),
+				Guide:      RenderUsageGuideMarkdown(view, locale),
 				Structured: true,
 				Source:     view.Source,
 			}, nil
 		}
+		// #728 缓存命中（免配额、零 LLM；作者行优先已在上方）。
+		if s.usageGuideCache != nil {
+			if cached, ok := s.usageGuideCache.FindValid(ctx, content, locale); ok {
+				return &UsageGuideResult{Guide: cached, Source: model.UsageGuideCacheSourceAuto}, nil
+			}
+		}
 	}
 
-	var guideType string
-	switch content.ContentType {
-	case "mod":
-		guideType = "installation steps, compatibility requirements, and conflict resolution"
-	case "sheet_music":
-		guideType = "recommended software, playback instructions, and printing tips"
-	default:
-		guideType = "usage instructions and best practices"
+	generateOnce := func(gctx context.Context) (string, error) {
+		return s.generateGuideText(gctx, content, locale)
 	}
 
-	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
-		"title":        content.Title,
-		"content_type": content.ContentType,
-		"description":  content.Description,
-		"guide_focus":  guideType,
-	})
-
-	req := llm.ChatRequest{
-		Messages: []llm.ChatMessage{
-			{Role: "system", Content: "You are a helpful content guide writer."},
-			{Role: "user", Content: prompt},
-		},
-		MaxTokens:   800,
-		Temperature: 0.5,
+	// #728：draft 直生成（不读不写缓存）；正式路径经统一缓存入口
+	//（跨进程去重 + 守卫写）。
+	if forceLLM || s.usageGuideCache == nil {
+		text, err := generateOnce(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &UsageGuideResult{Guide: text}, nil
 	}
-
-	resp, err := s.auxLLMTrace(ctx, "aux_guide", promptregistry.SlotUsageGuide, agenttrace.NodeTypeGuide, func() (*llm.ChatResponse, error) {
-		return s.llmProvider.Chat(ctx, req)
-	})
+	text, err := s.usageGuideCache.GetOrGenerate(ctx, content, locale, false, generateOnce)
 	if err != nil {
 		return nil, err
 	}
-	return &UsageGuideResult{Guide: resp.Content}, nil
+	return &UsageGuideResult{Guide: text}, nil
 }
 
-func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, handler func(delta string, done bool) error) error {
+func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, locale string, handler func(delta string, done bool) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
+	}
+	locale, err := normalizeLocale(locale)
+	if err != nil {
+		return err
 	}
 
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
@@ -608,25 +609,100 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 	// SP-16 #447 structured-first on the stream contract: one delta carries
 	// the rendered markdown, then done.
 	if !forceLLM {
-		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
-			if err := handler(RenderUsageGuideMarkdown(view), false); err != nil {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID, locale); ok {
+			if err := handler(RenderUsageGuideMarkdown(view, locale), false); err != nil {
+				return err
+			}
+			return handler("", true)
+		}
+		// #728 缓存命中：单 delta 全文 + done（零 LLM、免配额——配额
+		// 预留在 handler 层，命中在预留之前由 HasCachedGuide 判定跳过）。
+		if s.usageGuideCache != nil {
+			if cached, ok := s.usageGuideCache.FindValid(ctx, content, locale); ok {
+				if err := handler(cached, false); err != nil {
+					return err
+				}
+				return handler("", true)
+			}
+		}
+	}
+
+	// #723：stream 不再用代码内硬编码英文 prompt——与非流式共用同一
+	// usage_guide_prompt 槽位（含 guide_focus 分型与 v2 输出语言条款），
+	// 消除双链漂移。
+	var guideType string
+	switch content.ContentType {
+	case "mod":
+		guideType = "installation steps, compatibility requirements, and conflict resolution"
+	case "sheet_music":
+		guideType = "recommended software, playback instructions, and printing tips"
+	default:
+		guideType = "usage instructions and best practices"
+	}
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
+		"title":        content.Title,
+		"content_type": content.ContentType,
+		"description":  content.Description,
+		"guide_focus":  guideType,
+		"language":     usageGuideLanguageName(locale),
+	})
+	req := llm.ChatRequest{
+		Messages: []llm.ChatMessage{
+			{Role: "system", Content: "You are a helpful content guide writer."},
+			{Role: "user", Content: prompt},
+		},
+		MaxTokens:   800,
+		Temperature: 0.5,
+		Stream:      true,
+	}
+
+	forwardStream := func(sctx context.Context) error {
+		return s.llmProvider.ChatStream(sctx, req, func(delta llm.ChatDelta) error {
+			return handler(delta.Content, delta.Done)
+		})
+	}
+
+	// #728：draft 直流式（不读不写缓存）。
+	if forceLLM || s.usageGuideCache == nil {
+		return forwardStream(ctx)
+	}
+
+	lease, cacheHit, cached := s.usageGuideCache.AcquireForStream(ctx, content, locale)
+	if cacheHit {
+		if err := handler(cached, false); err != nil {
+			return err
+		}
+		return handler("", true)
+	}
+	if lease == nil {
+		// 缓存服务不可用（无 repo）：退化为直生成。
+		return forwardStream(ctx)
+	}
+	if !lease.Owner() {
+		// 与预热/其他进程的生成合并：等待共享结果（单等待者断开只取消
+		// 自身等待）；超时本地兜底。
+		if shared, ok := s.usageGuideCache.WaitShared(ctx, content, locale); ok {
+			if err := handler(shared, false); err != nil {
 				return err
 			}
 			return handler("", true)
 		}
 	}
 
-	prompt := fmt.Sprintf("Generate a concise usage guide for: %s (type: %s)", content.Title, content.ContentType)
-	req := llm.ChatRequest{
-		Messages:    []llm.ChatMessage{{Role: "user", Content: prompt}},
-		MaxTokens:   800,
-		Temperature: 0.5,
-		Stream:      true,
-	}
-
-	return s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
+	// 租约持有者：边流式转发边累计；仅完整成功（ChatStream 无错返回）
+	// 落缓存——半截流/失败不缓存。
+	var accumulated strings.Builder
+	streamErr := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
+		accumulated.WriteString(delta.Content)
 		return handler(delta.Content, delta.Done)
 	})
+	if streamErr == nil && strings.TrimSpace(accumulated.String()) != "" {
+		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		s.usageGuideCache.SaveComplete(saveCtx, content, locale, accumulated.String())
+		cancel()
+	}
+	lease.Release()
+	return streamErr
 }
 
 type ModerationResult struct {
@@ -736,6 +812,11 @@ func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
 	}
 }
 
+// SetUsageGuideCacheService wires the #728 auto-generation cache.
+func (s *AgentService) SetUsageGuideCacheService(svc *UsageGuideCacheService) {
+	s.usageGuideCache = svc
+}
+
 // SetUsageGuideService wires the merged guide view the in-site agent reads
 // before falling back to LLM generation (SP-16 #447).
 func (s *AgentService) SetUsageGuideService(svc *UsageGuideService) {
@@ -745,11 +826,11 @@ func (s *AgentService) SetUsageGuideService(svc *UsageGuideService) {
 // structuredUsageGuide returns the merged view when the content has
 // persisted specifics (pure templates never short-circuit the LLM here —
 // they are generic, not content-specific guidance).
-func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID int64) (*UsageGuideView, bool) {
+func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID int64, locale string) (*UsageGuideView, bool) {
 	if s.usageGuideSvc == nil {
 		return nil, false
 	}
-	view, err := s.usageGuideSvc.GetMergedView(ctx, contentItemID, "zh")
+	view, err := s.usageGuideSvc.GetMergedView(ctx, contentItemID, locale)
 	if err != nil || view == nil || view.Source == "" {
 		return nil, false
 	}
@@ -758,28 +839,115 @@ func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID i
 
 // HasStructuredGuide reports whether the usage-guide read will be served
 // from persisted specifics, letting the handler skip quota reservation for
-// non-LLM answers.
-func (s *AgentService) HasStructuredGuide(ctx context.Context, contentItemID int64) bool {
-	_, ok := s.structuredUsageGuide(ctx, contentItemID)
+// non-LLM answers. Locale-participating since #723: a structured row only
+// 免配额 when it exists for the requested language.
+func (s *AgentService) HasStructuredGuide(ctx context.Context, contentItemID int64, locale string) bool {
+	_, ok := s.structuredUsageGuide(ctx, contentItemID, locale)
 	return ok
 }
 
+// generateGuideText is the raw #723 slot-based guide generation (prompt
+// render + aux trace + one Chat call). It deliberately contains NO cache or
+// structured-first logic so the cache entry and the preheat hook can reuse
+// it without recursion.
+func (s *AgentService) generateGuideText(ctx context.Context, content *model.ContentItem, locale string) (string, error) {
+	var guideType string
+	switch content.ContentType {
+	case "mod":
+		guideType = "installation steps, compatibility requirements, and conflict resolution"
+	case "sheet_music":
+		guideType = "recommended software, playback instructions, and printing tips"
+	default:
+		guideType = "usage instructions and best practices"
+	}
+	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
+		"title":        content.Title,
+		"content_type": content.ContentType,
+		"description":  content.Description,
+		"guide_focus":  guideType,
+		"language":     usageGuideLanguageName(locale),
+	})
+	resp, err := s.auxLLMTrace(ctx, "aux_guide", promptregistry.SlotUsageGuide, agenttrace.NodeTypeGuide, func() (*llm.ChatResponse, error) {
+		return s.llmProvider.Chat(ctx, llm.ChatRequest{
+			Messages: []llm.ChatMessage{
+				{Role: "system", Content: "You are a helpful content guide writer."},
+				{Role: "user", Content: prompt},
+			},
+			MaxTokens:   800,
+			Temperature: 0.5,
+		})
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.Content, nil
+}
+
+// HasCachedGuide reports a valid #728 auto-cache row for the content —
+// the handler skips generation-quota reservation on this path (cache hit
+// performs zero LLM calls). Visibility has already been checked by the
+// caller before any quota work.
+func (s *AgentService) HasCachedGuide(ctx context.Context, contentItemID int64, locale string) bool {
+	if s.usageGuideCache == nil {
+		return false
+	}
+	content, err := s.contentRepo.FindByID(contentItemID)
+	if err != nil || content == nil {
+		return false
+	}
+	_, ok := s.usageGuideCache.FindValid(ctx, content, locale)
+	return ok
+}
+
+// PreheatUsageGuides is the #728 publish hook: 双语指导就绪任务（作者行
+// 语言直接满足，缺失语言生成落缓存；失败不阻塞发布——异步执行）。
+func (s *AgentService) PreheatUsageGuides(ctx context.Context, contentID int64) {
+	if s.usageGuideCache == nil || !s.cfg.Agent.WebAgentEnabled {
+		return
+	}
+	go func() {
+		preheatCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
+		defer cancel()
+		s.usageGuideCache.PreheatContent(preheatCtx, contentID, func(gctx context.Context, content *model.ContentItem, locale string, _ bool) (string, error) {
+			return s.generateGuideText(gctx, content, locale)
+		})
+	}()
+}
+
+// usageGuideLanguageName maps a normalized guide locale to the language name
+// injected into the v2 prompt clause.
+func usageGuideLanguageName(locale string) string {
+	if locale == "en" {
+		return "English"
+	}
+	return "Simplified Chinese"
+}
+
 // RenderUsageGuideMarkdown flattens a merged guide view into the Markdown
-// shape the in-site agent surface has always served.
-func RenderUsageGuideMarkdown(view *UsageGuideView) string {
+// shape the in-site agent surface has always served. Section headings
+// follow the requested locale (#723); the default keeps the historic
+// Chinese headings.
+func RenderUsageGuideMarkdown(view *UsageGuideView, locale string) string {
+	type headings struct{ requirements, steps, notes, safety string }
+	var h headings
+	if locale == "en" {
+		h = headings{requirements: "Requirements", steps: "How to Use", notes: "Notes", safety: "Safety"}
+	} else {
+		h = headings{requirements: "前置要求", steps: "使用步骤", notes: "说明", safety: "安全提示"}
+	}
 	var b strings.Builder
-	b.WriteString("## 前置要求\n")
+	b.WriteString("## " + h.requirements + "\n")
 	for _, item := range view.Requirements {
 		b.WriteString("- " + item + "\n")
 	}
-	b.WriteString("\n## 使用步骤\n")
+	b.WriteString("\n## " + h.steps + "\n")
 	for i, step := range view.Steps {
 		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, step))
 	}
 	if strings.TrimSpace(view.Notes) != "" {
-		b.WriteString("\n## 说明\n" + view.Notes + "\n")
+		b.WriteString("\n## " + h.notes + "\n" + view.Notes + "\n")
 	}
-	b.WriteString("\n## 安全提示\n")
+	b.WriteString("\n## " + h.safety + "\n")
 	for _, item := range view.Safety {
 		b.WriteString("- " + item + "\n")
 	}

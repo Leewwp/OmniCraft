@@ -174,7 +174,7 @@
 **视觉契约**
 - Button 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
 - Primary hover 使用 `--accent-hover`（dark 为 #4338CA，白字 7.90:1 ≥AA）；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
-- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset（键盘专属，鼠标聚焦不触发——见设计系统「焦点反馈分级」FT-1）；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
+- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 1px `--ring` 细描边、无 offset（#720 层 2 契约，键盘专属——见设计系统「焦点反馈分级」三层框架）；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
 - Badge 始终 `rounded-full`、12px medium、20px 高，无 elevation；可交互 Badge 仅做 150ms 颜色/边框过渡，focus-visible 与 Button 相同。
 
 **响应式与动效**
@@ -404,7 +404,7 @@ interface AgentFollowUpChipsProps {
 **状态变体**
 - default: 透明底 + 1px `border-border-default` + `text-fg-default`
 - hover / focus-visible: `bg-accent-subtle` + `text-accent-emphasis` + `border-accent-emphasis`（悬停预告主动作；token 与 FilterPills 选中态相同但语义不同——本组件无持久选中态）
-- focus-visible 追加标准 `focus-visible:ring-2 focus-visible:ring-ring`；150ms `transition-colors`
+- focus-visible 追加标准 `focus-visible:ring-1 focus-visible:ring-ring`（#720 层 2：1px 细描边）；150ms `transition-colors`
 
 **响应式行为**
 - flex wrap 换行，小屏自然堆叠，无横向滚动。
@@ -3276,6 +3276,7 @@ interface VersionHistoryProps {
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - **媒体集上传编排（#80 决策 / #84 权威）**：image 内容 = 纯图片集 2~9 张；video 内容 = 纯视频集 1~3 个；数量上下限是运行时配置，由 public config 暴露安全值并前端消费（后端为权威校验方，前端只消费合同）。不允许图文混排媒体集；纵横比可混。其他内容类型（article/sheet_music/mod/audio/template/prompt）保持附件语义。
+- **按族分组提示（#726）**：附件模式下传入 `familyHints`（注册表投影）时，单一「限制：NMB」行替换为逐族行——`族名：扩展名白名单（或 MIME 说明） · 最大 NMB · 必传/可选`；`required_any_of` 语义 = 命中族标必传（"至少上传一个"），不表示集合内每族都必传；无扩展名白名单的族（text 等）显示族名与 MIME 说明，`client_accept` 的 `*` 通配符不得当文案上屏；不传 `familyHints` 的调用点（IP 封面、编辑器图片）维持旧行为。数据全部来自注册表与 config 投影（含 FALLBACK 兜底表——model3d 族与 3d_print 行不缺失），前端不自建映射。
 
 **Props 接口**
 ```ts
@@ -3285,6 +3286,7 @@ interface FileUploaderProps {
   contentType: 'image' | 'video' | string;
   maxCount?: number;                        // 媒体集数量上限（public config）
   minCount?: number;                        // 媒体集数量下限（public config）
+  familyHints?: UploadFamilyHint[];         // #726 按族分组提示（lib/public-config 投影）
   value?: UploadItem[];
   onChange?: (items: UploadItem[]) => void;
   isBusy?: boolean;
@@ -3595,7 +3597,7 @@ interface AgentToolStatus {
 - “开始新对话”不删除旧会话且无需确认。删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
 - 会话标题：active 会话显示 title（无 title 显示「未命名 #id」）；自动标题由服务端首轮后异步生成。
 - 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
-- 焦点反馈遵循设计系统「焦点反馈分级」（FT-1）：输入框/Composer/模型选择器等自明态控件软化聚焦（仅边框加深），按钮与状态承载控件保留键盘 focus-visible ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
+- 焦点反馈遵循设计系统「焦点反馈分级」三层框架（FT-1 立档、#720 修订）：自明态控件软化聚焦（仅边框加深）；键盘 focus-visible 一律 1px 细描边；选中态只留筛选/状态类（参考来源按钮等激活用背景微变）；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
 - 代码块：rehype-highlight 高亮 + 悬停复制按钮（markdown.copyCode）；外链（http/https 绝对地址）`target=_blank rel=noopener noreferrer`，站内相对链接原样。
 - Esc 只关闭当前打开的内容详情浮层或会话抽屉，不离开 Agent 工作台。
 
@@ -6133,8 +6135,22 @@ interface SortSelectProps {
 
 **状态变体**
 - scan-card（扫描门拦截）：`data-testid="attachment-scan-card"`；ShieldAlert 图标 + 扫描状态文案（content.preview.scanStatus.*）+ 右侧下载入口（allow_copy 时）。scannable 族群非 clean（含 not_required 接线异常、pending/scanning/manual_review/blocked/failed/legacy_unscanned）一律此态，与下载门同源同判。
-- viewer（document 族）：移交 DocumentViewer（懒加载）。
-- download-card（无查看器/缺 URL）：FileWarning 图标 + 原始文件名（历史行回退类型标签）+ 大小（MB，两位小数）+ 下载按钮，`data-testid="attachment-download-card"`。
+- entry（#722 预览入口卡，document/model3d/audio 三族群且有签名 URL 的默认态）：`data-testid="attachment-preview-entry"`；族群图标（FileText/Box/Music）+ 族群标签 + 原始文件名 + 大小（MB，两位小数）+「预览」按钮（`data-testid="attachment-preview-button"`，primary 药丸）+ 下载入口（allow_copy 时）。默认不请求预览字节；点击后才挂载对应查看器（组件内 `active` 状态机，一旦激活不回退）。
+- viewer：点击 entry 后按族群挂载——document → DocumentViewer（懒加载）、model3d → ModelViewer（懒加载）、audio → AudioPlayer。
+- download-card（无查看器/缺 URL/.mtl）：FileWarning 图标 + 原始文件名（历史行回退类型标签）+ 大小（MB，两位小数）+ 下载按钮，`data-testid="attachment-download-card"`。
+
+## Component: AudioPlayer 音频播放器
+
+音频附件的内置播放器（#722）：SoundCloud 式紧凑条，底层原生 `<audio>`（preload=metadata，不引新依赖）；经 AttachmentPreview 预览入口点击后挂载。
+
+**布局**
+- 卡片基底 `rounded-lg border border-border bg-card p-4 w-full`（移动端全宽自适应），`data-testid="audio-player"`。
+- 上行：圆形播放/暂停钮（`h-9 w-9 rounded-full bg-primary`，Play/Pause 图标）+ 右侧文件名（truncate）+ 时间行 `当前 / 总时长`（`data-testid="audio-time"`，m:ss；未知时长显加载中文案）。
+- 下行：进度条 `h-1.5 rounded-full bg-muted`，已播段 `bg-primary`；`role="slider"` `tabindex=0`（←/→ ±5s、Home/End），点击/拖动 seek（pointer capture）。
+
+**交互合同**
+- 卸载/切换附件：暂停 + 移除 src + load() 释放资源；StrictMode 双挂载时 effect 重挂载显式恢复 src。
+- 错误态：AlertTriangle +「预览加载失败」+ 下载入口（与其他查看器错误卡同形）。
 
 ## Component: DocumentViewer 文档查看器
 
@@ -6158,8 +6174,14 @@ three.js 精确锁版 + OrbitControls + 自动居中 fit-to-view + XY 底面网�
 - 视图按钮药丸：orbit/front/side/top，选中 `bg-primary text-primary-foreground`，`aria-pressed`。
 
 **坐标合同（唯一权威）**
-- 统一 Z-up、XY=build plate；GridHelper 旋至 XY 平面、置于 bbox 底面之下。
+- 统一 Z-up、XY=build plate；GridHelper 旋到 XY 平面、置于 bbox 底面之下。
 - Top=+Z / Front=-Y / Side=+X；三视图用正交机位（禁用 orbit 交互），自由旋转为透视机位（阻尼 + 滚轮缩放）。
+- 俯视图 up 用水平轴 (0,1,0)（观察方向与 +Z up 平行时确定朝向）；其余视图维持 Z-up。
+- 正交 frustum 随容器宽高比同步（垂直基准半幅 = radius×1.4，水平按比例），resize/比例变化不失真（#722）。
+
+**场景句柄合同（#722）**
+- `SceneHandle = { setView(view), dispose() }`：切换机位与销毁分离；裸函数（含清理函数）被 `asSceneHandle` 运行时守卫拒绝（历史缺陷：清理函数被误存为视图控制器，按钮 `.apply` 命中 Function.prototype.apply 执行卸载 → 切视图空白）。
+- 画布 CSS 尺寸由 `setSize` 写 style（DPR 2 下不再按物理像素当 CSS 尺寸渲染）。
 
 **状态变体**
 - loading：Loader2 + 百分比进度。

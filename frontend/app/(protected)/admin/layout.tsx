@@ -178,7 +178,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           aria-expanded={mobileOpen}
           aria-controls="admin-mobile-navigation"
           onClick={() => setMobileOpen(true)}
-          className="inline-flex size-10 items-center justify-center rounded-md text-foreground hover:bg-canvas-subtle focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex size-10 items-center justify-center rounded-md text-foreground hover:bg-canvas-subtle focus-visible:ring-1 focus-visible:ring-ring"
         >
           <PanelLeft className="size-5" />
         </button>
@@ -207,7 +207,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 aria-label={t("studio.sidebar.collapse")}
                 title={t("studio.sidebar.collapse")}
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-canvas-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-canvas-default hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <X className="size-5" />
               </button>
@@ -222,7 +222,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-ring",
                       isActive
                         ? "bg-accent-subtle font-medium text-accent-emphasis"
                         : "text-muted-foreground hover:bg-canvas-default hover:text-foreground",

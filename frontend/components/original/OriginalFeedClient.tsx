@@ -77,7 +77,7 @@ function OriginalFeedSection({
         <button
           type="button"
           onClick={() => feed.retryInitial()}
-          className="rounded-md border border-border-default px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-canvas-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded-md border border-border-default px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-canvas-subtle focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           {retryText}
         </button>

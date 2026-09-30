@@ -63,7 +63,7 @@ export function MessageCategoryItem({ def, active, badge, onSelect, compact }: C
       onClick={() => onSelect(def.key)}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex shrink-0 items-center gap-2 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "flex shrink-0 items-center gap-2 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         compact ? "min-h-9 px-3 py-1.5" : "px-3 py-2",
         active
           ? "bg-canvas-subtle font-medium text-accent-emphasis [&>svg]:text-accent-emphasis"

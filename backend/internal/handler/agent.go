@@ -158,6 +158,16 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
 		return
 	}
+	// #723：输出语言跟随请求 locale（缺省 zh 兼容；非法值按指南 API 约定
+	// 返回 VALIDATION_ERROR）。
+	locale := c.Query("locale")
+	if locale == "" {
+		locale = "zh"
+	}
+	if locale != "zh" && locale != "en" {
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "locale must be zh or en")
+		return
+	}
 	viewerID := middleware.GetUserID(c)
 
 	// Client-supplied resource IDs are visibility-prechecked BEFORE any quota
@@ -168,9 +178,11 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	}
 	// SP-16 #447: structured-first reads are a DB render, not an LLM call —
 	// they skip quota; draft=true (studio LLM suggestion) forces generation.
+	// #728: a valid auto-cache hit also performs zero LLM calls and skips
+	// quota reservation (checked BEFORE reserveGenerationQuota).
 	forceLLM := c.Query("draft") == "true"
-	if !forceLLM && h.agentSvc.HasStructuredGuide(c.Request.Context(), id) {
-		result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id, false)
+	if !forceLLM && (h.agentSvc.HasStructuredGuide(c.Request.Context(), id, locale) || h.agentSvc.HasCachedGuide(c.Request.Context(), id, locale)) {
+		result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id, false, locale)
 		if err != nil {
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 			return
@@ -185,7 +197,7 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	if c.Query("stream") == "true" {
 		writer := &agentSSEWriter{c: c}
 		writer.begin()
-		err := h.agentSvc.UsageGuideStream(c.Request.Context(), viewerID, id, forceLLM, func(delta string, done bool) error {
+		err := h.agentSvc.UsageGuideStream(c.Request.Context(), viewerID, id, forceLLM, locale, func(delta string, done bool) error {
 			if done {
 				return writer.emit(service.AgentStreamEvent{Type: service.AgentEventDone})
 			}
@@ -204,7 +216,7 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 		return
 	}
 
-	result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id, forceLLM)
+	result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id, forceLLM, locale)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
@@ -228,8 +240,12 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		// the fast no-thinking default, true enables provider reasoning.
 		DeepThink bool `json:"deep_think,omitempty"`
 		// Model is the SP-20 (#545) per-turn model preference; empty uses the
-		// configured primary. Unknown ids are rejected before any quota work.
+		// configured primary; unknown ids are rejected before any quota work.
 		Model string `json:"model,omitempty"`
+		// Locale is the #723 per-turn requester language (zh/en): it rides
+		// the turn into tool scope so in-chat usage-guide generation follows
+		// the requester. Empty keeps the historic zh default.
+		Locale string `json:"locale,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.Message) == "" {
 		response.ValidationError(c, "invalid request parameters")
@@ -334,6 +350,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		Message:        message,
 		DeepThink:      body.DeepThink,
 		Model:          modelPref,
+		Locale:         body.Locale,
 	}, resolved, func(ev service.AgentStreamEvent) error {
 		return writer.emit(ev)
 	}); err != nil {

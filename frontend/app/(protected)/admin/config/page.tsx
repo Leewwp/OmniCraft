@@ -266,7 +266,7 @@ export default function AdminConfigPage() {
           role="switch"
           aria-checked={value}
           aria-label={label}
-          className="inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-ring"
+          className="inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 items-center justify-center rounded-full focus:outline-none focus-visible:ring-1 focus:ring-ring"
           onClick={() => onChange(!value)}
         >
           <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${value ? "bg-accent" : "bg-muted"}`}>

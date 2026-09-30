@@ -191,6 +191,26 @@ func agentSystemV5() string {
 	return agentSystemV4() + "; " + agentSystemV5RetrievalFirst
 }
 
+// usageGuideV2LanguageClause is the single instruction v2 appends to the v1
+// usage-guide corpus (#723): the guide's output language follows the
+// requester's locale. Before v2 the language was implicit (English prompt,
+// unspecified output); the panel surfaced whatever the model chose.
+const usageGuideV2LanguageClause = "Write the entire guide in {{language}}."
+
+// usageGuideV2 is the #723 upgrade of usage_guide_prompt: the v1 corpus plus
+// the output-language clause and nothing else. v1 stays byte-identical so the
+// registry diff and rollback chain keep working.
+func usageGuideV2() string {
+	return `Generate a concise usage guide for this content:
+Title: {{title}}
+Type: {{content_type}}
+Description: {{description}}
+
+Focus on: {{guide_focus}}
+` + usageGuideV2LanguageClause + `
+Format as Markdown.`
+}
+
 // Slots is the full, ordered inventory of prompt sites (user decision
 // 2026-09-16: ALL slots enter the registry, not only high-traffic ones).
 // v1 of every slot is byte-identical to the pre-registry hardcoded prompt;
@@ -226,15 +246,12 @@ Respond ONLY with valid JSON: {"risk_level":"safe|warning|violation","reason":""
 	}
 	SlotUsageGuide = PromptSlot{
 		Name:        "usage_guide_prompt",
-		Description: "内容使用指南生成（Markdown 输出）",
-		Builtin: `Generate a concise usage guide for this content:
-Title: {{title}}
-Type: {{content_type}}
-Description: {{description}}
-
-Focus on: {{guide_focus}}
-Format as Markdown.`,
-		RequiredPlaceholders: []string{"content_type", "description", "guide_focus", "title"},
+		Description: "内容使用指南生成（Markdown 输出；v2 起输出语言跟随 locale）",
+		// #723：Builtin 即 v2 内容（存量库 v1 行不可变，经 RegistryUpgrades
+		// 升版；新库 SeedV1 直接落该内容）——保持「builtin 满足自身契约」
+		// 不变量（TestSlotsValidAndUnique）。
+		Builtin:              usageGuideV2(),
+		RequiredPlaceholders: []string{"content_type", "description", "guide_focus", "language", "title"},
 	}
 	SlotContentModeration = PromptSlot{
 		Name:        "content_moderation_prompt",

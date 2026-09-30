@@ -239,6 +239,7 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 				ViewerID:       r.userID,
 				ConversationID: convIDForTools(r.conv),
 				TurnImages:     turnImages,
+				Locale:         r.turn.Locale,
 			})
 			execution := AgentToolExecution{
 				Name:        tc.Function.Name,

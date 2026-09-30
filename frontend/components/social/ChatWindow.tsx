@@ -120,7 +120,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     <section className="flex h-full min-h-[420px] min-w-0 flex-col rounded-md border border-border-default bg-canvas-default shadow-none">
       <header className="flex min-h-16 items-center gap-3 border-b border-border-default px-4 py-3">
         {onBack && (
-          <button type="button" onClick={onBack} aria-label={t("common.back")} className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-accent-emphasis md:hidden">
+          <button type="button" onClick={onBack} aria-label={t("common.back")} className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus-visible:ring-1 focus:ring-accent-emphasis md:hidden">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             {t("common.back")}
           </button>
@@ -153,7 +153,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       ) : loadError ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center" role="alert">
           <p className="text-sm text-fg-muted">{t("messages.error.chat")}</p>
-          <button type="button" onClick={() => void loadMessages()} className="min-h-11 rounded-md border border-border-default px-3 text-sm text-accent-emphasis hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-accent-emphasis">
+          <button type="button" onClick={() => void loadMessages()} className="min-h-11 rounded-md border border-border-default px-3 text-sm text-accent-emphasis hover:bg-canvas-subtle focus:outline-none focus-visible:ring-1 focus:ring-accent-emphasis">
             {t("messages.chat.retry")}
           </button>
         </div>

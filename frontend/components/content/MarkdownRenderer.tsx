@@ -3,14 +3,19 @@
 import { isValidElement, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { isAllowedImageSrc, useImageHostAllowlist } from "@/lib/image-guard";
 
-/** FT-5 (#697) 角标标题小卡数据：number 与正文 [n] 同一轮内全局编号体系。 */
+/** FT-5 (#697) 角标标题小卡数据：number 与正文 [n] 同一轮内全局编号体系
+ * （目标查找与存储的锚）。displayNumber（#719）= 渲染层展示号——可见引用
+ * 列表按渲染顺序连续重映射的「文字」，角标显示与读屏用它；未提供时回退
+ * 原全局编号（旧行为）。 */
 export interface CitationBadgeInfo {
   number: number;
+  displayNumber?: number;
   title: string;
   excerpt?: string;
   kind: "content" | "ip";
@@ -77,7 +82,7 @@ function CodeBlock({ className, children, ...props }: ComponentProps<"code">) {
         type="button"
         aria-label={t("markdown.copyCode")}
         onClick={handleCopy}
-        className="absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md border border-border bg-canvas-default text-fg-muted opacity-0 transition-opacity duration-150 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus-visible:opacity-100 group-hover/code:opacity-100"
+        className="absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md border border-border bg-canvas-default text-fg-muted opacity-0 transition-opacity duration-150 hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring focus-visible:opacity-100 group-hover/code:opacity-100"
       >
         {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
       </button>
@@ -211,19 +216,22 @@ function CitationBadge({ info, onJump }: { info: CitationBadgeInfo; onJump: () =
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, closeNow]);
 
+  /* #719 展示号：文字与读屏用展示号（缺省回退原全局编号），点击命中
+     （onJump）仍由调用方以原编号解析目标。 */
+  const shownNumber = info.displayNumber ?? info.number;
   return (
     <>
       <button
         type="button"
         ref={triggerRef}
-        aria-label={t("markdown.citationJump", { index: info.number })}
+        aria-label={t("markdown.citationJump", { index: shownNumber })}
         onClick={onJump}
         {...(hoverCapable
           ? { onPointerEnter: scheduleOpen, onPointerLeave: scheduleClose, onFocus: showNow, onBlur: scheduleClose }
           : {})}
-        className="mx-0.5 inline-flex h-4 max-w-40 -translate-y-1 items-center justify-center gap-0.5 rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1.5 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus:ring-2 focus:ring-ring"
+        className="mx-0.5 inline-flex h-4 max-w-40 -translate-y-1 items-center justify-center gap-0.5 rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1.5 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus-visible:ring-1 focus:ring-ring"
       >
-        <span aria-hidden className="text-[0.85em] opacity-70">{info.number}</span>
+        <span aria-hidden className="text-[0.85em] opacity-70">{shownNumber}</span>
         <span className="truncate">{truncateBadgeTitle(info.title)}</span>
       </button>
       {open && position && (
@@ -235,7 +243,7 @@ function CitationBadge({ info, onJump }: { info: CitationBadgeInfo; onJump: () =
           className="pointer-events-auto flex flex-col gap-1 rounded-md border border-border-default bg-card p-3 shadow-lg"
         >
           <span className="flex items-center gap-1.5 text-sm font-medium text-accent-emphasis">
-            <span className="text-xs font-normal text-fg-muted">{info.number}</span>
+            <span className="text-xs font-normal text-fg-muted">{shownNumber}</span>
             <span className="line-clamp-2">{info.title}</span>
             {info.kind === "ip" && (
               <span className="ml-auto shrink-0 rounded border border-border-default px-1.5 py-0.5 text-xs font-normal text-fg-muted">
@@ -261,6 +269,14 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
   const ossDomain = useImageHostAllowlist();
 
   const renderers: Components = {
+    // #723 溢出防御：生成内容的长表格包横向滚动容器（表自身不撑宽页面）。
+    table({ children, ...props }) {
+      return (
+        <div className="w-full overflow-x-auto">
+          <table {...props}>{children}</table>
+        </div>
+      );
+    },
     img({ src, alt, ...props }) {
       if (!isAllowedImageSrc(typeof src === "string" ? src : undefined, ossDomain)) {
         return (
@@ -305,7 +321,7 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
                 type="button"
                 aria-label={t("markdown.citationJump", { index })}
                 onClick={() => onCitationRef?.(index - 1)}
-                className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus-visible:ring-1 focus:ring-ring"
               >
                 {index}
               </button>
@@ -331,7 +347,7 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
   return (
     <div
       className={cn(
-        "prose prose-sm max-w-none dark:prose-invert",
+        "prose prose-sm max-w-none break-words dark:prose-invert",
         "prose-headings:text-foreground prose-p:text-foreground/90 prose-a:text-accent-primary",
         "prose-code:rounded prose-code:border prose-code:border-border prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:text-sm prose-code:font-mono",
         "prose-pre:rounded-md prose-pre:border prose-pre:border-border prose-pre:bg-muted/30 prose-pre:",
@@ -341,7 +357,7 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
         className,
       )}
     >
-      <ReactMarkdown rehypePlugins={[rehypeHighlight]} components={renderers}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={renderers}>
         {source}
       </ReactMarkdown>
     </div>

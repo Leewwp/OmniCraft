@@ -2,10 +2,10 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Menu, RotateCw, BookOpenText } from "lucide-react";
+import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, History, RotateCw, BookOpenText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/ui/composer";
@@ -37,6 +37,11 @@ import {
 } from "@/lib/agent-turn";
 import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
+import { AgentThinkingPlaceholder } from "@/components/agent/AgentThinkingPlaceholder";
+import { AgentMetaPill } from "@/components/agent/AgentMetaPill";
+import { shouldShowThinkingPlaceholder } from "@/lib/agent-turn";
+import { citationDisplayMapOf, remapCitationMarks } from "@/lib/agent";
+import { useDelayedUnmount } from "@/lib/use-delayed-unmount";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
   AgentConversationSidebar,
@@ -119,6 +124,8 @@ const firstRoundTerminals = new Map<number, AgentTurnTerminal>();
 
 export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
+  // #723：请求者语言（zh/en），随每轮请求携带。
+  const siteLocale = useLocale();
   // SP-21 T4：管理员可从会话轮直接跳转链路详情（SSE trace_id ↔ 落库一致）。
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.role === "admin";
@@ -140,10 +147,22 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  /* #721：抽屉动效（延迟卸载走完退出动画）+ 关闭后焦点返回触发按钮。 */
+  const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const citationsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const closeHistoryDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    historyTriggerRef.current?.focus();
+  }, []);
+  const historyDrawerMounted = useDelayedUnmount(drawerOpen, 220);
   /* FT-4：参考来源侧栏——保存源数组引用（同一回答再点即收起），渲染时映射。 */
   const [panelSource, setPanelSource] = useState<AgentStreamCitation[] | null>(null);
   const citationsPanel = panelSource ? panelSource.map(toAgentCitation) : null;
-  const closeCitationsPanel = useCallback(() => setPanelSource(null), []);
+  /* #721：关闭引用侧栏（Esc/遮罩/X/再次点击）后焦点返回打开它的入口按钮。 */
+  const closeCitationsPanel = useCallback(() => {
+    setPanelSource(null);
+    citationsTriggerRef.current?.focus();
+  }, []);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -226,13 +245,14 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       aria-label={t("agent.workspace.deepThink")}
       title={t("agent.workspace.deepThinkHint")}
       onClick={toggleDeepThink}
+      /* #725 底部控件带收紧：开关视觉降级（h-6 紧凑形态，行为/可达性不变）。 */
       className={cn(
-        "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         /* FT-2：默认白底黑字；选中仅背景变化，字色不变 */
         deepThink ? "bg-primary/10 text-fg-default" : "bg-canvas-default text-fg-default hover:bg-canvas-subtle",
       )}
     >
-      <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+      <Brain className="h-3 w-3" aria-hidden="true" />
       <span>{t("agent.workspace.deepThink")}</span>
     </button>
   );
@@ -245,7 +265,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           setModelPref(event.target.value);
           window.localStorage.setItem(MODEL_STORAGE_KEY, event.target.value);
         }}
-        className="h-7 rounded-md border border-border-default bg-canvas-default px-1.5 text-xs text-fg-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        /* #725：模型选择器同步紧凑形态。 */
+        className="h-6 rounded-md border border-border-default bg-canvas-default px-1 text-[11px] text-fg-default focus:border-border-strong focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         {modelOptions.map((option) => (
           <option key={option.id} value={option.id}>
@@ -586,6 +607,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       message: query,
       context: { surface: "global" },
       deep_think: deepThink,
+      // #723：请求者语言随轮携带（站内工具 usage_guide 跟随）。
+      locale: siteLocale,
     };
     if (modelPref) body.model = modelPref;
     if (activeId !== null) body.conversation_id = activeId;
@@ -702,11 +725,23 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   function renderTurnBlocks(turn: AgentTurn, options: { isLive: boolean }) {
     const terminal = turn.terminal;
     const badgeCitations = turn.answerCitations ?? (options.isLive ? terminal.citations : []);
+    /* #719 展示号映射（单一来源）：正文角标 / 复制替换共用；侧栏按同一
+       列表顺序渲染（位置即展示号），目标查找仍用原全局编号。 */
+    const displayMap = citationDisplayMapOf(badgeCitations);
+    const badgeInfos = badgeCitations.map((citation, index) => {
+      const info = toCitationBadgeInfo(citation, index);
+      return { ...info, displayNumber: displayMap.get(info.number) };
+    });
     return (
       <Fragment key={turn.id}>
         <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
           {turn.query}
         </div>
+        {/* #727 发送后即时占位：首个可见内容（非空白 think/工具步骤/答案）
+            同帧移除；终态由 streaming=false 覆盖（含空 done）。 */}
+        {shouldShowThinkingPlaceholder(turn, options.isLive) && (
+          <AgentThinkingPlaceholder startedAt={turn.startedAt} />
+        )}
         {turn.segments.map((segment, index) =>
           segment.kind === "think" ? (
             <AgentThinkingBlock
@@ -729,20 +764,22 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         ) : turn.answer !== "" ? (
           <>
             <div className="group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm">
-              {/* 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验） */}
+              {/* 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验）。
+                  #719 展示号：角标文字/读屏用 displayNumber（可见列表顺序连续），
+                  点击命中仍传原全局编号。 */}
               <MarkdownRenderer
                 content={turn.answer}
                 onCitationRef={(citationRef) => handleCitationRef(citationRef, badgeCitations)}
                 citationCount={badgeCitations.length}
-                citations={badgeCitations.map(toCitationBadgeInfo)}
+                citations={badgeInfos}
               />
               {!streaming && actionsTurnId === turn.id && (
                 <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100">
                   <button
                     type="button"
                     aria-label={t("agent.workspace.copyMessage")}
-                    onClick={() => void handleCopyMessage(turn.answer)}
-                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    onClick={() => void handleCopyMessage(remapCitationMarks(turn.answer, displayMap))}
+                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
                   >
                     <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -750,7 +787,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                     type="button"
                     aria-label={t("agent.workspace.regenerate")}
                     onClick={handleRegenerate}
-                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
                   >
                     <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -764,6 +801,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 count={turn.answerCitations.length}
                 active={panelSource === turn.answerCitations}
                 onToggle={() => setPanelSource(turn.answerCitations ?? [])}
+                triggerRef={citationsTriggerRef}
               />
             )}
           </>
@@ -834,7 +872,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   {turn.query && (
                     <Link
                       href={`/search?q=${encodeURIComponent(turn.query)}`}
-                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus-visible:ring-1 focus:ring-ring"
                     >
                       {t("agent.noEvidence.searchCta")}
                     </Link>
@@ -852,7 +890,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   {turn.query && (
                     <Link
                       href={`/search?q=${encodeURIComponent(turn.query)}`}
-                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus-visible:ring-1 focus:ring-ring"
                     >
                       {t("agent.noEvidence.searchCta")}
                     </Link>
@@ -866,6 +904,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 count={terminal.citations.length}
                 active={panelSource === terminal.citations}
                 onToggle={() => setPanelSource(terminal.citations)}
+                triggerRef={citationsTriggerRef}
               />
             )}
 
@@ -916,7 +955,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         onChange={setInput}
         onSubmit={() => handleSend()}
         keyMode="enter"
-        rows={1}
+        /* #725：空态文本区默认 3 行量级（两态同形不变；自动增高/208px 封顶
+           机制由 Composer 既有实现承担）。 */
+        rows={3}
+        expandMobileHit
         ariaLabel={t("agent.workspace.composerLabel")}
         placeholder={t("agent.workspace.inputPlaceholder")}
         submitLabel={t("agent.workspace.sendMessage")}
@@ -971,28 +1013,46 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         />
       </div>
 
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 min-[701px]:hidden" role="dialog" aria-modal="true" aria-label={t("agent.workspace.sidebarLabel")}>
+      {/* #721：滑入滑出（含关闭方向）+ 遮罩淡出——延迟卸载走完退出动画；
+          退出帧剥离 dialog 语义/指针事件（不干扰可达性树与后续交互）。 */}
+      {historyDrawerMounted && (
+        <div
+          className="fixed inset-0 z-50 min-[701px]:hidden"
+          {...(drawerOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true, "inert": true as never })}
+          aria-label={t("agent.workspace.sidebarLabel")}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeHistoryDrawer();
+          }}
+        >
           <button
             type="button"
+            tabIndex={drawerOpen ? undefined : -1}
             aria-label={t("agent.workspace.closeConversations")}
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setDrawerOpen(false)}
+            className={cn(
+              "absolute inset-0 bg-black/50 transition-opacity duration-200 motion-reduce:transition-none",
+              drawerOpen ? "opacity-100" : "opacity-0",
+            )}
+            onClick={closeHistoryDrawer}
           />
-          <div className="relative h-full w-[85vw] max-w-[320px] bg-card shadow-md">
+          <div
+            className={cn(
+              "relative h-full w-[85vw] max-w-[320px] bg-card shadow-md transition-transform duration-200 ease-out motion-reduce:transition-none [&_aside]:w-full [&_aside]:border-r-0",
+              drawerOpen ? "translate-x-0" : "-translate-x-full",
+            )}
+          >
             <AgentConversationSidebar
               conversations={conversations}
               activeId={activeId}
               collapsed={false}
               loading={conversationsLoading}
               disabled={streaming}
-              onToggleCollapse={() => setDrawerOpen(false)}
+              onToggleCollapse={closeHistoryDrawer}
               onSelect={handleSelectConversation}
               onNewConversation={handleNewConversation}
               onRename={handleRename}
               onTogglePin={handleTogglePin}
               onDelete={(id) => setConfirmDeleteId(id)}
-              onRequestClose={() => setDrawerOpen(false)}
+              onRequestClose={closeHistoryDrawer}
             />
           </div>
         </div>
@@ -1000,16 +1060,21 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
       <section
         aria-label={t("agent.workspace.transcriptLabel")}
-        className="relative flex min-w-0 flex-1 flex-row border-l border-border-default"
+        className="relative flex min-w-0 flex-1 flex-col min-[701px]:flex-row min-[701px]:border-l min-[701px]:border-border-default"
       >
-        <header className="flex h-14 shrink-0 items-center gap-2 px-2">
+        {/* #721：≤700px 主区纵向布局——标题栏为顶部横条（做薄），对话内容
+            与底部输入框全宽不再被挤压；≥701px 维持横向现状。 */}
+        <header className="flex h-12 w-full shrink-0 items-center gap-2 px-2 min-[701px]:h-14 min-[701px]:w-auto">
           <button
             type="button"
+            ref={historyTriggerRef}
             aria-label={t("agent.workspace.openConversations")}
             onClick={() => setDrawerOpen(true)}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-[701px]:hidden"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring min-[701px]:hidden"
           >
-            <Menu className="h-4 w-4" aria-hidden="true" />
+            {/* #721：历史记录语义的时钟类图标（原通用菜单图标与右上角侧栏
+                图标撞语义）。 */}
+            <History className="h-4 w-4" aria-hidden="true" />
           </button>
           {/* #416 O2：空态不渲染标题（消除与侧栏「开启新对话」的语义重复）；
               会话态标题与会话列表同源，点击进入原地编辑 */}
@@ -1067,7 +1132,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   <button
                     type="button"
                     onClick={() => handleSend(t(key))}
-                    className="inline-flex items-center rounded-full border border-border-default bg-card px-3 py-1.5 text-sm text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="inline-flex items-center rounded-full border border-border-default bg-card px-3 py-1.5 text-sm text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
                   >
                     {t(key)}
                   </button>
@@ -1155,18 +1220,23 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
 
 /** FT-4（#696）：回答底部「N 条参考来源」入口按钮（侧栏 toggle 通道之一；
-    另一通道 = 侧栏 X）。原内联折叠列表退役。 */
-function CitationsEntryButton({ count, active, onToggle }: { count: number; active: boolean; onToggle: () => void }) {
+    另一通道 = 侧栏 X）。原内联折叠列表退役。#719：统一 AgentMetaPill
+    胶囊外观（点击仍开侧栏）。 */
+function CitationsEntryButton({ count, active, onToggle, triggerRef }: {
+  count: number;
+  active: boolean;
+  onToggle: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+}) {
   const t = useTranslations();
   return (
-    <button
-      type="button"
+    <AgentMetaPill
+      icon={BookOpenText}
+      label={t("agent.citations.entry", { count })}
+      pressed={active}
       onClick={onToggle}
-      aria-pressed={active}
-      className="mt-1 inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border-default bg-card px-2.5 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-fg-default focus:outline-none focus:ring-2 focus:ring-ring"
-    >
-      <BookOpenText className="size-3.5" aria-hidden="true" />
-      {t("agent.citations.entry", { count })}
-    </button>
+      className="mt-1"
+      buttonRef={triggerRef}
+    />
   );
 }

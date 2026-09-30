@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import type { AgentCitation } from "@/lib/agent";
+import { cn } from "@/lib/utils";
+import { useDelayedUnmount } from "@/lib/use-delayed-unmount";
 import { AgentCitationCard } from "@/components/agent/AgentCitationCard";
 
 /**
@@ -76,16 +78,38 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
     }
   }, [dragOffset, onClose]);
 
-  if (!open || citations.length === 0) return null;
+  /* #721：延迟卸载走完退出动画（关闭方向滑出 + 遮罩淡出）；citations
+     清空（切换会话）立即卸载不播动画。 */
+  const mounted = useDelayedUnmount(open, 220);
+  if (!mounted || citations.length === 0) return null;
 
   if (isMobile) {
     return (
-      <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-label={t("agent.citations.title")}>
+      <div
+        className="fixed inset-0 z-40 md:hidden"
+        {...(open ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true, "inert": true as never })}
+        aria-label={t("agent.citations.title")}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onClose();
+        }}
+      >
         {/* 轻遮罩：点按即收（第三路兜底关闭） */}
-        <button type="button" aria-label={t("agent.citations.close")} className="absolute inset-0 bg-black/30" onClick={onClose} />
+        <button
+          type="button"
+          aria-label={t("agent.citations.close")}
+          className={cn(
+            "absolute inset-0 bg-black/30 transition-opacity duration-200 motion-reduce:transition-none",
+            open ? "opacity-100" : "opacity-0",
+          )}
+          onClick={onClose}
+        />
         <div
-          className="absolute inset-x-0 bottom-0 flex max-h-[70vh] flex-col rounded-t-xl border-t border-border-default bg-canvas-default shadow-[var(--elevation-3)]"
-          style={{ transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined, transition: dragOffset > 0 ? "none" : "transform 200ms ease-out" }}
+          className={cn(
+            "absolute inset-x-0 bottom-0 flex max-h-[70vh] flex-col rounded-t-xl border-t border-border-default bg-canvas-default shadow-[var(--elevation-3)]",
+            "transition-transform duration-200 ease-out motion-reduce:transition-none",
+            !open && "translate-y-full",
+          )}
+          style={{ transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined, transition: dragOffset > 0 ? "none" : undefined }}
         >
           {/* 把手区：可拖拽关闭 */}
           <div
@@ -108,7 +132,7 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
               type="button"
               aria-label={t("agent.citations.close")}
               onClick={onClose}
-              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
             >
               <X className="size-4" aria-hidden="true" />
             </button>
@@ -151,7 +175,11 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
     <aside
       aria-label={t("agent.citations.title")}
       data-testid="citations-sidebar"
-      className="hidden w-[min(400px,90vw)] shrink-0 flex-col border-l border-border-default bg-canvas-default md:flex"
+      className={cn(
+        "hidden w-[min(400px,90vw)] shrink-0 flex-col border-l border-border-default bg-canvas-default md:flex",
+        "transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
+        open ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
+      )}
     >
       <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
         <h3 className="text-sm font-semibold text-fg-default">
@@ -164,7 +192,7 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
           type="button"
           aria-label={t("agent.citations.close")}
           onClick={onClose}
-          className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
