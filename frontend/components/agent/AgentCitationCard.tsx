@@ -37,8 +37,8 @@ export function AgentCitationCard({ citation, index, onOpen, highlighted = false
       aria-label={`${t("agent.citations.title")} ${displayNumber}：${citation.title}`}
       onClick={(event) => onOpen(citation, event.currentTarget)}
       className={cn(
-        "flex h-auto w-full flex-col items-start gap-0.5 rounded-md border bg-card px-3 py-2 text-left transition-colors duration-150 hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring",
-        highlighted ? "border-ring ring-2 ring-ring" : "border-border-default",
+        "flex h-auto w-full flex-col items-start gap-0.5 rounded-md border bg-card px-3 py-2 text-left transition-colors duration-150 hover:bg-canvas-subtle focus:outline-none focus-visible:ring-1 focus:ring-ring",
+        highlighted ? "border-accent-emphasis bg-accent-subtle/40" : "border-border-default",
       )}
     >
       <span className="flex w-full items-center gap-2 text-sm font-medium text-accent-emphasis">

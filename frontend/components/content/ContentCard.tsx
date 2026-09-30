@@ -126,7 +126,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
   const typeLabel = contentType === "sheet_music" ? t('home.sheetMusic') : contentType === "prompt" ? t('home.aiPrompt') : contentType === "mod" ? t('home.mod') : contentType === "video" ? t('home.video') : contentType === "audio" ? t('home.audio') : contentType === "image" ? t('home.image') : t('home.text');
 
   const cardClasses = cn(
-    "group block overflow-hidden bg-card transition-[border-color,box-shadow,background-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none",
+    "group block overflow-hidden bg-card transition-[border-color,box-shadow,background-color] duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring motion-reduce:transition-none",
     isOriginal
       ? "rounded-lg shadow-none hover:shadow-[var(--elevation-2)]"
       : "rounded-lg border border-border shadow-[var(--elevation-1)] hover:border-[var(--border-strong)] hover:shadow-[var(--elevation-2)]",
@@ -242,7 +242,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
   const author = authorId ? (
     <Link
       href={`/user/${authorId}`}
-      className="flex min-w-0 items-center gap-1.5 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-w-0 items-center gap-1.5 rounded-md text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={(event) => event.stopPropagation()}
     >
       <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-semibold text-accent-emphasis">
@@ -311,7 +311,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
             prefetchCoverVariant(coverUrl ?? placeholderSrc);
             onOpenDetail(data, event.currentTarget);
           }}
-          className="block w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="block w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           {cover}
           {info}

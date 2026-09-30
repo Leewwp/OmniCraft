@@ -82,7 +82,7 @@ function CodeBlock({ className, children, ...props }: ComponentProps<"code">) {
         type="button"
         aria-label={t("markdown.copyCode")}
         onClick={handleCopy}
-        className="absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md border border-border bg-canvas-default text-fg-muted opacity-0 transition-opacity duration-150 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus-visible:opacity-100 group-hover/code:opacity-100"
+        className="absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md border border-border bg-canvas-default text-fg-muted opacity-0 transition-opacity duration-150 hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring focus-visible:opacity-100 group-hover/code:opacity-100"
       >
         {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
       </button>
@@ -229,7 +229,7 @@ function CitationBadge({ info, onJump }: { info: CitationBadgeInfo; onJump: () =
         {...(hoverCapable
           ? { onPointerEnter: scheduleOpen, onPointerLeave: scheduleClose, onFocus: showNow, onBlur: scheduleClose }
           : {})}
-        className="mx-0.5 inline-flex h-4 max-w-40 -translate-y-1 items-center justify-center gap-0.5 rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1.5 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus:ring-2 focus:ring-ring"
+        className="mx-0.5 inline-flex h-4 max-w-40 -translate-y-1 items-center justify-center gap-0.5 rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1.5 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus-visible:ring-1 focus:ring-ring"
       >
         <span aria-hidden className="text-[0.85em] opacity-70">{shownNumber}</span>
         <span className="truncate">{truncateBadgeTitle(info.title)}</span>
@@ -321,7 +321,7 @@ export function MarkdownRenderer({ content, className, onCitationRef, citationCo
                 type="button"
                 aria-label={t("markdown.citationJump", { index })}
                 onClick={() => onCitationRef?.(index - 1)}
-                className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-sm border border-accent-emphasis/0 bg-accent-subtle px-1 align-baseline text-[0.7em] font-semibold text-accent-emphasis transition-colors duration-150 hover:border-accent-emphasis hover:bg-accent-subtle focus:outline-none focus-visible:ring-1 focus:ring-ring"
               >
                 {index}
               </button>

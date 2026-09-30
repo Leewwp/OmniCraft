@@ -173,7 +173,7 @@ export function StudioSidebar() {
         aria-expanded={mobileOpen}
         aria-controls="studio-mobile-navigation"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-[60px] z-30 inline-flex size-11 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[701px]:hidden"
+        className="fixed left-4 top-[60px] z-30 inline-flex size-11 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-sm focus-visible:ring-1 focus-visible:ring-ring min-[701px]:hidden"
       >
         <PanelLeft className="size-5" />
       </button>
@@ -200,7 +200,7 @@ export function StudioSidebar() {
                 aria-label={t("studio.sidebar.collapse")}
                 title={t("studio.sidebar.collapse")}
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <X className="size-5" />
               </button>

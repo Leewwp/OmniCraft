@@ -174,7 +174,7 @@
 **视觉契约**
 - Button 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
 - Primary hover 使用 `--accent-hover`（dark 为 #4338CA，白字 7.90:1 ≥AA）；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
-- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset（键盘专属，鼠标聚焦不触发——见设计系统「焦点反馈分级」FT-1）；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
+- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 1px `--ring` 细描边、无 offset（#720 层 2 契约，键盘专属——见设计系统「焦点反馈分级」三层框架）；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
 - Badge 始终 `rounded-full`、12px medium、20px 高，无 elevation；可交互 Badge 仅做 150ms 颜色/边框过渡，focus-visible 与 Button 相同。
 
 **响应式与动效**
@@ -404,7 +404,7 @@ interface AgentFollowUpChipsProps {
 **状态变体**
 - default: 透明底 + 1px `border-border-default` + `text-fg-default`
 - hover / focus-visible: `bg-accent-subtle` + `text-accent-emphasis` + `border-accent-emphasis`（悬停预告主动作；token 与 FilterPills 选中态相同但语义不同——本组件无持久选中态）
-- focus-visible 追加标准 `focus-visible:ring-2 focus-visible:ring-ring`；150ms `transition-colors`
+- focus-visible 追加标准 `focus-visible:ring-1 focus-visible:ring-ring`（#720 层 2：1px 细描边）；150ms `transition-colors`
 
 **响应式行为**
 - flex wrap 换行，小屏自然堆叠，无横向滚动。
@@ -3597,7 +3597,7 @@ interface AgentToolStatus {
 - “开始新对话”不删除旧会话且无需确认。删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
 - 会话标题：active 会话显示 title（无 title 显示「未命名 #id」）；自动标题由服务端首轮后异步生成。
 - 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
-- 焦点反馈遵循设计系统「焦点反馈分级」（FT-1）：输入框/Composer/模型选择器等自明态控件软化聚焦（仅边框加深），按钮与状态承载控件保留键盘 focus-visible ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
+- 焦点反馈遵循设计系统「焦点反馈分级」三层框架（FT-1 立档、#720 修订）：自明态控件软化聚焦（仅边框加深）；键盘 focus-visible 一律 1px 细描边；选中态只留筛选/状态类（参考来源按钮等激活用背景微变）；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
 - 代码块：rehype-highlight 高亮 + 悬停复制按钮（markdown.copyCode）；外链（http/https 绝对地址）`target=_blank rel=noopener noreferrer`，站内相对链接原样。
 - Esc 只关闭当前打开的内容详情浮层或会话抽屉，不离开 Agent 工作台。
 

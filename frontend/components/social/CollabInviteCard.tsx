@@ -102,7 +102,7 @@ export function CollabInviteCard({ invite, isCurrentUserInvitee, onAccept, onDec
       </p>
       <Link
         href={`/content/${invite.contentId}`}
-        className="mt-1 inline-block rounded-sm text-sm text-accent-emphasis underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-accent-emphasis hover:text-accent-hover"
+        className="mt-1 inline-block rounded-sm text-sm text-accent-emphasis underline underline-offset-2 focus:outline-none focus-visible:ring-1 focus:ring-accent-emphasis hover:text-accent-hover"
       >
         {invite.contentTitle}
       </Link>

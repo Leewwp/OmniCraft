@@ -163,7 +163,7 @@ export function IPDiscussionsTab({ ipId, apiBase, query, sort, onSortChange, ini
                   setActiveId(d.id);
                 }
               }}
-              className="block w-full cursor-pointer rounded-md border border-border bg-card p-4 text-left transition-colors duration-150 hover:border-accent/20 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="block w-full cursor-pointer rounded-md border border-border bg-card p-4 text-left transition-colors duration-150 hover:border-accent/20 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <div className="flex items-center gap-2">
                 {d.is_pinned && (

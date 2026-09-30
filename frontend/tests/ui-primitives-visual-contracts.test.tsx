@@ -40,8 +40,8 @@ test("approved Indigo actions use exact radii, semantic hover, and visible focus
   const publish = view.getByRole("button", { name: "Publish" });
   assert.match(publish.className, /rounded-md/);
   assert.match(publish.className, /hover:bg-accent-hover/);
-  assert.match(publish.className, /focus-visible:ring-2/);
-  assert.match(publish.className, /focus-visible:ring-offset-2/);
+  assert.match(publish.className, /focus-visible:ring-1/); /* #720 层2：1px 细描边 */
+  assert.doesNotMatch(publish.className, /ring-offset/); /* #720 层2：1px 细描边无 offset */
   assert.match(publish.className, /\[@media\(pointer:coarse\)\]:min-h-11/);
   assert.match(publish.className, /motion-reduce:active:translate-y-0/);
   assert.match(publish.className, /disabled:cursor-not-allowed/);
@@ -57,7 +57,7 @@ test("approved Indigo actions use exact radii, semantic hover, and visible focus
 
   const tag = view.getByRole("button", { name: "Music" });
   assert.match(tag.className, /rounded-full/);
-  assert.match(tag.className, /focus-visible:ring-2/);
+  assert.match(tag.className, /focus-visible:ring-1/);
 });
 
 test("cards and form controls consume the approved radius, elevation, border, and focus contracts", () => {
@@ -101,7 +101,7 @@ test("cards and form controls consume the approved radius, elevation, border, an
 
   assert.match(view.getByRole("checkbox", { name: "Accept" }).className, /rounded-sm/);
   const switchControl = view.getByRole("switch", { name: "Published" });
-  assert.match(switchControl.className, /focus-visible:ring-2/);
+  assert.match(switchControl.className, /focus-visible:ring-1/);
   assert.match(switchControl.querySelector("span")?.className ?? "", /shadow-sm/);
 });
 
