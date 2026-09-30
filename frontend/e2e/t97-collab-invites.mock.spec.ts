@@ -138,7 +138,8 @@ async function mockCollabSession(page: Page, options: { accept?: { status?: numb
 
 async function openChatWithInvite(page: Page) {
   await page.goto("/messages");
-  await page.getByRole("tab", { name: "私信" }).click();
+  /* 消息中心 B 站式改造（#509）后分类项为 button（旧 role=tab 已退役）。 */
+  await page.getByRole("button", { name: "私信", exact: true }).click();
   await page.getByRole("button", { name: /bob/ }).first().click();
 }
 
@@ -168,8 +169,12 @@ test("accepting an invite switches the card to the accepted read-only state", as
   await gotoDesktop(page);
   await openChatWithInvite(page);
 
-  await page.getByRole("button", { name: "接受《星尘 fanwork》的联合创作邀请" }).click();
-  await expect(page.getByText("已接受")).toBeVisible();
+  /* 卡片在消息轮询间会换节点重挂载（见下 mobile 用例注）：点击可能落在
+     即将卸载的旧节点上而 POST 未发——click+断言整体用 toPass 重试。 */
+  await expect(async () => {
+    await page.getByRole("button", { name: "接受《星尘 fanwork》的联合创作邀请" }).click();
+    await expect(page.getByText("已接受")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: /接受《星尘 fanwork》的联合创作邀请/ })).toHaveCount(0);
 
   await page.screenshot({ path: path.join(SCREENSHOTS, "community-collab-invite-states-accepted.png") });
@@ -180,8 +185,10 @@ test("declining an invite switches the card to the declined read-only state", as
   await gotoDesktop(page);
   await openChatWithInvite(page);
 
-  await page.getByRole("button", { name: "拒绝《星尘 fanwork》的联合创作邀请" }).click();
-  await expect(page.getByText("已拒绝")).toBeVisible();
+  await expect(async () => {
+    await page.getByRole("button", { name: "拒绝《星尘 fanwork》的联合创作邀请" }).click();
+    await expect(page.getByText("已拒绝")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: /接受《星尘 fanwork》的联合创作邀请/ })).toHaveCount(0);
 
   await page.screenshot({ path: path.join(SCREENSHOTS, "community-collab-invite-states-declined.png") });
@@ -192,8 +199,10 @@ test("expired invite renders as muted read-only state", async ({ page }) => {
   await gotoDesktop(page);
   await openChatWithInvite(page);
 
-  await page.getByRole("button", { name: "接受《星尘 fanwork》的联合创作邀请" }).click();
-  await expect(page.getByText("已过期")).toBeVisible();
+  await expect(async () => {
+    await page.getByRole("button", { name: "接受《星尘 fanwork》的联合创作邀请" }).click();
+    await expect(page.getByText("已过期")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: /接受《星尘 fanwork》的联合创作邀请/ })).toHaveCount(0);
 
   await page.screenshot({ path: path.join(SCREENSHOTS, "community-collab-invite-states-expired.png") });
@@ -220,8 +229,11 @@ test("mobile invite card keeps 44px action buttons", async ({ page }) => {
 
   const acceptButton = page.getByRole("button", { name: "接受《星尘 fanwork》的联合创作邀请" });
   await expect(acceptButton).toBeVisible();
-  const box = await acceptButton.boundingBox();
-  expect(box?.height).toBeGreaterThanOrEqual(44);
+  /* 卡片在消息轮询间会重渲染换节点——用 poll 取稳定高度而非一次性
+     boundingBox（偶发 undefined）。 */
+  await expect
+    .poll(async () => (await acceptButton.boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(44);
 
   await page.screenshot({ path: path.join(SCREENSHOTS, "community-collab-invite-mobile.png") });
 });
