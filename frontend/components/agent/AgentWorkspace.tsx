@@ -232,13 +232,14 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       aria-label={t("agent.workspace.deepThink")}
       title={t("agent.workspace.deepThinkHint")}
       onClick={toggleDeepThink}
+      /* #725 底部控件带收紧：开关视觉降级（h-6 紧凑形态，行为/可达性不变）。 */
       className={cn(
-        "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         /* FT-2：默认白底黑字；选中仅背景变化，字色不变 */
         deepThink ? "bg-primary/10 text-fg-default" : "bg-canvas-default text-fg-default hover:bg-canvas-subtle",
       )}
     >
-      <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+      <Brain className="h-3 w-3" aria-hidden="true" />
       <span>{t("agent.workspace.deepThink")}</span>
     </button>
   );
@@ -251,7 +252,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           setModelPref(event.target.value);
           window.localStorage.setItem(MODEL_STORAGE_KEY, event.target.value);
         }}
-        className="h-7 rounded-md border border-border-default bg-canvas-default px-1.5 text-xs text-fg-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        /* #725：模型选择器同步紧凑形态。 */
+        className="h-6 rounded-md border border-border-default bg-canvas-default px-1 text-[11px] text-fg-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {modelOptions.map((option) => (
           <option key={option.id} value={option.id}>
@@ -938,7 +940,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         onChange={setInput}
         onSubmit={() => handleSend()}
         keyMode="enter"
-        rows={1}
+        /* #725：空态文本区默认 3 行量级（两态同形不变；自动增高/208px 封顶
+           机制由 Composer 既有实现承担）。 */
+        rows={3}
+        expandMobileHit
         ariaLabel={t("agent.workspace.composerLabel")}
         placeholder={t("agent.workspace.inputPlaceholder")}
         submitLabel={t("agent.workspace.sendMessage")}
