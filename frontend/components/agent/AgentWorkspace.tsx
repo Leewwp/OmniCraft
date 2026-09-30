@@ -1014,7 +1014,11 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           />
           <div
             className={cn(
-              "relative h-full w-[85vw] max-w-[320px] bg-card shadow-md transition-transform duration-200 ease-out motion-reduce:transition-none [&_aside]:w-full [&_aside]:border-r-0",
+              /* #752：面板 flex 化（对齐桌面 wrapper 的 min-[701px]:flex 模式）——
+                 aside 作为 flex item 沿主轴获得面板 h-full 的受限高度，面板 →
+                 aside → 内层 flex（flex-1 min-h-0）→ nav（flex-1 min-h-0
+                 overflow-y-auto）高度链闭合，会话列表恢复真实滚动。 */
+              "relative flex h-full w-[85vw] max-w-[320px] bg-card shadow-md transition-transform duration-200 ease-out motion-reduce:transition-none [&_aside]:w-full [&_aside]:border-r-0",
               drawerOpen ? "translate-x-0" : "-translate-x-full",
             )}
           >
