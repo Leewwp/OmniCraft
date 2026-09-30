@@ -27,10 +27,11 @@ const emptyConfig = {
 
 /** #687 读取层：兜底注册表与访问器语义 */
 test("contentTypeEntries falls back to the shipped baseline when the projection is absent", () => {
-  assert.equal(contentTypeEntries(null).length, 9);
-  assert.equal(contentTypeEntries(undefined).length, 9);
-  assert.equal(contentTypeEntries(emptyConfig).length, 9);
-  assert.equal(FALLBACK_CONTENT_TYPE_ENTRIES.length, 9);
+  // #726：兜底补 3d_print 行（含 attachment_policy），9 → 10。
+  assert.equal(contentTypeEntries(null).length, 10);
+  assert.equal(contentTypeEntries(undefined).length, 10);
+  assert.equal(contentTypeEntries(emptyConfig).length, 10);
+  assert.equal(FALLBACK_CONTENT_TYPE_ENTRIES.length, 10);
 });
 
 test("projected registry wins over the fallback", () => {
@@ -49,7 +50,7 @@ test("projected registry wins over the fallback", () => {
 
 test("form axis reproduces the legacy FILE_PRIMARY semantics", () => {
   // 文件主形态 = form ∈ {file, media}，与旧 FILE_PRIMARY_TYPES 六类一致。
-  for (const key of ["image", "video", "audio", "sheet_music", "mod", "template"]) {
+  for (const key of ["image", "video", "audio", "sheet_music", "mod", "template", "3d_print"]) {
     assert.equal(isFilePrimaryContentType(null, key), true, `${key} stays file-primary`);
   }
   for (const key of ["article", "prompt", "other"]) {
@@ -69,6 +70,7 @@ test("zoneContentKeys fallback order equals the legacy IP hub filter list", () =
     "mod",
     "prompt",
     "sheet_music",
+    "3d_print",
     "other",
   ]);
   assert.deepEqual(zoneContentKeys(null, "original"), [
@@ -78,6 +80,7 @@ test("zoneContentKeys fallback order equals the legacy IP hub filter list", () =
     "audio",
     "template",
     "sheet_music",
+    "3d_print",
     "other",
   ]);
 });
@@ -107,7 +110,10 @@ test("deriveUploadFamilyForExtension implements the v2.1 derivation contract", (
 
 test("uploadFileTypeMap exposes extension policy (null = unrestricted) and caps", () => {
   const families = uploadFileTypeMap(null);
-  assert.equal(Object.keys(families).length, 8);
+  // #726：兜底补 model3d 族行（9 族）。
+  assert.equal(Object.keys(families).length, 9);
+  assert.equal(families["model3d"].max_mb, 50);
+  assert.deepEqual(families["model3d"].extensions, [".stl", ".obj", ".3mf", ".gcode", ".ply", ".mtl"]);
   assert.equal(families["sheet_music"].extensions === null, false, "sheet_music is explicit");
   assert.equal(families["document"].extensions === null, false, "#688 document is explicit");
   assert.deepEqual(families["document"].extensions, [".docx", ".xlsx", ".csv"]);
@@ -115,7 +121,7 @@ test("uploadFileTypeMap exposes extension policy (null = unrestricted) and caps"
   assert.equal(families["mod"].extensions, null, "mod is unrestricted (MIME-driven)");
   assert.equal(families["mod"].max_mb, 500);
   assert.equal(families["avatar"].max_mb, 20, "avatar reuses the image budget");
-  assert.equal(uploadFileTypeEntries(null).length, 8);
+  assert.equal(uploadFileTypeEntries(null).length, 9);
 });
 
 test("contentTypeMap lookup is keyed by type key", () => {

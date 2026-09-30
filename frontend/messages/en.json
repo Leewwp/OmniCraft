@@ -319,6 +319,28 @@
     "fileSizeExceeds": "{name} exceeds {maxMB}MB limit",
     "uploadFailed": "Upload failed",
     "limitMb": "Limit: {maxMB}MB",
+    "uploadFamily": {
+      "name": {
+        "model3d": "Model files",
+        "text": "Readme files",
+        "document": "Documents",
+        "audio": "Audio",
+        "video": "Videos",
+        "image": "Images",
+        "mod": "Mod packages",
+        "sheet_music": "Sheet music"
+      },
+      "mimeNote": {
+        "text": "Text files and PDF",
+        "video": "Common video formats",
+        "image": "Common image formats",
+        "mod": "ZIP archives"
+      },
+      "maxMb": "Max {maxMB}MB",
+      "requiredAny": "At least one required",
+      "requiredAnyOf": "Required (any one of the listed)",
+      "optional": "Optional"
+    },
     "uploading": "Uploading...",
     "selectFile": "Select file",
     "uploadProgress": "Upload progress {progress}%",
@@ -2497,6 +2519,7 @@
         "other": "Other fan creation content"
       },
       "attachments": {
+        "requiredFamilyMissing": "Upload at least one of: {families}",
         "selected": "Selected attachments",
         "remove": "Remove {name}"
       }
