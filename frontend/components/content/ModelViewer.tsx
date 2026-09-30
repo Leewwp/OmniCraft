@@ -35,6 +35,26 @@ type ViewerState =
 
 export type ViewName = "orbit" | "front" | "side" | "top";
 
+/**
+ * 场景句柄（#722）：切换视图与销毁是两个独立动作，必须分离持有。
+ * 此前 mountScene 返回的清理函数被直接存为「视图控制器」，按钮的
+ * controller.apply(name) 命中 Function.prototype.apply → 实际执行了
+ * 卸载逻辑（removeChild canvas），切换视图即空白。TS 未拦截的原因：
+ * 函数类型自带的 apply 恰好结构兼容 { apply(view): void }。
+ */
+export interface SceneHandle {
+  setView(view: ViewName): void;
+  dispose(): void;
+}
+
+/** 运行时守卫：裸函数（含清理函数）不满足句柄契约，显式拒绝。 */
+export function asSceneHandle(value: unknown): SceneHandle | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as { setView?: unknown; dispose?: unknown };
+  if (typeof candidate.setView !== "function" || typeof candidate.dispose !== "function") return null;
+  return candidate as SceneHandle;
+}
+
 /** 三视图坐标合同（导出供单测）：Z-up 下各视图的单位观察方向与 up。 */
 export const VIEW_CONTRACT: Record<Exclude<ViewName, "orbit">, { dir: [number, number, number]; orthographic: true }> = {
   // Front = -Y（从 Y 负方向看 XY 板面），Side = +X，Top = +Z。
@@ -81,7 +101,7 @@ export function ModelViewer({
   const [state, setState] = useState<ViewerState>({ kind: "loading", progress: 0 });
   const [view, setView] = useState<ViewName>("orbit");
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const viewControllerRef = useRef<{ apply: (view: ViewName) => void } | null>(null);
+  const sceneRef = useRef<SceneHandle | null>(null);
   const ext = useMemo(() => fileExtensionOf(fileName), [fileName]);
   const budgetMB = maxPreviewMB && maxPreviewMB > 0 ? maxPreviewMB : DEFAULT_MAX_PREVIEW_MB;
   const triangleBudget = maxTriangles && maxTriangles > 0 ? maxTriangles : DEFAULT_MAX_TRIANGLES;
@@ -156,11 +176,11 @@ export function ModelViewer({
         if (cancelled) return;
         setState({ kind: "loading", progress: 80 });
 
-        const controller = mountScene(THREE, OrbitControls, object, mountRef.current, () => setView("orbit"), view);
-        viewControllerRef.current = controller;
-        dispose = controller;
+        const handle = mountScene(THREE, OrbitControls, object, mountRef.current, () => setView("orbit"), view);
+        sceneRef.current = handle;
+        dispose = () => handle.dispose();
         if (cancelled) {
-          dispose?.();
+          dispose();
           return;
         }
         setState({ kind: "ready" });
@@ -171,6 +191,7 @@ export function ModelViewer({
 
     return () => {
       cancelled = true;
+      sceneRef.current = null;
       dispose?.();
     };
     // view intentionally excluded: the view switch repositions the active
@@ -234,7 +255,8 @@ export function ModelViewer({
               className={`rounded-md px-2.5 py-1 text-xs ${view === name ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
               onClick={() => {
                 setView(name);
-                viewControllerRef.current?.apply(name);
+                // 运行时守卫拒绝裸函数句柄（#722 接线陷阱回归防线）。
+                asSceneHandle(sceneRef.current)?.setView(name);
               }}
             >
               {t(`content.attachmentPreview.model.view.${name}`)}
@@ -281,6 +303,7 @@ function countGroupTriangles(
 /**
  * 场景装配与渲染循环。坐标合同：camera.up = +Z；GridHelper 旋到 XY 平面；
  * bbox 居中 + fit-to-view 距离 = 半径 * 2.5。
+ * 返回 SceneHandle（#722）：setView 只切机位，dispose 才销毁——两者分离。
  */
 function mountScene(
   THREE: typeof import("three"),
@@ -289,8 +312,8 @@ function mountScene(
   mount: HTMLDivElement | null,
   onUserInteract: () => void,
   initialView: ViewName,
-): () => void {
-  if (!mount) return () => undefined;
+): SceneHandle {
+  if (!mount) return { setView: () => undefined, dispose: () => undefined };
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x101014);
@@ -320,24 +343,27 @@ function mountScene(
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   mount.appendChild(renderer.domElement);
 
-  const resize = () => {
-    const width = mount.clientWidth || 1;
-    const height = mount.clientHeight || 1;
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-  };
-  resize();
-  const observer = new ResizeObserver(resize);
-  observer.observe(mount);
-
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.addEventListener("start", onUserInteract);
 
   // 视图机位控制器：透视 orbit + 三视图正交位（合同值）。
   const controller = createViewController(THREE, camera, controls, radius, mount);
-  controller.apply(initialView);
+
+  // 画布 CSS 尺寸（#722）：setSize 默认写 style（此前 false 模式 + 画布无
+  // 尺寸样式，高 DPR 屏画布按物理像素当 CSS 尺寸渲染、容器只露出放大画布
+  // 的一角）；正交 frustum 随容器宽高比同步（见 controller.resize）。
+  const resize = () => {
+    const width = mount.clientWidth || 1;
+    const height = mount.clientHeight || 1;
+    renderer.setSize(width, height);
+    controller.resize(width, height);
+  };
+  resize();
+  const observer = new ResizeObserver(resize);
+  observer.observe(mount);
+
+  controller.setView(initialView);
 
   let frame = 0;
   const loop = () => {
@@ -347,24 +373,28 @@ function mountScene(
   };
   loop();
 
-  return () => {
-    cancelAnimationFrame(frame);
-    observer.disconnect();
-    controls.dispose();
-    controller.dispose();
-    renderer.dispose();
-    if (renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
-    scene.traverse((child) => {
-      const mesh = child as { geometry?: { dispose: () => void }; material?: { dispose: () => void } };
-      mesh.geometry?.dispose();
-      mesh.material?.dispose();
-    });
+  return {
+    setView: (view: ViewName) => controller.setView(view),
+    dispose: () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      controls.dispose();
+      controller.dispose();
+      renderer.dispose();
+      if (renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
+      scene.traverse((child) => {
+        const mesh = child as { geometry?: { dispose: () => void }; material?: { dispose: () => void } };
+        mesh.geometry?.dispose();
+        mesh.material?.dispose();
+      });
+    },
   };
 }
 
 interface ViewController {
-  apply(view: ViewName): void;
+  setView(view: ViewName): void;
   activeCamera(): InstanceType<typeof import("three").Camera>;
+  resize(width: number, height: number): void;
   dispose(): void;
 }
 
@@ -376,12 +406,13 @@ function createViewController(
   mount: HTMLDivElement,
 ): ViewController {
   const distance = radius * 2.5;
-  const ortho = new THREE.OrthographicCamera(-radius * 1.4, radius * 1.4, radius * 1.4, -radius * 1.4, radius / 100, radius * 20);
+  const extent = radius * 1.4;
+  const ortho = new THREE.OrthographicCamera(-extent, extent, extent, -extent, radius / 100, radius * 20);
   ortho.up.set(0, 0, 1);
   let active: ViewName = "orbit";
 
   return {
-    apply(view: ViewName) {
+    setView(view: ViewName) {
       active = view;
       if (view === "orbit") {
         controls.enabled = true;
@@ -394,11 +425,27 @@ function createViewController(
       controls.enabled = false;
       const [dx, dy, dz] = VIEW_CONTRACT[view].dir;
       ortho.position.set(dx * distance, dy * distance, dz * distance);
+      // 俯视图观察方向 (+Z) 与默认 up (0,0,1) 平行——换水平轴 up 获得确定
+      // 朝向（朝向精确性修正；空白根因是接线错误，见 #722，不得以此宣称
+      // 修复空白）。其余视图维持 Z-up。
+      ortho.up.set(0, view === "top" ? 1 : 0, view === "top" ? 0 : 1);
       ortho.lookAt(0, 0, 0);
       ortho.updateProjectionMatrix();
     },
     activeCamera() {
       return active === "orbit" ? perspective : ortho;
+    },
+    resize(width: number, height: number) {
+      const aspect = width / height;
+      perspective.aspect = aspect;
+      perspective.updateProjectionMatrix();
+      // 正交 frustum 随容器宽高比同步（垂直基准半幅固定、水平跟随比例），
+      // 否则容器比例变化/窗口缩放后三视图拉伸失真（#722）。
+      ortho.top = extent;
+      ortho.bottom = -extent;
+      ortho.left = -extent * aspect;
+      ortho.right = extent * aspect;
+      ortho.updateProjectionMatrix();
     },
     dispose() {
       void mount;
