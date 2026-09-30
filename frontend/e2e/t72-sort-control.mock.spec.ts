@@ -66,7 +66,9 @@ test.describe("shared sort control across zones (#72)", () => {
     });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/ips");
-    await expect(page.getByRole("combobox", { name: "IP 排序方式" })).toHaveText(/最热门/);
+    /* PR#529 后 IP 库客户端缺省 = newest（后端 /ips 默认同为 newest，ip.go:79）；
+       本用例主断言是所选 sort 参数随请求下发，缺省值只锚定当前产品行为。 */
+    await expect(page.getByRole("combobox", { name: "IP 排序方式" })).toHaveText(/最新/);
 
     await page.getByRole("combobox", { name: "IP 排序方式" }).click();
     await page.getByRole("option", { name: "名称" }).click();
