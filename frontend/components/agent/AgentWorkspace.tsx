@@ -37,6 +37,8 @@ import {
 } from "@/lib/agent-turn";
 import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
+import { AgentThinkingPlaceholder } from "@/components/agent/AgentThinkingPlaceholder";
+import { shouldShowThinkingPlaceholder } from "@/lib/agent-turn";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
   AgentConversationSidebar,
@@ -711,6 +713,11 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
           {turn.query}
         </div>
+        {/* #727 发送后即时占位：首个可见内容（非空白 think/工具步骤/答案）
+            同帧移除；终态由 streaming=false 覆盖（含空 done）。 */}
+        {shouldShowThinkingPlaceholder(turn, options.isLive) && (
+          <AgentThinkingPlaceholder startedAt={turn.startedAt} />
+        )}
         {turn.segments.map((segment, index) =>
           segment.kind === "think" ? (
             <AgentThinkingBlock
