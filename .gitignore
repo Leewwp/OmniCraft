@@ -101,3 +101,6 @@ backend/config.override.local.yaml
 /tasks/
 /prototypes/
 /scripts/overnight/
+
+# ===== 本地工具数据目录（2026-09-30）：第三方会话/记忆工具产物，仅本地 =====
+/.workbuddy/
