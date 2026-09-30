@@ -42,7 +42,9 @@ func TestValidateWiringListsAllMissingRequiredDependencies(t *testing.T) {
 			t.Errorf("missing-dependency list lacks %q: %s", want, msg)
 		}
 	}
-	// 完整清单而非首错：comma-separated 项数 ≥ 60（当前 REQUIRED 全集）。
+	// 完整清单而非首错：comma-separated 项数 ≥ 60（数量级启发式兜底）。
+	// #672 起 REQUIRED/OPTIONAL 全字段分类与清单的双向集合相等由
+	// wiring_classification_test.go 精确钉死，本断言只保留粗粒度地板。
 	if got := len(strings.Split(msg, ", ")); got < 60 {
 		t.Errorf("missing list has %d entries, want the complete list (>= 60): %s", got, msg)
 	}
