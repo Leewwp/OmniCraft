@@ -236,7 +236,8 @@ test.describe("Ticket 10: 相关内容块与到底提示（桌面/web）(#90)", 
     await page.goto("/original/502");
     const endHint = page.locator('[data-slot="related-contents-end"]');
     await expect(endHint).toBeVisible();
-    await endHint.scrollIntoViewIfNeeded();
+    /* 相关块随浮层轮询换节点：跳过一次性 scroll（visible 与 scroll 之间
+     节点会被替换致 "not attached"），toHaveText 自带重试。 */
     await expect(endHint).toHaveText("已经到底了");
     await expect(page.locator('[data-slot="related-contents"]')).toHaveCount(0);
     /* 空分支不渲染空块标题。 */

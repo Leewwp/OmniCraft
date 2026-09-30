@@ -12,12 +12,16 @@ const USER = { id: 42, username: "Ada", role: "user", avatar_url: "" };
 
 const CONVERSATIONS = [
   {
-    id: 7,
+    /* 参与方必须含当前登录用户（42=Ada）：ConversationList 以
+       participants.find(p => p.id !== user.id) 取对方——不含自己时
+       会把第一位误当对方渲染（t97 同理：其 user id=1 在列）。 */
+    id: 42,
     participants: [
       { id: 42, username: "Ada", avatar_url: "" },
-      { id: 43, username: "Bob", avatar_url: "" },
+      { id: 2, username: "bob", avatar_url: "" },
     ],
-    last_message: { text: "你好", created_at: "2026-09-01T00:00:00Z" },
+    last_message: { id: 20, text: "你好", sender_id: 2, created_at: "2026-09-01T00:00:00Z" },
+    unread_count: 0,
     updated_at: "2026-09-01T00:00:00Z",
   },
 ];
@@ -134,6 +138,39 @@ async function login(page: Page) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ user: FULL_USER, capabilities: { can_interact: true, interaction_denial_reason: "" } }),
+    }),
+  );
+  /* 消息中心 B 站式改造（#509）后页面还拉通知未读数与通知列表——
+     缺 mock 会被 api-guard 中止并让页面落 404 兜底（t97 同款补齐）。 */
+  await mockApiRoute(page, "**/api/v1/notifications/unread-count", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      /* 响应形状与 t97 一致：unread_counts 包装（裸形状会让消费端崩页）。 */
+      body: JSON.stringify({ unread_counts: { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 } }),
+    }),
+  );
+  await mockApiRoute(page, "**/api/v1/notifications**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ notifications: [], total: 0 }),
+    }),
+  );
+  /* 消息中心（#509）私信三栏会拉对话方的用户画像（可能跨 API origin）——
+     失败会让页面落 404 兜底。 */
+  await mockApiRoute(page, "**/api/v1/users/43", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ user: { id: 43, username: "Bob", avatar_url: "" } }),
+    }),
+  );
+  await mockApiRoute(page, "**/api/v1/users/42", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ user: FULL_USER }),
     }),
   );
 }
@@ -312,15 +349,16 @@ test("private chat composer: Enter sends, Shift+Enter keeps a newline", async ({
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ conversations: CONVERSATIONS }),
+        /* 分页 meta 与 t97 同款（#509 后列表消费 page/page_size）。 */
+        body: JSON.stringify({ conversations: CONVERSATIONS, page: 1, page_size: 20 }),
       });
     }
     POSTS.push(route.request().url());
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
-  /* 会话历史 GET /api/v1/messages/7；私信发送 POST 实际打 /api/v1/messages
+  /* 会话历史 GET /api/v1/messages/42；私信发送 POST 实际打 /api/v1/messages
      （ChatWindow sendMessage 契约），由上面的 handler 捕获。 */
-  await mockApiRoute(page, "**/api/v1/messages/7", (route) => {
+  await mockApiRoute(page, "**/api/v1/messages/42", (route) => {
     if (route.request().method() !== "GET") {
       POSTS.push(route.request().url());
       return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
@@ -329,15 +367,21 @@ test("private chat composer: Enter sends, Shift+Enter keeps a newline", async ({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        messages: [{ id: 1, sender_id: 43, text: "你好", created_at: "2026-09-01T00:00:00Z" }],
+        messages: [{ id: 1, sender_id: 2, text: "你好", created_at: "2026-09-01T00:00:00Z" }],
+        total: 1,
       }),
     });
   });
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/messages?tab=messages");
-  /* 打开会话 7。 */
-  await page.getByText("Bob").first().click();
+  /* B 站式布局（#509）：默认分类页 → 选「私信」→ 会话列表 → 开会话 42
+     （与 t97 已验证的导航流一致；zh cookie 与 t97 同款——本文件其余用例
+     的既有文案断言（Comments/Reply 等）在 en 下运行，仅本用例走中文 UI）。 */
+  await page.context().addCookies([{ name: "NEXT_LOCALE", value: "zh", path: "/", domain: "127.0.0.1" }]);
+  await page.goto("/messages");
+  await page.getByRole("button", { name: "私信", exact: true }).click();
+  await page.waitForTimeout(400);
+  await page.getByRole("button", { name: /bob/ }).first().click();
   /* 桌面双栏与移动分屏各渲染一个 ChatWindow；.last() 会选中
      min-[701px]:hidden 分屏里隐藏的输入框，取首个可见实例。 */
   const chatBox = page.locator("textarea").first();
@@ -349,9 +393,13 @@ test("private chat composer: Enter sends, Shift+Enter keeps a newline", async ({
   /* Shift+Enter 只换行不发送。 */
   expect(POSTS.length).toBe(0);
 
-  await chatBox.press("Enter");
-  await expect
-    .poll(() => POSTS.filter((u) => u.endsWith("/api/v1/messages")).length)
-    .toBeGreaterThan(0);
+  /* ChatWindow 消息轮询会换节点重挂载，Enter 可能落在已卸载的旧输入框上
+     （整键序列丢失、POST 不发）——fill+Enter+断言整体 toPass 重试。 */
+  await expect(async () => {
+    const box = page.locator("textarea").first();
+    await box.click();
+    await box.press("Enter");
+    expect(POSTS.filter((u) => u.endsWith("/api/v1/messages")).length).toBeGreaterThan(0);
+  }).toPass({ timeout: 15_000 });
   await page.screenshot({ path: "../screenshots/413-private-chat.png", fullPage: false });
 });

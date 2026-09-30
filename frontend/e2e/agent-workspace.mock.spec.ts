@@ -196,6 +196,15 @@ test("cited answer streams content, shows tool status and citations", async ({ p
       1: [
         { id: 11, role: "user", content: "Blender 插件安装教程" },
         { id: 12, role: "assistant", content: "先把口语化需求扩展为检索词", phase: "think" },
+        /* #538：phase="tools" 行带持久化工具步骤摘要——done 后历史回放
+           重建消息树，工具相块靠这行存活（夹具此前缺失 = 工具胶囊在回放
+           后消失）。 */
+        {
+          id: 12,
+          role: "assistant",
+          phase: "tools",
+          tools: [{ name: "search_content", args_summary: "Blender 插件 +expanded: 建模 教程", hits: 3, status: "success", duration_ms: 12 }],
+        },
         /* N4 后引用由历史端点随答案行直出（迁移 077 落库），客户端回填合并
            临时方案已删除——历史夹具必须镜像该合同，引用列表才能在 done 后
            的会话重放中存活。 */
@@ -221,15 +230,22 @@ test("cited answer streams content, shows tool status and citations", async ({ p
   await thinkToggle.click();
   await expect(page.getByText("先把口语化需求扩展为检索词")).toBeVisible();
 
-  const toolSummary = page.getByRole("button", { name: "Tool activity" });
+  /* #719：工具块折叠头为胶囊，可见文本即可达名（旧 aria-label 退役）。 */
+  const toolSummary = page.getByRole("button", { name: /tool steps/ });
   await expect(toolSummary).toHaveAttribute("aria-expanded", "false");
   await toolSummary.click();
   await expect(page.getByText("Searched site content")).toBeVisible();
   await expect(page.getByText("3 hits")).toBeVisible();
   await expect(page.getByText(/Blender 插件 \+expanded: 建模 教程/)).toBeVisible();
 
-  await expect(page.getByRole("heading", { name: "Site references" })).toBeVisible();
-  await expect(page.getByText("Blender 插件安装教程").first()).toBeVisible();
+  /* FT-4/#719：参考来源不再内联展开——入口胶囊（计数）+ 点击开侧栏。 */
+  const referencesEntry = page.getByRole("button", { name: /1 reference sources/ });
+  await expect(referencesEntry).toBeVisible();
+  await referencesEntry.click();
+  /* 侧栏打开与卡片渲染由 agent-workspace.test.tsx 单测（openCitationsPanel）
+     覆盖——mock e2e 不重复断言全流程（首轮 done→历史回载重建窗口与
+     #721 延迟卸载动画存在时序噪声）。e2e 钉住：入口存在、可聚焦。 */
+  await expect(referencesEntry).toBeFocused();
   await expect(page.getByText("Stopped generating")).toHaveCount(0);
 });
 
@@ -258,8 +274,12 @@ test("no-evidence question shows the refusal card", async ({ page }) => {
   await page.goto("/agent");
   await ask(page, "明天的天气怎么样");
 
-  await expect(page.getByText("Not enough evidence")).toBeVisible();
-  await expect(page.getByText(/try rephrasing or adding detail/i)).toBeVisible();
+  /* #610 契约：零成功工具的 no_evidence 轮渲染空轮卡（而非旧拒答卡）；
+     mock 携带 degraded:true → 关键词回退横幅。答案文本仍展示。 */
+  await expect(page.getByText("没有足够证据。")).toBeVisible();
+  await expect(page.getByText("No content this turn")).toBeVisible();
+  await expect(page.getByText(/completed no search or tool/i)).toBeVisible();
+  await expect(page.getByText("Search fallback active")).toBeVisible();
 });
 
 test("provider failure falls back to ordinary keyword search", async ({ page }) => {
@@ -298,7 +318,9 @@ test("provider failure falls back to ordinary keyword search", async ({ page }) 
   await ask(page, "Find beginner-friendly furniture mods");
 
   await expect(page.getByText("Search fallback active")).toBeVisible();
-  await expect(page.getByText("Keyword fallback result")).toBeVisible();
+  /* FT-4/#719 契约：回退引用经入口胶囊呈现（旧内联列表已退役）；
+     回退检索本身已发起由下方 searchURL 参数断言钉住。 */
+  await expect(page.getByRole("button", { name: /1 reference sources/ })).toBeVisible();
   await expect(page.getByText("This request was not completed")).toHaveCount(0);
   const url = new URL(searchURL);
   expect(url.searchParams.get("q")).toBe("Find beginner-friendly furniture mods");
@@ -552,8 +574,9 @@ test("gap-numbered citations align badges, cards and clicks by turn-global numbe
   await ask(page, "三视图");
   await expect(page.getByText(/第一篇/)).toBeVisible();
 
-  /* [3] 小卡命中第二条引用（数组第 2 项，非位置 3）：标题露出 + 点击开 1003。 */
-  const badge3 = page.getByRole("button", { name: "Jump to citation 3" });
+  /* #719 展示号：可见列表 [1,3] 连续映射——badge [3] 的文字/读屏 = 展示号 2，
+     小卡标题仍按原全局编号命中（数组第 2 项，非位置 3）、点击开 1003。 */
+  const badge3 = page.getByRole("button", { name: "Jump to citation 2" });
   await expect(badge3).toBeVisible();
   await expect(badge3).toContainText("三视图坐标合同详解");
   await badge3.click();
@@ -567,8 +590,8 @@ test("gap-numbered citations align badges, cards and clicks by turn-global numbe
   await expect(page.locator("#agent-citation-2")).toHaveCount(0);
   await page.screenshot({ path: "../screenshots/ft5-badges/gap-numbered-sidebar.png", fullPage: true });
 
-  /* 悬停浮窗：完整标题 + 简介 + 查看提示（桌面 hover 专属）。 */
-  const chip3 = page.getByRole("button", { name: "Jump to citation 3" });
+  /* 悬停浮窗：完整标题 + 简介 + 查看提示（桌面 hover 专属；展示号口径）。 */
+  const chip3 = page.getByRole("button", { name: "Jump to citation 2" });
   await chip3.hover();
   await expect(page.getByRole("tooltip")).toBeVisible();
   await page.screenshot({ path: "../screenshots/ft5-badges/hover-popover.png" });
@@ -714,22 +737,27 @@ test("release evidence screenshots (plan Task 6 Step 4)", async ({ page }) => {
   await page.goto("/agent");
   await ask(page, "Blender 插件安装教程");
   await expect(page.getByText(/Blender 插件安装的回答/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Site references" })).toBeVisible();
-  await page.screenshot({ path: "../screenshots/web-agent-grounded-desktop.png", fullPage: true });
-
-  await page.getByRole("button", { name: "Blender 插件安装教程" }).click();
-  await expect(page.getByRole("dialog", { name: "Blender 插件安装教程" })).toBeVisible();
+  /* #719 契约：角标小卡直达共享浮层；参考来源走入口胶囊。 */
+  await page.getByRole("button", { name: /Jump to citation 1/ }).click();
+  await expect(page.getByRole("dialog").first()).toBeVisible();
   await page.screenshot({ path: "../screenshots/web-agent-citation-overlay-desktop.png", fullPage: true });
-  await page.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("dialog", { name: "Blender 插件安装教程" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  await page.getByRole("button", { name: /reference sources/ }).first().click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "../screenshots/web-agent-grounded-desktop.png", fullPage: true });
+  await page.keyboard.press("Escape");
 
   await page.setViewportSize({ width: 375, height: 800 });
-  await expect(page.getByRole("heading", { name: "Site references" })).toBeVisible();
+  await page.waitForTimeout(400);
   await page.screenshot({ path: "../screenshots/web-agent-citations-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.waitForTimeout(300);
 
   await mockStream(page, NO_EVIDENCE_EVENTS);
   await ask(page, "明天的天气怎么样");
-  await expect(page.getByText("Not enough evidence")).toBeVisible();
+  /* #610 契约：零工具 no_evidence 渲染空轮卡。 */
+  await expect(page.getByText("No content this turn")).toBeVisible();
   await page.screenshot({ path: "../screenshots/web-agent-no-evidence.png", fullPage: true });
 
   await mockStream(page, [...NO_EVIDENCE_EVENTS.slice(0, 1), ...CITED_EVENTS.slice(3)]);
@@ -753,11 +781,11 @@ test("#416 O2 empty/conversation/edit layouts (no page dividers, big empty compo
     },
   );
 
-  /* 空态：无主区标题 + 中部偏下大号输入框（rows=4）+ 引导内容 */
+  /* 空态：无主区标题 + 中部偏下大号输入框（#725 起 rows=3，两态同形）+ 引导内容 */
   await page.goto("/agent");
   const emptyComposer = page.getByPlaceholder("Describe the works, sources or usage you want to find");
   await expect(emptyComposer).toBeVisible({ timeout: 15_000 });
-  await expect(emptyComposer).toHaveAttribute("rows", "4");
+  await expect(emptyComposer).toHaveAttribute("rows", "3");
   await expect(page.getByRole("heading", { name: /New conversation|开启新对话/i })).toHaveCount(0);
   await page.screenshot({ path: "../screenshots/416-agent-empty.png" });
 
@@ -765,7 +793,7 @@ test("#416 O2 empty/conversation/edit layouts (no page dividers, big empty compo
   await page.getByRole("button", { name: "星尘设定集" }).click();
   await expect(page.getByText("已有一轮对话")).toBeVisible({ timeout: 15_000 });
   const dockedComposer = page.getByPlaceholder("Describe the works, sources or usage you want to find");
-  await expect(dockedComposer).toHaveAttribute("rows", "1");
+  await expect(dockedComposer).toHaveAttribute("rows", "3");
   await expect(page.getByRole("heading", { name: "星尘设定集" })).toBeVisible();
   await page.screenshot({ path: "../screenshots/416-agent-conversation.png" });
 
