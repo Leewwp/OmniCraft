@@ -86,6 +86,21 @@ func parseMigrations() ([]TableDef, error) {
 				td.Columns = append(td.Columns, col)
 			}
 		}
+
+		// Merge foreign keys added by ALTER TABLE ... ADD CONSTRAINT (e.g.
+		// 088 backfill) into existing columns; an inline REFERENCES on the
+		// column itself always wins over a later backfill.
+		for tableName, fks := range parseAlterTableForeignKeys(content) {
+			td := findTable(allTables, tableName)
+			if td == nil {
+				continue
+			}
+			for i := range td.Columns {
+				if ref, ok := fks[td.Columns[i].Name]; ok && td.Columns[i].References == "" {
+					td.Columns[i].References = ref
+				}
+			}
+		}
 	}
 
 	sort.Slice(allTables, func(i, j int) bool {
@@ -155,6 +170,26 @@ func parseAlterTableColumns(content string) map[string][]ColumnDef {
 			col := parseColumnSpec(colMatch[1], colMatch[2])
 			results[tableName] = append(results[tableName], col)
 		}
+	}
+	return results
+}
+
+// alterFkRe matches ALTER TABLE ... ADD [CONSTRAINT name] FOREIGN KEY
+// (col) REFERENCES t(c) — foreign keys backfilled onto an existing table
+// (e.g. 088) must surface in the generated schema, not only inline ones.
+var alterFkRe = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+ADD\s+(?:CONSTRAINT\s+(?:IF\s+NOT\s+EXISTS\s+)?\w+\s+)?FOREIGN\s+KEY\s*\((\w+)\)\s*REFERENCES\s+(\w+(?:\.\w+)?)\s*\((\w+)\)`)
+
+// parseAlterTableForeignKeys extracts references added by ALTER TABLE ...
+// ADD [CONSTRAINT ...] FOREIGN KEY, keyed table -> column -> reference.
+// DROP CONSTRAINT statements never match (ADD is required after the table).
+func parseAlterTableForeignKeys(content string) map[string]map[string]string {
+	results := map[string]map[string]string{}
+	for _, m := range alterFkRe.FindAllStringSubmatch(content, -1) {
+		table, column := m[1], m[2]
+		if results[table] == nil {
+			results[table] = map[string]string{}
+		}
+		results[table][column] = m[3] + "." + m[4]
 	}
 	return results
 }
