@@ -2127,10 +2127,11 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 - 二创卡使用 1px border + radius-lg + elevation 1，hover 使用 `border-strong` + elevation 2；原创卡无默认边框，hover 使用浅遮罩、scale 1.05 与 elevation 2。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - 原创区卡片使用简化样式（无 IP 名、无标签 Badge、仅显示点赞数）。
-- **封面自然比例（#87 权威，替代旧的 video→16:9 / 其他→3:4 固定裁切）**：
-  - 封面比例由数据驱动：`cover_width`/`cover_height`（image = 媒体集首项尺寸；video = poster 尺寸）换算 `aspect-ratio`，`object-contain` 不裁切；无该字段时防御性默认 3:4。
-  - 极端比例（`max(width/height, height/width) > 2`）按高度上限 contain（超高图内部按可用高度适配，超宽图不超过列宽），防止单卡主导瀑布流。
-  - 二创卡与原创卡共用此规则；列表场景禁止强制 `object-cover` 裁切封面。
+- **信息流两档封面（#753 权威，2026-10-01，取代 #87 自然比例条款）**：
+  - 两档显示比例（不改原图/服务端数据）：`h/w ≤ 4/3 → 3:4`；`h/w > 4/3 → 9:16`；`object-cover object-center` 中心裁切。
+  - 几何优先 `cover_width`/`cover_height`（image = 媒体集首项尺寸；video = poster 尺寸），其次当前图实测（加载自愈链保留）；未知/失败回退 3:4 稳定占位。
+  - 视频右上播放角标（半透明圆形）；不加多图数量角标。两行标题/作者/点赞保留。
+  - 二创卡与原创卡共用；卡片与详情 contain 不再天然同取景，浮层转场按几何差异走既有居中缩淡降级。
 
 **Props 接口**
 ```ts
@@ -2146,21 +2147,21 @@ interface ContentCardProps {
 
 **视觉结构 — 二创区卡片（zone='fanwork'）**
 - 外层容器: `<div className="border border-border rounded-lg bg-card shadow-[var(--elevation-1)] overflow-hidden">`（无 padding，内容填满）
-- 封面区: 自然比例容器（`aspect-ratio` 由 `cover_width/cover_height` 数据驱动，缺省 3:4），`object-contain` 图片填满
+- 封面区: 两档比例容器（3:4 / 9:16，#753），`object-cover object-center` 中心裁切
 - 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 2 个低饱和 TagBadge）
 - 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **视觉结构 — 原创区卡片（zone='original'）**
 - 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
-- 封面区: 自然比例高度（`aspect-ratio` 由 `cover_width/cover_height` 数据驱动，缺省 3:4，`object-contain w-full`），`max-height: 400px`（极端比例限高），`overflow-hidden`
+- 封面区: 两档比例高度（3:4 / 9:16，#753），`object-cover object-center w-full`，`overflow-hidden`（无极端限高）
 - 悬停遮罩: `<div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />`
 - 封面缩放: `group-hover:scale-105 transition-transform duration-300`，并在 hover 时提升至 elevation 2。
 - 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg-muted`）→ ❤️ 点赞数（`text-xs text-fg-muted`）
 - 无标签 Badge、无 IP 名
 
 **尺寸规范**
-- 二创区卡片: padding 16px (p-4)，封面自然比例（缺省 3:4）
-- 原创区卡片: padding 8px (p-2)，封面自然比例（缺省 3:4），最小高度 150px
+- 二创区卡片: padding 16px (p-4)，封面两档 3:4/9:16（缺省 3:4）
+- 原创区卡片: padding 8px (p-2)，封面两档 3:4/9:16（缺省 3:4），最小高度 150px
 - 字号: `text-sm` (14px) 标题，`text-xs` (12px) 辅助信息
 - 间距: 元素间隙 4px (`gap-1`) 或 8px (`gap-2`)
 
@@ -2467,7 +2468,7 @@ interface ContentDetailProps {
 
 **共享元素转场（#64 决策 7-10 权威，覆盖 #67 原型与 #68 接入；#398 C1~C4；#409 F1 动效契约重建为现行权威）**
 - 转场核心为手动计算的 FLIP 几何：source 矩形 = 触发卡片封面/媒体区；开启动画把该视觉锚点放大为浮层封面几何，同时外壳按同一时间线推进；关闭时仅在 source 矩形仍可测量（在视口、未 detach）时反向回归。
-- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）；超高图当前项同样退化（两端取景语义无法统一：卡片 400px contain 整图 vs 浮窗 3:4 名义宽内部滚动）。
+- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）；长图当前项同样退化（#753 起两端取景语义仍无法统一：卡片 3:4/9:16 中心裁切 vs 浮窗真实比例 contain）。
 - View Transition API 是渐进增强：`document.startViewTransition` 可用时启用，不支持的环境继续走 FLIP；VT 命名落在两端封面 `<img>` 本身（盒底色/边框差异随 root 交叉淡化消化）。
 - **C1 图源统一（#409 F1 收紧为三处同源）**：卡片封面、点击预取、浮窗首帧（MediaGallery/竖屏集媒体列/CoverImage）三者渲染**同一 URL 串**——位图一律为唯一规范变体 `w=1080`（`coverRenderSrc`，优化器管线），SVG 与 data: 占位直通原地址（优化器对 SVG 400，next/image 对 .svg 本就直通）；浮窗模式的卡片封面用受控 `<img>`（响应式 sizes 无法跨端钉死同一变体）。点击卡片瞬间预取同一变体并 decode；MediaViewer 看大图维持原图。
 - **C2 几何统一**：卡片 cover 盒与浮窗锚点盒同一比例数据源——cover 元数据缺失时卡片在封面加载后用实测 intrinsic 回填（与浮窗媒体链同源），防御值同为 3:4；锚点盒不含翻页控件。
@@ -2512,7 +2513,7 @@ interface ContentDetailOverlayProps {
 - **桌面双栏（#88 权威，#397 起仅全横集）**：仅 image/video 内容且全部素材 w/h ≥ 16:9（恰 16:9 归横图）时，PC 端为左媒体右信息——媒体区（MediaGallery）高度上限 = 视口可用高度，宽度按媒体比例自适应；信息区（标题/作者/操作/正文/评论区）独立滚动；「封面与正文共享同一水平框架」的既有约束继续成立。文本型内容（article/sheet_music 等）若无竖版封面媒体链也维持单栏。
 - **竖屏集新版布局（#397 R2 权威，variant）**：任一素材 w/h < 16:9（含方图/3:2/16:10；混合集一律新版；全部缺几何不判竖维持现设计）且 ≥1100px 视口时走小红书式左媒体/右文字版式——
   - 朝向判定用素材 intrinsic 尺寸（视频 = 视频尺寸，poster 仅显示）；全类型媒体源链 = 真实媒体集 → 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）。
-  - 媒体列贴边满幅（负 margin 抵消浮窗内边距），列宽 = 可用高 × 当前图比例（逐张自适应、240ms 过渡；上限 = 根区宽 − 右栏最小宽 380px），装不下处黑底 letterbox；超高图（h/w > 2）按 3:4 名义宽取列宽 + 锚点盒内部竖向滚动。
+  - 媒体列贴边满幅（负 margin 抵消浮窗内边距 ≥960px，#753 图片布局门自 1100 前移），列宽 = 可用高 × 当前图真实比例（逐张自适应、240ms 过渡；上限 = 根区宽 − 右栏最小宽 380px），装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动（旧 3:4 名义宽 + 内滚退役）。图片主体点击进 MediaViewer；翻页由悬停/键盘聚焦可见的显式箭头承担（#753 移除左右 1/3 隐形热区）。
   - 控件：悬浮半透明圆形左右箭头（hover 显现）+ 底部半透明指示点 + 右上「N / M」角标 + 图片左右 1/3 隐形点击翻页（仅图片项；视频 controls 区不遮挡）+ 中间 1/3 点击进 MediaViewer；单素材无控件。
   - 壳层 float：顶层为 variant 时移除 header（grid 单行），返回/关闭 = 悬浮半透明圆钮（媒体列左上/右栏右上）；返回钮 hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；sr-only 标题保留 dialog 无障碍名称/初始焦点锚点/多层栈文案三职；右栏内容顶部留白避让悬浮钮。
   - 右栏（唯一滚动容器 layer-scroller）内容序：内容详情（标题/作者 + 关注/元信息/正文/标签/操作）→ 关联内容块（布局钉死：①二创关联的原创「原创」徽标行，点击浮窗内压栈 → ②同系列跳转，取第一个系列，系列名 + 第 X/Y 篇 + 上一章/下一章边界禁用 → ③衍生二创列表；无关联整块不渲染）→ 评论区（右栏末块）。
@@ -2547,8 +2548,8 @@ interface ContentDetailOverlayProps {
 **Key Constraints**
 - 只渲染 image/video 内容的有序媒体集（顺序由 `sort_order ASC, id ASC` 的存储契约决定，见 #83）；其他内容类型的文件走附件下载列表，两者语义分离（术语权威：「媒体集」≠「附件」）。
 - contain 不裁切：媒体按原始纵横比完整显示，禁止强制 `object-cover` 裁切（先例缺陷：详情页 `aspect-[16/9] max-h-96` 把竖图剪成横向矩形）。
-- 容器几何稳定：由首项媒体决定，浏览会话内切换不跳版。
-- 超高图（`height / width > 2`）限高 + 内部滚动（如容器内 `overflow-y-auto`），不撑破详情布局。
+- 容器几何（#753）：按当前项媒体决定（首项锁高退役）；移动端通栏自然比例 + 0.75×可用宽最低占位（横图留空居中不裁切）。
+- **长图（#753，`h/w ≥ 16/9` 含 9:16 边界，单一共享常量）**：移动端初始顶部 3:4 折叠（高 4W/3）+ 底部渐隐 +「查看长图」就地展开（不冒泡打开查看器），展开后由页面/浮层主体滚动，不保留 70vh 内部滚动；PC 端随容器等比缩窄居中完整显示。展开状态按内容/图片身份隔离，换内容复位。
 
 **Props 接口**
 ```ts
@@ -2562,14 +2563,14 @@ interface MediaGalleryProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="relative border border-border-default rounded-lg bg-canvas-default overflow-hidden">`，几何由首项比例确定（桌面双栏场景由 Overlay 传入高度约束）。
+- 外层容器: `<div className="relative border border-border-default rounded-lg bg-canvas-default overflow-hidden">`，几何按当前项比例（#753；桌面双栏场景由 Overlay 传入高度约束 contain）。
 - 媒体项: `object-contain w-full h-full`；当前项 `aria-current="true"`，隐藏项从焦点序移除（`inert` 或 `hidden`）。
 - 指示点: 底部居中低调位置指示点——透明圆 = 未浏览，实心圆 = 当前项；`aria-label` 说明「第 X 张 / 共 N 张」；不得闪烁或随切换跳动。
 - 翻页: 左右按钮（`outline`/`ghost` 变体，44px 触控目标，键盘可聚焦）+ 滑动手势（触摸滑动翻页）；按钮在首项/末项时 disabled。
 - 视频项: 展示 `<video controls poster={posterUrl}>`，第一帧 poster 为兜底；点击非 controls 区域也可进入查看器。
 
 **尺寸规范**
-- 容器宽度 = 可用内容宽度（与正文共享同一水平框架，不得窄于正文区）；高度由首项纵横比 + 超高限高共同决定。
+- 容器宽度 = 媒体实际可用宽（#753 移动端通栏，不受正文 padding 二次挤压）；高度由当前项纵横比 + 0.75W 最低占位共同决定（长图见折叠条款）。
 - 桌面双栏（Overlay 内）：高度上限 = 视口可用高度，宽度按媒体比例自适应。
 - 指示点间距 `gap-2`，直径 8px（`w-2 h-2`）。
 

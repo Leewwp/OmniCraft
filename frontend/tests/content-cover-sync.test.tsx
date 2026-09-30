@@ -123,14 +123,17 @@ test("coverSync without a cover URL settles immediately", () => {
   assert.equal(bodyHidden(), false);
 });
 
-test("the cover container keeps its full-width horizontal frame under a height cap", () => {
+/* #753：固定 16:9 + max-h-96 退役——封面框按有效几何自然比例（缺省 3:4
+   防御占位）contain，不再限高裁切。 */
+test("the cover container renders the natural-ratio frame without a fixed 16:9 cap", () => {
   const view = renderDetail({}, true);
   const frame = document.querySelector('[data-slot="detail-cover"]');
   assert.ok(frame);
   assert.match(frame.className, /w-full/);
   assert.doesNotMatch(frame.className, /max-h/);
-  const inner = frame.firstElementChild;
-  assert.ok(inner && /max-h-96/.test(inner.className), "height cap must live on an inner frame");
-  assert.match(inner.className, /aspect/);
-  assert.match(inner.className, /w-full/);
+  const inner = frame.firstElementChild as HTMLElement;
+  assert.ok(inner, "inner ratio frame renders");
+  assert.equal((inner.style.aspectRatio || ""), "3 / 4", "defensive 3:4 without metadata");
+  assert.doesNotMatch(inner.className, /max-h-96/, "fixed height cap removed");
+  assert.doesNotMatch(inner.className, /aspect-\[16\/9\]/, "fixed 16:9 removed");
 });

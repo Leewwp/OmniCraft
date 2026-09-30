@@ -218,14 +218,34 @@ test("MediaGallery falls back to a defensive 3:4 ratio when width/height are mis
   assert.equal(parseAspectRatio(mediaScroller(container)), 3 / 4);
 });
 
-test("MediaGallery caps ultra-tall first items with internal scroll and leaves others uncapped", () => {
+/* #753：长图（h/w ≥ 16/9，含 9:16 边界）移动语义 = 初始顶部 3:4 折叠
+   （高 4W/3 = 133.333cqw）+「查看长图」就地展开；70vh 内部滚动退役；
+   普通图容器带 0.75W 最低占位。 */
+test("MediaGallery folds long images (h/w >= 16/9) at the top 3:4 view with an in-place expand control", () => {
   const tall = renderGallery({ items: [makeItem(1, { width: 400, height: 1200 })] });
   const scroller = mediaScroller(tall.container);
-  assert.equal(scroller.style.maxHeight, "70vh");
-  assert.ok(scroller.classList.contains("overflow-y-auto"));
+  assert.equal(scroller.style.height, "133.333cqw", "folded height = 4W/3 (top 3:4 region)");
+  assert.equal(scroller.style.maxHeight, "", "no 70vh internal scroll anymore");
+  assert.doesNotMatch(scroller.className, /overflow-y-auto/, "no internal vertical scrolling");
+  const expand = [...tall.container.querySelectorAll("button")].find((b) =>
+    b.textContent?.includes("View full image"),
+  );
+  assert.ok(expand, "fold shows the view-full-image control");
+  fireEvent.click(expand!);
+  const expandedScroller = mediaScroller(tall.container);
+  assert.equal(expandedScroller.style.height, "", "expand removes the fold height; page/overlay scroll takes over");
+  const expandAfter = [...tall.container.querySelectorAll("button")].find((b) =>
+    b.textContent?.includes("View full image"),
+  );
+  assert.ok(!expandAfter, "expand control disappears once expanded");
   cleanup();
-  const normal = renderGallery({ items: [makeItem(1, { width: 400, height: 600 })] });
-  assert.equal(mediaScroller(normal.container).style.maxHeight, "");
+  const exactBoundary = renderGallery({ items: [makeItem(1, { width: 720, height: 1280 })] });
+  assert.equal(mediaScroller(exactBoundary.container).style.height, "133.333cqw", "9:16 boundary counts as long");
+  cleanup();
+  const justBelow = renderGallery({ items: [makeItem(1, { width: 400, height: 711 })] });
+  const belowScroller = mediaScroller(justBelow.container);
+  assert.equal(belowScroller.style.height, "", "below the threshold is not folded");
+  assert.equal(belowScroller.style.minHeight, "75cqw", "normal images keep the 0.75W minimum placeholder");
 });
 
 /* ---------- 指示点与翻页（AC2） ---------- */
@@ -353,7 +373,9 @@ test("MediaGallery opens the viewer for video clicks outside the controls strip 
   );
 });
 
-test("MediaGallery geometry stays stable while switching between different aspect ratios", () => {
+/* #753：混合集按当前项决定高度与长图判定（首项锁高退役）；3:4 图不触发
+   折叠、9:16/超长触发。 */
+test("MediaGallery geometry follows the current item across aspect ratios", () => {
   const mixed = [
     makeItem(1, { width: 1600, height: 900 }),
     makeItem(2, { width: 600, height: 1200 }),
@@ -361,9 +383,13 @@ test("MediaGallery geometry stays stable while switching between different aspec
   ];
   const { container } = renderGallery({ items: mixed });
   const scroller = mediaScroller(container);
-  const geometryBefore = `${parseAspectRatio(scroller)}:${scroller.style.maxHeight}`;
+  assert.equal(parseAspectRatio(scroller), 1600 / 900, "first item geometry initially");
   const next = container.querySelector('button[aria-label="Next media"]') as HTMLButtonElement;
   fireEvent.click(next);
+  const secondScroller = mediaScroller(container);
+  assert.equal(secondScroller.style.height, "133.333cqw", "second item (h/w = 2.0 >= 16/9) drives the container and is folded");
   fireEvent.click(next);
-  assert.equal(`${parseAspectRatio(scroller)}:${scroller.style.maxHeight}`, geometryBefore, "container geometry must not jump");
+  const third = mediaScroller(container);
+  assert.equal(parseAspectRatio(third), 1, "square item drives the container");
+  assert.equal(third.style.height, "", "square item is not folded");
 });

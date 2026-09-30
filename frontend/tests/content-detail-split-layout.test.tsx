@@ -30,7 +30,7 @@ function installOverlayTestStubs({ splitViewport = false }: { splitViewport?: bo
   window.scrollTo = () => undefined;
   if (splitViewport) {
     window.matchMedia = ((query: string) => ({
-      matches: query === "(min-width: 1100px)",
+      matches: query === "(min-width: 960px)",
       media: query,
       onchange: null,
       addListener: () => undefined,
@@ -299,7 +299,7 @@ test("#88 media-set content renders the split layout: left media column + right 
 
 test("#88 split scroll memory routes to the layer-scroller and restores on pop", async () => {
   installApiMock();
-  /* jsdom 视口视为桌面（≥1100px）：滚动路由走层内信息列。 */
+  /* jsdom 视口视为桌面（≥960px，#753）：滚动路由走层内信息列。 */
   const view = renderOverlay(<OverlayHarness entryId={7} zone="original" />, true);
   await openOverlay(view, 7, "Gallery Image Work");
 
@@ -350,10 +350,11 @@ test("#88 dual-column contracts exist in source: split media slot, layer-scrolle
 
   assert.match(detail, /mediaSlot\?: "inline" \| "split"/);
   assert.match(detail, /coverReady\?: boolean/);
-  assert.match(detail, /min-\[1100px\]:hidden/);
+  /* #753：图片布局门 1100 → 960。 */
+  assert.match(detail, /min-\[960px\]:hidden/);
   assert.match(layer, /data-slot="layer-scroller"/);
-  assert.match(layer, /min-\[1100px\]:grid-cols-\[minmax\(0,3fr\)_minmax\(0,2fr\)\]/);
+  assert.match(layer, /min-\[960px\]:grid-cols-\[minmax\(0,3fr\)_minmax\(0,2fr\)\]/);
   assert.match(layer, /aspectRatio: String\(splitRatio\)/);
-  assert.match(overlay, /min-\[1100px\]:overflow-hidden/);
+  assert.match(overlay, /min-\[960px\]:overflow-hidden/);
   assert.match(overlay, /data-slot="overlay-scroller"/);
 });

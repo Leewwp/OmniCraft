@@ -65,7 +65,7 @@ export function ContentDetailOverlayHost({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-6 py-6">
+    <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-4 py-6 min-[960px]:px-6">
       <div className="min-w-0 flex-1">
         <ContentDetail
           data={{ ...content, attachments: content.attachments, tags: content.tags }}

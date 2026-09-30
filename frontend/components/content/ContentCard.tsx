@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, MessageCircle } from "lucide-react";
+import { Heart, MessageCircle, Play } from "lucide-react";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
@@ -44,12 +44,22 @@ export interface ContentCardData {
   };
 }
 
-/** 封面缺省纵横比：历史内容无 cover_width/cover_height 时的防御性比例（3:4）。 */
-const COVER_DEFAULT_ASPECT_RATIO = "3 / 4";
-/** 极端比例阈值：max(width/height, height/width) 大于该值即按高度上限 contain。 */
-const COVER_EXTREME_RATIO_THRESHOLD = 2;
-/** 极端比例封面高度上限（px）：防止单卡主导瀑布流。 */
-const COVER_EXTREME_MAX_HEIGHT_PX = 400;
+/** #753 信息流两档封面（小红书口径）：h/w ≤ 4/3 → 3:4；h/w > 4/3 → 9:16；
+ * object-cover 中心裁切（仅显示比例，不改原图/服务端数据）；元数据缺失/
+ * 加载失败回落 3:4 稳定占位。比例方向统一用 h/w（高÷宽）。 */
+const COVER_TWO_TIER_PORTRAIT = "3 / 4";
+const COVER_TWO_TIER_TALL = "9 / 16";
+/** 两档分界：h/w = 4/3（含边界归 3:4 档）。 */
+const COVER_TIER_BOUNDARY_H_OVER_W = 4 / 3;
+
+function feedCoverAspectRatio(width?: number, height?: number): string {
+  if (width && height && width > 0 && height > 0) {
+    return height / width > COVER_TIER_BOUNDARY_H_OVER_W
+      ? COVER_TWO_TIER_TALL
+      : COVER_TWO_TIER_PORTRAIT;
+  }
+  return COVER_TWO_TIER_PORTRAIT;
+}
 
 interface ContentCardProps {
   data: ContentCardData;
@@ -81,12 +91,11 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
   const placeholderSrc = getCoverPlaceholder(contentType, displayTitle);
   const isOriginal = data.zone === "original";
 
-  /* 封面自然比例：#83 合同 cover_width/cover_height（image = 媒体集首项尺寸，
-     video = poster 尺寸）驱动 aspect-ratio，object-contain 不裁切；无数据时
-     防御性 3:4；极端比例（max(w/h, h/w) > 2）按高度上限 contain。
-     #398 C2 几何统一：历史内容 cover 尺寸全库缺失时，加载完成后用图片实测
-     intrinsic 尺寸回填比例盒——与浮窗媒体链（Image 预加载实测）同一数据源，
-     转场两端比例一致，消除收尾取景跳变；实测前维持 3:4 防御值（同浮窗）。 */
+  /* #753 信息流两档封面（小红书口径）：几何优先有效 cover_width/height
+     （image = 媒体集首项尺寸、video = poster 尺寸），其次当前图实测
+     （#398 C2 加载自愈链保留），两档 3:4 / 9:16 + object-cover 中心裁切；
+     未知/失败 3:4 稳定占位。卡片与详情不再天然同取景（详情 contain），
+     转场侧按几何差异走既有居中缩淡降级（overlay-motion C2）。 */
   const [measuredCover, setMeasuredCover] = useState<{ w: number; h: number } | null>(null);
   const coverWidth = data.cover_width;
   const coverHeight = data.cover_height;
@@ -94,14 +103,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
     typeof coverWidth === "number" && typeof coverHeight === "number" && coverWidth > 0 && coverHeight > 0;
   const effectiveWidth = hasCoverSize ? coverWidth : measuredCover?.w;
   const effectiveHeight = hasCoverSize ? coverHeight : measuredCover?.h;
-  const hasEffectiveSize = Boolean(effectiveWidth && effectiveHeight);
-  const coverAspectRatio = hasEffectiveSize
-    ? `${effectiveWidth} / ${effectiveHeight}`
-    : COVER_DEFAULT_ASPECT_RATIO;
-  const coverIsExtreme =
-    hasEffectiveSize &&
-    Math.max(effectiveWidth! / effectiveHeight!, effectiveHeight! / effectiveWidth!) >
-      COVER_EXTREME_RATIO_THRESHOLD;
+  const coverAspectRatio = feedCoverAspectRatio(effectiveWidth, effectiveHeight);
   /* 图片加载落定后（仅在元数据缺失时）回填实测比例。两条进入路径：
      onLoad 事件 + 回调 ref 的 complete 自愈——SSR 出的 <img> 在 React 水合
      挂上 onLoad 之前就可能完成加载（快网/缓存/测试桩即时响应），事件会被
@@ -135,14 +137,11 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
 
   const cover = (
     <div data-slot="card-cover" className="relative w-full bg-muted">
-      {/* 自然比例封面：数据驱动 aspect-ratio + object-contain，极端比例限高 */}
+      {/* #753 两档封面：3:4 / 9:16 + object-cover 中心裁切 */}
       <div
         data-slot="card-cover-aspect"
         className="relative overflow-hidden"
-        style={{
-          aspectRatio: coverAspectRatio,
-          ...(coverIsExtreme ? { maxHeight: `${COVER_EXTREME_MAX_HEIGHT_PX}px` } : {}),
-        }}
+        style={{ aspectRatio: coverAspectRatio }}
       >
         {coverUrl ? (
           onOpenDetail ? (
@@ -158,7 +157,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
               draggable={false}
               ref={coverImgRef}
               className={cn(
-                "absolute inset-0 h-full w-full object-contain transition-transform duration-300 motion-reduce:transform-none",
+                "absolute inset-0 h-full w-full object-cover object-center transition-transform duration-300 motion-reduce:transform-none",
                 isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
               )}
               onLoad={handleCoverLoad}
@@ -169,7 +168,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
               alt={displayTitle}
               fill
               className={cn(
-                "object-contain transition-transform duration-300 motion-reduce:transform-none",
+                "object-cover object-center transition-transform duration-300 motion-reduce:transform-none",
                 isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
               )}
               sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
@@ -182,7 +181,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
             alt={displayTitle}
             ref={coverImgRef}
             className={cn(
-              "h-full w-full object-contain transition-transform duration-300 motion-reduce:transform-none",
+              "h-full w-full object-cover object-center transition-transform duration-300 motion-reduce:transform-none",
               isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
             )}
             onLoad={handleCoverLoad}
@@ -198,6 +197,16 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
       {!isOriginal && (
         <span className="absolute left-2 top-2 rounded-md border border-border/30 bg-background px-2 py-0.5 text-xs font-semibold text-foreground/70">
           {typeLabel}
+        </span>
+      )}
+
+      {/* #753 视频右上播放角标（仅视频；不加多图数量角标） */}
+      {contentType === "video" && (
+        <span
+          aria-hidden="true"
+          className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+        >
+          <Play className="ml-0.5 h-3 w-3" />
         </span>
       )}
     </div>
