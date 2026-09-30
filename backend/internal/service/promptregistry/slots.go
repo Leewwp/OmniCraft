@@ -21,6 +21,21 @@ type PromptSlot struct {
 	Description          string
 	Builtin              string
 	RequiredPlaceholders []string
+	// Fallback overrides Builtin as the no-registry / unreachable fallback
+	// template (#754 D). Empty = Builtin. The agent_system slot keeps its
+	// v1 corpus as Builtin (v2+ upgrades must stay prefix-extensions of it
+	// and SeedV1 keeps inserting the historical v1), while a registry-less
+	// runtime still gets corrected tool instructions.
+	Fallback string
+}
+
+// fallbackTemplate returns the template served when the registry is absent
+// or unreachable.
+func (s PromptSlot) fallbackTemplate() string {
+	if s.Fallback != "" {
+		return s.Fallback
+	}
+	return s.Builtin
 }
 
 // Render substitutes {{key}} tokens with values. Unknown tokens are left
@@ -191,6 +206,28 @@ func agentSystemV5() string {
 	return agentSystemV4() + "; " + agentSystemV5RetrievalFirst
 }
 
+// #754 D：v6 勘正两处幽灵工具名 cited_search（v1 corpus 的 must-search 条款
+// 与 SP-15 A2 关键词条款），并追加 search_ips 显式浏览指导（sort=newest /
+// most_contents + 空 query；热门诉求按内容量近似披露依据，不伪造榜单）。
+// v1–v5 逐字节不动；v6 以 corpus 索引替换方式组装，保持 v3 以来的拼装形态。
+const agentSystemV6MustSearch = "for any request to find, search, recommend, compare or summarize site content, you must call search_content first — search_ips for IP (original settings/worlds) requests — and ground the answer only in their results; never recommend or describe site content or IPs from your own knowledge"
+
+const agentSystemV6KeywordFirst = "when the user's message contains a concrete title, quote, character name, or keyword that could exist on the site, always call search_content (or search_ips for IP requests) with it before replying, even if the intent seems ambiguous; for example, a message that is just a title like 「星轨下的制琴师」or 'A Quiet Ledger of Small Storms' is a search request: search that exact text first, then answer from the results, and only say you found nothing usable if the search comes back empty; only for pure greetings, thanks, farewells, or a message with no searchable text at all (for example garbled characters), reply briefly without any tool and without citation marks — one or two sentences in the user's language, either a greeting back or one clarifying question about what site content they need"
+
+const agentSystemV6Browse = "for browse or listing requests without a specific keyword (for example 「最近热门的 ip」 or 「有哪些新的 IP」), call search_ips with sort=newest or sort=most_contents and an empty query, optionally with a category filter, instead of guessing a keyword; when the user asks for hot, trending, or recent items, describe the actual ordering basis honestly — most_contents orders by published-content count as an activity approximation, newest by creation time; there is no real-time popularity score or time-window ranking, so never fabricate entries, rankings, or recency"
+
+// agentSystemV6 assembles the #754 D upgrade of agent_system: the v5 corpus
+// with the two cited_search clauses swapped for corrected tool names, plus
+// the explicit-browse guidance appended. v1–v5 stay byte-identical so the
+// registry diff and rollback chain keep working.
+func agentSystemV6() string {
+	corpus := append([]string(nil), agentSystemInstructions...)
+	corpus[0] = agentSystemV3Citation   // index 0 = v3 citation swap (kept)
+	corpus[1] = agentSystemV6MustSearch // index 1 = must-search ghost fix
+	corpus[4] = agentSystemV6KeywordFirst
+	return "[OmniCraft Agent Context] {{surface_context}}; " + strings.Join(corpus, "; ") + "; " + agentSystemV2Extra + "; " + agentSystemV4NoReasoning + "; " + agentSystemV5RetrievalFirst + "; " + agentSystemV6Browse
+}
+
 // usageGuideV2LanguageClause is the single instruction v2 appends to the v1
 // usage-guide corpus (#723): the guide's output language follows the
 // requester's locale. Before v2 the language was implicit (English prompt,
@@ -220,6 +257,10 @@ var (
 		Name:        "agent_system",
 		Description: "主 Agent 系统提示词（surface 上下文前缀 + 检索/引用/会话车道指令；IP 类目子句由 config 追加，不入模板）",
 		Builtin:     agentSystemBuiltin(),
+		// #754 D：无 registry / 读取失败时的 fallback 服务 v6（勘正工具名
+		// + 浏览指导）；Builtin 仍为 v1 corpus（v2+ 升级的前缀不变量与
+		// SeedV1 的历史 v1 种子均不动）。
+		Fallback: agentSystemV6(),
 		RequiredPlaceholders: []string{
 			"surface_context",
 		},

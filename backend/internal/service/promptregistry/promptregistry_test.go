@@ -349,8 +349,9 @@ func TestNilResolverSafe(t *testing.T) {
 	var r *PromptResolver
 	slot, _ := SlotByName("agent_system")
 	content, version := r.Resolve(context.Background(), slot)
-	if content != slot.Builtin || version != 0 {
-		t.Fatal("nil resolver must return builtin")
+	// #754 D：nil resolver 走 fallback 语义——agent_system fallback = v6。
+	if content != slot.fallbackTemplate() || version != 0 {
+		t.Fatal("nil resolver must return the slot fallback template")
 	}
 	r.Invalidate() // must not panic
 }
@@ -534,8 +535,9 @@ func TestAgentSystemV5Golden(t *testing.T) {
 
 // Boot-race guard (2026-09-29 live evidence): a fresh CreateVersion whose
 // label another process already moved forward must NOT roll the label back.
+// #754 D：最新升级为 v6，竞态守卫的「已在前方」起点随之推进到 6。
 func TestSeedUpgradesNeverRollsLabelBackward(t *testing.T) {
-	store := &raceRecordingStore{labelVersion: 5}
+	store := &raceRecordingStore{labelVersion: 6}
 	if err := SeedUpgrades(context.Background(), store); err != nil {
 		t.Fatal(err)
 	}
@@ -578,8 +580,9 @@ func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Version != 5 || row.Content != agentSystemV5() {
-		t.Fatalf("fresh ship must move production to v5, got v%d (len %d)", row.Version, len(row.Content))
+	// #754 D：新库首次启动即随批升到 v6（工具名勘正 + 浏览指导）。
+	if row.Version != 6 || row.Content != agentSystemV6() {
+		t.Fatalf("fresh ship must move production to v6, got v%d (len %d)", row.Version, len(row.Content))
 	}
 	// All other slots stay at v1.
 	other, _ := repo.GetByLabel(ctx, "conversation_title_prompt", ProductionLabel)
@@ -592,7 +595,7 @@ func TestSeedUpgradesShipsOnceNeverReupgrades(t *testing.T) {
 		t.Fatal(err)
 	}
 	row, _ = repo.GetByLabel(ctx, "agent_system", ProductionLabel)
-	if row.Version != 5 {
+	if row.Version != 6 {
 		t.Fatalf("re-run must not move label (now v%d)", row.Version)
 	}
 
@@ -651,5 +654,107 @@ func TestUsageGuideV2CarriesLanguageClause(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("RegistryUpgrades must ship usage_guide_prompt v2")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// #754 D: agent_system v6（cited_search 勘正 + 显式浏览指导）
+// ---------------------------------------------------------------------------
+
+// v6 = v5 corpus，仅换掉两条含幽灵工具名 cited_search 的条款（must-search /
+// SP-15 A2），并追加 search_ips 显式浏览指导；其余条款与 v2/v4/v5 附加条款
+// 逐字节保留。
+func TestAgentSystemV6Golden(t *testing.T) {
+	slot, ok := SlotByName("agent_system")
+	if !ok {
+		t.Fatal("agent_system slot missing")
+	}
+	var shipped *UpgradeSeed
+	for i := range RegistryUpgrades {
+		if RegistryUpgrades[i].SlotName == "agent_system" && RegistryUpgrades[i].Version == 6 {
+			shipped = &RegistryUpgrades[i]
+		}
+	}
+	if shipped == nil {
+		t.Fatalf("agent_system v6 upgrade missing from RegistryUpgrades")
+	}
+	if err := ValidateTemplate(slot, shipped.Content); err != nil {
+		t.Fatalf("v6 template invalid: %v", err)
+	}
+	if strings.Contains(shipped.Content, "cited_search") {
+		t.Fatal("v6 must not reference the ghost tool name cited_search")
+	}
+	for _, marker := range []string{agentSystemV6MustSearch, agentSystemV6KeywordFirst, agentSystemV6Browse} {
+		if !strings.Contains(shipped.Content, marker) {
+			t.Fatalf("v6 missing corrected/new clause: %.60s…", marker)
+		}
+	}
+	// 未被替换的 v1 指令（follow-up 重检索 / 禁提 id / D1 自包含 / D2 分解）
+	// 与 v3 引用条款、v2/v4/v5 附加条款逐字节保留。
+	for _, idx := range []int{2, 3, 5, 6} {
+		if !strings.Contains(shipped.Content, agentSystemInstructions[idx]) {
+			t.Fatalf("v6 dropped v1 instruction[%d]: %.60s…", idx, agentSystemInstructions[idx])
+		}
+	}
+	if !strings.Contains(shipped.Content, agentSystemV3Citation) ||
+		!strings.Contains(shipped.Content, agentSystemV2Extra) ||
+		!strings.Contains(shipped.Content, agentSystemV4NoReasoning) ||
+		!strings.Contains(shipped.Content, agentSystemV5RetrievalFirst) {
+		t.Fatal("v6 must keep the v3/v2/v4/v5 clauses verbatim")
+	}
+	// 被替换的两条原文不再出现。
+	if strings.Contains(shipped.Content, agentSystemInstructions[1]) ||
+		strings.Contains(shipped.Content, agentSystemInstructions[4]) {
+		t.Fatal("v6 must replace, not duplicate, the two cited_search clauses")
+	}
+}
+
+// v1–v5 逐字节不变：升级内容与各自组装函数仍一致（#754 D 不改写历史版本）。
+func TestAgentSystemV1ToV5Immutable(t *testing.T) {
+	slot, _ := SlotByName("agent_system")
+	want := map[int]string{
+		2: agentSystemV2(),
+		3: agentSystemV3(),
+		4: agentSystemV4(),
+		5: agentSystemV5(),
+	}
+	for _, up := range RegistryUpgrades {
+		if up.SlotName != slot.Name {
+			continue
+		}
+		content, ok := want[up.Version]
+		if !ok {
+			continue
+		}
+		if up.Content != content {
+			t.Fatalf("historical v%d content changed (%d vs %d bytes)", up.Version, len(up.Content), len(content))
+		}
+	}
+	if slot.Builtin != agentSystemBuiltin() {
+		t.Fatal("builtin must stay the v1 corpus (SeedV1 seeds the historical v1)")
+	}
+}
+
+// 无 registry / 读取失败 fallback 服务 v6（勘正后工具指令），Builtin 仍是 v1。
+func TestAgentSystemFallbackServesV6(t *testing.T) {
+	slot, _ := SlotByName("agent_system")
+	if slot.Fallback != agentSystemV6() {
+		t.Fatal("agent_system fallback must be the v6 content")
+	}
+	resolver := NewPromptResolver(nil) // nil store = registry-less runtime
+	content, version := resolver.Resolve(context.Background(), slot)
+	if version != 0 || content != agentSystemV6() {
+		t.Fatalf("registry-less resolve must serve the v6 fallback, got v%d (len %d)", version, len(content))
+	}
+	if strings.Contains(content, "cited_search") {
+		t.Fatal("fallback must not carry the ghost tool name")
+	}
+	// 其余 slot 无 Fallback：fallback 语义退回 Builtin（不变量）。
+	other, _ := SlotByName("conversation_title_prompt")
+	if other.Fallback != "" {
+		t.Fatal("slots without explicit fallback must keep Fallback empty")
+	}
+	if got := other.fallbackTemplate(); got != other.Builtin {
+		t.Fatal("empty fallback must degrade to builtin")
 	}
 }

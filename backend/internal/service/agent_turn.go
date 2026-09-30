@@ -389,6 +389,13 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 			if outcome != nil && len(outcome.ExpandedQueries) > 0 {
 				execution.ArgsSummary += " +expanded: " + strings.Join(outcome.ExpandedQueries, " / ")
 			}
+			// #754 B：本地检索工具成功但结果为空时，在序列化前的共享位置复用
+			// agentToolResult.Message 中继固定提示——ok=true / success / hits=0
+			// 全保留，模型下一轮收到的 tool JSON 里带着防编造约束。错误、有结
+			// 果、详情/指导/生图/外部 MCP 不触达；同轮其它调用的证据不受影响。
+			if toolErr == nil && isEmptyLocalSearchOutcome(tc.Function.Name, outcome) {
+				result.Message = emptySearchRelayMessage
+			}
 			toolSpan.End(agenttrace.NodeEndOptions{
 				NodeName:     tc.Function.Name,
 				Status:       toolNodeStatus(toolErr),
@@ -412,5 +419,31 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 			toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: string(resultJSON)})
 		}
 		req.Messages = append(req.Messages, toolMessages...)
+	}
+}
+
+// emptySearchRelayMessage is the fixed #754 B relay note carried in the tool
+// result message when a local search tool succeeded but returned nothing. It
+// is server-owned constant text — never composed from retrieval content — so
+// an empty result cannot inject instructions. It constrains the next model
+// round without ending the turn: other calls' valid evidence stays usable.
+const emptySearchRelayMessage = "this search returned no usable results for this turn. Do not invent site entries, titles, links, or citation marks from your own knowledge. If other tool calls in this same turn returned valid evidence, answer only from those. Otherwise tell the user in their own language that nothing matching was found on the site, or ask for more specific conditions (for example a concrete keyword or category); never fabricate a list, ranking, or recency"
+
+// isEmptyLocalSearchOutcome reports whether a local search tool succeeded with
+// a finally-empty result set (#754 B trigger): search_content with no search
+// summaries, or search_ips with no IP summaries after any category fallback or
+// explicit browse. nil/empty slices both count; every other outcome (errors,
+// non-empty results, detail/guide/image/MCP tools, external tools) is false.
+func isEmptyLocalSearchOutcome(name string, outcome *AgentToolOutcome) bool {
+	if outcome == nil {
+		return false
+	}
+	switch name {
+	case ToolSearchContent:
+		return len(outcome.Search) == 0
+	case ToolSearchIPs:
+		return len(outcome.IPs) == 0
+	default:
+		return false
 	}
 }

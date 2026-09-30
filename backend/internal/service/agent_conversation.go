@@ -401,11 +401,23 @@ func deriveToolArgsSummary(name string, rawArgs json.RawMessage) (string, error)
 		return truncateChatRunes(query, 40), nil
 	case ToolSearchIPs:
 		var args struct {
-			Query    string `json:"query"`
-			Category string `json:"category"`
+			Query    string  `json:"query"`
+			Category string  `json:"category"`
+			Sort     *string `json:"sort"`
 		}
 		if err := json.Unmarshal(rawArgs, &args); err != nil {
 			return "", err
+		}
+		/* #754 A：浏览模式（sort + 空 query）以 browse:<sort> 起头，空
+		   query 不再让摘要为空；关键词模式维持原样。 */
+		if args.Sort != nil {
+			if sort := strings.TrimSpace(*args.Sort); sort != "" {
+				summary := "browse:" + truncateChatRunes(sort, 40)
+				if category := strings.TrimSpace(args.Category); category != "" {
+					summary += " · " + category
+				}
+				return summary, nil
+			}
 		}
 		query := strings.TrimSpace(args.Query)
 		if query == "" {

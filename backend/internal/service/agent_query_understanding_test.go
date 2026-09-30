@@ -46,13 +46,13 @@ func (r *queryUnderstandingRetriever) Retrieve(_ context.Context, query string, 
 
 // TestQueryUnderstandingDirectivesInPrompt pins that the D1 self-contained
 // rewrite and D2 decomposition directives are appended after the 2026-09-06
-// must-search directive and the SP-15 A2 conversation-lane directive, whose
-// wording must stay byte-identical (spec: 既有指令原文不动).
+// must-search directive and the SP-15 A2 conversation-lane directive.
+// #754 D：must-search/A2 条款勘正幽灵工具名（v6 措辞），顺序契约不变。
 func TestQueryUnderstandingDirectivesInPrompt(t *testing.T) {
 	svc, _ := newStreamTestService(t, &conversationalLaneProvider{}, conversationalLaneTestConfig())
 	prompt := svc.serverOwnedSystemPrompt(context.Background(), model.AgentChatSurfaceGlobal, nil).Content
 
-	mustSearch := "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge"
+	mustSearch := "for any request to find, search, recommend, compare or summarize site content, you must call search_content first — search_ips for IP (original settings/worlds) requests — and ground the answer only in their results; never recommend or describe site content or IPs from your own knowledge"
 	mustSearchIdx := strings.Index(prompt, mustSearch)
 	if mustSearchIdx < 0 {
 		t.Fatalf("must-search directive missing or reworded: %q", prompt)
