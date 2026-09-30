@@ -13,8 +13,10 @@ import type { NormalizedContentDetailResponse } from "@/lib/content";
 
 /** 横竖朝向判定边界（用户 2026-09-06 二次修订）：w/h ≥ 16/9 = 横图（恰 16:9 归横图）。 */
 export const PORTRAIT_BOUNDARY_RATIO = 16 / 9;
-/** 超高图阈值：与 MediaGallery ULTRA_TALL_RATIO 一致（h/w > 2 限高 + 内部滚动）。 */
-export const ULTRA_TALL_RATIO = 2;
+/** #753 长图阈值（单一共享常量，含 9:16 边界等号）：h/w ≥ 16/9 判定长图。
+ * 移动端 = 初始顶部 3:4 折叠 + 就地展开；PC = 按真实比例缩窄居中完整显示
+ * （旧 h/w > 2 + 70vh 内滚退役）。 */
+export const LONG_IMAGE_RATIO = 16 / 9;
 /** 媒体几何缺失时的防御性默认比例（与 MediaGallery DEFAULT_ASPECT_RATIO 一致）。 */
 export const OVERLAY_DEFAULT_RATIO = 3 / 4;
 /** 自动文字封面名义几何（getCoverPlaceholder 3:4 渐变字牌）。 */
@@ -30,10 +32,14 @@ export function itemAspectRatio(item: MediaGalleryItem | undefined): number {
   return OVERLAY_DEFAULT_RATIO;
 }
 
-export function isUltraTallItem(item: MediaGalleryItem | undefined): boolean {
+export function isLongImageItem(item: MediaGalleryItem | undefined): boolean {
+  if (item?.type === "video") return false;
   if (!item?.width || !item?.height || item.width <= 0 || item.height <= 0) return false;
-  return item.height / item.width > ULTRA_TALL_RATIO;
+  return item.height / item.width >= LONG_IMAGE_RATIO;
 }
+
+/** 旧名兼容（语义已并入长图判定）：供转场降级标记等既有调用点。 */
+export const isUltraTallItem = isLongImageItem;
 
 /** 朝向判定（handoff §2.1）：任一素材 w/h < 16/9 → 整集走新版布局（混合集一律新版）；
     全部缺几何的历史数据不判竖（防御，维持现设计）。 */
