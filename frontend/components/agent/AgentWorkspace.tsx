@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, History, RotateCw, BookOpenText } from "lucide-react";
+import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, History, Info, RotateCw, BookOpenText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Composer } from "@/components/ui/composer";
@@ -826,32 +826,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             )}
 
             {!streaming && (terminal.usage || terminal.traceId) && (
-              <details className="max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted">
-                <summary className="cursor-pointer select-none">{t("agent.workspace.turnDetails")}</summary>
-                {terminal.usage && (
-                  <p className="mt-1.5">
-                    {t("agent.workspace.turnUsage", {
-                      prompt: terminal.usage.prompt_tokens,
-                      completion: terminal.usage.completion_tokens,
-                    })}
-                  </p>
-                )}
-                {terminal.traceId && (
-                  <p className="mt-1">
-                    {t("agent.workspace.traceLabel")}:{" "}
-                    {isAdmin ? (
-                      <Link
-                        href={`/admin/traces/${terminal.traceId}`}
-                        className="font-mono text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
-                      >
-                        {terminal.traceId}
-                      </Link>
-                    ) : (
-                      <span className="font-mono">{terminal.traceId}</span>
-                    )}
-                  </p>
-                )}
-              </details>
+              <TurnDetailsDisclosure usage={terminal.usage} traceId={terminal.traceId} isAdmin={isAdmin} />
             )}
 
             {/* #610 空轮（no_evidence 且零工具执行）：专门空态文案，
@@ -1039,7 +1014,11 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           />
           <div
             className={cn(
-              "relative h-full w-[85vw] max-w-[320px] bg-card shadow-md transition-transform duration-200 ease-out motion-reduce:transition-none [&_aside]:w-full [&_aside]:border-r-0",
+              /* #752：面板 flex 化（对齐桌面 wrapper 的 min-[701px]:flex 模式）——
+                 aside 作为 flex item 沿主轴获得面板 h-full 的受限高度，面板 →
+                 aside → 内层 flex（flex-1 min-h-0）→ nav（flex-1 min-h-0
+                 overflow-y-auto）高度链闭合，会话列表恢复真实滚动。 */
+              "relative flex h-full w-[85vw] max-w-[320px] bg-card shadow-md transition-transform duration-200 ease-out motion-reduce:transition-none [&_aside]:w-full [&_aside]:border-r-0",
               drawerOpen ? "translate-x-0" : "-translate-x-full",
             )}
           >
@@ -1221,6 +1200,56 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   );
 }
 
+
+/** #750：本轮详情（用量/trace）从裸 details/summary 换成共享胶囊触发器——
+    单一受控触发（button 不嵌 summary，杜绝双切换/嵌套交互），默认折叠、
+    可反复开合，aria-expanded 与内容可见状态同源；usage/trace 展示条件、
+    管理员 trace 链接语义不变。内部状态随挂载周期复位（换会话/换轮重开）。 */
+function TurnDetailsDisclosure({ usage, traceId, isAdmin }: {
+  usage: { prompt_tokens: number; completion_tokens: number } | null;
+  traceId: string | null;
+  isAdmin: boolean;
+}) {
+  const t = useTranslations();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="max-w-[85%] space-y-1.5">
+      <AgentMetaPill
+        icon={Info}
+        label={t("agent.workspace.turnDetails")}
+        expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      />
+      {open && (
+        <div className="rounded-md border-[1.5px] border-border-strong bg-canvas-default px-3 py-2 text-xs text-fg-muted">
+          {usage && (
+            <p>
+              {t("agent.workspace.turnUsage", {
+                prompt: usage.prompt_tokens,
+                completion: usage.completion_tokens,
+              })}
+            </p>
+          )}
+          {traceId && (
+            <p className={usage ? "mt-1" : undefined}>
+              {t("agent.workspace.traceLabel")}:{" "}
+              {isAdmin ? (
+                <Link
+                  href={`/admin/traces/${traceId}`}
+                  className="font-mono text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400"
+                >
+                  {traceId}
+                </Link>
+              ) : (
+                <span className="font-mono">{traceId}</span>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** FT-4（#696）：回答底部「N 条参考来源」入口按钮（侧栏 toggle 通道之一；
     另一通道 = 侧栏 X）。原内联折叠列表退役。#719：统一 AgentMetaPill

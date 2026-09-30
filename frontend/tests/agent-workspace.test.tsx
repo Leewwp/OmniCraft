@@ -52,6 +52,8 @@ let authUser: {
   username: string;
   email: string;
   email_verified_at: string | null;
+  /* #750：本轮详情管理员 trace 链接差异需要 role 参与 stub。 */
+  role?: string;
 } | null = null;
 const routerPushes: string[] = [];
 const routerReplaces: string[] = [];
@@ -1442,6 +1444,71 @@ test("mobile conversation drawer opens from the menu button and closes on Escape
   await waitFor(() => assert.equal(view.queryByRole("dialog"), null));
 });
 
+/* #752：移动抽屉高度链——面板 flex 化后 aside 获得受限高度，nav 是唯一
+   会话列表滚动容器（类级契约断言；scrollHeight/clientHeight 几何由真实
+   浏览器验证，jsdom 无布局引擎）。 */
+test("mobile drawer panel stretches the sidebar so nav is the only scrolling list (#752 height chain)", async () => {
+  installDom();
+  const now = Date.now();
+  const day = 86400000;
+  const conversation = (id: number, title: string, updatedAt: number, pinned = false) => ({
+    id,
+    context_type: "general",
+    title,
+    pinned_at: pinned ? new Date(updatedAt).toISOString() : null,
+    created_at: new Date(updatedAt).toISOString(),
+    updated_at: new Date(updatedAt).toISOString(),
+  });
+  const conversations = [
+    conversation(1, "conv-pinned", now - 3600_000, true),
+    ...Array.from({ length: 6 }, (_, i) => conversation(10 + i, `conv-today-${i + 1}`, now - (i + 1) * 600_000)),
+    ...Array.from({ length: 6 }, (_, i) => conversation(20 + i, `conv-yesterday-${i + 1}`, now - day - (i + 1) * 600_000)),
+    ...Array.from({ length: 6 }, (_, i) => conversation(30 + i, `conv-earlier-${i + 1}`, now - 10 * day - (i + 1) * 600_000)),
+  ];
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/31",
+      response: { messages: [{ id: 1, conversation_id: 31, role: "user", content: "q" }] },
+    },
+  ]);
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByRole("button", { name: /conv-earlier-6/ })));
+
+  fireEvent.click(view.getByRole("button", { name: "Open conversation list" }));
+  const dialog = await waitFor(() => view.getByRole("dialog"));
+
+  const panel = dialog.querySelector("div.relative");
+  assert.ok(panel, "drawer panel div exists");
+  assert.match(panel.className, /(^| )flex( |$)/, "#752: panel must be a flex container so the aside stretches to its constrained height");
+  assert.match(panel.className, /h-full/, "panel keeps its constrained full height");
+
+  const aside = dialog.querySelector("aside");
+  assert.ok(aside, "sidebar aside exists inside the panel");
+  const inner = aside.querySelector(":scope > div.flex");
+  assert.ok(inner, "aside renders the inner flex column");
+  assert.match(inner.className, /flex-1/);
+  assert.match(inner.className, /min-h-0/, "inner column keeps the shrink link");
+
+  const nav = aside.querySelector("nav");
+  assert.ok(nav, "conversation nav exists");
+  assert.match(nav.className, /overflow-y-auto/, "nav stays the scrolling list");
+  assert.match(nav.className, /overscroll-contain/, "overscroll containment preserved");
+  assert.match(nav.className, /min-h-0/);
+
+  const scrollingNodes = Array.from(dialog.querySelectorAll("*")).filter(
+    (el) => (el.getAttribute("class") || "").split(/\s+/).includes("overflow-y-auto"),
+  );
+  assert.equal(scrollingNodes.length, 1, "exactly one overflow-y-auto container (the nav) lives in the drawer");
+  assert.equal(scrollingNodes[0], nav);
+
+  /* 末项仍在抽屉 DOM（多分组超一屏场景），关闭与新建入口可达。 */
+  assert.ok(within(dialog).getByRole("button", { name: /conv-earlier-6/ }));
+  assert.ok(within(dialog).getByRole("button", { name: "Start new conversation" }));
+  const closeBtn = within(dialog).getAllByRole("button").find((b) => b.getAttribute("aria-label") === "Close conversation list");
+  assert.ok(closeBtn, "drawer close entry stays reachable");
+});
+
 /* ---------- AgentFeatureGate：feature 开关 ---------- */
 
 test("workspace page gate shows fallback while web_agent_enabled=false", async () => {
@@ -2230,6 +2297,74 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     assert.ok(view.getByText("2s"), "duration summary is visible");
   } finally {
     stub.restore();
+  }
+});
+
+/* #750：本轮详情从裸 details/summary 换成共享胶囊触发器——单一可聚焦
+   button 触发（不嵌套 summary，杜绝双切换），aria-expanded 与内容可见
+   状态同源，usage/trace 条件与管理员 trace 链接语义保持。 */
+test("turn details pill: single button trigger, aria-expanded tracks content, admin trace link kept", async () => {
+  installDom();
+  authUser = { id: 1, username: "admin", email: "a@example.com", email_verified_at: "2026-01-01T00:00:00Z", role: "admin" };
+  const events = [
+    { type: "start", trace_id: "t-750", conversation_id: 31, answer_kind: "grounded_content" },
+    { type: "delta", delta: "answer body" },
+    {
+      type: "done",
+      conversation_id: 31,
+      message_id: 311,
+      trace_id: "t-750",
+      answer_kind: "grounded_content",
+      answer: "answer body",
+      citations: [],
+      tools: [],
+      usage: { prompt_tokens: 812, completion_tokens: 240 },
+    },
+  ];
+  const stub = installSSEFetch(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/31",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 31, role: "user", content: "any question" },
+          { id: 2, conversation_id: 31, role: "assistant", content: "answer body" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "any question" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("answer body")), { timeout: 3000 });
+
+    /* 默认折叠：单一 button 触发（无 summary 嵌套），usage 不可见。 */
+    const trigger = await waitFor(() => view.getByRole("button", { name: "Turn details" }));
+    assert.equal(trigger.tagName, "BUTTON", "trigger must be a plain button, not nested in summary");
+    assert.equal(view.container.querySelector("summary"), null, "native details/summary must be gone");
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.equal(view.queryByText(/Token usage/), null, "usage hidden while collapsed");
+
+    /* 点击一次展开一次；内容与 aria-expanded 同源。 */
+    fireEvent.click(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    assert.ok(view.getByText("Token usage: 812 in / 240 out"));
+    const traceLink = view.getByRole("link", { name: "t-750" });
+    assert.ok(
+      (traceLink.getAttribute("href") ?? "").includes("/admin/traces/t-750"),
+      "admin sees trace deep link",
+    );
+
+    /* 再点收起：内容卸载、aria-expanded 回 false。 */
+    fireEvent.click(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.equal(view.queryByText(/Token usage/), null, "usage unmounts on collapse");
+  } finally {
+    stub.restore();
+    authUser = null;
   }
 });
 
