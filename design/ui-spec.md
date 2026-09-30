@@ -3276,6 +3276,7 @@ interface VersionHistoryProps {
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - **媒体集上传编排（#80 决策 / #84 权威）**：image 内容 = 纯图片集 2~9 张；video 内容 = 纯视频集 1~3 个；数量上下限是运行时配置，由 public config 暴露安全值并前端消费（后端为权威校验方，前端只消费合同）。不允许图文混排媒体集；纵横比可混。其他内容类型（article/sheet_music/mod/audio/template/prompt）保持附件语义。
+- **按族分组提示（#726）**：附件模式下传入 `familyHints`（注册表投影）时，单一「限制：NMB」行替换为逐族行——`族名：扩展名白名单（或 MIME 说明） · 最大 NMB · 必传/可选`；`required_any_of` 语义 = 命中族标必传（"至少上传一个"），不表示集合内每族都必传；无扩展名白名单的族（text 等）显示族名与 MIME 说明，`client_accept` 的 `*` 通配符不得当文案上屏；不传 `familyHints` 的调用点（IP 封面、编辑器图片）维持旧行为。数据全部来自注册表与 config 投影（含 FALLBACK 兜底表——model3d 族与 3d_print 行不缺失），前端不自建映射。
 
 **Props 接口**
 ```ts
@@ -3285,6 +3286,7 @@ interface FileUploaderProps {
   contentType: 'image' | 'video' | string;
   maxCount?: number;                        // 媒体集数量上限（public config）
   minCount?: number;                        // 媒体集数量下限（public config）
+  familyHints?: UploadFamilyHint[];         // #726 按族分组提示（lib/public-config 投影）
   value?: UploadItem[];
   onChange?: (items: UploadItem[]) => void;
   isBusy?: boolean;

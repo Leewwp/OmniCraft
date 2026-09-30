@@ -319,6 +319,28 @@
     "fileSizeExceeds": "{name} 超过 {maxMB}MB 限制",
     "uploadFailed": "上传失败",
     "limitMb": "限制：{maxMB}MB",
+    "uploadFamily": {
+      "name": {
+        "model3d": "模型文件",
+        "text": "说明文件",
+        "document": "文档",
+        "audio": "音频",
+        "video": "视频",
+        "image": "图片",
+        "mod": "模组包",
+        "sheet_music": "乐谱"
+      },
+      "mimeNote": {
+        "text": "文本文件与 PDF",
+        "video": "常见视频格式",
+        "image": "常见图片格式",
+        "mod": "ZIP 压缩包"
+      },
+      "maxMb": "最大 {maxMB}MB",
+      "requiredAny": "至少上传一个",
+      "requiredAnyOf": "必传（所列各族至少其一）",
+      "optional": "可选"
+    },
     "uploading": "上传中...",
     "selectFile": "选择文件",
     "uploadProgress": "上传进度 {progress}%",
@@ -2497,6 +2519,7 @@
         "other": "其他二创内容"
       },
       "attachments": {
+        "requiredFamilyMissing": "需至少上传一个{families}",
         "selected": "已选附件",
         "remove": "移除 {name}"
       }
