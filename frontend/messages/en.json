@@ -1606,6 +1606,7 @@
     "complianceWarning": "Warning",
     "complianceViolation": "Violation",
     "usageGuideTitle": "AI Usage Guide",
+    "thinkingLabel": "Thinking…",
     "loadingGuide": "Generating usage guide...",
     "noGuideAvailable": "No usage guide available",
     "guideError": "Failed to generate usage guide. Please try again later.",
