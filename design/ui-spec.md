@@ -6133,8 +6133,22 @@ interface SortSelectProps {
 
 **状态变体**
 - scan-card（扫描门拦截）：`data-testid="attachment-scan-card"`；ShieldAlert 图标 + 扫描状态文案（content.preview.scanStatus.*）+ 右侧下载入口（allow_copy 时）。scannable 族群非 clean（含 not_required 接线异常、pending/scanning/manual_review/blocked/failed/legacy_unscanned）一律此态，与下载门同源同判。
-- viewer（document 族）：移交 DocumentViewer（懒加载）。
-- download-card（无查看器/缺 URL）：FileWarning 图标 + 原始文件名（历史行回退类型标签）+ 大小（MB，两位小数）+ 下载按钮，`data-testid="attachment-download-card"`。
+- entry（#722 预览入口卡，document/model3d/audio 三族群且有签名 URL 的默认态）：`data-testid="attachment-preview-entry"`；族群图标（FileText/Box/Music）+ 族群标签 + 原始文件名 + 大小（MB，两位小数）+「预览」按钮（`data-testid="attachment-preview-button"`，primary 药丸）+ 下载入口（allow_copy 时）。默认不请求预览字节；点击后才挂载对应查看器（组件内 `active` 状态机，一旦激活不回退）。
+- viewer：点击 entry 后按族群挂载——document → DocumentViewer（懒加载）、model3d → ModelViewer（懒加载）、audio → AudioPlayer。
+- download-card（无查看器/缺 URL/.mtl）：FileWarning 图标 + 原始文件名（历史行回退类型标签）+ 大小（MB，两位小数）+ 下载按钮，`data-testid="attachment-download-card"`。
+
+## Component: AudioPlayer 音频播放器
+
+音频附件的内置播放器（#722）：SoundCloud 式紧凑条，底层原生 `<audio>`（preload=metadata，不引新依赖）；经 AttachmentPreview 预览入口点击后挂载。
+
+**布局**
+- 卡片基底 `rounded-lg border border-border bg-card p-4 w-full`（移动端全宽自适应），`data-testid="audio-player"`。
+- 上行：圆形播放/暂停钮（`h-9 w-9 rounded-full bg-primary`，Play/Pause 图标）+ 右侧文件名（truncate）+ 时间行 `当前 / 总时长`（`data-testid="audio-time"`，m:ss；未知时长显加载中文案）。
+- 下行：进度条 `h-1.5 rounded-full bg-muted`，已播段 `bg-primary`；`role="slider"` `tabindex=0`（←/→ ±5s、Home/End），点击/拖动 seek（pointer capture）。
+
+**交互合同**
+- 卸载/切换附件：暂停 + 移除 src + load() 释放资源；StrictMode 双挂载时 effect 重挂载显式恢复 src。
+- 错误态：AlertTriangle +「预览加载失败」+ 下载入口（与其他查看器错误卡同形）。
 
 ## Component: DocumentViewer 文档查看器
 
@@ -6158,8 +6172,14 @@ three.js 精确锁版 + OrbitControls + 自动居中 fit-to-view + XY 底面网�
 - 视图按钮药丸：orbit/front/side/top，选中 `bg-primary text-primary-foreground`，`aria-pressed`。
 
 **坐标合同（唯一权威）**
-- 统一 Z-up、XY=build plate；GridHelper 旋至 XY 平面、置于 bbox 底面之下。
+- 统一 Z-up、XY=build plate；GridHelper 旋到 XY 平面、置于 bbox 底面之下。
 - Top=+Z / Front=-Y / Side=+X；三视图用正交机位（禁用 orbit 交互），自由旋转为透视机位（阻尼 + 滚轮缩放）。
+- 俯视图 up 用水平轴 (0,1,0)（观察方向与 +Z up 平行时确定朝向）；其余视图维持 Z-up。
+- 正交 frustum 随容器宽高比同步（垂直基准半幅 = radius×1.4，水平按比例），resize/比例变化不失真（#722）。
+
+**场景句柄合同（#722）**
+- `SceneHandle = { setView(view), dispose() }`：切换机位与销毁分离；裸函数（含清理函数）被 `asSceneHandle` 运行时守卫拒绝（历史缺陷：清理函数被误存为视图控制器，按钮 `.apply` 命中 Function.prototype.apply 执行卸载 → 切视图空白）。
+- 画布 CSS 尺寸由 `setSize` 写 style（DPR 2 下不再按物理像素当 CSS 尺寸渲染）。
 
 **状态变体**
 - loading：Loader2 + 百分比进度。

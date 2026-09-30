@@ -343,6 +343,13 @@
       "sheets": "Worksheets",
       "moreRows": "Showing {shown}/{total} rows — load more",
       "noViewer": "{fileType} file",
+      "previewAction": "Preview",
+      "previewButtonLabel": "Preview {name}",
+      "familyLabel": {
+        "document": "Document",
+        "model3d": "3D model",
+        "audio": "Audio"
+      },
       "scanStatus": {
         "pending": "Attachment is queued for security scanning",
         "scanning": "Attachment is being security-scanned",
@@ -362,6 +369,13 @@
           "side": "Side",
           "top": "Top"
         }
+      },
+      "audio": {
+        "play": "Play",
+        "pause": "Pause",
+        "seekLabel": "Playback position",
+        "playerLabel": "Audio preview of {name}",
+        "loading": "Loading audio…"
       }
     }
   },
