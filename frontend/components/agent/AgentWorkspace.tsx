@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { AlertCircle, ArrowDown, BookOpen, Brain, Copy, Menu, RotateCw, BookOpenText } from "lucide-react";
@@ -119,6 +119,8 @@ const firstRoundTerminals = new Map<number, AgentTurnTerminal>();
 
 export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
+  // #723：请求者语言（zh/en），随每轮请求携带。
+  const siteLocale = useLocale();
   // SP-21 T4：管理员可从会话轮直接跳转链路详情（SSE trace_id ↔ 落库一致）。
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.role === "admin";
@@ -586,6 +588,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       message: query,
       context: { surface: "global" },
       deep_think: deepThink,
+      // #723：请求者语言随轮携带（站内工具 usage_guide 跟随）。
+      locale: siteLocale,
     };
     if (modelPref) body.model = modelPref;
     if (activeId !== null) body.conversation_id = activeId;
