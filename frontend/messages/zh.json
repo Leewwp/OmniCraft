@@ -1606,6 +1606,7 @@
     "complianceWarning": "需注意",
     "complianceViolation": "违规",
     "usageGuideTitle": "AI 使用指导",
+    "thinkingLabel": "正在思考…",
     "loadingGuide": "正在生成使用指导...",
     "noGuideAvailable": "暂无使用指导",
     "guideError": "使用指导生成失败，请稍后重试",
