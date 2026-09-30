@@ -462,6 +462,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	c.AgentTokenService = service.NewAgentAccessTokenService(
 		repository.NewAgentAccessTokenRepository(db), cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)
+	// #754 A：search_ips 显式浏览 seam（approved+category 在 LIMIT 前过滤，
+	// newest / most_contents 均带 id 同分排序）。
+	c.AgentService.SetIPBrowseRepository(c.IPRepo)
 	c.AgentService.SetUsageGuideService(c.UsageGuideService)
 	// #728 自动生成缓存（发布预热 + 存量懒生成共用入口；server 与 worker
 	// 双进程经 Redis 租约去重）。降级：Redis 缺席时 GetOrGenerate 退化为
