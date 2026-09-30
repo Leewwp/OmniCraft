@@ -23,14 +23,18 @@ interface AgentCitationCardProps {
  */
 export function AgentCitationCard({ citation, index, onOpen, highlighted = false }: AgentCitationCardProps) {
   const t = useTranslations();
-  /* FT-5 (#697)：卡片序号与 id 用轮内全局编号（与正文角标同一体系）；
-     历史行/旧轮次无 number 时回退位置序。 */
+  /* FT-5 (#697)：id 与目标查找用轮内全局编号（与正文角标点击命中同一
+     体系；历史行/旧轮次无 number 时回退位置序）。
+     #719：卡片「展示序号」改为可见列表位置的连续展示号（01..N，无空洞），
+     与正文角标展示号共用「位置即展示号」的同一映射；原编号仍负责锚点 id。 */
   const number = citation.number ?? index + 1;
+  const displayNumber = index + 1;
 
   return (
     <button
       type="button"
       id={`agent-citation-${number}`}
+      aria-label={`${t("agent.citations.title")} ${displayNumber}：${citation.title}`}
       onClick={(event) => onOpen(citation, event.currentTarget)}
       className={cn(
         "flex h-auto w-full flex-col items-start gap-0.5 rounded-md border bg-card px-3 py-2 text-left transition-colors duration-150 hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring",
@@ -38,7 +42,7 @@ export function AgentCitationCard({ citation, index, onOpen, highlighted = false
       )}
     >
       <span className="flex w-full items-center gap-2 text-sm font-medium text-accent-emphasis">
-        <span className="text-xs text-fg-muted">{String(number).padStart(2, "0")}</span>
+        <span className="text-xs text-fg-muted">{String(displayNumber).padStart(2, "0")}</span>
         <span className="truncate">{citation.title}</span>
         {citation.zone === "ip" ? (
           <>
