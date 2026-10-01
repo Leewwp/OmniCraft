@@ -1,0 +1,1199 @@
+{
+  "source": {
+    "file": "artifacts/corpus-v2/golden-set/v2-cases.jsonl",
+    "sha256": "07d16dd5ac32f6937f8f5bb4f1a4a5cc21a6417a5fb9c1129178bd07e51611d3",
+    "cases": 196
+  },
+  "seed": 20261001,
+  "layers": {
+    "body_evidence": 24,
+    "hard_neighbor": 16,
+    "known_item_exact": 64,
+    "no_answer": 20,
+    "semantic_discovery": 48,
+    "visibility": 24
+  },
+  "forms": {
+    "body": 24,
+    "exact": 88,
+    "semantic": 84
+  },
+  "queries": [
+    {
+      "q": "诡秘值夜者宿舍深夜急敲门，湿透少年抱着一只被人沿线描过焦痕的木盒",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "在宝可梦内：石英大会闭幕日手记",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "火锅底料的自我修养",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "原神·璃月卷一：和裕茶馆的第八壶茶",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "在王者荣耀内：长城旧事·戍卒篇",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "A Gazetteer of Piltover: Districts, Wards, and the Walk Between",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "harry potter fic about moving into a village house, told in small sums: four keys on the ring, three chairs he built, one name painted over on the front door",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "星铁夜市摆了三十年的一碗一百个的馄饨摊那篇，规矩卖完就收，列车停靠那晚破例多煮了三十一碗还在灯杆记了星号",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "双城三十年展：导览手册",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "论如何用广场舞征服魔王军团",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "在诡秘之主内：塔罗会的茶点时刻",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "封神有没有劫后遗物展的讲解词？展的都不是宝贝，是焦木牌、半页批文、长明灯这些寻常旧物",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "诡秘之主里值夜小队出勤的案子那篇，起风夜壁炉烟道有人念旧账单，最后把账结清就安静了",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "a fandom wiki written entirely in haiku",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "The Train That Only Runs in Snow",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "天官赐福想找聊那对八百年是怎么相处的书评楼，一方遇事从不解释、另一方也从不要求解释的那种，楼主还讲到信任是有分工的",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Harry Potter fic following the visiting schools' champions during the triwizard year, the French and Bulgarian pair bond over puddings",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "海贼王船坞工长离职前最后一个星期的短篇，他喂的那只鸽子跟着他换了三次落脚的地方",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "在原神内：原神：禁书库的逾期名录",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "云隐工程小队支援木叶时，泽野编的号子固定词是哪两句？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "海贼王送报鸥视角的短篇，清晨给渔港送新印的悬赏令，补网老人看了很久没说话",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "原神·霜华勘异：方士与仙家符纸",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "in the mood for Harry Potter fics where Hermione runs a revision club, someone's mail-order self-writing quills end up confiscated in a drawer",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "双城之战：议会走廊的回声",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "魔道祖师有没有博物馆展柜讲解词那种短篇？一柜寻常物件：握旧的竹笛、双股剑穗、莲纹拓片，还有发了芽的老莲子",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "长安灯市上贼人怀里护着的是一盏什么灯？云缨和李白约定几日为期查清灯的去向？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "天官赐福同人·天界点卯簿",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "pokemon one-shot narrated by whatever lives under the pier boards, very deadpan, opens with a dropped ice cream nobody drops on it",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "NARUTO mixed：五影会谈速记页边",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "海贼王想看细写剑士睡午觉规律的长文，三小时三段式，还老跟厨师打赌的那种",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "有没有写布鲁克教钢琴的番外？慢慢学的过程那种",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "罗小黑战记：早高峰的车厢",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "海贼王CP9六式哪个普通人真练得出来？找个技术讨论帖，楼主按可行性排了序还拆解原理",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "波特观察站的第三十七期简报",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "原神：风起地的协奏曲（全五章）",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "崩坏：星穹铁道·仙舟卷：金人巷灯市十二时辰",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "黑瞎子的墨脱行囊",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "the lost art of fax machine necromancy",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "黄金梅利号晚宴纪事（航海备忘）",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "宝可梦写山村水源的慢短篇，地图不画河只标一眼泉，村里人把泉边苔藓当纪念碑供着",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "arcane post on my fourth rewatch of the big council address, torn between two readings: the open palms that say he just finished believing it, or every pause landing one beat before the senior seats react, and not one cost named",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "The Room of Requirement Keeps Its Secrets",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "HP fic where someone runs odds on whether the famous boy can get through one ordinary week without anything happening",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "在双城之战内：双城之战：黑默丁格的一票",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "崩铁想看贝洛伯格通了火车之后首班车那篇，佩拉杰帕德都在车上，最好暖一点的",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "吴山居库房那盏受潮自亮的灯，吴邪为什么不让王盟拉闸？换下来的老开关他放哪了？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "执行者制度真的公平吗？我的一点困惑",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "莲花坞晨课前的水课上孩子们看什么？老管事说练剑先练什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "在天官赐福内：血雨探花的极乐坊一夜",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "星铁撑了三十年末班船的老船长的文，规矩三条：不催客、不问去处、灯不留人，过桥洞还要熄半灯",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "HP想找蛇院小孩每年夏天跟母亲回海边小镇的连载，白天帮店里理货，半夜偷偷拿旧望远镜看星星的那种",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "罗小黑里写老执行者退休、收拾三十多年手账的那篇，最后还带新人出了次外勤护燕子窝",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "全职高手有没有拆战术空当的讨论帖？那种看着是破绽其实是钓饵的站位分析，最好带录像时间点拆",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Arcane fic where unmarked cans of colour keep appearing on her rooftop and someone starts answering her murals from the far side of the wall",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "避尘的剑穗",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "any fics told from Filch's perspective, with Mrs Norris getting her own chapters?",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "火影忍者：鹿丸的十手棋",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "张家古楼迁徙年表（同人整理稿）",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "王者荣耀商路支线的伏笔考据楼，驿站刻名只刻名不刻事、草结传信三结从没触发过，还有无主之水的口子",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "聂叔在实习手册第一页写的那行字是什么？第二周走失的小雾妖是顺着什么声音进的城？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "诡秘之主值夜队连着两晚的委托合集：面包房每夜少半块黑面包的贼，还有只在家门口就自己走起来的怀表",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "a tutorial on taming printer dragons",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "在哈利·波特内：Harry Potter and the Unspeakable's Apprentice",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "值夜者食堂每周新菜试吃记录那种美食向，有吗",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Naruto Lore: What Does Chakra Exhaustion Actually Feel Like?",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "在魔道祖师内：云深不知处藏书阁整理手记",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "墨脱来信：张起灵的十年",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "石不转的排班表",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "崩坏：星穹铁道·仙舟卷：流云渡的春汛与茶船",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "宝可梦想找化石展厅的讲解词，五个展柜带菊石兽那条线的那种",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "Why did the shop reopen on a Tuesday of all days? How did George count the staff in that day's ledger?",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "en"
+    },
+    {
+      "q": "崩铁镜流刚进军营那会儿的文，教头教剑先教收势，考校赢在最后一寸还扶了对方一把",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "天官赐福谢怜为一笔去向不明的功德亲自下界查账的连载，七天凡身行脚，顺路修桥板推货车",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "火影第七班把老师迟到的借口做成分类学研究帖，善行类迷路类杂项，还给每条标可信度星级，扉页写着要抓住一次真的",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "星铁白露半夜溜进丹鼎司灶间煮安神甜汤、被巡夜师兄当场逮住的那篇，改良方还加了酒酿",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "【讨论】海贼王顶上战争：白胡子的最后一道命令，是撤退还是托付？",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "HP draco fic where a note folded three times lands beside his cauldron in potions class and grows into something like a year-long correspondence",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "诡秘之主有没有值夜队伙房老凯斯的菜谱卡合集？炖腕肉配黑麦面包那张，厨房注写满人情",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "《西游记》后话：黑风山旧主守山录",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "原神可莉跟北斗出海炸鱼的那种有吗？want explosive but cozy",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "桥两端的信",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "「旧日收藏」特展把二十六件藏品按什么分为四个展区？丙厅那封未寄出的信辨读出哪一句？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "双城之战找一篇在桥上待了三天的采风手记，写有两个工人每天擦同一盏路灯三十年没说过话，作者说这像两座城的婚姻",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "在哪吒/封神宇宙内：重映三遍，还是会被哪吒扛天劫的那一幕击中",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "The Hogwarts Academic Year: A Reconstructed Calendar",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "西游记有没有考据向的斋饭设定集？按一册流传的讨斋手记誊录家常素食，表格记品名主料要诀和施主来处",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "九月没有来信",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "星铁 want 螺丝咕姆 teaching Svarog 下棋的短篇，有吗",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "在全职高手内：全职高手：嘉世为什么会输给一支网吧队",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "王者荣耀有没有红方野区喷火生物的野外踏查记录？想要纪实考察笔记风格的",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "天官赐福：菩荠观的一年",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "Lord of the Mysteries: An Unofficial Registry of Minor Societies",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "王者荣耀长城墩台新兵第一天的事，什长不骂人只压手肘，老兵还匀半勺粥",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "第三条巷子那晚，先生让吉姆第二天几点去哪里学认字？学费是什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "金凌的夜宴请柬一共发出去多少份？他落火漆印那次学到的教训「手可以抖」的下一句是什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "海贼王：鱼人岛的万米邮差",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "古楼残页",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "崩铁钟楼大钟停摆七天、修表匠老托出手的那篇，中间还有酒店小行李生送来一块没署名的旧怀表",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "天官赐福同人·疫城十二日",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "genshin slice about an intern reporter's first quiet weeks at the newspaper office, ink smell and printing presses downstairs",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "HP fic written as one year of magical-botany diary entries, the herbology professor signs the first page and the plants keep score",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "Lord of the Mysteries cozy detective piece where a little girl looks into a strange coin that turns up in her keepsake dish",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "What did Kanna write beneath the footwork-drills entry in her notes? What was the ledger's newest badge awarded for?",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "en"
+    },
+    {
+      "q": "天官赐福：菩荠观重修记",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "In the mess-deck boy's journal, what did the base cook teach him about rice, and what is it also true of?",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "en"
+    },
+    {
+      "q": "海贼王·卷三：德雷斯罗萨竞技场之夜",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "崩铁想要符玄深夜在太卜司自己起盘观星的那篇，带个学徒一问一答，氛围安静点的",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "十六强签表:一场石英大会的下克上",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "鲁班大师带鲁班七号过周末的父子日常有吗",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "仙舟夜市无名面摊的随缘面是怎么个定价法？老伯说热汤对哪两种人灵？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "mixed"
+    },
+    {
+      "q": "星铁加拉赫在梦境边上开的那家小酒馆的短篇，窗台满杯汽水是他在的信号，紫发女士留了根会发光的羽毛当小费",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "In the guide to the level between the two cities, what do the traders call it and what does the engineers' guild call it? When should you visit?",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "en"
+    },
+    {
+      "q": "宝可梦中心的许愿墙",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "在盗墓笔记内：十年之约前的最后一夜",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "西游记有没有按案卷体例整理妖怪的设定集？一妖一案带表格，记盘踞本领和收场那种",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "原神璃月学生到枫丹 exchange 一周的日记体，中英混着记，食堂一口吃出外婆手艺哭了",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "天官赐福风信保养那张换过三次弓胎的旧弓、慕情嘴硬送茶斗嘴的短篇，弓臂上有道不肯磨掉的浅痕",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "全职高手·全明星周末三日录",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "菜谱与剑谱的等价交换定律",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "猫咪当市长的城市治理日记",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Honkai: Star Rail Vignette: The Paper Moon Parade",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "西游写猴子刚下山第一次驾云的短篇，云停在大水上头，他坐下来托腮看水",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "火影忍者外记：结界班值夜簿",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "海贼王现代AU：东海市拉面店打工日记·全三章",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "星铁列车下一站竞猜楼，楼主给三条线索：稀有燃料补给、节日多的星域、一本厚风物志，猜是庆典星球",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "聂怀桑的扇子收藏鉴定帖，求安利",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Naruto Vignette: Tenten's Inventory",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "Hogsmeade in the First Snow",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "鼬的乌鸦停在碑前",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "乾坤圈松半圈的那个下午",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "想看戚容开假古董店的日常文，有推荐吗",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Pikachu and the Long Night at the Power Plant",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "末班车之后，电台还亮着",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "波特家厨房墙上那口仿韦斯莱家的钟只有四根针，分别管什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "挂在颈上的那些年月",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "cookbook recipes authored by sentient spoons",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "长夜将尽",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "原神剧团巡演手记里，机关鸟的进场时间为什么从第二幕挪走？最后挪到了哪里？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "mixed"
+    },
+    {
+      "q": "崩坏：星穹铁道：Trails of Comet 双语纪行 第一卷",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "在崩坏：星穹铁道内：崩坏：星穹铁道·罗浮外史·卷二：天舶司账房春秋",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "提瓦特单位考据：璃月小贩找零习惯用什么辅币？一枚摩拉折合多少？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "mixed"
+    },
+    {
+      "q": "复印机成精以后的职场生活",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "在罗小黑战记内：罗小黑战记讨论：无限到底有多强？聊聊执行者的战力体系",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "全职高手有没有写职业选手训练营里搞一人一号全职业乱打的笔记帖？教官让选手领一级体验号打遭遇战的那个",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "In the county tournament, why did Wartortle send water in sheets instead of streams? What did Marcus's Charmeleon choose to do that night?",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "en"
+    },
+    {
+      "q": "盗墓笔记吴邪归置三叔旧书桌，抽屉底板撬出夹层，只有一张海口到西沙的老船票根",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "星铁新乘客上车第二周开始记车上小事的短篇，帕姆耳朵会随心情变角度、丹恒压着书页看的那页其实画着植物",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "从序列9到序列8：小丑的晋升之夜",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "Squirtle Squad and the Rainy Day Fund",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "「她记得每一阵风」展第一展厅甲板站稳诀窍的最后一条是什么？修补墙第五个补丁缝两层各为了什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "《西游记》文物展：旧迹陈列馆导览手册",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "Team Rocket's Day Off",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "行脚商杂记里，车迟国的井水为什么甜？两界道长亭的草鞋清水章程起于谁？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "魔道祖师数着花样喝酒的短篇，掺桂花被家规第一条收碗，温酒赖炭盆，最后一种是两个人分一坛",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "主角是一台自动售货机的异世界故事",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "双城之战：艾克与会倒流的钟楼",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "在火影忍者内：火影忍者：日向花火的纸灯笼",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "索嬷每天补完安全网要拽几下试力？她说桥上一年到头掉下来最多的东西是什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "海贼王公告栏前老会计教学生看悬赏令背面的短篇，浆糊一层层算年头，还教摸纸厚判断新闻分量",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "All the Corridors Learn Our Names",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "The Flower Shop Closes at Six",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "木叶学堂教材把可修习技艺分成哪三大类？分类依据是什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "七号供热站旧锅炉换机组的方案最后添了哪三个词？转录时史瓦罗在锅炉旁记录了多久？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "王者荣耀那个长安特展的逛展攻略帖，讲兵器墙和沙盘讲解时间的",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "王者荣耀大满贯总决赛观赛笔记：Day 3 的 Miracle",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "mixed"
+    },
+    {
+      "q": "哪吒传说各地版本差异有多大？同一个人物三地能讲出三种性子，来聊聊你家乡那版的讲法",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Genshin Impact Fan Setting Collection: A Teyvat Street Food Atlas",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "在西游记（孙悟空）内：东海龙宫宝库出入账（节选）",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "崩铁酒店行李生视角的那篇，每天晨会领几十件行李，还会顺路帮老先生修伞",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Remembering Our First Partner Pokémon: Share Your Stories",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "小黑梦见森林的那个晚上",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "火影里手鞠外派木叶后跟家里人通信的那篇长文，信里中英混着写，弟弟还寄了手工小伞的",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "mixed"
+    },
+    {
+      "q": "Arcane fic where Vi survives her first posh family meal at the fancy estate, an aunt keeps getting her name wrong on purpose",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "en"
+    },
+    {
+      "q": "海贼王灯塔老人五十年点灯的短篇，雾夜有小船贴着礁石过，桅杆上一面会反光的旗",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Naruto and the Ceiling of Rumors",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "星铁有没有讨论仙舟吃饭排座位的茶话楼？楼主观察商席跟着水路走、军席主位经常空着，想带细节来辩",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Press Row at the Quartz Conference: Six Days of Fire and Rain",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "en"
+    },
+    {
+      "q": "王者荣耀落后八千翻盘的比赛复盘帖，逐帧拆的，伏击草丛在前中期被探过四次",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "长白山这单出发前一晚，老康在路线图上圈出几个下撤点？他说山上没有什么、只有什么？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "王者荣耀：峡谷厨神争霸",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "在海贼王内：海贼王：阿拉巴斯坦的雨期",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "乱葬岗的雪",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "原神：猫尾酒馆调酒大赛",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "长城食堂春季菜谱（附后记）",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "罗小黑战记：执行者食堂",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "稷下学院藏书楼的守夜人",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "用Excel表格修炼成仙的方法",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "《西游记》别史：乌鸡国编年残稿",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "原神报纸周末见闻合集那种短篇，还书附罚金还多一颗糖，半枚摩拉被镶进怀表盖",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "量子计算机修仙入门指南",
+      "layer": "no_answer",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "一枪穿云的休赛期",
+      "layer": "visibility",
+      "form": "exact",
+      "lang": "zh"
+    },
+    {
+      "q": "罗小黑写秋早市的，收桂花有三不规矩，头一篮年年留给东头菜摊的老传统",
+      "layer": "hard_neighbor",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "陈塘关扎灯铺老陆师傅的规矩是什么？私塾的灯卷角处为什么必定留一个口？",
+      "layer": "body_evidence",
+      "form": "body",
+      "lang": "zh"
+    },
+    {
+      "q": "天官赐福风师写船期告示非要带文采、他哥在末尾偷偷加一行小字兜底的那篇",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "天官赐福有没有聊那个有求必应庙案伏笔的讨论楼？楼主自己数了三处误导，想召集大家补别的暗线",
+      "layer": "semantic_discovery",
+      "form": "semantic",
+      "lang": "zh"
+    },
+    {
+      "q": "Naruto Notes：我爱罗的沙漏",
+      "layer": "known_item_exact",
+      "form": "exact",
+      "lang": "mixed"
+    }
+  ]
+}
