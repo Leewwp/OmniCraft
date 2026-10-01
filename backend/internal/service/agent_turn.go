@@ -56,10 +56,10 @@ type turnRunner struct {
 	// (piece-2 allowlist is dynamic: only hosts we ourselves issued survive).
 	ownImagePrefixes   []string
 	citationCandidates []AgentCitation
-	seenCitationKeys   map[string]bool
-	// citationNumbers remembers each pool entry's turn-global number by the
-	// same dedupe key (FT-5 #697) so a re-seen search result can be stamped
-	// with its original number in later tool outputs.
+	// citationNumbers (#755：原 seenCitationKeys+citationNumbers 双 map 合并)
+	// remembers each pool entry's turn-global number by its dedupe key
+	// (FT-5 #697)：key presence = seen，value = a re-seen result's original
+	// number to re-stamp in later tool outputs.
 	citationNumbers  map[string]int
 	retrievalSources map[string]string
 	degraded         bool
@@ -103,7 +103,6 @@ func (s *AgentService) newTurnRunner(userID int64, turn ChatTurnInput, conv *mod
 		handler:            handler,
 		ownImagePrefixes:   []string{},
 		citationCandidates: make([]AgentCitation, 0, s.ToolPolicy().CitationMaxCount),
-		seenCitationKeys:   make(map[string]bool, s.ToolPolicy().CitationMaxCount),
 		citationNumbers:    make(map[string]int, s.ToolPolicy().CitationMaxCount),
 		retrievalSources:   make(map[string]string),
 		followUpCh:         make(chan []string, 1),
@@ -316,11 +315,10 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 					if !ok {
 						continue
 					}
-					if r.seenCitationKeys[citation.ChunkKey] {
-						outcome.Search[i].Cite = r.citationNumbers[citation.ChunkKey]
+					if number, seen := r.citationNumbers[citation.ChunkKey]; seen {
+						outcome.Search[i].Cite = number
 						continue
 					}
-					r.seenCitationKeys[citation.ChunkKey] = true
 					citation.Number = len(r.citationCandidates) + 1
 					r.citationNumbers[citation.ChunkKey] = citation.Number
 					outcome.Search[i].Cite = citation.Number
@@ -335,11 +333,10 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 						continue
 					}
 					key := fmt.Sprintf("ip:%d", citation.ContentID)
-					if r.seenCitationKeys[key] {
-						outcome.IPs[i].Cite = r.citationNumbers[key]
+					if number, seen := r.citationNumbers[key]; seen {
+						outcome.IPs[i].Cite = number
 						continue
 					}
-					r.seenCitationKeys[key] = true
 					citation.Number = len(r.citationCandidates) + 1
 					r.citationNumbers[key] = citation.Number
 					outcome.IPs[i].Cite = citation.Number
@@ -348,8 +345,7 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 				if outcome.Detail != nil {
 					if !r.svc.ragHybridEnabled() {
 						legacyKey := fmt.Sprintf("content:%d", outcome.Detail.ID)
-						if !r.seenCitationKeys[legacyKey] {
-							r.seenCitationKeys[legacyKey] = true
+						if _, seen := r.citationNumbers[legacyKey]; !seen {
 							citation := AgentCitation{
 								ContentID: outcome.Detail.ID,
 								Title:     outcome.Detail.Title,
@@ -367,9 +363,8 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 							traceAgentEvent(r.traceID, "citation_revalidation", "accepted", false, "reason", "citation_truth_unavailable")
 						} else if source, ok := r.retrievalSources[citation.ChunkKey]; !ok {
 							traceAgentEvent(r.traceID, "citation_revalidation", "accepted", false, "reason", "citation_source_unavailable")
-						} else if !r.seenCitationKeys[citation.ChunkKey] {
+						} else if _, seen := r.citationNumbers[citation.ChunkKey]; !seen {
 							citation.Source = source
-							r.seenCitationKeys[citation.ChunkKey] = true
 							citation.Number = len(r.citationCandidates) + 1
 							r.citationNumbers[citation.ChunkKey] = citation.Number
 							outcome.Detail.Cite = citation.Number

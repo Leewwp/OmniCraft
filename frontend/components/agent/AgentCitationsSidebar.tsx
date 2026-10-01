@@ -34,6 +34,62 @@ interface AgentCitationsSidebarProps {
 const DRAG_CLOSE_RATIO = 0.5;
 const FAST_FLING_PX_PER_MS = 0.5;
 
+/* #755（#718 双分支收敛）：移动/桌面两分支共享的头部与列表——标题、计数、
+   关闭钮与卡片列表单一来源；容器类与关闭钮 hover 底色（移动 canvas-default
+   / 桌面 canvas-subtle，历史差异原样保留）由分支以 props 传入，布局壳
+   （抽屉手势/遮罩 vs flex 兄弟列）留在各分支。输出 DOM 与收敛前逐字一致。 */
+
+function SidebarHeader({ count, onClose, containerClassName, closeHoverClassName }: {
+  count: number;
+  onClose: () => void;
+  containerClassName: string;
+  closeHoverClassName: string;
+}) {
+  const t = useTranslations();
+  return (
+    <div className={containerClassName}>
+      <h3 className="text-sm font-semibold text-fg-default">
+        {t("agent.citations.title")}
+        <span className="ml-2 text-xs font-normal text-fg-muted">
+          {t("agent.citations.count", { count })}
+        </span>
+      </h3>
+      <button
+        type="button"
+        aria-label={t("agent.citations.close")}
+        onClick={onClose}
+        className={cn(
+          "inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring",
+          closeHoverClassName,
+        )}
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function SidebarList({ citations, onOpen, highlightedIndex }: {
+  citations: AgentCitation[];
+  onOpen: (citation: AgentCitation, trigger: HTMLElement) => void;
+  highlightedIndex?: number | null;
+}) {
+  return (
+    <ul className="grid grid-cols-1 gap-2">
+      {citations.map((citation, index) => (
+        <li key={`${citation.contentId}-${index}`} className="min-w-0">
+          <AgentCitationCard
+            citation={citation}
+            index={index}
+            onOpen={onOpen}
+            highlighted={highlightedIndex === index}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highlightedIndex }: AgentCitationsSidebarProps) {
   const t = useTranslations();
   const [isMobile, setIsMobile] = useState(false);
@@ -124,22 +180,12 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
           >
             <span className="h-1.5 w-10 rounded-full bg-border-strong" aria-hidden="true" />
           </div>
-          <div className="flex items-center justify-between px-4 pb-2">
-            <h3 className="text-sm font-semibold text-fg-default">
-              {t("agent.citations.title")}
-              <span className="ml-2 text-xs font-normal text-fg-muted">
-                {t("agent.citations.count", { count: citations.length })}
-              </span>
-            </h3>
-            <button
-              type="button"
-              aria-label={t("agent.citations.close")}
-              onClick={onClose}
-              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </button>
-          </div>
+          <SidebarHeader
+            count={citations.length}
+            onClose={onClose}
+            containerClassName="flex items-center justify-between px-4 pb-2"
+            closeHoverClassName="hover:bg-canvas-default"
+          />
           {/* 内容区：滚动到顶后继续下拉 → 接管手势关闭（#751：横向同兜底） */}
           <div
             ref={contentRef}
@@ -155,18 +201,7 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
-            <ul className="grid grid-cols-1 gap-2">
-              {citations.map((citation, index) => (
-                <li key={`${citation.contentId}-${index}`} className="min-w-0">
-                  <AgentCitationCard
-                    citation={citation}
-                    index={index}
-                    onOpen={onOpen}
-                    highlighted={highlightedIndex === index}
-                  />
-                </li>
-              ))}
-            </ul>
+            <SidebarList citations={citations} onOpen={onOpen} highlightedIndex={highlightedIndex} />
           </div>
         </div>
       </div>
@@ -186,35 +221,14 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
         open ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
-        <h3 className="text-sm font-semibold text-fg-default">
-          {t("agent.citations.title")}
-          <span className="ml-2 text-xs font-normal text-fg-muted">
-            {t("agent.citations.count", { count: citations.length })}
-          </span>
-        </h3>
-        <button
-          type="button"
-          aria-label={t("agent.citations.close")}
-          onClick={onClose}
-          className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
-        >
-          <X className="size-4" aria-hidden="true" />
-        </button>
-      </div>
+      <SidebarHeader
+        count={citations.length}
+        onClose={onClose}
+        containerClassName="flex items-center justify-between border-b border-border-default px-4 py-3"
+        closeHoverClassName="hover:bg-canvas-subtle"
+      />
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
-        <ul className="grid grid-cols-1 gap-2">
-          {citations.map((citation, index) => (
-            <li key={`${citation.contentId}-${index}`} className="min-w-0">
-              <AgentCitationCard
-                citation={citation}
-                index={index}
-                onOpen={onOpen}
-                highlighted={highlightedIndex === index}
-              />
-            </li>
-          ))}
-        </ul>
+        <SidebarList citations={citations} onOpen={onOpen} highlightedIndex={highlightedIndex} />
       </div>
     </aside>
   );
