@@ -150,6 +150,7 @@ var leafClassification = map[string]string{
 	"features.archive_malware_scan_enabled":                          "optional-zero",
 	"features.creator_support_enabled":                               "optional-zero",
 	"features.desktop_deploy_enabled":                                "optional-zero",
+	"features.guest_rate_limit_enabled":                              "optional-zero",
 	"features.payment_enabled":                                       "optional-zero",
 	"features.rag_hybrid_enabled":                                    "optional-zero",
 	"features.rag_query_expansion_enabled":                           "optional-zero",
@@ -276,6 +277,9 @@ var leafClassification = map[string]string{
 	"rate_limit.ai_callback_per_minute":                              "optional-zero",
 	"rate_limit.credential_per_minute":                               "optional-zero",
 	"rate_limit.enabled":                                             "optional-zero",
+	"rate_limit.guest_buckets.{}.capacity":                           "optional-zero",
+	"rate_limit.guest_buckets.{}.refill_per_minute":                  "optional-zero",
+	"rate_limit.guest_exempt_ips":                                    "optional-zero",
 	"rate_limit.max_json_body_bytes":                                 "optional-zero",
 	"rate_limit.max_query_chars":                                     "optional-zero",
 	"rate_limit.max_search_limit":                                    "optional-zero",
@@ -459,7 +463,7 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups switches.
 	require.Equal(t, 165, counts[classConditional])
 	// 122 shipped + 5 (#688) + 3 (#689) new.
-	require.Equal(t, 130, counts[classOptionalZero])
+	require.Equal(t, 134, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).
 	require.Equal(t, 21, counts[classRegistry])
 	require.Equal(t, 6, counts[classDead])
