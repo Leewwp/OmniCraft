@@ -10,12 +10,15 @@ import { AgentCitationCard } from "@/components/agent/AgentCitationCard";
 
 /**
  * FT-4（#696）「参考来源」侧栏：
- * - 桌面（≥768px）：对话区右缘固定宽侧栏（min(400px,90vw)，顶栏下方起高），
- *   作为 flex 兄弟列推挤对话区——消息列 max-w-3xl 与文本宽度不变。
- * - 移动（<768px）：底部抽屉，手写 pointer events 三路关闭
+ * - 桌面（≥768px）：对话区右缘固定宽侧栏（#751：min(440px,38vw)，最大
+ *   440px、窄桌面按 38vw 收窄，顶栏下方起高），作为 flex 兄弟列推挤对话
+ *   区——消息列 max-w-3xl 与文本宽度不变。
+ * - 移动（<768px）：底部抽屉全宽，手写 pointer events 三路关闭
  *   （把手拖拽过半 / 快滑 / 内容滚动到顶后继续下拉），不引第三方依赖。
  * 内容 = 最近一次点击「N 条参考来源」的那条回答的 citations（复用
  * AgentCitationCard）。原内联折叠列表（AgentCitationList）随本票退役。
+ * #751：两分支滚动区只留纵向；列表 grid-cols-1 + li min-w-0 + 卡片截断链
+ * 共同消灭横向溢出（overflow-x-hidden 仅兜底）。
  */
 
 interface AgentCitationsSidebarProps {
@@ -30,6 +33,62 @@ interface AgentCitationsSidebarProps {
 /** 抽屉手势阈值：位移过半或快滑（>0.5px/ms）即收起。 */
 const DRAG_CLOSE_RATIO = 0.5;
 const FAST_FLING_PX_PER_MS = 0.5;
+
+/* #755（#718 双分支收敛）：移动/桌面两分支共享的头部与列表——标题、计数、
+   关闭钮与卡片列表单一来源；容器类与关闭钮 hover 底色（移动 canvas-default
+   / 桌面 canvas-subtle，历史差异原样保留）由分支以 props 传入，布局壳
+   （抽屉手势/遮罩 vs flex 兄弟列）留在各分支。输出 DOM 与收敛前逐字一致。 */
+
+function SidebarHeader({ count, onClose, containerClassName, closeHoverClassName }: {
+  count: number;
+  onClose: () => void;
+  containerClassName: string;
+  closeHoverClassName: string;
+}) {
+  const t = useTranslations();
+  return (
+    <div className={containerClassName}>
+      <h3 className="text-sm font-semibold text-fg-default">
+        {t("agent.citations.title")}
+        <span className="ml-2 text-xs font-normal text-fg-muted">
+          {t("agent.citations.count", { count })}
+        </span>
+      </h3>
+      <button
+        type="button"
+        aria-label={t("agent.citations.close")}
+        onClick={onClose}
+        className={cn(
+          "inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring",
+          closeHoverClassName,
+        )}
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function SidebarList({ citations, onOpen, highlightedIndex }: {
+  citations: AgentCitation[];
+  onOpen: (citation: AgentCitation, trigger: HTMLElement) => void;
+  highlightedIndex?: number | null;
+}) {
+  return (
+    <ul className="grid grid-cols-1 gap-2">
+      {citations.map((citation, index) => (
+        <li key={`${citation.contentId}-${index}`} className="min-w-0">
+          <AgentCitationCard
+            citation={citation}
+            index={index}
+            onOpen={onOpen}
+            highlighted={highlightedIndex === index}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highlightedIndex }: AgentCitationsSidebarProps) {
   const t = useTranslations();
@@ -121,26 +180,16 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
           >
             <span className="h-1.5 w-10 rounded-full bg-border-strong" aria-hidden="true" />
           </div>
-          <div className="flex items-center justify-between px-4 pb-2">
-            <h3 className="text-sm font-semibold text-fg-default">
-              {t("agent.citations.title")}
-              <span className="ml-2 text-xs font-normal text-fg-muted">
-                {t("agent.citations.count", { count: citations.length })}
-              </span>
-            </h3>
-            <button
-              type="button"
-              aria-label={t("agent.citations.close")}
-              onClick={onClose}
-              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-default hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </button>
-          </div>
-          {/* 内容区：滚动到顶后继续下拉 → 接管手势关闭 */}
+          <SidebarHeader
+            count={citations.length}
+            onClose={onClose}
+            containerClassName="flex items-center justify-between px-4 pb-2"
+            closeHoverClassName="hover:bg-canvas-default"
+          />
+          {/* 内容区：滚动到顶后继续下拉 → 接管手势关闭（#751：横向同兜底） */}
           <div
             ref={contentRef}
-            className="min-h-0 flex-1 touch-pan-y overflow-y-auto px-3 pb-6"
+            className="min-h-0 flex-1 touch-pan-y overflow-y-auto overflow-x-hidden px-3 pb-6"
             onPointerDown={(e) => {
               if ((contentRef.current?.scrollTop ?? 0) <= 0) beginDrag(e, true);
             }}
@@ -152,64 +201,34 @@ export function AgentCitationsSidebar({ open, onClose, citations, onOpen, highli
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
-            <ul className="grid gap-2">
-              {citations.map((citation, index) => (
-                <li key={`${citation.contentId}-${index}`}>
-                  <AgentCitationCard
-                    citation={citation}
-                    index={index}
-                    onOpen={onOpen}
-                    highlighted={highlightedIndex === index}
-                  />
-                </li>
-              ))}
-            </ul>
+            <SidebarList citations={citations} onOpen={onOpen} highlightedIndex={highlightedIndex} />
           </div>
         </div>
       </div>
     );
   }
 
-  /* 桌面：对话区右缘侧栏（flex 兄弟列推挤，非覆盖）。 */
+  /* 桌面：对话区右缘侧栏（flex 兄弟列推挤，非覆盖）。#751：最大 440px、
+     窄桌面按 38vw 收窄（min(440px,38vw)）；内容滚动只留纵向，横向以
+     overflow-x-hidden 兜底（截断链修复见卡片与列表层，不靠裁内容冒充）。 */
   return (
     <aside
       aria-label={t("agent.citations.title")}
       data-testid="citations-sidebar"
       className={cn(
-        "hidden w-[min(400px,90vw)] shrink-0 flex-col border-l border-border-default bg-canvas-default md:flex",
+        "hidden w-[min(440px,38vw)] shrink-0 flex-col border-l border-border-default bg-canvas-default md:flex",
         "transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
         open ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
-        <h3 className="text-sm font-semibold text-fg-default">
-          {t("agent.citations.title")}
-          <span className="ml-2 text-xs font-normal text-fg-muted">
-            {t("agent.citations.count", { count: citations.length })}
-          </span>
-        </h3>
-        <button
-          type="button"
-          aria-label={t("agent.citations.close")}
-          onClick={onClose}
-          className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus-visible:ring-1 focus:ring-ring"
-        >
-          <X className="size-4" aria-hidden="true" />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <ul className="grid gap-2">
-          {citations.map((citation, index) => (
-            <li key={`${citation.contentId}-${index}`}>
-              <AgentCitationCard
-                citation={citation}
-                index={index}
-                onOpen={onOpen}
-                highlighted={highlightedIndex === index}
-              />
-            </li>
-          ))}
-        </ul>
+      <SidebarHeader
+        count={citations.length}
+        onClose={onClose}
+        containerClassName="flex items-center justify-between border-b border-border-default px-4 py-3"
+        closeHoverClassName="hover:bg-canvas-subtle"
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+        <SidebarList citations={citations} onOpen={onOpen} highlightedIndex={highlightedIndex} />
       </div>
     </aside>
   );

@@ -56,10 +56,10 @@ type turnRunner struct {
 	// (piece-2 allowlist is dynamic: only hosts we ourselves issued survive).
 	ownImagePrefixes   []string
 	citationCandidates []AgentCitation
-	seenCitationKeys   map[string]bool
-	// citationNumbers remembers each pool entry's turn-global number by the
-	// same dedupe key (FT-5 #697) so a re-seen search result can be stamped
-	// with its original number in later tool outputs.
+	// citationNumbers (#755：原 seenCitationKeys+citationNumbers 双 map 合并)
+	// remembers each pool entry's turn-global number by its dedupe key
+	// (FT-5 #697)：key presence = seen，value = a re-seen result's original
+	// number to re-stamp in later tool outputs.
 	citationNumbers  map[string]int
 	retrievalSources map[string]string
 	degraded         bool
@@ -103,7 +103,6 @@ func (s *AgentService) newTurnRunner(userID int64, turn ChatTurnInput, conv *mod
 		handler:            handler,
 		ownImagePrefixes:   []string{},
 		citationCandidates: make([]AgentCitation, 0, s.ToolPolicy().CitationMaxCount),
-		seenCitationKeys:   make(map[string]bool, s.ToolPolicy().CitationMaxCount),
 		citationNumbers:    make(map[string]int, s.ToolPolicy().CitationMaxCount),
 		retrievalSources:   make(map[string]string),
 		followUpCh:         make(chan []string, 1),
@@ -316,11 +315,10 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 					if !ok {
 						continue
 					}
-					if r.seenCitationKeys[citation.ChunkKey] {
-						outcome.Search[i].Cite = r.citationNumbers[citation.ChunkKey]
+					if number, seen := r.citationNumbers[citation.ChunkKey]; seen {
+						outcome.Search[i].Cite = number
 						continue
 					}
-					r.seenCitationKeys[citation.ChunkKey] = true
 					citation.Number = len(r.citationCandidates) + 1
 					r.citationNumbers[citation.ChunkKey] = citation.Number
 					outcome.Search[i].Cite = citation.Number
@@ -335,11 +333,10 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 						continue
 					}
 					key := fmt.Sprintf("ip:%d", citation.ContentID)
-					if r.seenCitationKeys[key] {
-						outcome.IPs[i].Cite = r.citationNumbers[key]
+					if number, seen := r.citationNumbers[key]; seen {
+						outcome.IPs[i].Cite = number
 						continue
 					}
-					r.seenCitationKeys[key] = true
 					citation.Number = len(r.citationCandidates) + 1
 					r.citationNumbers[key] = citation.Number
 					outcome.IPs[i].Cite = citation.Number
@@ -348,8 +345,7 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 				if outcome.Detail != nil {
 					if !r.svc.ragHybridEnabled() {
 						legacyKey := fmt.Sprintf("content:%d", outcome.Detail.ID)
-						if !r.seenCitationKeys[legacyKey] {
-							r.seenCitationKeys[legacyKey] = true
+						if _, seen := r.citationNumbers[legacyKey]; !seen {
 							citation := AgentCitation{
 								ContentID: outcome.Detail.ID,
 								Title:     outcome.Detail.Title,
@@ -367,9 +363,8 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 							traceAgentEvent(r.traceID, "citation_revalidation", "accepted", false, "reason", "citation_truth_unavailable")
 						} else if source, ok := r.retrievalSources[citation.ChunkKey]; !ok {
 							traceAgentEvent(r.traceID, "citation_revalidation", "accepted", false, "reason", "citation_source_unavailable")
-						} else if !r.seenCitationKeys[citation.ChunkKey] {
+						} else if _, seen := r.citationNumbers[citation.ChunkKey]; !seen {
 							citation.Source = source
-							r.seenCitationKeys[citation.ChunkKey] = true
 							citation.Number = len(r.citationCandidates) + 1
 							r.citationNumbers[citation.ChunkKey] = citation.Number
 							outcome.Detail.Cite = citation.Number
@@ -388,6 +383,13 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 			}
 			if outcome != nil && len(outcome.ExpandedQueries) > 0 {
 				execution.ArgsSummary += " +expanded: " + strings.Join(outcome.ExpandedQueries, " / ")
+			}
+			// #754 B：本地检索工具成功但结果为空时，在序列化前的共享位置复用
+			// agentToolResult.Message 中继固定提示——ok=true / success / hits=0
+			// 全保留，模型下一轮收到的 tool JSON 里带着防编造约束。错误、有结
+			// 果、详情/指导/生图/外部 MCP 不触达；同轮其它调用的证据不受影响。
+			if toolErr == nil && isEmptyLocalSearchOutcome(tc.Function.Name, outcome) {
+				result.Message = emptySearchRelayMessage
 			}
 			toolSpan.End(agenttrace.NodeEndOptions{
 				NodeName:     tc.Function.Name,
@@ -412,5 +414,31 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 			toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: string(resultJSON)})
 		}
 		req.Messages = append(req.Messages, toolMessages...)
+	}
+}
+
+// emptySearchRelayMessage is the fixed #754 B relay note carried in the tool
+// result message when a local search tool succeeded but returned nothing. It
+// is server-owned constant text — never composed from retrieval content — so
+// an empty result cannot inject instructions. It constrains the next model
+// round without ending the turn: other calls' valid evidence stays usable.
+const emptySearchRelayMessage = "this search returned no usable results for this turn. Do not invent site entries, titles, links, or citation marks from your own knowledge. If other tool calls in this same turn returned valid evidence, answer only from those. Otherwise tell the user in their own language that nothing matching was found on the site, or ask for more specific conditions (for example a concrete keyword or category); never fabricate a list, ranking, or recency"
+
+// isEmptyLocalSearchOutcome reports whether a local search tool succeeded with
+// a finally-empty result set (#754 B trigger): search_content with no search
+// summaries, or search_ips with no IP summaries after any category fallback or
+// explicit browse. nil/empty slices both count; every other outcome (errors,
+// non-empty results, detail/guide/image/MCP tools, external tools) is false.
+func isEmptyLocalSearchOutcome(name string, outcome *AgentToolOutcome) bool {
+	if outcome == nil {
+		return false
+	}
+	switch name {
+	case ToolSearchContent:
+		return len(outcome.Search) == 0
+	case ToolSearchIPs:
+		return len(outcome.IPs) == 0
+	default:
+		return false
 	}
 }

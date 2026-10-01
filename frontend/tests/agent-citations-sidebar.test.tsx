@@ -276,3 +276,77 @@ test("#746 closing hides a11y tree + overlay first, then unmounts after the exit
     restoreEnv();
   }
 });
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * #751：桌面宽度公式 + 完整收缩链（类级契约；几何 scrollWidth ≤ clientWidth
+ * 由真实浏览器验证，jsdom 无布局引擎）。
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test("#751 desktop sidebar width = min(440px,38vw) with the flex-sibling model kept", () => {
+  installDom();
+  const view = renderSidebar();
+  const aside = view.container.querySelector('[data-testid="citations-sidebar"]');
+  assert.ok(aside, "desktop aside renders");
+  const cls = aside.getAttribute("class") ?? "";
+  assert.ok(cls.includes("w-[min(440px,38vw)]"), "width must be min(440px,38vw)");
+  assert.ok(cls.includes("shrink-0"), "shrink-0 flex sibling model kept");
+  assert.ok(cls.includes("md:flex"), "desktop-only visibility kept");
+
+  const scroller = aside.querySelector("div.overflow-y-auto");
+  assert.ok(scroller, "desktop content scroller exists");
+  assert.match(scroller.className, /overflow-x-hidden/, "horizontal overflow only as backstop");
+  const list = scroller.querySelector("ul");
+  assert.ok(list, "list renders");
+  assert.match(list!.className, /grid-cols-1/, "single zero-min track (minmax(0,1fr))");
+  const item = list.querySelector("li");
+  assert.ok(item, "list item renders");
+  assert.match(item!.className, /(^| )min-w-0( |$)/, "list items join the shrink chain");
+});
+
+test("#751 citation card truncation chain: title truncates, IP badges drop to a wrapping meta row, excerpt breaks words", () => {
+  installDom();
+  const longTitle = "一个特别特别特别长的中文标题".repeat(6);
+  const longCategoryURL = "https://example.com/a/very/long/path/segment/that/never/breaks?query=1";
+  const view = render(
+    <IntlProvider locale="en" messages={enMessages}>
+      <AgentCitationsSidebar
+        open
+        onClose={() => undefined}
+        citations={[
+          { contentId: 900, title: longTitle, zone: "ip" as const, category: "vtuber", excerpt: longCategoryURL },
+          { contentId: 901, title: "Content title", zone: "fanwork" as const, excerpt: "short" },
+        ]}
+        onOpen={() => undefined}
+      />
+    </IntlProvider>,
+  );
+
+  const cards = view.getAllByRole("button", { name: /Reference sources/ });
+  assert.equal(cards.length, 2);
+
+  const ipCard = cards.find((c) => c.textContent.includes("IP")) as HTMLElement;
+  const titleRow = ipCard.querySelector("span.flex");
+  assert.ok(titleRow, "title row renders");
+  const title = titleRow!.querySelector("span.truncate");
+  assert.ok(title, "title keeps truncate");
+  assert.match(title.className, /min-w-0/, "title needs min-w-0 to actually shrink");
+  assert.match(title.className, /flex-1/, "title takes the remaining row width");
+  assert.equal(ipName(ipCard), longTitle, "full title preserved as the accessible name");
+
+  const metaRow = [...ipCard.querySelectorAll("span")].find((el) => (el.getAttribute("class") ?? "").includes("flex-wrap"));
+  assert.ok(metaRow, "IP badges live on a wrapping meta row");
+  assert.ok(metaRow.textContent.includes("IP"), "zone badge present");
+  assert.ok(metaRow.textContent.trim().length > 0, "category badge present when set");
+
+  const excerpt = [...ipCard.querySelectorAll("span")].find((s) => s.textContent.startsWith("https://"));
+  assert.ok(excerpt, "excerpt span renders");
+  assert.match(excerpt!.className, /break-words/, "URL-like excerpts break tokens");
+  assert.match(excerpt!.className, /line-clamp-2/, "still clamped to two lines");
+
+  const contentCard = cards.find((c) => c !== ipCard) as HTMLElement;
+  assert.ok(contentCard.textContent.includes("Fanwork"), "single zone badge stays inline on content cards");
+});
+
+function ipName(card: HTMLElement) {
+  return (card.getAttribute("aria-label") ?? "").split("：").slice(1).join("：");
+}

@@ -43,10 +43,10 @@ const VT_CLOSE_ATTR = "data-vt-close";
     布局（滚动归属同 split-media；壳层去 header，返回/关闭改悬浮半透明圆钮）。 */
 type LayerLayout = "single" | "split-media" | "variant";
 
-/** #88 桌面双栏视口判定：与 ui-spec 全局三档（PC > 1100px）一致。 */
+/** #88 桌面双栏视口判定（#753 起 960：PC 图片语义起效断点）。 */
 function isSplitViewport(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(min-width: 1100px)").matches;
+  return window.matchMedia("(min-width: 960px)").matches;
 }
 
 export interface ContentDetailOverlayProps {
@@ -335,7 +335,7 @@ export function ContentDetailOverlay({
     const scroller = scrollerRef.current;
     if (!scroller) return null;
     const covers = scroller.querySelectorAll<HTMLElement>(`[data-slot="${OVERLAY_COVER_SLOT}"]`);
-    /* #88 双栏：行内媒体区（min-[1100px]:hidden）也是 detail-cover 锚点，须跳过
+    /* #88 双栏：行内媒体区（min-[960px]:hidden，#753）也是 detail-cover 锚点，须跳过
        display:none 的隐藏实例，取可见的左栏媒体列。 */
     for (let i = covers.length - 1; i >= 0; i -= 1) {
       if (covers[i].offsetParent !== null || covers[i].getClientRects().length > 0) {
@@ -1030,10 +1030,10 @@ export function ContentDetailOverlay({
           ref={scrollerRef}
           data-slot="overlay-scroller"
           className={cn(
-            "min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 lg:px-6",
+            "min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 min-[960px]:px-6",
             /* #88/#397 桌面双栏与竖屏集新版布局：滚动改由层内信息列承担。 */
             (topLayout === "split-media" || topLayout === "variant") &&
-              "min-[1100px]:h-full min-[1100px]:overflow-hidden",
+              "min-[960px]:h-full min-[960px]:overflow-hidden",
           )}
         >
           {stack.map((layer, index) => (

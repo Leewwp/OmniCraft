@@ -44,6 +44,11 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// contract (s-maxage + body-hash ETag revalidation).
 	cacheable := middleware.CacheableAnonymousGET(300)
 
+	// #729: per-IP token buckets for the eight anonymous read endpoints
+	// (features.guest_rate_limit_enabled, default off; additionally
+	// subordinate to rate_limit.enabled — see middleware/guest_ratelimit.go).
+	guestLimiter := middleware.NewGuestRateLimiter(rdb, &cfg.RateLimit, &cfg.Features, time.Now).Tier
+
 	// SP-16 #449: the MCP endpoint joins the per-IP rate-limit matrix with
 	// its own bucket (mcp_per_minute from config, never hardcoded).
 	mcpLimiter := middleware.RedisFixedWindowLimit(
@@ -115,7 +120,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	userHandler := handler.NewUserHandler(userRepo, ctr.ReputationService, ctr.ContentRepo, ctr.FollowRepo, authService, rdb, cfg, ctr.ReviewService)
 	users := v1.Group("/users")
 	{
-		users.GET("/:id", optAuth, cacheable, userHandler.GetUser)
+		users.GET("/:id", optAuth, guestLimiter("users_detail"), cacheable, userHandler.GetUser)
 		users.PATCH("/:id", authReq, userHandler.UpdateUser)
 		users.GET("/:id/reputation", optAuth, userHandler.GetReputation)
 		users.GET("/:id/contents", optAuth, userHandler.GetUserContents)
@@ -134,7 +139,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	ipHandler := handler.NewIPHandlerWithCache(ctr.IPPublishService, ctr.ContentRepo, ctr.DiscussionRepo, ctr.DisplayURLSigner, cfg)
 	ips := v1.Group("/ips")
 	{
-		ips.GET("", optAuth, cacheable, ipHandler.ListIPs)
+		ips.GET("", optAuth, guestLimiter("ips_list"), cacheable, ipHandler.ListIPs)
 		// T15 (F-103): IP creation enters the review queue and publishes
 		// public free text, so it carries the same publishing guard + upload
 		// rate limit as content creation.
@@ -174,17 +179,17 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	})
 	contents := v1.Group("/contents")
 	{
-		contents.GET("", optAuth, cacheable, contentHandler.ListContents)
+		contents.GET("", optAuth, guestLimiter("contents_list"), cacheable, contentHandler.ListContents)
 		// SP-16 #450: PAT scope gates on the machine channel. JWT sessions
 		// pass through untouched; a download-only PAT cannot create content
 		// or mint upload URLs (spec D2/D5).
 		contents.POST("", authReq, middleware.RequireScopeForPAT("upload"), publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)
 		contents.POST("/oss-token", authReq, middleware.RequireScopeForPAT("upload"), middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.GenerateOSSToken)
 		contents.GET("/:id/related-fanworks", optAuth, contentHandler.ListRelatedFanworks)
-		contents.GET("/:id", optAuth, cacheable, contentHandler.GetContent)
+		contents.GET("/:id", optAuth, guestLimiter("contents_detail"), cacheable, contentHandler.GetContent)
 		contents.PATCH("/:id", authReq, editDeleteGuard, contentHandler.UpdateContent)
 		contents.DELETE("/:id", authReq, editDeleteGuard, contentHandler.DeleteContent)
-		contents.GET("/:id/versions", optAuth, cacheable, handler.NewVersionHandler(ctr.VersionService).ListVersions)
+		contents.GET("/:id/versions", optAuth, guestLimiter("contents_versions"), cacheable, handler.NewVersionHandler(ctr.VersionService).ListVersions)
 		contents.GET("/:id/prs", optAuth, prHandler.ListPRs)
 		contents.GET("/:id/guide", optAuth, usageGuideHandler.GetGuide)
 		contents.GET("/:id/guide/specifics", authReq, editDeleteGuard, usageGuideHandler.GetAuthorGuide)
@@ -276,17 +281,17 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	}
 
 	statsHandler := handler.NewStatsHandler(ctr.StatsService)
-	v1.GET("/stats/summary", optAuth, cacheable, statsHandler.GetSummary)
+	v1.GET("/stats/summary", optAuth, guestLimiter("stats_summary"), cacheable, statsHandler.GetSummary)
 
 	ipStatsHandler := handler.NewIPStatsHandler(ctr.IPStatsService)
 	v1.GET("/ips/stats/category_counts", optAuth, ipStatsHandler.GetCategoryCounts)
 
 	catHandler := handler.NewCategoryHandler(ctr.CategoryService, ctr.AdminAuditService, db)
-	v1.GET("/categories", optAuth, cacheable, catHandler.ListCategories)
+	v1.GET("/categories", optAuth, guestLimiter("categories_list"), cacheable, catHandler.ListCategories)
 
 	tagHandler := handler.NewTagHandler(ctr.TagService, cfg.RateLimit.MaxQueryChars)
 	tagHandler.SetNotificationService(notifSvc)
-	v1.GET("/tags/faceted", optAuth, cacheable, tagHandler.GetFacetedTags)
+	v1.GET("/tags/faceted", optAuth, guestLimiter("tags_faceted"), cacheable, tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", authReq, tagHandler.SuggestTag)
 	dashboard.GET("/tag-suggestions", tagHandler.ListTagSuggestions)
