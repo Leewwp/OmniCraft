@@ -968,6 +968,42 @@ test("workspace streams an answer and renders citation cards", async () => {
   }
 });
 
+test("citations entry pill hugs content instead of stretching the full row (#763)", async () => {
+  installDom();
+  const now = new Date();
+  const stub = installSSEFetch(streamEvents());
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [{ id: 1, conversation_id: 7, role: "user", content: "find me a guide" }],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    const entry = await waitFor(() =>
+      view.getByRole("button", { name: /reference sources/ }), { timeout: 3000 },
+    );
+    /* jsdom 无布局，断言结构：胶囊必须隔一层 max-w 包装，不能是 flex 列
+       容器直接子项（直接子项被 blockify+stretch 拉满整行，即 #763 根因）。 */
+    const wrapper = entry.parentElement;
+    assert.ok(wrapper, "entry pill is wrapped");
+    assert.match(wrapper.className, /max-w-\[85%\]/);
+    /* 开侧栏逻辑不变：点击仍打开参考来源面板。 */
+    fireEvent.click(entry);
+    await waitFor(() => assert.ok(view.getByRole("button", { name: "Close reference sources" })));
+  } finally {
+    stub.restore();
+  }
+});
+
 test("degraded stream hides the model summary and shows fallback references", async () => {
   installDom();
   const now = new Date();

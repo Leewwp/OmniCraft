@@ -38,8 +38,8 @@
         "attrs": {}
       },
       {
-        "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
+        "tag": "div",
+        "cls": "mt-1 max-w-[85%]",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -93,8 +93,8 @@
         "attrs": {}
       },
       {
-        "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
+        "tag": "div",
+        "cls": "mt-1 max-w-[85%]",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -165,8 +165,8 @@
         ]
       },
       {
-        "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] px-3 text-xs transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 border-accent-emphasis/60 bg-accent-subtle text-accent-emphasis mt-1",
+        "tag": "div",
+        "cls": "mt-1 max-w-[85%]",
         "text": "2 reference sources",
         "attrs": {}
       }
@@ -301,8 +301,8 @@
         "attrs": {}
       },
       {
-        "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
+        "tag": "div",
+        "cls": "mt-1 max-w-[85%]",
         "text": "1 reference sources",
         "attrs": {}
       }
@@ -323,8 +323,8 @@
         "attrs": {}
       },
       {
-        "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
+        "tag": "div",
+        "cls": "mt-1 max-w-[85%]",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -341,8 +341,8 @@
         "attrs": {}
       },
       {
-        "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
+        "tag": "div",
+        "cls": "mt-1 max-w-[85%]",
         "text": "1 reference sources",
         "attrs": {}
       },
@@ -359,8 +359,8 @@
         "attrs": {}
       },
       {
-        "tag": "button",
-        "cls": "inline-flex min-h-7 items-center gap-1.5 rounded-full border-[1.5px] border-border-strong bg-canvas-default px-3 text-xs text-fg-muted transition-colors hover:bg-canvas-subtle/80 hover:text-fg-default focus:outline-none focus-visible:ring-1 focus-visible:ring-ring [@media(pointer:coarse)]:min-h-11 mt-1",
+        "tag": "div",
+        "cls": "mt-1 max-w-[85%]",
         "text": "1 reference sources",
         "attrs": {}
       },

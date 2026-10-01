@@ -1253,7 +1253,8 @@ function TurnDetailsDisclosure({ usage, traceId, isAdmin }: {
 
 /** FT-4（#696）：回答底部「N 条参考来源」入口按钮（侧栏 toggle 通道之一；
     另一通道 = 侧栏 X）。原内联折叠列表退役。#719：统一 AgentMetaPill
-    胶囊外观（点击仍开侧栏）。 */
+    胶囊外观（点击仍开侧栏）。#763：补 max-w 包装——消息列表是 flex 列，
+    胶囊作直接子项会被 stretch 拉满整行，包一层才与工具/思考块同形态。 */
 function CitationsEntryButton({ count, active, onToggle, triggerRef }: {
   count: number;
   active: boolean;
@@ -1262,13 +1263,14 @@ function CitationsEntryButton({ count, active, onToggle, triggerRef }: {
 }) {
   const t = useTranslations();
   return (
-    <AgentMetaPill
-      icon={BookOpenText}
-      label={t("agent.citations.entry", { count })}
-      pressed={active}
-      onClick={onToggle}
-      className="mt-1"
-      buttonRef={triggerRef}
-    />
+    <div className="mt-1 max-w-[85%]">
+      <AgentMetaPill
+        icon={BookOpenText}
+        label={t("agent.citations.entry", { count })}
+        pressed={active}
+        onClick={onToggle}
+        buttonRef={triggerRef}
+      />
+    </div>
   );
 }
