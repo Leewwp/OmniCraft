@@ -126,6 +126,8 @@ content_types (taxonomy) + upload_file_types (upload c... |
 | `features.archive_malware_scan_enabled` | `bool` | ArchiveMalwareScanEnabled |
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
+| `features.guest_rate_limit_enabled` | `bool` | GuestRateLimitEnabled (#729) gates the per-endpoint anonymous token
+bucket layer; off by default (gray-release via in... |
 | `features.payment_enabled` | `bool` | PaymentEnabled |
 | `features.rag_hybrid_enabled` | `bool` | RAGHybridEnabled |
 | `features.rag_query_expansion_enabled` | `bool` | RAGQueryExpansionEnabled and RAGRerankEnabled gate the A-03 retrieval
@@ -250,6 +252,9 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rate_limit.ai_callback_per_minute` | `int` | AICallbackPerMinute |
 | `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |
 | `rate_limit.enabled` | `bool` | Enabled |
+| `rate_limit.guest_buckets` | `map[string]GuestBucketConfig` | #729 anonymous per-endpoint guest layer: tier→bucket overrides and the
+new-layer exemption list. Zero/absent = code... |
+| `rate_limit.guest_exempt_ips` | `[]string` | GuestExemptIPs |
 | `rate_limit.max_json_body_bytes` | `int64` | MaxJSONBodyBytes |
 | `rate_limit.max_query_chars` | `int` | MaxQueryChars |
 | `rate_limit.max_search_limit` | `int` | MaxSearchLimit |
