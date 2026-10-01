@@ -5,6 +5,7 @@
 ## Domain map
 
 - **列表分页契约（#668）**: 标准列表端点的 page/page_size 解析唯一住所 = `backend/internal/handler/pagination.go` 的 `pageQuery`（page<1→1；page_size<1 或 >100→20 回落）；响应回显生效值。裸 `Query("page")` 解析由 `pagination_gate_test.go` 守门拦截，例外（搜索/Agent 会话/admin trace/parsePositiveInt 家族）在 helper 注释与守门白名单登记理由。
+- **匿名细档限流（#729）**: 匿名公开读端点的 per-IP 令牌桶层，唯一实现 = `backend/internal/middleware/guest_ratelimit.go`（Redis Lua 原子令牌桶，判定/扣量/TTL 单次 EVAL；键 = `ratelimit:guest:{tier}:{ip}`）。覆盖八条 CacheableAnonymousGET 端点（routes.go 经 `guestLimiter(tier)` 接线）；档位名 = 稳定路由模板（见 config.DefaultGuestBuckets），不得含资源 ID 或 query string。双开关连坐：`rate_limit.enabled` 或 `features.guest_rate_limit_enabled` 任一关 = 层关闭且零 Redis 调用；429 走 response.Error 信封 + Retry-After；Redis 故障 fail-open + 节流告警。既有 search/MCP/credential 桶不归此层（阶段二收敛另议）。
 - **错误信封（#669）**: handler 错误响应唯一发送处 = `backend/internal/pkg/response`（Error 系标准形 {code,message[,details]}；CodeOnly 历史 code-only ×10；CaptchaError 验证码错误 ×4 附加 captcha_result:false）。全部 AbortWithStatusJSON。handler 非测试源码新增裸 `gin.H{"code"` 由 `envelope_gate_test.go` 守门拦截；成功 ack（`gin.H{"message"`）合法。码值集与逐点迁移账见 docs/working/2026-09-25-669-envelope-census.md（本地）。
 
 - 内容发现：推荐流、原创/二创分区、IP 库与 IP 详情页；决策入口见 `docs/GLOSSARY.md` 和 `docs/working/2026-08-04-content-discovery-gap-plan.md`。
