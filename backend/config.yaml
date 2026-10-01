@@ -95,6 +95,9 @@ features:
   # docs/working/2026-09-18-sp24-r1-rerank-default.md.
   rag_query_expansion_enabled: false
   rag_rerank_enabled: true
+  # #729 匿名公开端点细档限流层（默认关，实例 override 灰度开启）；
+  # 同时受 rate_limit.enabled 总开关联动关闭。
+  guest_rate_limit_enabled: false
 
 rag:
   chunking:
@@ -656,6 +659,12 @@ rate_limit:
   max_query_chars: 120
   max_search_limit: 50
   max_search_page: 100
+  # #729 匿名细档令牌桶（guest_rate_limit_enabled 开启后生效）：八条公开读
+  # 端点按稳定路由档位名分桶（如 contents_detail），阈值缺省走代码内置保守档
+  # （列表族 40 突发/20 每分钟回补，其余 20/10）；豁免名单支持精确 IP 与 CIDR。
+  # guest_buckets:
+  #   contents_detail: { capacity: 40, refill_per_minute: 20 }
+  # guest_exempt_ips: []
 
 cache:
   content_list_ttl: 300
