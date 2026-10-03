@@ -14,11 +14,11 @@ type AgentConversation struct {
 }
 
 type AgentMessage struct {
-	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	ConversationID int64     `gorm:"not null;index" json:"conversation_id"`
-	Role           string    `gorm:"size:20;not null" json:"role"`
-	Content        *string   `json:"content,omitempty"`
-	ToolCalls      JSONMap   `gorm:"type:jsonb" json:"tool_calls,omitempty"`
+	ID             int64   `gorm:"primaryKey;autoIncrement" json:"id"`
+	ConversationID int64   `gorm:"not null;index" json:"conversation_id"`
+	Role           string  `gorm:"size:20;not null" json:"role"`
+	Content        *string `json:"content,omitempty"`
+	ToolCalls      JSONMap `gorm:"type:jsonb" json:"tool_calls,omitempty"`
 	// N4: the done event's validated citations persist on the answer row so
 	// the history endpoint can replay jump entries for past turns. Nullable
 	// jsonb — legacy rows (and think rows) keep NULL = "no citations".
@@ -42,6 +42,12 @@ type AgentCitation struct {
 	// Category carries the IP category slug for zone="ip" citations
 	// (SP-19 G2-1); content citations leave it empty.
 	Category string `json:"category,omitempty"`
+	// Number is the turn-global citation number assigned when the candidate
+	// enters the pool (FT-5 #697): it accumulates across every search call
+	// of the turn and revalidation drops keep their slot, so inline [n]
+	// markers stay aligned with the emitted card. 0 = legacy/positional
+	// (rows persisted before FT-5, citations built outside the turn pool).
+	Number int `json:"number,omitempty"`
 }
 
 // AgentChatSurface is a server-owned enum describing where a chat request was

@@ -194,7 +194,7 @@ async function distinctColumnLefts(page: Page): Promise<number[]> {
     .evaluateAll((els) => [...new Set(els.map((el) => Math.round(el.getBoundingClientRect().left)))]);
 }
 
-test("original feed renders data-driven natural ratios with the extreme height cap", async ({ page }) => {
+test("original feed renders the #753 two-tier covers (3:4 / 9:16, center crop, no height cap)", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockFeedApis(page);
   await page.goto("/original");
@@ -203,18 +203,20 @@ test("original feed renders data-driven natural ratios with the extreme height c
   await waitForMasonryLayout(page);
   expect(await frames.count()).toBeGreaterThanOrEqual(8);
 
-  await expect(aspectFrame(page, "Tall portrait 2:3")).toHaveAttribute("style", /aspect-ratio:\s*600 \/ 900/);
-  await expect(aspectFrame(page, "Landscape 16:9")).toHaveAttribute("style", /aspect-ratio:\s*1600 \/ 900/);
-  await expect(aspectFrame(page, "Square 1:1")).toHaveAttribute("style", /aspect-ratio:\s*1000 \/ 1000/);
-  await expect(aspectFrame(page, "Video poster 9:16")).toHaveAttribute("style", /aspect-ratio:\s*720 \/ 1280/);
-  await expectMeasuredAspectRatio(page, "Legacy no size", 320 / 200);
+  /* #753 两档：h/w > 4/3 → 9:16（Tall portrait 2:3 h/w=1.5、Video poster 9:16、
+     Extreme tall 1:4）；h/w ≤ 4/3 → 3:4（Landscape/Square/Extreme wide/实测 16:10）。
+     极端限高与 max-height 退役；object-cover 中心裁切。 */
+  await expect(aspectFrame(page, "Tall portrait 2:3")).toHaveAttribute("style", /aspect-ratio:\s*9 \/ 16/);
+  await expect(aspectFrame(page, "Landscape 16:9")).toHaveAttribute("style", /aspect-ratio:\s*3 \/ 4/);
+  await expect(aspectFrame(page, "Square 1:1")).toHaveAttribute("style", /aspect-ratio:\s*3 \/ 4/);
+  await expect(aspectFrame(page, "Video poster 9:16")).toHaveAttribute("style", /aspect-ratio:\s*9 \/ 16/);
+  await expectMeasuredAspectRatio(page, "Legacy no size", 3 / 4);
 
-  await expect(aspectFrame(page, "Extreme tall 1:4")).toHaveAttribute("style", /max-height:\s*400px/);
-  await expect(aspectFrame(page, "Extreme wide 5:1")).toHaveAttribute("style", /max-height:\s*400px/);
-  await expect(aspectFrame(page, "Tall portrait 2:3")).not.toHaveAttribute("style", /max-height/);
+  await expect(aspectFrame(page, "Extreme tall 1:4")).toHaveAttribute("style", /aspect-ratio:\s*9 \/ 16/);
+  await expect(aspectFrame(page, "Extreme wide 5:1")).toHaveAttribute("style", /aspect-ratio:\s*3 \/ 4/);
+  await expect(aspectFrame(page, "Extreme tall 1:4")).not.toHaveAttribute("style", /max-height/);
 
-  const extremeHeight = await aspectFrame(page, "Extreme tall 1:4").evaluate((el) => el.getBoundingClientRect().height);
-  expect(extremeHeight).toBeLessThanOrEqual(400);
+  await expect(aspectFrame(page, "Extreme tall 1:4").locator("img")).toHaveClass(/object-cover/);
 
   const lefts = await distinctColumnLefts(page);
   expect(lefts.length).toBe(4);
@@ -223,7 +225,7 @@ test("original feed renders data-driven natural ratios with the extreme height c
   await page.screenshot({ path: path.join(SCREENSHOTS, "t87-original-mixed-ratio-desktop.png"), fullPage: true });
 });
 
-test("mobile original feed keeps two stable columns with the extreme cap", async ({ page }) => {
+test("mobile original feed keeps two stable columns with the two-tier covers", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockFeedApis(page);
   await page.goto("/original");
@@ -231,8 +233,7 @@ test("mobile original feed keeps two stable columns with the extreme cap", async
   await expect(frames.first()).toBeVisible({ timeout: 15_000 });
   await waitForMasonryLayout(page);
 
-  const extremeHeight = await aspectFrame(page, "Extreme tall 1:4").evaluate((el) => el.getBoundingClientRect().height);
-  expect(extremeHeight).toBeLessThanOrEqual(400);
+  await expect(aspectFrame(page, "Extreme tall 1:4")).toHaveAttribute("style", /aspect-ratio:\s*9 \/ 16/);
 
   const lefts = await distinctColumnLefts(page);
   expect(lefts.length).toBe(2);
@@ -274,9 +275,10 @@ test("search grid mixes fanwork and original cards from the shared fact source",
 
   const fanwork = page.locator('[aria-label="Fanwork extreme 1:5"]');
   await expect(fanwork).toHaveClass(/border border-border/);
-  await expect(aspectFrame(page, "Fanwork extreme 1:5")).toHaveAttribute("style", /max-height:\s*400px/);
-  /* 同上：legacy video 无 poster 尺寸 → 实测回填 16:10。 */
-  await expectMeasuredAspectRatio(page, "Fanwork legacy video", 320 / 200);
+  /* #753：1:5 = 300×1500 竖长图（h/w=5 > 4/3）→ 9:16 档（限高退役）；
+     legacy video 实测 16:10（h/w=0.625）→ 3:4 档。 */
+  await expect(aspectFrame(page, "Fanwork extreme 1:5")).toHaveAttribute("style", /aspect-ratio:\s*9 \/ 16/);
+  await expectMeasuredAspectRatio(page, "Fanwork legacy video", 3 / 4);
 
   await assertCardsFitViewport(page);
   await page.screenshot({ path: path.join(SCREENSHOTS, "t87-search-mixed-zones-shared-card.png"), fullPage: true });

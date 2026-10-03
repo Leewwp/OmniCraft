@@ -127,7 +127,7 @@ export function DiscussionDetailOverlay({ discussionId, onClose }: DiscussionDet
             type="button"
             onClick={closeRef.current}
             aria-label={t('common.close')}
-            className="rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>

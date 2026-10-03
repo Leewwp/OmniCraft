@@ -15,6 +15,7 @@ const CONTENT_TYPE_KEYS = [
   { value: "sheet_music", icon: "🎼" },
   { value: "template", icon: "📋" },
   { value: "prompt", icon: "🤖" },
+  { value: "3d_print", icon: "🖨️" },
   { value: "other", icon: "📦" },
 ] as const;
 

@@ -4,12 +4,15 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/archivezip"
 )
 
 // #688 upload-family admission matrices, publish rules and the document
@@ -197,6 +200,15 @@ func TestRegistryBindingAndAttachmentPolicy(t *testing.T) {
 	require.Error(t, evaluateAttachmentPolicy(cfg, "widget", []model.ContentAttachment{{FileType: "text"}}),
 		"pure-document post misses the required family")
 	require.NoError(t, evaluateAttachmentPolicy(cfg, "widget", []model.ContentAttachment{{FileType: "text"}, {FileType: "model3d"}}))
+
+	// #690 pilot: the shipped registry row enforces by configuration alone
+	// (registryCfg nil → DefaultContentRegistry, which mirrors config.yaml).
+	require.True(t, svc.allowedAttachmentFamily("3d_print", "model3d"))
+	require.True(t, svc.allowedAttachmentFamily("3d_print", "text"))
+	require.False(t, svc.allowedAttachmentFamily("3d_print", "document"), "3d_print allows only model3d+text")
+	require.Error(t, evaluateAttachmentPolicy(nil, "3d_print", []model.ContentAttachment{{FileType: "text"}}),
+		"pure-document post is not 3D printing content")
+	require.NoError(t, evaluateAttachmentPolicy(nil, "3d_print", []model.ContentAttachment{{FileType: "text"}, {FileType: "model3d"}}))
 }
 
 func TestScannableFamiliesGeneralized(t *testing.T) {
@@ -270,3 +282,82 @@ func TestScanAwarePreviewGateMatrix(t *testing.T) {
 }
 
 func boolPtrT1(v bool) *bool { return &v }
+
+// --- #689 model3d family ---
+
+func TestModel3DFamilyAdmissionMatrix(t *testing.T) {
+	svc := newT1TestOSSService()
+	svc.cfg.Limits.Model3DMaxMB = 50
+
+	for _, ext := range []string{".stl", ".obj", ".3mf", ".gcode", ".ply", ".mtl"} {
+		require.NoError(t, svc.validateUploadByType("model3d", "application/octet-stream", 1024, nil, ext), "model3d %s", ext)
+		// MIME is a hint: model/*, text/plain (gcode) and common shapes pass.
+		require.NoError(t, svc.validateUploadByType("model3d", "model/stl", 1024, nil, ext))
+	}
+	require.Error(t, svc.validateUploadByType("model3d", "application/octet-stream", 1024, nil, ".blend"), "unsupported extension")
+	require.Error(t, svc.validateUploadByType("model3d", "video/mp4", 1024, nil, ".stl"), "implausible mime")
+	require.Error(t, svc.validateUploadByType("model3d", "application/octet-stream", 51<<20, nil, ".stl"), "over model3d budget")
+}
+
+func TestThreeMFPackageIdentity(t *testing.T) {
+	contentTypes := `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`
+
+	t.Run("valid 3mf passes identity", func(t *testing.T) {
+		zr := buildDocZip(t, map[string]string{
+			"[Content_Types].xml": contentTypes,
+			"3D/3dmodel.model":    `<?xml version="1.0"?><model/>`,
+		})
+		require.NoError(t, inspectDocumentZip(zr, ".3mf"))
+	})
+
+	t.Run("plain zip renamed 3mf fails identity", func(t *testing.T) {
+		zr := buildDocZip(t, map[string]string{
+			"[Content_Types].xml": contentTypes,
+			"readme.txt":          "hello",
+		})
+		err := inspectDocumentZip(zr, ".3mf")
+		require.ErrorIs(t, err, ErrDocumentPackage)
+		require.Contains(t, err.Error(), "3D/*.model")
+	})
+}
+
+func TestScannableFamiliesIncludeModel3D(t *testing.T) {
+	cfg := &config.Config{}
+	families := cfg.ScannableUploadFamilies()
+	require.Contains(t, families, "model3d", "#689 model3d joins ClamAV")
+}
+
+// TestDocumentPackageRejectionWireCode pins the #691 smoke finding: a macro
+// container renamed to .docx (or a non-OPC zip) must surface as
+// ErrUploadGrantInvalid (400 UPLOAD_GRANT_INVALID on the wire), not escape
+// raw and become 500 INTERNAL_ERROR.
+func TestDocumentPackageRejectionWireCode(t *testing.T) {
+	macroErr := fmt.Errorf("%w: [Content_Types].xml declares macro content", ErrDocumentPackage)
+	stub := &stubDocumentValidator{packageErr: macroErr}
+	svc := (&ContentService{}).SetDocumentValidator(stub, nil)
+
+	err := svc.validateDocumentAttachment(context.Background(),
+		UploadGrant{OSSKey: "uploads/1/document/a.docx", OriginalFileName: "a.docx", FileSize: 10})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrUploadGrantInvalid, "package-identity/macro rejection must map to the 400 wire code")
+
+	// Internal errors (OSS fetch failure) stay raw — they are not user input.
+	fetchErr := errors.New("oss: connection reset")
+	svc2 := (&ContentService{}).SetDocumentValidator(&stubDocumentValidator{packageErr: fetchErr}, nil)
+	err2 := svc2.validateDocumentAttachment(context.Background(),
+		UploadGrant{OSSKey: "uploads/1/document/a.docx", OriginalFileName: "a.docx", FileSize: 10})
+	require.ErrorIs(t, err2, fetchErr)
+	require.NotErrorIs(t, err2, ErrUploadGrantInvalid)
+}
+
+type stubDocumentValidator struct {
+	packageErr error
+}
+
+func (s *stubDocumentValidator) ValidateDocumentPackage(ctx context.Context, ossKey string, size int64, ext string, quota archivezip.Quota) error {
+	return s.packageErr
+}
+
+func (s *stubDocumentValidator) ValidateCSVTextSanity(ctx context.Context, ossKey string) error {
+	return nil
+}

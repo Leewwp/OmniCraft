@@ -14,6 +14,7 @@
 
 | 配置路径 | 类型 | 说明 |
 |----------|------|------|
+| `agent.answer_bare_reasoning_guard.enabled` | `bool` | Enabled |
 | `agent.chat_context_token_budget` | `int` | ChatContextTokenBudget caps the server-side assembled conversation
 history (estimated tokens; CJK-heavy so rune count... |
 | `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |
@@ -33,6 +34,8 @@ model-routed conversational lane (SP-15 A2): a zero-too... |
 | `agent.embedding_model` | `string` | EmbeddingModel |
 | `agent.embedding_provider` | `string` | EmbeddingProvider routes embeddings to a different adapter than chat
 (canonical profile: minimax chat + openai_compat... |
+| `agent.follow_ups.budget_sec` | `int` | BudgetSec |
+| `agent.follow_ups.enabled` | `bool` | Enabled |
 | `agent.guardrails.fence_external_tool_results` | `bool` | FenceExternalToolResults wraps MCP/image tool results in explicit
 "data, not instructions" boundary markers before th... |
 | `agent.guardrails.image_url_allow_hosts` | `[]string` | ImageURLAllowHosts is the image-URL allowlist for model output: any
@@ -123,6 +126,8 @@ content_types (taxonomy) + upload_file_types (upload c... |
 | `features.archive_malware_scan_enabled` | `bool` | ArchiveMalwareScanEnabled |
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
+| `features.guest_rate_limit_enabled` | `bool` | GuestRateLimitEnabled (#729) gates the per-endpoint anonymous token
+bucket layer; off by default (gray-release via in... |
 | `features.payment_enabled` | `bool` | PaymentEnabled |
 | `features.rag_hybrid_enabled` | `bool` | RAGHybridEnabled |
 | `features.rag_query_expansion_enabled` | `bool` | RAGQueryExpansionEnabled and RAGRerankEnabled gate the A-03 retrieval
@@ -150,10 +155,14 @@ with the frontend single source frontend/lib/ip-... |
 | `jwt.secret` | `string` | Secret |
 | `legal.current_privacy_version` | `string` | CurrentPrivacyVersion |
 | `legal.current_terms_version` | `string` | CurrentTermsVersion |
+| `limits.audio_max_mb` | `int` | AudioMaxMB / DocumentMaxMB / Model3DMaxMB (#688/#689): new upload
+families get their own budget keys so the registry'... |
 | `limits.dm_max_length` | `int` | DMMaxLength caps a direct-message text in runes; must stay aligned with
 the frontend MAX_DM_LENGTH (2000) so the UI c... |
+| `limits.document_max_mb` | `int` | DocumentMaxMB |
 | `limits.image_max_mb` | `int` | ImageMaxMB |
 | `limits.mod_max_mb` | `int` | ModMaxMB |
+| `limits.model3d_max_mb` | `int` | Model3DMaxMB |
 | `limits.sheet_music_max_mb` | `int` | SheetMusicMaxMB |
 | `limits.text_max_mb` | `int` | TextMaxMB |
 | `limits.video_max_mb` | `int` | VideoMaxMB |
@@ -185,24 +194,6 @@ the frontend MAX_DM_LENGTH (2000) so the UI c... |
 | `oss.access_key_id` | `string` | AccessKeyID |
 | `oss.access_key_secret` | `string` | AccessKeySecret |
 | `oss.bucket_name` | `string` | BucketName |
-| `content_registry.content_types.[].attachment_policy.required_any_of` | `[]string` | AttachmentPolicy.RequiredAnyOf — publish-time required-family constraint; evaluator lands with #688, enabled by config in #690 |
-| `content_registry.content_types.[].form` | `string` | Form — publish form shape: text / file / media |
-| `content_registry.content_types.[].judge_eligible` | `bool` | JudgeEligible — required-explicit; absent refuses startup (#687) |
-| `content_registry.content_types.[].key` | `string` | Key — taxonomy key |
-| `content_registry.content_types.[].upload_file_types` | `[]string` | UploadFileTypes — allowed attachment families; unregistered references refuse startup |
-| `content_registry.content_types.[].zones` | `[]string` | Zones — publishable zones (original / fanwork) |
-| `content_registry.upload_file_types.[].extensions` | `[]string` | Extensions — explicit whitelist; empty = unrestricted (MIME-driven) |
-| `content_registry.upload_file_types.[].extensions_key` | `string` | ExtensionsKey — legacy list reference (sheet_music_extensions) |
-| `content_registry.upload_file_types.[].key` | `string` | Key — family key |
-| `content_registry.upload_file_types.[].max_mb_key` | `string` | MaxMBKey — limits.* key reference, resolved live at read time |
-| `content_registry.upload_file_types.[].mime_exact` | `[]string` | MimeExact — exact MIME admissions |
-| `content_registry.upload_file_types.[].mime_prefixes` | `[]string` | MimePrefixes — MIME prefix admissions |
-| `content_registry.upload_file_types.[].scannable` | `bool` | Scannable — joins the ClamAV pipeline |
-| `limits.audio_max_mb` | `int` | AudioMaxMB — #688 audio family budget (registry max_mb_key reference) |
-| `limits.document_max_mb` | `int` | DocumentMaxMB — #688 document family budget |
-| `limits.model3d_max_mb` | `int` | Model3DMaxMB — #689 model3d family budget (key ahead of family registration) |
-| `upload.content_grant_ttl_sec` | `int` | ContentGrantTTLSec — content upload-grant TTL, default 1800, must exceed the 900s presign PUT window (#688 v2.2) |
-| `upload.document_preview_max_mb` | `int` | DocumentPreviewMaxMB — browser-side document preview budget, default 10; over budget the viewer degrades to download-only |
 | `oss.display_url_ttl_sec` | `int` | DisplayURLTTL bounds the signed GET URLs issued for display media
 (covers, avatars, gallery attachments) at the API s... |
 | `oss.domain` | `string` | Domain |
@@ -261,6 +252,9 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rate_limit.ai_callback_per_minute` | `int` | AICallbackPerMinute |
 | `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |
 | `rate_limit.enabled` | `bool` | Enabled |
+| `rate_limit.guest_buckets` | `map[string]GuestBucketConfig` | #729 anonymous per-endpoint guest layer: tier→bucket overrides and the
+new-layer exemption list. Zero/absent = code... |
+| `rate_limit.guest_exempt_ips` | `[]string` | GuestExemptIPs |
 | `rate_limit.max_json_body_bytes` | `int64` | MaxJSONBodyBytes |
 | `rate_limit.max_query_chars` | `int` | MaxQueryChars |
 | `rate_limit.max_search_limit` | `int` | MaxSearchLimit |
@@ -330,9 +324,17 @@ Zero means "use the hardcoded default in reputation_service.go". |
 | `smtp.user` | `string` | User |
 | `social.comment_fold_threshold` | `float64` | CommentFoldThreshold |
 | `social.report_auto_hide_rate` | `float64` | ReportAutoHideRate |
+| `upload.content_grant_ttl_sec` | `int` | ContentGrantTTLSec is the content upload-grant TTL (#688 v2.2): the
+presign PUT URL itself lives 15 minutes, so a 300... |
+| `upload.document_preview_max_mb` | `int` | DocumentPreviewMaxMB (#688 v2.2): the browser-side document preview
+budget in compressed bytes — deliberately decou... |
+| `upload.gcode_max_lines` | `int` | GCodeMaxLines |
 | `upload.image_gallery_max_items` | `int` | ImageGalleryMaxItems |
 | `upload.image_gallery_min_items` | `int` | Media set (media gallery) size bounds for newly published image/video
 content. Zero means "use the specification defa... |
+| `upload.model3d_max_preview_mb` | `int` | #689 preview budgets, deliberately separate from the 50MB upload cap:
+a 50MB binary STL is ~million-triangle class an... |
+| `upload.model3d_max_triangles` | `int` | Model3DMaxTriangles |
 | `upload.sheet_music_extensions` | `[]string` | SheetMusicExtensions |
 | `upload.video_gallery_max_items` | `int` | VideoGalleryMaxItems |
 | `upload.video_gallery_min_items` | `int` | VideoGalleryMinItems |

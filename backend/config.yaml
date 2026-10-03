@@ -95,6 +95,9 @@ features:
   # docs/working/2026-09-18-sp24-r1-rerank-default.md.
   rag_query_expansion_enabled: false
   rag_rerank_enabled: true
+  # #729 匿名公开端点细档限流层（默认关，实例 override 灰度开启）；
+  # 同时受 rate_limit.enabled 总开关联动关闭。
+  guest_rate_limit_enabled: false
 
 rag:
   chunking:
@@ -337,8 +340,10 @@ recommendation:
   refresh_interval_h: 2
 
 publish:
-  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
-  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
+  # #690：3d_print 试点品类追加（注册表纯数据路径；位于 other 之前与
+  # 声明序一致，other 保持收尾）。
+  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "3d_print", "other"]
+  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "3d_print", "other"]
 
 # Content-type registry (#687): dual-axis single source of truth. This
 # explicit section mirrors the shipped baseline (config/content_registry.go
@@ -383,13 +388,23 @@ content_registry:
     - key: template
       zones: [original]
       form: file
-      upload_file_types: [text, document]
+      upload_file_types: [text, document, model3d]
       judge_eligible: true
     - key: sheet_music
       zones: [original, fanwork]
       form: file
       upload_file_types: [sheet_music]
       judge_eligible: true
+    # #690 试点品类：注册表纯数据路径新增的第一个 content_type——
+    # attachment_policy 引擎已随 #688 落地，本行仅配置启用（产品裁决：
+    # 3D 打印内容必须至少含一个 3D 文件，纯说明文档帖不属于该品类）。
+    - key: 3d_print
+      zones: [original, fanwork]
+      form: file
+      upload_file_types: [model3d, text]
+      judge_eligible: true
+      attachment_policy:
+        required_any_of: [model3d]
     - key: other
       zones: [original, fanwork]
       form: text
@@ -424,6 +439,10 @@ content_registry:
       extensions: [".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"]
       max_mb_key: audio_max_mb
       scannable: true
+    - key: model3d
+      extensions: [".stl", ".obj", ".3mf", ".gcode", ".ply", ".mtl"]
+      max_mb_key: model3d_max_mb
+      scannable: true
 
 upload:
   # #688 v2.2：内容 grant TTL 独立（> presign PUT 15min；旧值借用 feedback 300s
@@ -432,6 +451,11 @@ upload:
   # #688 v2.2：文档浏览器预览预算（压缩体积；ExcelJS/Mammoth 解析期内存是
   # 约束，虚拟滚动不解决）；超限优雅降级为下载卡。
   document_preview_max_mb: 10
+  # #689：3D 预览预算与 50MB 上传上限分离（50MB 二进制 STL ≈ 百万面级
+  # 不应无条件渲染；GCode 为同步解析按行数约束）。
+  model3d_max_preview_mb: 15
+  model3d_max_triangles: 1000000
+  gcode_max_lines: 500000
   sheet_music_extensions:
     - ".mid"
     - ".midi"
@@ -555,6 +579,17 @@ agent:
   # 指令边界标记）、模型输出图片 URL 白名单（域外换占位）、会话级预算
   # （工具调用总数 + 允许跑工具的轮数硬顶；0 = 不限）。第五件写确认门在
   # MCP docserver 的 draft_apply_edit 二段式确认里（见 internal/mcpdocserver）。
+  # FT-7（#630）：追问侧调用稳定化——总开关（关闭 = 完全跳过投机侧调用，
+  # 无额外 LLM 成本、无 follow_ups trace 事件）；join 预算从 4s 放宽到 8s
+  # 并 config 化（#630 取证：M3 思考型侧调用 4s 内 4/8 失败）。
+  follow_ups:
+    enabled: true
+    budget_sec: 8
+  # FT-6（#698）：裸英文推理前缀窄域守卫——grounded 轮 + 首 CJK 前有完整
+  # 英文句 + 其后仍有中文正文，三重全满足才剥离英文前缀；命中记 trace
+  # answer_bare_reasoning_guard 事件（可观测先行）。关闭即直通。
+  answer_bare_reasoning_guard:
+    enabled: true
   guardrails:
     fence_external_tool_results: true
     image_url_allow_hosts: []     # 留空 = 仅平台 OSS 签名域放行
@@ -624,6 +659,12 @@ rate_limit:
   max_query_chars: 120
   max_search_limit: 50
   max_search_page: 100
+  # #729 匿名细档令牌桶（guest_rate_limit_enabled 开启后生效）：八条公开读
+  # 端点按稳定路由档位名分桶（如 contents_detail），阈值缺省走代码内置保守档
+  # （列表族 40 突发/20 每分钟回补，其余 20/10）；豁免名单支持精确 IP 与 CIDR。
+  # guest_buckets:
+  #   contents_detail: { capacity: 40, refill_per_minute: 20 }
+  # guest_exempt_ips: []
 
 cache:
   content_list_ttl: 300

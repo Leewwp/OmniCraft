@@ -154,7 +154,7 @@ export default function JudgeExamPage() {
                   setContentType(ct.value);
                   void loadQuestions(ct.value);
                 }}
-                className={`rounded-md border px-4 py-3 text-sm transition-all focus-visible:ring-2 focus-visible:ring-accent ${
+                className={`rounded-md border px-4 py-3 text-sm transition-all focus-visible:ring-1 focus-visible:ring-ring ${
                   isInteractionBlocked || loading
                     ? "border-border bg-background opacity-50 cursor-not-allowed"
                     : "border-border bg-background text-foreground hover:bg-muted cursor-pointer"

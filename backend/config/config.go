@@ -303,6 +303,10 @@ type FeaturesConfig struct {
 	// upgrades; defaults stay off until A-04 ablation decides them.
 	RAGQueryExpansionEnabled bool `mapstructure:"rag_query_expansion_enabled" json:"rag_query_expansion_enabled"`
 	RAGRerankEnabled         bool `mapstructure:"rag_rerank_enabled" json:"rag_rerank_enabled"`
+	// GuestRateLimitEnabled (#729) gates the per-endpoint anonymous token
+	// bucket layer; off by default (gray-release via instance override) and
+	// additionally subordinate to rate_limit.enabled.
+	GuestRateLimitEnabled bool `mapstructure:"guest_rate_limit_enabled" json:"guest_rate_limit_enabled"`
 }
 
 type RAGConfig struct {
@@ -546,6 +550,12 @@ type UploadConfig struct {
 	// ExcelJS/Mammoth parse memory is the binding constraint, not DOM count.
 	// Zero → 10MB default; over budget the viewer degrades to download-only.
 	DocumentPreviewMaxMB int `mapstructure:"document_preview_max_mb" json:"document_preview_max_mb"`
+	// #689 preview budgets, deliberately separate from the 50MB upload cap:
+	// a 50MB binary STL is ~million-triangle class and must not render
+	// unconditionally. gcode parsing is synchronous — line count bounds it.
+	Model3DMaxPreviewMB int `mapstructure:"model3d_max_preview_mb" json:"model3d_max_preview_mb"`
+	Model3DMaxTriangles int `mapstructure:"model3d_max_triangles" json:"model3d_max_triangles"`
+	GCodeMaxLines       int `mapstructure:"gcode_max_lines" json:"gcode_max_lines"`
 	// Media set (media gallery) size bounds for newly published image/video
 	// content. Zero means "use the specification default" so tests and
 	// minimal configs keep working.
@@ -562,6 +572,24 @@ func (u UploadConfig) EffectiveDocumentPreviewMaxMB() int {
 		return 10
 	}
 	return u.DocumentPreviewMaxMB
+}
+
+// EffectiveModel3DPreviewBuckets returns the #689 preview budgets with
+// defaults (15MB / 1,000,000 triangles / 500,000 gcode lines).
+func (u UploadConfig) EffectiveModel3DPreviewBuckets() (previewMB, maxTriangles, gcodeMaxLines int) {
+	previewMB = u.Model3DMaxPreviewMB
+	if previewMB <= 0 {
+		previewMB = 15
+	}
+	maxTriangles = u.Model3DMaxTriangles
+	if maxTriangles <= 0 {
+		maxTriangles = 1_000_000
+	}
+	gcodeMaxLines = u.GCodeMaxLines
+	if gcodeMaxLines <= 0 {
+		gcodeMaxLines = 500_000
+	}
+	return
 }
 
 // PresignPUTTTLSec is the OSS presign PUT URL lifetime (oss_service.go) that
@@ -680,6 +708,18 @@ type AgentConfig struct {
 	// server-side: untrusted-tool-result fencing, image-URL domain
 	// allowlist, and the conversation-level budgets.
 	Guardrails AgentGuardrailsConfig `mapstructure:"guardrails" json:"guardrails"`
+	// FollowUps drives the SP-15 B (#435) speculative follow-up side call;
+	// FT-7 (#630) makes the master switch and the join budget explicit —
+	// enabled=false skips the side call entirely (no speculative LLM call,
+	// no follow_ups trace events), budget_sec bounds how long the done
+	// assembly waits for the in-flight result (factory 8s; <=0 falls back
+	// to 8s so an unconfigured host cannot regress to the old 4s squeeze).
+	FollowUps AgentFollowUpsConfig `mapstructure:"follow_ups" json:"follow_ups"`
+	// AnswerBareReasoningGuard gates the FT-6 (#698) narrow strip of
+	// bare-English reasoning prefixes on grounded turns (M3 with thinking
+	// disabled can emit reasoning as body text with no tags at all).
+	// Zero value = off (explicit opt-in via config.yaml factory default).
+	AnswerBareReasoningGuard AgentAnswerBareReasoningGuardConfig `mapstructure:"answer_bare_reasoning_guard" json:"answer_bare_reasoning_guard"`
 	// MCP drives the external-tool bridge (SP-23 M3, #568): configured
 	// servers are exposed to the agent as mcp_<server>_<tool> tools over
 	// stdio subprocess transports. Default off (gray rollout per server).
@@ -690,6 +730,21 @@ type AgentConfig struct {
 	// per-conversation generation budget. enabled=false or a missing
 	// AGENT_IMAGE_API_KEY keeps the tool out of the model's tool list.
 	Image AgentImageConfig `mapstructure:"image" json:"image"`
+}
+
+// AgentFollowUpsConfig is the FT-7 (#630) follow-up stability pair: master
+// switch + join budget.
+type AgentFollowUpsConfig struct {
+	Enabled   bool `mapstructure:"enabled" json:"enabled"`
+	BudgetSec int  `mapstructure:"budget_sec" json:"budget_sec"`
+}
+
+// AgentAnswerBareReasoningGuardConfig is the FT-6 (#698) switch: enabled
+// strips a leaked bare-English reasoning prefix on grounded turns whose body
+// afterwards still contains Chinese text (triple condition, see
+// agent_answer_guard.go); disabled passes everything through unchanged.
+type AgentAnswerBareReasoningGuardConfig struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
 }
 
 // AgentGuardrailsConfig holds every M4 limit (config-driven, Key Rule 6).
@@ -877,6 +932,54 @@ type RateLimitConfig struct {
 	MaxQueryChars        int   `mapstructure:"max_query_chars" json:"max_query_chars"`
 	MaxSearchLimit       int   `mapstructure:"max_search_limit" json:"max_search_limit"`
 	MaxSearchPage        int   `mapstructure:"max_search_page" json:"max_search_page"`
+	// #729 anonymous per-endpoint guest layer: tier→bucket overrides and the
+	// new-layer exemption list. Zero/absent = code-side conservative defaults
+	// (DefaultGuestBuckets) / no exemptions. Keys are stable route-template
+	// tier names (contents_detail etc.), never resource IDs or query strings.
+	GuestBuckets   map[string]GuestBucketConfig `mapstructure:"guest_buckets" json:"guest_buckets"`
+	GuestExemptIPs []string                     `mapstructure:"guest_exempt_ips" json:"guest_exempt_ips"`
+}
+
+// GuestBucketConfig is one #729 token-bucket tier: burst capacity plus
+// sustained refill in tokens per minute.
+type GuestBucketConfig struct {
+	Capacity        int     `mapstructure:"capacity" json:"capacity"`
+	RefillPerMinute float64 `mapstructure:"refill_per_minute" json:"refill_per_minute"`
+}
+
+// DefaultGuestBuckets are the code-side conservative #729 tiers for the eight
+// first-round anonymous read endpoints (normal browsing incl. SPA prefetch
+// stays far below; the layer caps on top of the 300/min global window).
+// Instance overrides via rate_limit.guest_buckets replace whole tiers only.
+var DefaultGuestBuckets = map[string]GuestBucketConfig{
+	"contents_list":     {Capacity: 40, RefillPerMinute: 20},
+	"contents_detail":   {Capacity: 40, RefillPerMinute: 20},
+	"contents_versions": {Capacity: 20, RefillPerMinute: 10},
+	"users_detail":      {Capacity: 20, RefillPerMinute: 10},
+	"ips_list":          {Capacity: 40, RefillPerMinute: 20},
+	"stats_summary":     {Capacity: 20, RefillPerMinute: 10},
+	"categories_list":   {Capacity: 40, RefillPerMinute: 20},
+	"tags_faceted":      {Capacity: 20, RefillPerMinute: 10},
+}
+
+// GuestBucketFor resolves a tier spec: a valid config override wins, else the
+// code default; ok=false for unknown tiers so the caller skips the limiter
+// instead of inventing a bucket.
+func (r RateLimitConfig) GuestBucketFor(tier string) (GuestBucketConfig, bool) {
+	if r.GuestBuckets != nil {
+		if spec, ok := r.GuestBuckets[tier]; ok {
+			if spec.Capacity > 0 && spec.RefillPerMinute > 0 {
+				return spec, true
+			}
+			// Invalid override (e.g. a zeroed field): fall back to the code
+			// default loudly so a gray-release typo cannot silently downgrade
+			// a tier to defaults.
+			slog.Warn("guest bucket override invalid, using default tier", "tier", tier,
+				"capacity", spec.Capacity, "refill_per_minute", spec.RefillPerMinute)
+		}
+	}
+	spec, ok := DefaultGuestBuckets[tier]
+	return spec, ok
 }
 
 type RecommendationConfig struct {

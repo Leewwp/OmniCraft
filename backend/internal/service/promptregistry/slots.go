@@ -21,6 +21,21 @@ type PromptSlot struct {
 	Description          string
 	Builtin              string
 	RequiredPlaceholders []string
+	// Fallback overrides Builtin as the no-registry / unreachable fallback
+	// template (#754 D). Empty = Builtin. The agent_system slot keeps its
+	// v1 corpus as Builtin (v2+ upgrades must stay prefix-extensions of it
+	// and SeedV1 keeps inserting the historical v1), while a registry-less
+	// runtime still gets corrected tool instructions.
+	Fallback string
+}
+
+// fallbackTemplate returns the template served when the registry is absent
+// or unreachable.
+func (s PromptSlot) fallbackTemplate() string {
+	if s.Fallback != "" {
+		return s.Fallback
+	}
+	return s.Builtin
 }
 
 // Render substitutes {{key}} tokens with values. Unknown tokens are left
@@ -135,6 +150,104 @@ func agentSystemV2() string {
 	return agentSystemBuiltin() + "; " + agentSystemV2Extra
 }
 
+// agentSystemV3Citation replaces the v1 per-search positional citation
+// instruction (FT-5 #697). Live evidence (2026-09-28 DB forensics) showed
+// the structural misalignment: the model numbered [n] by the local position
+// within one search call's output while the emitted citation pool
+// accumulates across every call of the turn — in a two-search_ips turn the
+// model's [2] (second call, local #1) landed on the pool's position 2 (first
+// call, second result), so the badge jumped to the wrong card. v3 points the
+// model at the turn-global "cite" number the server stamps next to every
+// result in the tool output.
+const agentSystemV3Citation = "when your answer relies on retrieved results, mark the sentence end with 1-based citation indexes like [1] or [2], where n is the global cite number printed next to each result in this turn's tool outputs (cite numbers accumulate across all search calls of the same turn; a result shown without a cite number cannot be cited); only cite results you actually used and keep the total number of distinct marks small"
+
+// agentSystemV3 is the FT-5 upgrade of agent_system: the v2 corpus with the
+// citation instruction swapped for the turn-global numbering clause (and
+// nothing else — the no-reasoning clause belongs to v4, retrieval-first to a
+// possible v5). v1/v2 stay byte-identical so the registry diff and rollback
+// chain keep working.
+func agentSystemV3() string {
+	corpus := append([]string(nil), agentSystemInstructions...)
+	corpus[0] = agentSystemV3Citation // index 0 = the A-06 citation clause above
+	return "[OmniCraft Agent Context] {{surface_context}}; " + strings.Join(corpus, "; ") + "; " + agentSystemV2Extra
+}
+
+// agentSystemV4NoReasoning is the single instruction v4 appends to the v3
+// corpus (FT-6 #698). Live evidence (trace f47a985e, 2026-09-28): with
+// thinking disabled M3 sometimes emits its reasoning as the answer body
+// itself — a bare English "The user is asking about…" run followed by the
+// Chinese answer, no think tags for the splitter to strip. v4 tells the
+// model the body must be the final answer only; the narrow server-side
+// guard (agent_answer_guard.go) is the belt-and-braces backstop.
+const agentSystemV4NoReasoning = "never include your reasoning, thinking process, or chain of thought in the answer body; compose the final answer directly in the user's language — the body must contain only the answer itself, never the steps you took to reach it"
+
+// agentSystemV4 is the FT-6 upgrade of agent_system: the v3 corpus plus the
+// no-reasoning-in-body clause and nothing else. v1–v3 stay byte-identical so
+// the registry diff and rollback chain keep working.
+func agentSystemV4() string {
+	return agentSystemV3() + "; " + agentSystemV4NoReasoning
+}
+
+// agentSystemV5RetrievalFirst is the single instruction v5 appends to the v4
+// corpus (FT-7 #629, diagnosis-driven). Demo-site trace forensics (three
+// 2026-09-20 turns, e.g. 1cd24f5f): idea/planning questions about site
+// content or IPs — 「帮我想一个系列」「怎么融合这两个主题」 — were answered
+// from imagination with zero tool calls, so the strict citation gate cleared
+// every answer to no_evidence. The existing must-search clause lists
+// find/search/recommend/compare/summarize but not ideation; v5 closes that
+// gap. Pure general brainstorming unrelated to site content stays exempt
+// (short conversational lane), as does image ideation (v2 exemption).
+const agentSystemV5RetrievalFirst = "when the user asks for ideas, suggestions, plans, series, or creative concepts about site content or IPs (for example 「帮我想一个系列」 or 「怎么融合这两个主题」), you must call the search tool first with the relevant topics and ground the suggestions in what actually exists on the site; never answer such requests purely from imagination, because an ungrounded long answer is cleared as no evidence"
+
+// agentSystemV5 is the FT-7 upgrade of agent_system: the v4 corpus plus the
+// retrieval-first clause and nothing else. v1–v4 stay byte-identical so the
+// registry diff and rollback chain keep working.
+func agentSystemV5() string {
+	return agentSystemV4() + "; " + agentSystemV5RetrievalFirst
+}
+
+// #754 D：v6 勘正两处幽灵工具名 cited_search（v1 corpus 的 must-search 条款
+// 与 SP-15 A2 关键词条款），并追加 search_ips 显式浏览指导（sort=newest /
+// most_contents + 空 query；热门诉求按内容量近似披露依据，不伪造榜单）。
+// v1–v5 逐字节不动；v6 以 corpus 索引替换方式组装，保持 v3 以来的拼装形态。
+const agentSystemV6MustSearch = "for any request to find, search, recommend, compare or summarize site content, you must call search_content first — search_ips for IP (original settings/worlds) requests — and ground the answer only in their results; never recommend or describe site content or IPs from your own knowledge"
+
+const agentSystemV6KeywordFirst = "when the user's message contains a concrete title, quote, character name, or keyword that could exist on the site, always call search_content (or search_ips for IP requests) with it before replying, even if the intent seems ambiguous; for example, a message that is just a title like 「星轨下的制琴师」or 'A Quiet Ledger of Small Storms' is a search request: search that exact text first, then answer from the results, and only say you found nothing usable if the search comes back empty; only for pure greetings, thanks, farewells, or a message with no searchable text at all (for example garbled characters), reply briefly without any tool and without citation marks — one or two sentences in the user's language, either a greeting back or one clarifying question about what site content they need"
+
+const agentSystemV6Browse = "for browse or listing requests without a specific keyword (for example 「最近热门的 ip」 or 「有哪些新的 IP」), call search_ips with sort=newest or sort=most_contents and an empty query, optionally with a category filter, instead of guessing a keyword; when the user asks for hot, trending, or recent items, describe the actual ordering basis honestly — most_contents orders by published-content count as an activity approximation, newest by creation time; there is no real-time popularity score or time-window ranking, so never fabricate entries, rankings, or recency"
+
+// agentSystemV6 assembles the #754 D upgrade of agent_system: the v5 corpus
+// with the two cited_search clauses swapped for corrected tool names, plus
+// the explicit-browse guidance appended. v1–v5 stay byte-identical so the
+// registry diff and rollback chain keep working.
+func agentSystemV6() string {
+	corpus := append([]string(nil), agentSystemInstructions...)
+	corpus[0] = agentSystemV3Citation   // index 0 = v3 citation swap (kept)
+	corpus[1] = agentSystemV6MustSearch // index 1 = must-search ghost fix
+	corpus[4] = agentSystemV6KeywordFirst
+	return "[OmniCraft Agent Context] {{surface_context}}; " + strings.Join(corpus, "; ") + "; " + agentSystemV2Extra + "; " + agentSystemV4NoReasoning + "; " + agentSystemV5RetrievalFirst + "; " + agentSystemV6Browse
+}
+
+// usageGuideV2LanguageClause is the single instruction v2 appends to the v1
+// usage-guide corpus (#723): the guide's output language follows the
+// requester's locale. Before v2 the language was implicit (English prompt,
+// unspecified output); the panel surfaced whatever the model chose.
+const usageGuideV2LanguageClause = "Write the entire guide in {{language}}."
+
+// usageGuideV2 is the #723 upgrade of usage_guide_prompt: the v1 corpus plus
+// the output-language clause and nothing else. v1 stays byte-identical so the
+// registry diff and rollback chain keep working.
+func usageGuideV2() string {
+	return `Generate a concise usage guide for this content:
+Title: {{title}}
+Type: {{content_type}}
+Description: {{description}}
+
+Focus on: {{guide_focus}}
+` + usageGuideV2LanguageClause + `
+Format as Markdown.`
+}
+
 // Slots is the full, ordered inventory of prompt sites (user decision
 // 2026-09-16: ALL slots enter the registry, not only high-traffic ones).
 // v1 of every slot is byte-identical to the pre-registry hardcoded prompt;
@@ -144,6 +257,10 @@ var (
 		Name:        "agent_system",
 		Description: "主 Agent 系统提示词（surface 上下文前缀 + 检索/引用/会话车道指令；IP 类目子句由 config 追加，不入模板）",
 		Builtin:     agentSystemBuiltin(),
+		// #754 D：无 registry / 读取失败时的 fallback 服务 v6（勘正工具名
+		// + 浏览指导）；Builtin 仍为 v1 corpus（v2+ 升级的前缀不变量与
+		// SeedV1 的历史 v1 种子均不动）。
+		Fallback: agentSystemV6(),
 		RequiredPlaceholders: []string{
 			"surface_context",
 		},
@@ -170,15 +287,12 @@ Respond ONLY with valid JSON: {"risk_level":"safe|warning|violation","reason":""
 	}
 	SlotUsageGuide = PromptSlot{
 		Name:        "usage_guide_prompt",
-		Description: "内容使用指南生成（Markdown 输出）",
-		Builtin: `Generate a concise usage guide for this content:
-Title: {{title}}
-Type: {{content_type}}
-Description: {{description}}
-
-Focus on: {{guide_focus}}
-Format as Markdown.`,
-		RequiredPlaceholders: []string{"content_type", "description", "guide_focus", "title"},
+		Description: "内容使用指南生成（Markdown 输出；v2 起输出语言跟随 locale）",
+		// #723：Builtin 即 v2 内容（存量库 v1 行不可变，经 RegistryUpgrades
+		// 升版；新库 SeedV1 直接落该内容）——保持「builtin 满足自身契约」
+		// 不变量（TestSlotsValidAndUnique）。
+		Builtin:              usageGuideV2(),
+		RequiredPlaceholders: []string{"content_type", "description", "guide_focus", "language", "title"},
 	}
 	SlotContentModeration = PromptSlot{
 		Name:        "content_moderation_prompt",

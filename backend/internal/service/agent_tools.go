@@ -55,6 +55,13 @@ const (
 	defaultMaxToolQueryLength = 200
 	// defaultMaxToolResultCount bounds the number of search results returned.
 	defaultMaxToolResultCount = 10
+
+	// #754 A：search_ips 显式浏览排序口径（与 IPBrowseClient/列表端点共享
+	// 词表）。newest = created_at DESC；most_contents = 已发布内容量 DESC——
+	// 作为「热门」诉求的活跃度近似，回答须披露依据；真正热度分数/时间窗
+	// 榜单不在工具契约内。
+	IPBrowseSortNewest       = "newest"
+	IPBrowseSortMostContents = "most_contents"
 )
 
 // AgentPublishSnapshot is the typed, length-bounded publish-form snapshot that
@@ -76,6 +83,9 @@ type AgentContentSummary struct {
 	Zone        string `json:"zone"`
 	ContentType string `json:"content_type"`
 	Excerpt     string `json:"excerpt,omitempty"`
+	// Cite is the turn-global citation number printed next to this result
+	// in the tool output (FT-5 #697); 0 = not citable this turn.
+	Cite int `json:"cite,omitempty"`
 }
 
 // AgentIPSummary is the compact, server-owned IP summary returned by
@@ -86,6 +96,9 @@ type AgentIPSummary struct {
 	Slug        string `json:"slug,omitempty"`
 	Category    string `json:"category,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Cite is the turn-global citation number printed next to this result
+	// in the tool output (FT-5 #697); 0 = not citable this turn.
+	Cite int `json:"cite,omitempty"`
 }
 
 // AgentToolOutcome carries one tool execution result. Only the matching field
@@ -189,17 +202,20 @@ func (s *AgentService) baseToolDefinitions() []llm.ToolDefinition {
 		},
 		{
 			Name:        ToolSearchIPs,
-			Description: "Search approved public IPs (original settings/worlds) by keyword, optionally filtered by category. Returns compact IP summaries.",
+			Description: "Search approved public IPs (original settings/worlds) by keyword, or explicitly browse/list them: pass query for a self-contained keyword search (optionally with category), or pass sort=newest|most_contents with an empty query for an explicit browse (most_contents orders by published-content count — the closest available approximation of popularity). Returns compact IP summaries.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"query": map[string]interface{}{"type": "string", "description": "self-contained keyword query matched against IP name and description"},
+					"query": map[string]interface{}{"type": "string", "description": "self-contained keyword query matched against IP name and description; required unless sort is used for an explicit browse"},
 					"category": map[string]interface{}{
 						"type":        "string",
 						"description": "optional IP category slug; only these values are valid: " + s.ipCategorySlugList(),
 					},
+					"sort": map[string]interface{}{
+						"type":        "string",
+						"description": "optional explicit browse ordering: newest (creation time, newest first) or most_contents (most published content first); when set, query must be empty",
+					},
 				},
-				"required": []string{"query"},
 			},
 		},
 		{
@@ -268,13 +284,14 @@ func (s *AgentService) resolveVisibleContent(ctx context.Context, viewerID, cont
 
 // agentToolScope carries the per-turn execution context into tool handlers:
 // viewer identity, the conversation for budget-scoped tools, the live-turn
-// image count (the durable #538 rows only land at end of turn), and the
-// typed publish snapshot.
+// image count (the durable #538 rows only land at end of turn), the typed
+// publish snapshot, and the #723 requester locale.
 type agentToolScope struct {
 	ViewerID       int64
 	ConversationID int64
 	TurnImages     int
 	Snapshot       *AgentPublishSnapshot
+	Locale         string
 }
 
 type agentToolHandler func(context.Context, json.RawMessage, agentToolScope) (*AgentToolOutcome, error)
@@ -292,7 +309,7 @@ func (s *AgentService) toolRegistry() map[string]agentToolHandler {
 			return s.toolGetContentDetail(ctx, args, scope.ViewerID)
 		},
 		ToolGetUsageGuide: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
-			return s.toolGetUsageGuide(ctx, args, scope.ViewerID)
+			return s.toolGetUsageGuide(ctx, args, scope.ViewerID, scope.Locale)
 		},
 		ToolSuggestPublishMetadata: func(ctx context.Context, args json.RawMessage, scope agentToolScope) (*AgentToolOutcome, error) {
 			return s.toolSuggestPublishMetadata(ctx, args, scope.Snapshot)
@@ -439,9 +456,20 @@ func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMe
 	return &AgentToolOutcome{Search: summaries, QueryTruncated: truncated}, nil
 }
 
+// searchIPsToolArgs models the search_ips tool contract (#754 A): query is
+// the keyword lane, sort opens the explicit-browse lane. Sort uses a pointer
+// so an explicitly supplied empty/whitespace string ("sort":"") is rejected
+// instead of silently degrading to the keyword lane.
 type searchIPsToolArgs struct {
-	Query    string `json:"query"`
-	Category string `json:"category"`
+	Query    string  `json:"query"`
+	Category string  `json:"category"`
+	Sort     *string `json:"sort"`
+}
+
+// validIPBrowseSort reports whether a trimmed sort value is one of the two
+// browse orderings the tool contract admits.
+func validIPBrowseSort(sort string) bool {
+	return sort == IPBrowseSortNewest || sort == IPBrowseSortMostContents
 }
 
 // ipCategorySlugList renders the config allowlist for the tool schema so the
@@ -455,38 +483,69 @@ func (s *AgentService) ipCategorySlugList() string {
 }
 
 // toolSearchIPs resolves approved public IPs through the keyword search seam
-// (tsvector + ILIKE fallback). Category filters are validated against the
-// config allowlist before any query runs; results are rebuilt as server-owned
-// summaries, never from model output.
+// (tsvector + ILIKE fallback) or, when the model passes an explicit sort with
+// no query (#754 A), through the approved-IP browse seam (newest /
+// most_contents). Category filters are validated against the config allowlist
+// before any query runs; results are rebuilt as server-owned summaries, never
+// from model output.
 func (s *AgentService) toolSearchIPs(ctx context.Context, rawArgs json.RawMessage) (*AgentToolOutcome, error) {
 	var args searchIPsToolArgs
 	if err := decodeToolArgs(rawArgs, &args); err != nil {
 		return nil, err
 	}
 	query := strings.TrimSpace(args.Query)
-	if query == "" || len([]rune(query)) > defaultMaxToolQueryLength {
+	category := strings.TrimSpace(args.Category)
+	/* #754 A 参数合同：sort 显式给出时必须是合法浏览口径且 query 为空
+	（不静默丢弃关键词或排序）；query 与 sort 至少其一，非法组合一律
+	 invalid_args——空 query 不悄悄变成全库浏览。 */
+	browseSort := ""
+	if args.Sort != nil {
+		browseSort = strings.TrimSpace(*args.Sort)
+		if !validIPBrowseSort(browseSort) {
+			return nil, ErrAgentToolInvalidArgs
+		}
+		if query != "" {
+			return nil, ErrAgentToolInvalidArgs
+		}
+	}
+	if query == "" && browseSort == "" {
 		return nil, ErrAgentToolInvalidArgs
 	}
-	category := strings.TrimSpace(args.Category)
+	if query != "" && len([]rune(query)) > defaultMaxToolQueryLength {
+		return nil, ErrAgentToolInvalidArgs
+	}
 	if category != "" && !s.ipCategoryAllowed(category) {
 		return nil, ErrAgentToolInvalidArgs
 	}
-	if s.ipSearch == nil {
-		return nil, errors.New("ip search unavailable")
-	}
-	limit := s.ipSearchLimit()
-	ips, err := s.ipSearch(ctx, query, category, limit)
-	if err != nil {
-		return nil, err
-	}
-	// 分类推荐场景（「推荐几个游戏类的 IP」）模型自然给 query=「游戏」这类
-	// 泛词，而全文检索只匹配具体 IP 名/简介，会空手而归。命中 0 且带分类
-	// 过滤时回退为纯分类浏览（与 REST GET /ips 的空 q + category 形态一致），
-	// 只重试一次、不吞错误。
-	if len(ips) == 0 && category != "" {
-		ips, err = s.ipSearch(ctx, "", category, limit)
+	var ips []model.IP
+	if browseSort != "" {
+		if s.ipBrowse == nil {
+			return nil, errors.New("ip browse unavailable")
+		}
+		var err error
+		ips, err = s.ipBrowse(ctx, browseSort, category, s.ipSearchLimit())
 		if err != nil {
 			return nil, err
+		}
+	} else {
+		if s.ipSearch == nil {
+			return nil, errors.New("ip search unavailable")
+		}
+		limit := s.ipSearchLimit()
+		var err error
+		ips, err = s.ipSearch(ctx, query, category, limit)
+		if err != nil {
+			return nil, err
+		}
+		// 分类推荐场景（「推荐几个游戏类的 IP」）模型自然给 query=「游戏」这类
+		// 泛词，而全文检索只匹配具体 IP 名/简介，会空手而归。命中 0 且带分类
+		// 过滤时回退为纯分类浏览（与 REST GET /ips 的空 q + category 形态一致），
+		// 只重试一次、不吞错误。
+		if len(ips) == 0 && category != "" {
+			ips, err = s.ipSearch(ctx, "", category, limit)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	summaries := make([]AgentIPSummary, 0, len(ips))
@@ -659,7 +718,7 @@ func (s *AgentService) toolGetContentDetail(ctx context.Context, rawArgs json.Ra
 	return &AgentToolOutcome{Detail: summary}, nil
 }
 
-func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMessage, viewerID int64) (*AgentToolOutcome, error) {
+func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMessage, viewerID int64, locale string) (*AgentToolOutcome, error) {
 	var args contentIDToolArgs
 	if err := decodeToolArgs(rawArgs, &args); err != nil {
 		return nil, err
@@ -671,8 +730,9 @@ func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMe
 		return nil, err
 	}
 	// Structured-first applies to the in-chat tool too (SP-16 #447):
-	// persisted specifics render without an LLM round-trip.
-	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID, false)
+	// persisted specifics render without an LLM round-trip. Locale comes
+	// from the turn's request context (#723); empty keeps the zh default.
+	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID, false, locale)
 	if err != nil {
 		return nil, err
 	}

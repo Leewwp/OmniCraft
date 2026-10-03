@@ -50,7 +50,7 @@ Object.defineProperty(globalThis, "cancelAnimationFrame", {
 // Load testing-library after the DOM globals exist so React attaches event handling to JSDOM.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const testingLibrary = require("@testing-library/react") as typeof import("@testing-library/react");
-export const { act, cleanup, fireEvent, render, waitFor, within } = testingLibrary;
+export const { act, cleanup, configure, fireEvent, render, waitFor, within } = testingLibrary;
 
 export const testMessages = {
   markdown: {
@@ -154,6 +154,7 @@ export const testMessages = {
       position: "{current} / {total}",
       previous: "Previous media",
       next: "Next media",
+      viewFullImage: "View full image",
       imageAlt: "Media {current} of {total}",
       error: {
         loadFailed: "Failed to load media",

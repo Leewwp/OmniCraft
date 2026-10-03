@@ -21,6 +21,8 @@ export interface AgentCitation {
   source?: "bm25" | "vector" | "hybrid_rrf";
   /** zone="ip" 时的分类 slug（11 类词表单源），卡片渲染分类徽标。 */
   category?: string;
+  /** 轮内全局引用编号（FT-5 #697）：与正文 [n] 角标同一体系；缺席回退位置序。 */
+  number?: number;
 }
 
 export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
@@ -34,6 +36,7 @@ export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
   if (citation.route !== undefined) normalized.route = citation.route;
   if (citation.source !== undefined) normalized.source = citation.source;
   if (citation.category !== undefined) normalized.category = citation.category;
+  if (citation.number !== undefined) normalized.number = citation.number;
   return normalized;
 }
 
@@ -86,6 +89,11 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
       if (typeof category !== "string") return null;
       if (category.trim() !== "") normalized.category = category;
     }
+    const number = candidate.number;
+    if (number !== undefined) {
+      if (typeof number !== "number" || !Number.isInteger(number) || number <= 0) return null;
+      normalized.number = number;
+    }
     return normalized;
   }
   const normalized: AgentStreamCitation = {
@@ -133,6 +141,11 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
   if (hasExpandedFields && (typeof excerpt !== "string" || excerpt.trim() === "")) return null;
   if (typeof excerpt === "string" && excerpt.trim() !== "") {
     normalized.excerpt = excerpt;
+  }
+  const number = candidate.number;
+  if (number !== undefined) {
+    if (typeof number !== "number" || !Number.isInteger(number) || number <= 0) return null;
+    normalized.number = number;
   }
   return normalized;
 }
@@ -273,7 +286,7 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
       if (typeof errorCode === "string" && errorCode !== "") event.error_code = errorCode;
       const errorMessage = candidate.error_message;
       if (typeof errorMessage === "string" && errorMessage !== "") event.error_message = errorMessage;
-      if (candidate.degraded === true && candidate.degraded_reason === "provider_error") {
+      if (isProviderDegradation(candidate)) {
         event.degraded = true;
         event.degraded_reason = "provider_error";
       }
@@ -282,4 +295,45 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
     default:
       return null;
   }
+}
+
+/** provider 降级判定——error 事件的 `degraded === true && degraded_reason
+ *  === "provider_error"` 收口为全仓唯一真源（#684 B+ 裁决：条件单真源、触发
+ *  时序维持双处）。三处消费方：normalizeAgentEvent 归一化（对 unknown 窄化，
+ *  拒绝 "yes"/1 等脏值）、agent-turn.ts applyError（置回退挂起记录
+ *  terminal.needsKeywordFallback）、AgentWorkspace handleStreamEvent（同 tick
+ *  发起关键词回退，#678 时序契约）。归一化后事件 degraded ∈ {undefined, true}，
+ *  与 truthy 判定行为一致。置于本模块而非 agent-stream.ts：后者运行时依赖
+ *  normalizeAgentEvent，反向引用成环。 */
+export function isProviderDegradation(event: { degraded?: unknown; degraded_reason?: unknown }): boolean {
+  return event.degraded === true && event.degraded_reason === "provider_error";
+}
+
+/**
+ * #719 展示号映射：可见引用列表按当前渲染顺序连续重映射（displayNumber =
+ * 位置 + 1），消除服务端复验剔除留下的编号空洞。单向、纯渲染层——原全局
+ * 编号继续负责目标查找与存储（FT-5 保槽契约不动），turn.answer 原文不改写；
+ * 正文角标、侧栏卡片、复制文本、读屏编号共用同一映射（单一来源）。
+ * 历史旧轮无 number 字段的回退 = 位置序（行为不变）。
+ */
+export function citationDisplayMapOf(citations: readonly { number?: number }[]): Map<number, number> {
+  const map = new Map<number, number>();
+  citations.forEach((citation, position) => {
+    const original = citation.number ?? position + 1;
+    if (!map.has(original)) map.set(original, position + 1);
+  });
+  return map;
+}
+
+/**
+ * #719：复制文本中的 [n] 角标编号经展示号映射替换（屏显/剪贴板一致，
+ * 不出现「屏幕 [6] / 剪贴板 [7]」）。未命中映射的编号原样保留；不改写
+ * 真实链接 [1](url)、引用定义 [1]: 与图片 ![1]（与 withCitationAnchors
+ * 同一边界）。纯函数：返回新串，不改原文。
+ */
+export function remapCitationMarks(text: string, map: Map<number, number>): string {
+  return text.replace(/(?<!!)\[(\d{1,2})\](?![:([])/g, (match, digits: string) => {
+    const display = map.get(Number.parseInt(digits, 10));
+    return display !== undefined ? `[${display}]` : match;
+  });
 }

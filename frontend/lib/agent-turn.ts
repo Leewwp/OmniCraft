@@ -1,4 +1,4 @@
-import { normalizeAgentCitation } from "@/lib/agent";
+import { isProviderDegradation, normalizeAgentCitation } from "@/lib/agent";
 import type { AgentStreamCitation, AgentStreamEvent, AgentStreamTool } from "@/lib/agent-stream";
 
 /**
@@ -25,10 +25,10 @@ export interface AgentTurnTerminal {
   traceId: string | null;
   /** #610 空轮：no_evidence 且零成功工具（零调用或全部失败）。 */
   emptyNoEvidence: boolean;
-  /** provider 降级待关键词回退：applyError 降级分支置位，回退结果落轮
-      （applyKeywordFallbackCitations）清除。回退请求本身由组件从原始 error
-      事件同 tick 发起（#678 时序契约，非读本字段）——本字段目前只是回退
-      挂起的状态记录，仅测试断言消费（双真源收口待 #684 裁决）。 */
+  /** 回退挂起状态记录（#684 B+ 正式定位）：applyError 降级分支置位，回退
+      结果落轮（applyKeywordFallbackCitations）清除。回退请求本身由组件从
+      原始 error 事件同 tick 发起（#678 时序契约，非读本字段）——本字段供
+      测试断言与诊断消费，不是触发真源。 */
   needsKeywordFallback: boolean;
   stopped: boolean;
   error: boolean;
@@ -52,6 +52,9 @@ export interface AgentTurn {
   settled: boolean;
   /** 首轮（发起时会话 id 尚未产生）：done 后活到历史回载替换树；续问轮 done 即 commit。 */
   firstRound: boolean;
+  /** #727：轮发起时间（epoch ms）——「正在思考」占位计时的唯一起点；
+   * 重新生成即新轮新起点，历史回放不消费（占位仅 live 轮渲染）。 */
+  startedAt: number;
   terminal: AgentTurnTerminal;
 }
 
@@ -67,6 +70,7 @@ export function createAgentTurn(
     streaming: true,
     settled: false,
     firstRound: options.firstRound,
+    startedAt: Date.now(),
     terminal: {
       answerKind: null,
       degraded: false,
@@ -81,6 +85,29 @@ export function createAgentTurn(
       errorCode: null,
     },
   };
+}
+
+/**
+ * #727 首个「可见内容」判定（与实际块渲染一致，不能用 segments.length
+ * 替代——空 think segment 不渲染任何东西）：非空白 think 内容、非空
+ * 工具步骤、答案或 moderation 占位任一成立即可见。start/心跳/仅引用
+ * 事件不产生可见内容。
+ */
+export function hasVisibleAssistantContent(turn: AgentTurn): boolean {
+  if (turn.moderationBlocked) return true;
+  if (turn.answer !== "") return true;
+  return turn.segments.some((segment) =>
+    segment.kind === "think" ? segment.content.trim() !== "" : segment.tools.length > 0,
+  );
+}
+
+/**
+ * #727 「正在思考」占位渲染条件：live 流中、尚无可见内容。与
+ * hasVisibleAssistantContent 互斥（首个可见内容同帧移除占位）；终态
+ * （done/error/stop）由 streaming=false 覆盖——空 done 亦移除。
+ */
+export function shouldShowThinkingPlaceholder(turn: AgentTurn, isLive: boolean): boolean {
+  return isLive && turn.streaming && !hasVisibleAssistantContent(turn);
 }
 
 function withTerminal(turn: AgentTurn, patch: Partial<AgentTurnTerminal>): AgentTurn {
@@ -205,10 +232,12 @@ function applyDone(turn: AgentTurn, event: DoneEvent): AgentTurn {
 
 type ErrorEvent = Extract<AgentStreamEvent, { type: "error" }>;
 
-/** error 终局：provider_error 降级撤答（关键词回退请求由调用方副作用发起）；
-    其余错误置错误态（横幅渲染条件 = 错误且无正文，由渲染层判定）。 */
+/** error 终局：provider_error 降级撤答（关键词回退请求由组件从原始 error 事件
+    同 tick 发起，#678 时序契约，#684 B+ 确认不重开；降级判定唯一真源 =
+    lib/agent.ts isProviderDegradation）；其余错误置错误态（横幅渲染条件 =
+    错误且无正文，由渲染层判定）。 */
 function applyError(turn: AgentTurn, event: ErrorEvent): AgentTurn {
-  if (event.degraded && event.degraded_reason === "provider_error") {
+  if (isProviderDegradation(event)) {
     return {
       ...turn,
       streaming: false,

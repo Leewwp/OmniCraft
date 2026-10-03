@@ -250,12 +250,12 @@ export default function AgentConfigPage() {
               <div className="space-y-1">
                 <label className="text-xs font-medium">{t("agentConfig.colName")}</label>
                 <input type="text" value={form.config_name} onChange={(e) => setForm({ ...form, config_name: e.target.value })}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">{t("agentConfig.colProvider")}</label>
                 <select value={form.provider_type} onChange={(e) => setForm({ ...form, provider_type: e.target.value })}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none">
                   <option value="openai_compat">OpenAI Compatible</option>
                   <option value="qwen">Qwen (DashScope)</option>
                   <option value="deepseek">DeepSeek</option>
@@ -264,17 +264,17 @@ export default function AgentConfigPage() {
               <div className="space-y-1">
                 <label className="text-xs font-medium">{t("agentConfig.apiBase")}</label>
                 <input type="text" value={form.api_base} onChange={(e) => setForm({ ...form, api_base: e.target.value })}
-                  placeholder="https://api.deepseek.com" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                  placeholder="https://api.deepseek.com" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">{t("agentConfig.colModel")}</label>
                 <input type="text" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}
-                  placeholder="deepseek-chat" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                  placeholder="deepseek-chat" className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">{t("agentConfig.apiKey")}</label>
                 <input type="password" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-                  placeholder={editingId ? t("agentConfig.apiKeyHint") : ""} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                  placeholder={editingId ? t("agentConfig.apiKeyHint") : ""} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">

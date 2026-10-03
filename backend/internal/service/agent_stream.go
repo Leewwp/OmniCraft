@@ -254,6 +254,15 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		NodeName:         "classify",
 		CompletionDigest: answer,
 	})
+	// FT-6 (#698)：裸英文推理前缀窄域守卫——仅 grounded 轮、首 CJK 前有
+	// 完整英文句、其后仍有中文正文才剥离（三重合取，agent_answer_guard.go）；
+	// 落库与终稿共用此 answer，历史回放不再现泄漏。
+	if s.cfg != nil && s.cfg.Agent.AnswerBareReasoningGuard.Enabled && kind == AgentAnswerGroundedContent {
+		if stripped, prefixRunes := stripBareEnglishReasoningPrefix(answer); prefixRunes > 0 {
+			traceAgentEvent(traceID, "answer_bare_reasoning_guard", "stripped", true, "prefix_runes", prefixRunes)
+			answer = stripped
+		}
+	}
 	// SP-15 B join (#435): only a grounded, non-degraded turn waits for the
 	// speculative follow-up call. A result already sitting in the buffered
 	// channel is taken non-blockingly even when the budget has elapsed; only a
@@ -269,7 +278,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		default:
 		}
 		if !received {
-			remaining := followUpBudget - time.Since(runner.followUpStartedAt)
+			remaining := s.followUpBudgetDuration() - time.Since(runner.followUpStartedAt)
 			if remaining > 0 {
 				timer := time.NewTimer(remaining)
 				select {
@@ -288,8 +297,9 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		traceAgentEvent(traceID, "follow_ups_attached", "count", len(followUps))
 	}
 	// 引用上限之外的 [n] 标注是死引用（前端渲染为不可点角标）：终稿与落库前
-	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。
-	answer = stripOrphanCitationMarkers(answer, len(citations))
+	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。FT-5：保留
+	// 判定按轮内全局编号集合（剔除不压缩），非按数量。
+	answer = stripOrphanCitationMarkers(answer, citationKeptNumbers(citations))
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
 			runner.streamErr = err
@@ -488,9 +498,35 @@ func (s *AgentService) conversationalMaxRunes() int {
 	return s.cfg.Agent.ConversationalMaxRunes
 }
 
-// SP-15 B (#435) follow-up generation constants. followUpBudget is a var so
-// tests can shorten the join window; production reads the 4s spec value.
-var followUpBudget = 4 * time.Second
+// SP-15 B (#435) follow-up generation constants. The join budget is
+// config-driven since FT-7 (#630): agent.follow_ups.budget_sec with an 8s
+// floor (the old 4s squeeze failed 4/8 live side calls on M3).
+const followUpDefaultBudget = 8 * time.Second
+
+// followUpBudgetOverride lets tests shorten the join window below the
+// one-second config granularity (the #435 suite asserts sub-second joins).
+var followUpBudgetOverride time.Duration
+
+// followUpBudgetDuration resolves the join budget: test override first, then
+// config (agent.follow_ups.budget_sec), nil cfg or non-positive falling back
+// to the 8s floor.
+func (s *AgentService) followUpBudgetDuration() time.Duration {
+	if followUpBudgetOverride > 0 {
+		return followUpBudgetOverride
+	}
+	if s.cfg == nil || s.cfg.Agent.FollowUps.BudgetSec <= 0 {
+		return followUpDefaultBudget
+	}
+	return time.Duration(s.cfg.Agent.FollowUps.BudgetSec) * time.Second
+}
+
+// followUpsEnabled gates the speculative side call entirely (FT-7 #630):
+// disabled = no side LLM call, no follow_ups trace events, done carries no
+// follow-ups. Nil cfg keeps the pre-switch behavior (test seams without
+// config).
+func (s *AgentService) followUpsEnabled() bool {
+	return s.cfg == nil || s.cfg.Agent.FollowUps.Enabled
+}
 
 const (
 	followUpMaxCount = 3
@@ -536,7 +572,10 @@ func followUpRequest(resolver *promptregistry.PromptResolver, question string, t
 		"answer_prefix": truncateChatRunes(strings.TrimSpace(answerPrefix), followUpPrefixCap),
 	})
 	return llm.ChatRequest{
-		Messages:  []llm.ChatMessage{{Role: "user", Content: content}},
+		Messages: []llm.ChatMessage{{Role: "user", Content: content}},
+		// FT-7 (#630)：侧调用显式关思考——M3 思考型先跑 reasoning 吃掉预算
+		// 是 4/8 失败的根因；不支持的 provider 按各自约定忽略。
+		Thinking:  llm.ThinkingDisabled,
 		MaxTokens: followUpMaxTokens,
 	}
 }
@@ -750,13 +789,17 @@ func emitAgentStreamError(handler func(ev AgentStreamEvent) error, code string, 
 	return cause
 }
 
-// stripOrphanCitationMarkers removes plain [n] citation markers that no longer
-// resolve to a kept citation (n 超出保留引用数或非法)。模型自然产出的标注量
-// 常超过 citation_max_count，残留的角标在前端渲染为不可点死引用；终稿与落库
-// 前统一剥离。Markdown 链接形如 [1](url) 的数字文本不受影响。
-func stripOrphanCitationMarkers(answer string, kept int) string {
-	if kept < 0 {
-		return answer
+// stripOrphanCitationMarkers removes plain [n] citation markers whose n does
+// not resolve to a kept citation number（FT-5：编号为轮内全局且复验剔除保留槽
+// 位，保留性是集合而非数量）。模型自然产出的标注量常超过 citation_max_count，
+// 被剔引用的角标与超界角标在前端渲染为不可点死引用；终稿与落库前统一剥离。
+// Markdown 链接形如 [1](url) 的数字文本不受影响。
+func stripOrphanCitationMarkers(answer string, keptNumbers []int) string {
+	kept := make(map[int]bool, len(keptNumbers))
+	for _, n := range keptNumbers {
+		if n > 0 {
+			kept[n] = true
+		}
 	}
 	var b strings.Builder
 	b.Grow(len(answer))
@@ -767,7 +810,7 @@ func stripOrphanCitationMarkers(answer string, kept int) string {
 				if n, ok := parseCitationMarker(inner); ok {
 					next := i + end + 2
 					followedByParen := next < len(answer) && answer[next] == '('
-					if !followedByParen && (n > kept || n <= 0) {
+					if !followedByParen && !kept[n] {
 						i = next
 						continue
 					}
@@ -778,6 +821,22 @@ func stripOrphanCitationMarkers(answer string, kept int) string {
 		i++
 	}
 	return b.String()
+}
+
+// citationKeptNumbers returns the marker-surviving citation numbers: the
+// turn-global number assigned at pool insertion (FT-5), falling back to the
+// positional index for citations built outside the turn pool (legacy rows,
+// positional callers) so those keep the pre-FT-5 count semantics.
+func citationKeptNumbers(citations []AgentCitation) []int {
+	numbers := make([]int, len(citations))
+	for i := range citations {
+		if citations[i].Number > 0 {
+			numbers[i] = citations[i].Number
+		} else {
+			numbers[i] = i + 1
+		}
+	}
+	return numbers
 }
 
 // parseCitationMarker accepts short pure-digit marker bodies only ("12", not

@@ -5,6 +5,7 @@
 ## Domain map
 
 - **列表分页契约（#668）**: 标准列表端点的 page/page_size 解析唯一住所 = `backend/internal/handler/pagination.go` 的 `pageQuery`（page<1→1；page_size<1 或 >100→20 回落）；响应回显生效值。裸 `Query("page")` 解析由 `pagination_gate_test.go` 守门拦截，例外（搜索/Agent 会话/admin trace/parsePositiveInt 家族）在 helper 注释与守门白名单登记理由。
+- **匿名细档限流（#729）**: 匿名公开读端点的 per-IP 令牌桶层，唯一实现 = `backend/internal/middleware/guest_ratelimit.go`（Redis Lua 原子令牌桶，判定/扣量/TTL 单次 EVAL；键 = `ratelimit:guest:{tier}:{ip}`）。覆盖八条 CacheableAnonymousGET 端点（routes.go 经 `guestLimiter(tier)` 接线）；档位名 = 稳定路由模板（见 config.DefaultGuestBuckets），不得含资源 ID 或 query string。双开关连坐：`rate_limit.enabled` 或 `features.guest_rate_limit_enabled` 任一关 = 层关闭且零 Redis 调用；429 走 response.Error 信封 + Retry-After；Redis 故障 fail-open + 节流告警。既有 search/MCP/credential 桶不归此层（阶段二收敛另议）。
 - **错误信封（#669）**: handler 错误响应唯一发送处 = `backend/internal/pkg/response`（Error 系标准形 {code,message[,details]}；CodeOnly 历史 code-only ×10；CaptchaError 验证码错误 ×4 附加 captcha_result:false）。全部 AbortWithStatusJSON。handler 非测试源码新增裸 `gin.H{"code"` 由 `envelope_gate_test.go` 守门拦截；成功 ack（`gin.H{"message"`）合法。码值集与逐点迁移账见 docs/working/2026-09-25-669-envelope-census.md（本地）。
 
 - 内容发现：推荐流、原创/二创分区、IP 库与 IP 详情页；决策入口见 `docs/GLOSSARY.md` 和 `docs/working/2026-08-04-content-discovery-gap-plan.md`。
@@ -39,7 +40,15 @@
 
 **思考块**（thinking block)：模型推理过程中产生的中间内容，仅用于过程展示，不属于回答正文；不参与引用验真，也不是工具结果。_Avoid_：把思考内容当作回答或证据引用
 
-**引用锚定**（citation anchoring）：回答正文中的编号角标只是指向引用卡片的展示层映射；引用的可信度判定只发生在服务端复验后的卡片级，模型自由发挥的 URL、标题与路由不属于可信输入。
+**引用锚定**（citation anchoring）：回答正文中的角标只是指向引用卡片的展示层映射；角标编号与工具输出标注的轮内全局引用编号同一体系（跨多次检索累计、复验剔除不压缩编号，正文 [n] 按编号命中卡片），引用的可信度判定只发生在服务端复验后的卡片级，模型自由发挥的 URL、标题与路由不属于可信输入。_Avoid_：按单次检索的局部序号解释角标
+
+**参考来源**（reference sources）：Agent 回答所依据的站内内容与 IP 条目的统一称呼，也是右侧来源面板与移动端底部抽屉的名称；入口为回答底部的来源按钮与正文中的角标小卡。_Avoid_：站内依据、数据来源、搜索结果
+
+**工具步骤**（tool steps）：Agent 一轮内向用户展示的本地工具执行过程清单（检索/详情/指导建议等），由共享胶囊触发折叠展开；步骤文案是用户向短描述加参数摘要与命中数，不暴露 raw args、system prompt 或内部推理。_Avoid_：把工具步骤当作工具结果或证据本身
+
+**本轮详情**（turn details）：一轮终局后的用量与链路追踪入口（token 用量；trace 仅管理员可跳链路详情页），胶囊触发、默认折叠，与回答内容和引用无关。_Avoid_：把本轮详情当作回答内容或参考来源
+
+**会话路由**（conversation routing）：每个 Agent 会话拥有稳定、可直达的独立 URL；切换会话即导航，返回、刷新与分享均落在会话身份上。_Avoid_：用纯客户端状态维持"当前会话"
 
 ## Test seams
 

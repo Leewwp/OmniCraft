@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 
 /* SP-19 G1-2：全站统一搜索输入框（唯一基准 = IP 库公式）：
    rounded-full + border-border + bg-muted 起底（边框与背景色区分，易注意到）、
-   左侧搜索图标、focus:bg-background + 2px focus ring、可选清除按钮（X）。
+   左侧搜索图标、可选清除按钮（X）。
+   FT-1 选中态分级（2026-09-28）：自明态控件软化聚焦——去 focus 变白与
+   2px 环，仅边框加深到 border-strong；键盘可及性由输入光标承载。
    两档高度：sm = 36px（min-h-9）/ lg = 44px（min-h-11）。受控/非受控两用；
    token 用主家族（border / muted / background），不逐页保旧 canvas 系 token。 */
 
@@ -58,7 +60,7 @@ export function SearchInput({
         value={current}
         onChange={handleChange}
         className={cn(
-          "w-full rounded-full border border-border bg-muted pl-9 text-sm text-foreground transition-[background-color,border-color,box-shadow] duration-150 placeholder:text-muted-foreground/60 hover:border-border-strong focus:border-ring focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:appearance-none",
+          "w-full rounded-full border border-border bg-muted pl-9 text-sm text-foreground transition-[background-color,border-color,box-shadow] duration-150 placeholder:text-muted-foreground/60 hover:border-border-strong focus:border-border-strong focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:appearance-none",
           showClear ? "pr-9" : "pr-4",
           size === "sm" ? "min-h-9" : "min-h-11",
           className,
@@ -74,7 +76,7 @@ export function SearchInput({
             onValueChange?.("");
             onClear?.();
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>

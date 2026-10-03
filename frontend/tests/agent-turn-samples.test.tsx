@@ -45,7 +45,7 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
   if (request === "next/navigation") {
     return {
       useParams: () => ({}),
-      useRouter: () => ({ push: () => undefined }),
+      useRouter: () => ({ push: () => undefined, replace: () => undefined }),
       usePathname: () => "/agent",
     };
   }
@@ -488,6 +488,8 @@ const scenarios: Scenario[] = [
         );
         fireEvent.click(suggestion);
         await waitFor(() => assert.ok(view.getByText("Search fallback active")), { timeout: 3000 });
+        /* FT-4：引用卡住参考来源侧栏，先开面板再断言。 */
+        fireEvent.click(await waitFor(() => view.getByRole("button", { name: /reference sources/ })));
         await waitFor(() => assert.ok(view.getByRole("button", { name: /Keyword fallback result/ })), { timeout: 3000 });
         await settle();
         return transcriptOutline();

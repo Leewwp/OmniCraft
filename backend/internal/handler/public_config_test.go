@@ -204,9 +204,13 @@ func TestPublicConfigExposesOnlyGalleryLimits(t *testing.T) {
 		// #688: the document preview budget joins the non-sensitive upload
 		// exposure class (default 10 when unset in this minimal config).
 		"document_preview_max_mb": 10,
+		// #689 3D preview budgets (defaults when unset).
+		"model3d_max_preview_mb": 15,
+		"model3d_max_triangles":  1000000,
+		"gcode_max_lines":        500000,
 	}
 	if len(upload) != len(want) {
-		t.Fatalf("upload object has %d keys, want exactly %d (gallery limits + document preview budget)", len(upload), len(want))
+		t.Fatalf("upload object has %d keys, want exactly %d (gallery limits + preview budgets)", len(upload), len(want))
 	}
 	for key, wantValue := range want {
 		got, has := upload[key]
@@ -309,7 +313,12 @@ func TestPublicConfigNormalizesOmittedGalleryLimits(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if resp.Upload != (PublicUploadDTO{ImageGalleryMinItems: 2, ImageGalleryMaxItems: 9, VideoGalleryMinItems: 1, VideoGalleryMaxItems: 3, DocumentPreviewMaxMB: 10}) {
+	if resp.Upload != (PublicUploadDTO{
+		ImageGalleryMinItems: 2, ImageGalleryMaxItems: 9,
+		VideoGalleryMinItems: 1, VideoGalleryMaxItems: 3,
+		DocumentPreviewMaxMB: 10, Model3DMaxPreviewMB: 15,
+		Model3DMaxTriangles: 1000000, GCodeMaxLines: 500000,
+	}) {
 		t.Fatalf("upload limits = %#v, want specification defaults", resp.Upload)
 	}
 }
@@ -419,13 +428,13 @@ func TestPublicConfigContentRegistryProjection(t *testing.T) {
 	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &raw))
 
 	contentTypes := raw["content_types"].([]any)
-	require.Len(t, contentTypes, 9)
+	require.Len(t, contentTypes, 10, "#690 adds the 3d_print pilot row")
 	byKey := map[string]map[string]any{}
 	for _, item := range contentTypes {
 		entry := item.(map[string]any)
 		byKey[entry["key"].(string)] = entry
 	}
-	for _, key := range []string{"image", "article", "video", "audio", "template", "sheet_music", "mod", "prompt", "other"} {
+	for _, key := range []string{"image", "article", "video", "audio", "template", "sheet_music", "mod", "prompt", "3d_print", "other"} {
 		require.Contains(t, byKey, key)
 	}
 	require.Equal(t, []any{"fanwork"}, byKey["mod"]["zones"])
@@ -435,6 +444,12 @@ func TestPublicConfigContentRegistryProjection(t *testing.T) {
 	require.Equal(t, "text", byKey["article"]["form"])
 	require.Equal(t, []any{"mod"}, byKey["mod"]["upload_file_types"])
 
+	// #690 pilot row: registry data alone carries the policy to clients
+	// (model3d explicit + text unrestricted -> client_accept "*").
+	require.Equal(t, []any{"model3d", "text"}, byKey["3d_print"]["upload_file_types"])
+	require.Equal(t, "*", byKey["3d_print"]["client_accept"])
+	require.Equal(t, map[string]any{"required_any_of": []any{"model3d"}}, byKey["3d_print"]["attachment_policy"])
+
 	// client_accept: unrestricted family in the set -> "*"; explicit-only
 	// -> sorted union; no attachments -> absent (omitempty).
 	require.Equal(t, "*", byKey["mod"]["client_accept"])
@@ -443,14 +458,14 @@ func TestPublicConfigContentRegistryProjection(t *testing.T) {
 	require.NotContains(t, byKey["article"], "client_accept")
 
 	families := raw["upload_file_types"].([]any)
-	require.Len(t, families, 8)
+	require.Len(t, families, 9)
 	familyMax := map[string]float64{}
 	for _, item := range families {
 		family := item.(map[string]any)
 		key := family["key"].(string)
 		familyMax[key] = family["max_mb"].(float64)
 		extensions, present := family["extensions"]
-		if key == "sheet_music" || key == "document" || key == "audio" {
+		if key == "sheet_music" || key == "document" || key == "audio" || key == "model3d" {
 			require.True(t, present, "%s must carry an explicit extensions array", key)
 		} else {
 			require.Nil(t, extensions, "family %s is unrestricted and must project extensions as null", key)

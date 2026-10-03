@@ -32,6 +32,10 @@ export interface PublicUpload {
   video_gallery_max_items: number;
   /** #688 文档浏览器预览预算（MB）；超限查看器降级为下载卡 */
   document_preview_max_mb?: number;
+  /** #689 3D 预览预算（与上传上限分离） */
+  model3d_max_preview_mb?: number;
+  model3d_max_triangles?: number;
+  gcode_max_lines?: number;
 }
 
 export interface PublicCollaboration {
@@ -187,8 +191,11 @@ export const FALLBACK_CONTENT_TYPE_ENTRIES: PublicContentTypeEntry[] = [
   { key: "audio", zones: ["original", "fanwork"], form: "file", upload_file_types: ["audio"], judge_eligible: true },
   { key: "mod", zones: ["fanwork"], form: "file", upload_file_types: ["mod"], judge_eligible: false },
   { key: "prompt", zones: ["fanwork"], form: "text", upload_file_types: [], judge_eligible: true },
-  { key: "template", zones: ["original"], form: "file", upload_file_types: ["text", "document"], judge_eligible: true },
+  { key: "template", zones: ["original"], form: "file", upload_file_types: ["text", "document", "model3d"], judge_eligible: true },
   { key: "sheet_music", zones: ["original", "fanwork"], form: "file", upload_file_types: ["sheet_music"], judge_eligible: true },
+  // #726：3d_print 兜底行对齐注册表（含 attachment_policy），投影缺失时
+  // 分组提示不静默丢掉模型族。
+  { key: "3d_print", zones: ["original", "fanwork"], form: "file", upload_file_types: ["model3d", "text"], judge_eligible: true, attachment_policy: { required_any_of: ["model3d"] } },
   { key: "other", zones: ["original", "fanwork"], form: "text", upload_file_types: [], judge_eligible: true },
 ];
 
@@ -201,6 +208,8 @@ const FALLBACK_UPLOAD_FILE_TYPE_ENTRIES: PublicUploadFileTypeEntry[] = [
   { key: "sheet_music", extensions: [".mid", ".midi", ".xml", ".mxl", ".mscz", ".mscx", ".pdf"], max_mb: 50 },
   { key: "document", extensions: [".docx", ".xlsx", ".csv"], max_mb: 20 },
   { key: "audio", extensions: [".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus"], max_mb: 50 },
+  // #726：model3d 兜底（与注册表 extensions/max_mb 对齐）。
+  { key: "model3d", extensions: [".stl", ".obj", ".3mf", ".gcode", ".ply", ".mtl"], max_mb: 50 },
 ];
 
 /** 注册表 content_types 行（投影缺失时走内置兜底，永不 undefined） */
@@ -225,6 +234,38 @@ export function uploadFileTypeMap(config: PublicConfig | null | undefined): Reco
   const map: Record<string, PublicUploadFileTypeEntry> = {};
   for (const entry of uploadFileTypeEntries(config)) map[entry.key] = entry;
   return map;
+}
+
+/**
+ * #726 按附件族分组的上传提示投影：某发布类型各附件族的扩展名白名单、
+ * 大小上限与 required_any_of 命中标记（"至少命中其中一族"语义——命中族
+ * 标 required，不表示集合内每族都必传）。全部来自注册表与 config 投影，
+ * 前端不自建映射；注册表行缺失的族跳过（投影缺失走兜底表）。
+ */
+export interface UploadFamilyHint {
+  key: string;
+  extensions: string[] | null;
+  maxMB: number;
+  required: boolean;
+}
+
+export function uploadFamilyHints(config: PublicConfig | null | undefined, contentType: string): UploadFamilyHint[] {
+  const entry = contentTypeMap(config)[contentType];
+  if (!entry) return [];
+  const families = uploadFileTypeMap(config);
+  const requiredFamilies = new Set(entry.attachment_policy?.required_any_of ?? []);
+  const hints: UploadFamilyHint[] = [];
+  for (const familyKey of entry.upload_file_types) {
+    const family = families[familyKey];
+    if (!family) continue;
+    hints.push({
+      key: familyKey,
+      extensions: family.extensions ?? null,
+      maxMB: family.max_mb,
+      required: requiredFamilies.has(familyKey),
+    });
+  }
+  return hints;
 }
 
 /**

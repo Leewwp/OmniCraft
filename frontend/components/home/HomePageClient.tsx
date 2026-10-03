@@ -332,7 +332,7 @@ function FanworkFeedSection({
         <button
           type="button"
           onClick={() => feed.retryInitial()}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           {retryText}
         </button>

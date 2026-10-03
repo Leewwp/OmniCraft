@@ -39,7 +39,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
         onClick={() => recordVisit(data)}
         aria-label={`${t('ip.enterDetail')}: ${data.name}`}
         className={cn(
-          "group block w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:shadow-[var(--elevation-1)] motion-reduce:transition-none",
+          "group block w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring motion-reduce:shadow-[var(--elevation-1)] motion-reduce:transition-none",
           className
         )}
       >
@@ -83,7 +83,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
       onClick={() => recordVisit(data)}
       aria-label={`${t('ip.enterDetail')}: ${data.name}`}
       className={cn(
-        "group flex min-w-64 flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:bg-canvas-subtle hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none",
+        "group flex min-w-64 flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:bg-canvas-subtle hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring motion-reduce:transition-none",
         className
       )}
     >

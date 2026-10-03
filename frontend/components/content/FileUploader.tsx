@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
+import type { UploadFamilyHint } from "@/lib/public-config";
 
 export interface UploadedAsset {
   fileName: string;
@@ -77,6 +78,12 @@ interface FileUploaderProps {
   deriveFileType?: (file: File) => string | null;
   /** #688 逐文件大小上限（MB）：按推导出的族群取注册表 max_mb；缺省回落 maxMB prop。 */
   maxMBForFileType?: (fileType: string) => number | undefined;
+  /**
+   * #726 按附件族分组的上传提示（来自注册表投影）：非空时取代单一
+   * 大小上限行，逐族展示扩展名白名单 / 上限 / 必传标记。其他调用点
+   * （IP 封面、编辑器图片）不传，维持旧行为。
+   */
+  familyHints?: UploadFamilyHint[];
   minCount?: number;
   maxCount?: number;
   value?: UploadItem[];
@@ -315,6 +322,7 @@ export function FileUploader({
   onUploaded,
   deriveFileType,
   maxMBForFileType,
+  familyHints,
 }: FileUploaderProps) {
   const t = useTranslations();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -591,14 +599,35 @@ export function FileUploader({
   }
 
   if (!isMediaGallery) {
+    const requiredCount = familyHints?.filter((hint) => hint.required).length ?? 0;
     return (
       <div className={`space-y-2 rounded-md border border-border bg-card p-3 shadow-none ${className ?? ""}`}>
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">{t("content.limitMb", { maxMB })}</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          {familyHints && familyHints.length > 0 ? (
+            <ul className="min-w-0 flex-1 space-y-1" data-testid="upload-family-hints">
+              {familyHints.map((hint) => (
+                <li key={hint.key} className="text-xs leading-5 text-muted-foreground" data-testid={`upload-family-hint-${hint.key}`}>
+                  {t(`content.uploadFamily.name.${hint.key}`)}：
+                  <span className="break-all">
+                    {hint.extensions ? hint.extensions.join(" ") : t(`content.uploadFamily.mimeNote.${hint.key}`)}
+                  </span>
+                  {" · "}
+                  {t("content.uploadFamily.maxMb", { maxMB: hint.maxMB })}
+                  {" · "}
+                  {hint.required
+                    ? t(requiredCount > 1 ? "content.uploadFamily.requiredAnyOf" : "content.uploadFamily.requiredAny")
+                    : t("content.uploadFamily.optional")}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t("content.limitMb", { maxMB })}</p>
+          )}
           <Button
             type="button"
             variant="outline"
             size="sm"
+            className="shrink-0 self-start"
             disabled={disabled || isBusy || isUploading}
             onClick={() => inputRef.current?.click()}
           >
@@ -701,7 +730,7 @@ export function FileUploader({
                   setDraggedID(null);
                   setDropTargetID(null);
                 }}
-                className={`min-w-0 rounded-md border border-border bg-background p-1 transition-opacity motion-reduce:transition-none ${draggedID === item.id ? "opacity-40" : ""} ${dropTargetID === item.id ? "ring-2 ring-ring" : ""}`}
+                className={`min-w-0 rounded-md border border-border bg-background p-1 transition-opacity motion-reduce:transition-none ${draggedID === item.id ? "opacity-40" : ""} ${dropTargetID === item.id ? "border-accent-emphasis" : ""}`}
               >
                 <div className="relative aspect-square overflow-hidden rounded-sm bg-muted">
                   {item.previewUrl || item.posterUrl ? (
@@ -784,7 +813,7 @@ export function FileUploader({
       ) : (
         <button
           type="button"
-          className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-4 text-center text-sm text-muted-foreground transition-colors hover:border-ring hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+          className="flex min-h-28 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-4 text-center text-sm text-muted-foreground transition-colors hover:border-ring hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
           disabled={!canAddMore}
           onClick={() => inputRef.current?.click()}
         >

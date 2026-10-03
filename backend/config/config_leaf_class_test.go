@@ -40,6 +40,9 @@ var leafClassification = map[string]string{
 	"agent.embedding_group_id":                     "conditional",
 	"agent.embedding_model":                        "conditional",
 	"agent.embedding_provider":                     "conditional",
+	"agent.answer_bare_reasoning_guard.enabled":    "conditional",
+	"agent.follow_ups.budget_sec":                  "conditional",
+	"agent.follow_ups.enabled":                     "conditional",
 	"agent.guardrails.fence_external_tool_results": "conditional",
 	"agent.guardrails.image_url_allow_hosts":       "conditional",
 	"agent.guardrails.session_tool_call_limit":     "conditional",
@@ -147,6 +150,7 @@ var leafClassification = map[string]string{
 	"features.archive_malware_scan_enabled":                          "optional-zero",
 	"features.creator_support_enabled":                               "optional-zero",
 	"features.desktop_deploy_enabled":                                "optional-zero",
+	"features.guest_rate_limit_enabled":                              "optional-zero",
 	"features.payment_enabled":                                       "optional-zero",
 	"features.rag_hybrid_enabled":                                    "optional-zero",
 	"features.rag_query_expansion_enabled":                           "optional-zero",
@@ -273,6 +277,9 @@ var leafClassification = map[string]string{
 	"rate_limit.ai_callback_per_minute":                              "optional-zero",
 	"rate_limit.credential_per_minute":                               "optional-zero",
 	"rate_limit.enabled":                                             "optional-zero",
+	"rate_limit.guest_buckets.{}.capacity":                           "optional-zero",
+	"rate_limit.guest_buckets.{}.refill_per_minute":                  "optional-zero",
+	"rate_limit.guest_exempt_ips":                                    "optional-zero",
 	"rate_limit.max_json_body_bytes":                                 "optional-zero",
 	"rate_limit.max_query_chars":                                     "optional-zero",
 	"rate_limit.max_search_limit":                                    "optional-zero",
@@ -343,7 +350,10 @@ var leafClassification = map[string]string{
 	"social.report_auto_hide_rate":                                   "optional-zero",
 	"upload.content_grant_ttl_sec":                                   "optional-zero",
 	"upload.document_preview_max_mb":                                 "optional-zero",
+	"upload.gcode_max_lines":                                         "optional-zero",
 	"upload.image_gallery_max_items":                                 "optional-zero",
+	"upload.model3d_max_preview_mb":                                  "optional-zero",
+	"upload.model3d_max_triangles":                                   "optional-zero",
 	"upload.image_gallery_min_items":                                 "optional-zero",
 	"upload.sheet_music_extensions":                                  "optional-zero",
 	"upload.video_gallery_max_items":                                 "optional-zero",
@@ -441,8 +451,8 @@ func TestLeafClassificationOnlyUsesKnownClasses(t *testing.T) {
 	}
 }
 
-// The census ledger (required 13 / conditional 162 / optional-zero 122 /
-// registry 8 / dead 6 = 311 leaves) is asserted so the doc and the table
+// The census ledger (required 13 / conditional 165 / optional-zero 122 /
+// registry 8 / dead 6 = 314 leaves) is asserted so the doc and the table
 // cannot drift apart silently.
 func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	counts := map[string]int{}
@@ -450,9 +460,10 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 		counts[class]++
 	}
 	require.Equal(t, 13, counts[classRequired])
-	require.Equal(t, 162, counts[classConditional])
-	// 122 shipped + 5 new (#688).
-	require.Equal(t, 127, counts[classOptionalZero])
+	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups switches.
+	require.Equal(t, 165, counts[classConditional])
+	// 122 shipped + 5 (#688) + 3 (#689) new.
+	require.Equal(t, 134, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).
 	require.Equal(t, 21, counts[classRegistry])
 	require.Equal(t, 6, counts[classDead])

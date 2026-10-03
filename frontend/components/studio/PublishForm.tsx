@@ -27,9 +27,11 @@ import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
 import {
   clientAcceptForContentType,
+  contentTypeMap,
   deriveUploadFamilyForExtension,
   fetchPublicConfig,
   isFilePrimaryContentType,
+  uploadFamilyHints,
   uploadFileTypeMap,
   uploadMaxMBForType,
   type PublicConfig,
@@ -402,6 +404,19 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       }
     }
 
+    // #726 attachment_policy required_any_of 前端先行校验：至少命中其中
+    // 一族（后端同判 ATTACHMENT_POLICY_REQUIRED）；提示落在上传区内 +
+    // toast，不再等提交后才见到通用失败。
+    const requiredFamilies = contentTypeMap(publicConfig)[contentType]?.attachment_policy?.required_any_of ?? [];
+    if (!isMediaGallery && requiredFamilies.length > 0) {
+      const familyNames = requiredFamilies.map((family) => t(`content.uploadFamily.name.${family}`)).join(" / ");
+      if (!uploadedFiles.some((file) => requiredFamilies.includes(file.fileType))) {
+        setUploadError(t("studio.publish.attachments.requiredFamilyMissing", { families: familyNames }));
+        toast("error", t("studio.publish.attachments.requiredFamilyMissing", { families: familyNames }));
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {
@@ -464,13 +479,16 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
     }
   }
 
-  const fileType = (
-    ["image", "video", "sheet_music", "mod"].includes(contentType)
-      ? contentType
-      : "text"
-  ) as "image" | "video" | "text" | "mod" | "sheet_music";
-
-  const maxMB = uploadMaxMBForType(publicConfig, fileType);
+  // #726：移除旧四类型硬编码 fileType 映射（T0 census 漏网点）——文件
+  // 形态的提示与上限由注册表投影 familyHints 逐族给出；媒体画廊沿用
+  // uploadMaxMBForType；maxMB 仅作逐文件校验缺省兜底（取各族最大值，
+  // 实际限制仍由 maxMBForFileType 按族执行）。
+  const familyHints = uploadFamilyHints(publicConfig, contentType);
+  const maxMB = mediaContentType
+    ? uploadMaxMBForType(publicConfig, mediaContentType)
+    : familyHints.length > 0
+      ? Math.max(...familyHints.map((hint) => hint.maxMB))
+      : uploadMaxMBForType(publicConfig, "text");
 
   const previewNode = (
     <PublishPhonePreview
@@ -673,8 +691,9 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
             ) : (
               <>
               <FileUploader
-                fileType={fileType}
                 maxMB={maxMB}
+                /* #726 按族分组提示（注册表投影：扩展名/上限/必传标记） */
+                familyHints={familyHints}
                 /* #688：accept 消费服务端 client_accept 投影（允许集合含
                  * unrestricted 族群 → "*"），前端不自建清单 */
                 accept={clientAcceptForContentType(publicConfig, contentType) ?? "*"}
@@ -733,7 +752,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
               onChange={(e) => setBriefDesc(e.target.value)}
               rows={3}
               placeholder={t('studio.publish.bodyPlaceholder')}
-              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus-visible:ring-1 focus:ring-ring/20 resize-none"
             />
           </div>
         </div>

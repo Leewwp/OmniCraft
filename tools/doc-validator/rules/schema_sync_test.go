@@ -107,3 +107,43 @@ ALTER TABLE content_items
 		t.Fatalf("source_original_id = %#v, want REFERENCES content_items.id", sourceID)
 	}
 }
+
+func TestParseAlterTableForeignKeysMergesBackfilledReferences(t *testing.T) {
+	// #745 形态：088 的孤儿清理 + DROP IF EXISTS + 命名 ADD CONSTRAINT FK。
+	content := `
+DELETE FROM content_usage_guide_cache AS cache
+WHERE NOT EXISTS (
+    SELECT 1 FROM content_items AS item WHERE item.id = cache.content_id
+);
+
+ALTER TABLE content_usage_guide_cache DROP CONSTRAINT IF EXISTS fk_usage_guide_cache_content;
+ALTER TABLE content_usage_guide_cache
+    ADD CONSTRAINT fk_usage_guide_cache_content
+    FOREIGN KEY (content_id) REFERENCES content_items(id) ON DELETE CASCADE;
+`
+	fks := parseAlterTableForeignKeys(content)
+	if len(fks["content_usage_guide_cache"]) != 1 {
+		t.Fatalf("content_usage_guide_cache foreign keys = %#v, want one", fks)
+	}
+	if fks["content_usage_guide_cache"]["content_id"] != "content_items.id" {
+		t.Fatalf("content_id reference = %q, want content_items.id", fks["content_usage_guide_cache"]["content_id"])
+	}
+}
+
+func TestParseAlterTableForeignKeysAcceptUnnamedConstraintAndSkipsInlineWins(t *testing.T) {
+	content := `
+ALTER TABLE feedback_tickets
+    ADD FOREIGN KEY (author_id) REFERENCES users(id);
+
+ALTER TABLE content_items
+    ADD CONSTRAINT fk_content_items_author
+    FOREIGN KEY (author_id) REFERENCES users(id);
+`
+	fks := parseAlterTableForeignKeys(content)
+	if fks["feedback_tickets"]["author_id"] != "users.id" {
+		t.Fatalf("unnamed constraint form not parsed: %#v", fks)
+	}
+	if fks["content_items"]["author_id"] != "users.id" {
+		t.Fatalf("named constraint form not parsed: %#v", fks)
+	}
+}

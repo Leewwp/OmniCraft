@@ -83,7 +83,7 @@ export function FilterPills(props: FilterPillsProps) {
             onClick={() => handleClick(option)}
             aria-pressed={active}
             disabled={disabled}
-            className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed ${
+            className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed ${
               active
                 ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
                 : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"

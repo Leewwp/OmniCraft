@@ -25,7 +25,7 @@ import { AttachmentPreview, type PreviewableAttachment } from "@/components/cont
 import { DownloadButton } from "@/components/content/DownloadButton";
 import { CollectionPicker } from "@/components/content/CollectionPicker";
 import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
-import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
+import { UsageGuidePanel, usageGuidePanelTarget } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { FollowButton } from "@/components/social/FollowButton";
@@ -135,6 +135,9 @@ interface CoverImageProps {
   contentType?: string;
   title: string;
   typeLabel: string;
+  /** #753：有效封面几何（cover_width/height），缺省回退 3:4 防御占位。 */
+  coverWidth?: number;
+  coverHeight?: number;
   /** 浮层封面同步（决策 11）：加载态在最终封面几何内展示，成功后正文才 reveal。 */
   coverSync?: boolean;
   coverState: "loading" | "ready" | "error";
@@ -143,18 +146,22 @@ interface CoverImageProps {
   holdSrc?: string | null;
 }
 
-function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState, onCoverSettled, holdSrc }: CoverImageProps) {
+function CoverImage({ url, contentType, title, typeLabel, coverWidth, coverHeight, coverSync, coverState, onCoverSettled, holdSrc }: CoverImageProps) {
   const Icon = getTypeIcon(contentType || "other");
   const showImage = Boolean(url && coverState !== "error");
   const showSkeleton = Boolean(coverSync && url && coverState === "loading");
+  /* #753：去掉固定 16:9 + object-cover——按有效封面几何自然比例 contain；
+     缺尺寸/历史数据回退 3:4 防御占位（contain 不裁切）。 */
+  const hasCoverSize =
+    typeof coverWidth === "number" && typeof coverHeight === "number" && coverWidth > 0 && coverHeight > 0;
+  const coverAspectRatio = hasCoverSize ? `${coverWidth} / ${coverHeight}` : "3 / 4";
 
   return (
     <div
       data-slot="detail-cover"
       className="relative w-full overflow-hidden rounded-md border border-border bg-muted"
     >
-      {/* 封面与正文共享同一水平框架：外层 w-full 恒定，高度上限只裁内框不缩宽度（#64 决策 12）。 */}
-      <div className="relative aspect-[16/9] max-h-96 w-full">
+      <div className="relative w-full" style={{ aspectRatio: coverAspectRatio }}>
         {showImage && url ? (
           /* #409 F1 同源图 + #430 两变体渐进：规范层 w=1080，保持层 = 卡片快变体
              （holdSrc），入场落定且规范层就绪后 180ms 交叉淡入。 */
@@ -162,7 +169,7 @@ function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState,
             canonicalSrc={coverRenderSrc(url) || url}
             holdSrc={holdSrc}
             alt={title}
-            imgClassName={cn("object-cover", showSkeleton && "opacity-0")}
+            imgClassName={cn("object-contain", showSkeleton && "opacity-0")}
             onSettle={onCoverSettled}
           />
         ) : (
@@ -244,7 +251,7 @@ export function ContentDetail({
   const [coverState, setCoverState] = useState<"loading" | "ready" | "error">(() =>
     coverSync && usesGallery ? "loading" : coverSync && data.cover_image_url ? "loading" : "ready",
   );
-  /* #88 双栏：≥1100px 时行内媒体区被隐藏（min-[1100px]:hidden），其首项不会触发
+  /* #88 双栏：≥960px 时行内媒体区被隐藏（min-[960px]:hidden，#753），其首项不会触发
      落定事件；正文 reveal 改由左栏行外媒体区的 coverReady 信号驱动（任一路径落定即显示，
      错误态同 reveal，与 ui-spec:2411 稳定占位符语义一致）。 */
   const settled =
@@ -338,12 +345,12 @@ export function ContentDetail({
         )}
       </div>
 
-      {/* Media area: image/video content renders the stable MediaGallery
-          (contain, no crop); other types keep the cover image. The gallery
-          carries data-slot="detail-cover" so the overlay FLIP/cover-sync
-          contract keeps working on the shared surface. #88 双栏模式下该行内
-          媒体区在 ≥1100px 隐藏（由 Overlay 层的左栏媒体列承担）。 */}
-      <div className={cn(mediaSlot !== "inline" && "min-[1100px]:hidden")}>
+      {/* Media area: image/video content renders the stable MediaGallery; other
+          types keep the cover image (#753 自然比例 contain，去固定 16:9)。The
+          gallery carries data-slot="detail-cover" so the overlay FLIP/cover-sync
+          contract keeps working on the shared surface. #88 双栏模式下该行内媒体区
+          在 ≥960px 隐藏（#753，由 Overlay 层的左栏媒体列承担）。 */}
+      <div className={cn(mediaSlot !== "inline" && "min-[960px]:hidden", "max-[959px]:-mx-4")}>
         {usesGallery ? (
           <MediaGallery
             items={mediaItems}
@@ -357,6 +364,8 @@ export function ContentDetail({
             contentType={contentType}
             title={data.title}
             typeLabel={typeLabel}
+            coverWidth={data.cover_width}
+            coverHeight={data.cover_height}
             coverSync={coverSync}
             coverState={coverState}
             onCoverSettled={setCoverState}
@@ -400,12 +409,14 @@ export function ContentDetail({
       {/* Attachments download list: media-set entries (image/video items of
           image/video content) are excluded — they are browsed in the gallery.
           Other content types keep the full attachment list semantics (AC3). */}
-      {downloadItems.some((att) => att.file_type === "document") && (
-        /* #688 附件预览分发：document 族走懒加载查看器（无 URL 的非 clean
-         * 行由后端不签发 + 组件渲染扫描状态卡）。 */
+      {/* #688/#689/#722 附件预览分发：document + model3d + audio 族走预览
+          入口卡（点击后挂载懒加载查看器/播放器；#691 冒烟实证 model3d 此前
+          未进分发；无 URL 的非 clean 行由后端不签发 + 组件渲染扫描状态卡；
+          .mtl 在组件内回落下载卡）。 */}
+      {downloadItems.some((att) => att.file_type === "document" || att.file_type === "model3d" || att.file_type === "audio") && (
         <section className="space-y-3">
           {downloadItems
-            .filter((att) => att.file_type === "document")
+            .filter((att) => att.file_type === "document" || att.file_type === "model3d" || att.file_type === "audio")
             .map((att) => (
               <AttachmentPreview
                 key={att.id}
@@ -417,11 +428,11 @@ export function ContentDetail({
         </section>
       )}
 
-      {downloadItems.filter((att) => att.file_type !== "document").length > 0 && contentType !== "sheet_music" && (
+      {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d" && att.file_type !== "audio").length > 0 && contentType !== "sheet_music" && (
         <section className="space-y-2 rounded-md border border-border bg-card p-4 ">
           <h2 className="text-sm font-semibold">{t('content.attachments')}</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {downloadItems.filter((att) => att.file_type !== "document").map((att) => (
+            {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d" && att.file_type !== "audio").map((att) => (
               <div
                 key={att.id}
                 className="flex items-center justify-between rounded border border-border bg-muted/10 p-2"
@@ -526,9 +537,11 @@ export function ContentDetail({
       )}
       </AgentFeatureGate>
 
-      {/* AI Usage Guide */}
+      {/* AI Usage Guide（#723 适用范围：mod/template/3d_print/sheet_music
+          或带 document 族附件；article 隐藏；feature gate 与 published
+          优先叠加）。 */}
       <AgentFeatureGate capability="webAgent">
-        {(contentType === "mod" || contentType === "sheet_music") && data.status === "published" && (
+        {usageGuidePanelTarget(contentType, data.attachments) && data.status === "published" && (
           <UsageGuidePanel contentId={data.id} />
         )}
       </AgentFeatureGate>

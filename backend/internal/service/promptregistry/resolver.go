@@ -52,21 +52,22 @@ func NewPromptResolver(store Store) *PromptResolver {
 
 // Resolve returns the effective template for a slot plus the registry
 // version it came from (0 = builtin). Version feeds the trace
-// prompt_name/prompt_version columns (T2).
+// prompt_name/prompt_version columns (T2). The fallback path serves the
+// slot's Fallback template when one is configured (#754 D), else Builtin.
 func (r *PromptResolver) Resolve(ctx context.Context, slot PromptSlot) (string, int) {
 	if r == nil || r.store == nil {
-		return slot.Builtin, 0
+		return slot.fallbackTemplate(), 0
 	}
 	if cached, ok := r.cached(slot.Name); ok {
 		return cached.content, cached.version
 	}
 	row, err := r.store.GetByLabel(ctx, slot.Name, ProductionLabel)
 	if err != nil || row == nil {
-		// Cache the builtin briefly too: a missing or unreachable registry
+		// Cache the fallback briefly too: a missing or unreachable registry
 		// must not turn every turn into a DB round trip.
 		slog.Debug("prompt registry miss, using builtin", "slot", slot.Name)
-		r.storeCached(slot.Name, cacheEntry{content: slot.Builtin, version: 0, expiresAt: time.Now().Add(resolveTTL)})
-		return slot.Builtin, 0
+		r.storeCached(slot.Name, cacheEntry{content: slot.fallbackTemplate(), version: 0, expiresAt: time.Now().Add(resolveTTL)})
+		return slot.fallbackTemplate(), 0
 	}
 	entry := cacheEntry{content: row.Content, version: row.Version, expiresAt: time.Now().Add(resolveTTL)}
 	r.storeCached(slot.Name, entry)
@@ -148,6 +149,11 @@ type UpgradeSeed struct {
 // are immutable); a further bump adds a new entry with the next version.
 var RegistryUpgrades = []UpgradeSeed{
 	{SlotName: SlotAgentSystem.Name, Version: 2, Content: agentSystemV2()},
+	{SlotName: SlotAgentSystem.Name, Version: 3, Content: agentSystemV3()},
+	{SlotName: SlotAgentSystem.Name, Version: 4, Content: agentSystemV4()},
+	{SlotName: SlotAgentSystem.Name, Version: 5, Content: agentSystemV5()},
+	{SlotName: SlotAgentSystem.Name, Version: 6, Content: agentSystemV6()},
+	{SlotName: SlotUsageGuide.Name, Version: 2, Content: usageGuideV2()},
 }
 
 // SeedUpgrades applies code-shipped version bumps after SeedV1. Each entry
@@ -182,6 +188,17 @@ func SeedUpgrades(ctx context.Context, store Store) error {
 				continue
 			}
 			return err
+		}
+		// Boot-race guard (live evidence, 2026-09-29 deploy): server and
+		// worker seed concurrently; two interleaved SetLabel calls can end
+		// with the older version last (a fresh v4 SetLabel landing after
+		// another process already moved the label to v5 rolled production
+		// back). Moves are forward-only here — a label already at or past
+		// this upgrade stays untouched (admin rollbacks remain absolute:
+		// they go through SetLabel directly, not this path).
+		if current, err := store.GetByLabel(ctx, up.SlotName, ProductionLabel); err == nil && current != nil && current.Version >= up.Version {
+			slog.Info("prompt registry upgrade shipped; label already at or ahead", "slot", up.SlotName, "version", up.Version, "label_version", current.Version)
+			continue
 		}
 		if err := store.SetLabel(ctx, up.SlotName, ProductionLabel, up.Version); err != nil {
 			return err

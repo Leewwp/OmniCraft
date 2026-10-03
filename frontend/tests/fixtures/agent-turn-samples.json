@@ -9,7 +9,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -21,7 +21,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "1 tool steps",
         "attrs": {},
         "toggles": [
@@ -38,18 +38,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
+        "tag": "div",
         "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginalexcerpt line",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "div",
@@ -61,10 +53,16 @@
         }
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsToken usage: 10 in / 20 outTrace ID: t1",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       }
     ]
   },
@@ -95,24 +93,22 @@
         "attrs": {}
       },
       {
-        "tag": "section",
+        "tag": "div",
         "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsTrace ID: t2",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       }
     ]
   },
@@ -169,18 +165,10 @@
         ]
       },
       {
-        "tag": "section",
+        "tag": "div",
         "cls": "mt-1 max-w-[85%]",
-        "text": "Site references2 verified referencesCollapse citations01Keyword fallback resultOriginalMatched by keyword search02Second keyword hitFanworkAnother match",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "text": "2 reference sources",
+        "attrs": {}
       }
     ]
   },
@@ -194,7 +182,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -221,10 +209,16 @@
         "attrs": {}
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsTrace ID: t-err",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       },
       {
         "tag": "div",
@@ -244,7 +238,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -278,7 +272,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "Thought process",
         "attrs": {},
         "toggles": [
@@ -290,7 +284,7 @@
       },
       {
         "tag": "div",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card",
+        "cls": "max-w-[85%] space-y-1.5",
         "text": "1 tool steps",
         "attrs": {},
         "toggles": [
@@ -307,18 +301,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
+        "tag": "div",
         "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginalexcerpt line",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "text": "1 reference sources",
+        "attrs": {}
       }
     ]
   },
@@ -337,18 +323,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
+        "tag": "div",
         "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Cited contentOriginal",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "div",
@@ -363,18 +341,10 @@
         "attrs": {}
       },
       {
-        "tag": "section",
+        "tag": "div",
         "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
         "tag": "div",
@@ -389,24 +359,22 @@
         "attrs": {}
       },
       {
-        "tag": "section",
+        "tag": "div",
         "cls": "mt-1 max-w-[85%]",
-        "text": "Site references1 verified referencesCollapse citations01Second referenceFanwork",
-        "attrs": {
-          "aria-label": "Site references"
-        },
-        "toggles": [
-          {
-            "name": "Collapse citations",
-            "expanded": "true"
-          }
-        ]
+        "text": "1 reference sources",
+        "attrs": {}
       },
       {
-        "tag": "details",
-        "cls": "max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted",
-        "text": "Turn detailsTrace ID: t2",
-        "attrs": {}
+        "tag": "div",
+        "cls": "max-w-[85%] space-y-1.5",
+        "text": "Turn details",
+        "attrs": {},
+        "toggles": [
+          {
+            "name": "Turn details",
+            "expanded": "false"
+          }
+        ]
       }
     ]
   }

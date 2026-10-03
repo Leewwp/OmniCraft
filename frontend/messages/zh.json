@@ -319,6 +319,28 @@
     "fileSizeExceeds": "{name} 超过 {maxMB}MB 限制",
     "uploadFailed": "上传失败",
     "limitMb": "限制：{maxMB}MB",
+    "uploadFamily": {
+      "name": {
+        "model3d": "模型文件",
+        "text": "说明文件",
+        "document": "文档",
+        "audio": "音频",
+        "video": "视频",
+        "image": "图片",
+        "mod": "模组包",
+        "sheet_music": "乐谱"
+      },
+      "mimeNote": {
+        "text": "文本文件与 PDF",
+        "video": "常见视频格式",
+        "image": "常见图片格式",
+        "mod": "ZIP 压缩包"
+      },
+      "maxMb": "最大 {maxMB}MB",
+      "requiredAny": "至少上传一个",
+      "requiredAnyOf": "必传（所列各族至少其一）",
+      "optional": "可选"
+    },
     "uploading": "上传中...",
     "selectFile": "选择文件",
     "uploadProgress": "上传进度 {progress}%",
@@ -343,6 +365,13 @@
       "sheets": "工作表",
       "moreRows": "已显示 {shown}/{total} 行，点击加载更多",
       "noViewer": "{fileType} 文件",
+      "previewAction": "预览",
+      "previewButtonLabel": "预览 {name}",
+      "familyLabel": {
+        "document": "文档",
+        "model3d": "3D 模型",
+        "audio": "音频"
+      },
       "scanStatus": {
         "pending": "附件安全扫描排队中，暂不可预览",
         "scanning": "附件安全扫描进行中，暂不可预览",
@@ -351,6 +380,24 @@
         "failed": "附件扫描失败，暂不可预览",
         "legacy_unscanned": "历史附件未经扫描，暂不可预览",
         "unavailable": "附件暂不可预览（安全扫描状态）"
+      },
+      "model": {
+        "loading": "3D 模型加载中… {progress}%",
+        "canvasLabel": "{name} 的 3D 预览",
+        "views": "视图",
+        "view": {
+          "orbit": "自由旋转",
+          "front": "正视图",
+          "side": "侧视图",
+          "top": "俯视图"
+        }
+      },
+      "audio": {
+        "play": "播放",
+        "pause": "暂停",
+        "seekLabel": "播放进度",
+        "playerLabel": "{name} 的音频预览",
+        "loading": "音频加载中…"
       }
     }
   },
@@ -359,6 +406,7 @@
       "position": "第 {current} / 共 {total}",
       "previous": "上一张",
       "next": "下一张",
+      "viewFullImage": "查看长图",
       "imageAlt": "第 {current} 张，共 {total} 张",
       "error": {
         "loadFailed": "媒体加载失败"
@@ -673,6 +721,7 @@
     "fileTooLarge": "文件超出大小限制，请压缩后重试",
     "invalidMimeType": "不支持的文件类型",
     "mediaSetInvalid": "媒体组合不符合画廊规范，请检查封面与媒体列表",
+    "attachmentPolicyRequired": "3D 打印内容需至少包含一个 3D 模型文件（stl、obj、3mf、gcode、ply）",
     "sourceNotAllowedForOriginal": "原创内容不能添加来源归属",
     "fanworkSourceRequired": "二次创作需关联 IP 或选择灵感来源",
     "multipleSourceConflict": "只能选择一个来源（IP / 原作 / 灵感作品）",
@@ -1558,6 +1607,7 @@
     "complianceWarning": "需注意",
     "complianceViolation": "违规",
     "usageGuideTitle": "AI 使用指导",
+    "thinkingLabel": "正在思考…",
     "loadingGuide": "正在生成使用指导...",
     "noGuideAvailable": "暂无使用指导",
     "guideError": "使用指导生成失败，请稍后重试",
@@ -1673,14 +1723,14 @@
       "searchIpsSkipped": "已跳过 IP 搜索"
     },
     "citations": {
-      "title": "站内依据",
-      "count": "{count} 条已校验引用",
+      "title": "参考来源",
+      "count": "{count} 条",
       "invalid": "该引用不可用",
       "zoneOriginal": "原文",
       "zoneFanwork": "同人",
       "zoneIP": "IP",
-      "collapse": "收起引用",
-      "expand": "展开引用（{count} 条）"
+      "close": "关闭参考来源",
+      "entry": "{count} 条参考来源"
     },
     "noEvidence": {
       "title": "未找到足够依据",
@@ -2445,6 +2495,7 @@
         "template": "效率模板",
         "prompt": "AI 提示词",
         "mod": "Mod",
+        "3d_print": "3D打印",
         "other": "其他"
       },
       "typeDescOriginal": {
@@ -2455,6 +2506,7 @@
         "sheet_music": "原创曲谱、改编",
         "template": "Notion、Excel 等模板",
         "prompt": "Prompt 模板分享",
+        "3d_print": "原创 3D 模型、打印文件",
         "other": "其他原创内容"
       },
       "typeDescFanwork": {
@@ -2465,9 +2517,11 @@
         "sheet_music": "主题曲改编谱",
         "mod": "游戏模组、材质包",
         "prompt": "角色 LoRA 提示词",
+        "3d_print": "角色手办、道具模型",
         "other": "其他二创内容"
       },
       "attachments": {
+        "requiredFamilyMissing": "需至少上传一个{families}",
         "selected": "已选附件",
         "remove": "移除 {name}"
       }
@@ -2848,6 +2902,7 @@
   "markdown": {
     "copyCode": "复制代码",
     "citationJump": "跳转到引用 {index}",
+    "citationView": "点击查看参考来源",
     "imageBlocked": "图片已屏蔽：非平台图源"
   },
   "agentAccess": {

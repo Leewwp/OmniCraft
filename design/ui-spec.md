@@ -174,7 +174,7 @@
 **视觉契约**
 - Button 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
 - Primary hover 使用 `--accent-hover`（dark 为 #4338CA，白字 7.90:1 ≥AA）；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
-- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
+- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 1px `--ring` 细描边、无 offset（#720 层 2 契约，键盘专属——见设计系统「焦点反馈分级」三层框架）；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
 - Badge 始终 `rounded-full`、12px medium、20px 高，无 elevation；可交互 Badge 仅做 150ms 颜色/边框过渡，focus-visible 与 Button 相同。
 
 **响应式与动效**
@@ -224,7 +224,7 @@
 **视觉契约**
 - Input/Select/Textarea 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、1px `border-input`、`bg-background`、14px 正文；移动端输入文字保持 16px 以避免浏览器自动缩放，`md` 起恢复 14px。
 - 高度对齐控件三档：常规 36px；表单内取 44-48px 并与同排提交按钮同高（同排同高硬规则）。
-- hover（非 disabled）提升到 `border-strong`；focus-visible 使用 2px `--ring` + 2px background offset；invalid 使用 `border-destructive` + destructive ring，不以 placeholder 或颜色单独表达错误。
+- hover（非 disabled）提升到 `border-strong`；焦点反馈按设计系统「焦点反馈分级」（FT-1，2026-09-28）：Input/Textarea 聚焦仅边框加深到 `border-strong`（无 ring、无背景变化，键盘可及性由输入光标 + 边框变化承载），Select 触发器键盘 `focus-visible` 保留 1px 细描边；invalid 使用 `border-destructive` + destructive ring，不以 placeholder 或颜色单独表达错误。
 - Label 为 14px medium；Field 间距使用 8px，hint/error 为 12px，error 保留 `role=alert`。
 - Checkbox 使用 16px 方形、`rounded-sm` (3px)、checked=`primary`；Switch 为 44×24px 药丸轨道，checked=`primary`、unchecked=`muted`，thumb 使用 elevation 1。两者沿用同一 focus/disabled 契约。
 
@@ -404,7 +404,7 @@ interface AgentFollowUpChipsProps {
 **状态变体**
 - default: 透明底 + 1px `border-border-default` + `text-fg-default`
 - hover / focus-visible: `bg-accent-subtle` + `text-accent-emphasis` + `border-accent-emphasis`（悬停预告主动作；token 与 FilterPills 选中态相同但语义不同——本组件无持久选中态）
-- focus-visible 追加标准 `focus-visible:ring-2 focus-visible:ring-ring`；150ms `transition-colors`
+- focus-visible 追加标准 `focus-visible:ring-1 focus-visible:ring-ring`（#720 层 2：1px 细描边）；150ms `transition-colors`
 
 **响应式行为**
 - flex wrap 换行，小屏自然堆叠，无横向滚动。
@@ -2127,10 +2127,11 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 - 二创卡使用 1px border + radius-lg + elevation 1，hover 使用 `border-strong` + elevation 2；原创卡无默认边框，hover 使用浅遮罩、scale 1.05 与 elevation 2。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - 原创区卡片使用简化样式（无 IP 名、无标签 Badge、仅显示点赞数）。
-- **封面自然比例（#87 权威，替代旧的 video→16:9 / 其他→3:4 固定裁切）**：
-  - 封面比例由数据驱动：`cover_width`/`cover_height`（image = 媒体集首项尺寸；video = poster 尺寸）换算 `aspect-ratio`，`object-contain` 不裁切；无该字段时防御性默认 3:4。
-  - 极端比例（`max(width/height, height/width) > 2`）按高度上限 contain（超高图内部按可用高度适配，超宽图不超过列宽），防止单卡主导瀑布流。
-  - 二创卡与原创卡共用此规则；列表场景禁止强制 `object-cover` 裁切封面。
+- **信息流两档封面（#753 权威，2026-10-01，取代 #87 自然比例条款）**：
+  - 两档显示比例（不改原图/服务端数据）：`h/w ≤ 4/3 → 3:4`；`h/w > 4/3 → 9:16`；`object-cover object-center` 中心裁切。
+  - 几何优先 `cover_width`/`cover_height`（image = 媒体集首项尺寸；video = poster 尺寸），其次当前图实测（加载自愈链保留）；未知/失败回退 3:4 稳定占位。
+  - 视频右上播放角标（半透明圆形）；不加多图数量角标。两行标题/作者/点赞保留。
+  - 二创卡与原创卡共用；卡片与详情 contain 不再天然同取景，浮层转场按几何差异走既有居中缩淡降级。
 
 **Props 接口**
 ```ts
@@ -2146,21 +2147,21 @@ interface ContentCardProps {
 
 **视觉结构 — 二创区卡片（zone='fanwork'）**
 - 外层容器: `<div className="border border-border rounded-lg bg-card shadow-[var(--elevation-1)] overflow-hidden">`（无 padding，内容填满）
-- 封面区: 自然比例容器（`aspect-ratio` 由 `cover_width/cover_height` 数据驱动，缺省 3:4），`object-contain` 图片填满
+- 封面区: 两档比例容器（3:4 / 9:16，#753），`object-cover object-center` 中心裁切
 - 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 2 个低饱和 TagBadge）
 - 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **视觉结构 — 原创区卡片（zone='original'）**
 - 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
-- 封面区: 自然比例高度（`aspect-ratio` 由 `cover_width/cover_height` 数据驱动，缺省 3:4，`object-contain w-full`），`max-height: 400px`（极端比例限高），`overflow-hidden`
+- 封面区: 两档比例高度（3:4 / 9:16，#753），`object-cover object-center w-full`，`overflow-hidden`（无极端限高）
 - 悬停遮罩: `<div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />`
 - 封面缩放: `group-hover:scale-105 transition-transform duration-300`，并在 hover 时提升至 elevation 2。
 - 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg-muted`）→ ❤️ 点赞数（`text-xs text-fg-muted`）
 - 无标签 Badge、无 IP 名
 
 **尺寸规范**
-- 二创区卡片: padding 16px (p-4)，封面自然比例（缺省 3:4）
-- 原创区卡片: padding 8px (p-2)，封面自然比例（缺省 3:4），最小高度 150px
+- 二创区卡片: padding 16px (p-4)，封面两档 3:4/9:16（缺省 3:4）
+- 原创区卡片: padding 8px (p-2)，封面两档 3:4/9:16（缺省 3:4），最小高度 150px
 - 字号: `text-sm` (14px) 标题，`text-xs` (12px) 辅助信息
 - 间距: 元素间隙 4px (`gap-1`) 或 8px (`gap-2`)
 
@@ -2467,7 +2468,7 @@ interface ContentDetailProps {
 
 **共享元素转场（#64 决策 7-10 权威，覆盖 #67 原型与 #68 接入；#398 C1~C4；#409 F1 动效契约重建为现行权威）**
 - 转场核心为手动计算的 FLIP 几何：source 矩形 = 触发卡片封面/媒体区；开启动画把该视觉锚点放大为浮层封面几何，同时外壳按同一时间线推进；关闭时仅在 source 矩形仍可测量（在视口、未 detach）时反向回归。
-- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）；超高图当前项同样退化（两端取景语义无法统一：卡片 400px contain 整图 vs 浮窗 3:4 名义宽内部滚动）。
+- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）；长图当前项同样退化（#753 起两端取景语义仍无法统一：卡片 3:4/9:16 中心裁切 vs 浮窗真实比例 contain）。
 - View Transition API 是渐进增强：`document.startViewTransition` 可用时启用，不支持的环境继续走 FLIP；VT 命名落在两端封面 `<img>` 本身（盒底色/边框差异随 root 交叉淡化消化）。
 - **C1 图源统一（#409 F1 收紧为三处同源）**：卡片封面、点击预取、浮窗首帧（MediaGallery/竖屏集媒体列/CoverImage）三者渲染**同一 URL 串**——位图一律为唯一规范变体 `w=1080`（`coverRenderSrc`，优化器管线），SVG 与 data: 占位直通原地址（优化器对 SVG 400，next/image 对 .svg 本就直通）；浮窗模式的卡片封面用受控 `<img>`（响应式 sizes 无法跨端钉死同一变体）。点击卡片瞬间预取同一变体并 decode；MediaViewer 看大图维持原图。
 - **C2 几何统一**：卡片 cover 盒与浮窗锚点盒同一比例数据源——cover 元数据缺失时卡片在封面加载后用实测 intrinsic 回填（与浮窗媒体链同源），防御值同为 3:4；锚点盒不含翻页控件。
@@ -2512,7 +2513,7 @@ interface ContentDetailOverlayProps {
 - **桌面双栏（#88 权威，#397 起仅全横集）**：仅 image/video 内容且全部素材 w/h ≥ 16:9（恰 16:9 归横图）时，PC 端为左媒体右信息——媒体区（MediaGallery）高度上限 = 视口可用高度，宽度按媒体比例自适应；信息区（标题/作者/操作/正文/评论区）独立滚动；「封面与正文共享同一水平框架」的既有约束继续成立。文本型内容（article/sheet_music 等）若无竖版封面媒体链也维持单栏。
 - **竖屏集新版布局（#397 R2 权威，variant）**：任一素材 w/h < 16:9（含方图/3:2/16:10；混合集一律新版；全部缺几何不判竖维持现设计）且 ≥1100px 视口时走小红书式左媒体/右文字版式——
   - 朝向判定用素材 intrinsic 尺寸（视频 = 视频尺寸，poster 仅显示）；全类型媒体源链 = 真实媒体集 → 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）。
-  - 媒体列贴边满幅（负 margin 抵消浮窗内边距），列宽 = 可用高 × 当前图比例（逐张自适应、240ms 过渡；上限 = 根区宽 − 右栏最小宽 380px），装不下处黑底 letterbox；超高图（h/w > 2）按 3:4 名义宽取列宽 + 锚点盒内部竖向滚动。
+  - 媒体列贴边满幅（负 margin 抵消浮窗内边距 ≥960px，#753 图片布局门自 1100 前移），列宽 = 可用高 × 当前图真实比例（逐张自适应、240ms 过渡；上限 = 根区宽 − 右栏最小宽 380px），装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动（旧 3:4 名义宽 + 内滚退役）。图片主体点击进 MediaViewer；翻页由悬停/键盘聚焦可见的显式箭头承担（#753 移除左右 1/3 隐形热区）。
   - 控件：悬浮半透明圆形左右箭头（hover 显现）+ 底部半透明指示点 + 右上「N / M」角标 + 图片左右 1/3 隐形点击翻页（仅图片项；视频 controls 区不遮挡）+ 中间 1/3 点击进 MediaViewer；单素材无控件。
   - 壳层 float：顶层为 variant 时移除 header（grid 单行），返回/关闭 = 悬浮半透明圆钮（媒体列左上/右栏右上）；返回钮 hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；sr-only 标题保留 dialog 无障碍名称/初始焦点锚点/多层栈文案三职；右栏内容顶部留白避让悬浮钮。
   - 右栏（唯一滚动容器 layer-scroller）内容序：内容详情（标题/作者 + 关注/元信息/正文/标签/操作）→ 关联内容块（布局钉死：①二创关联的原创「原创」徽标行，点击浮窗内压栈 → ②同系列跳转，取第一个系列，系列名 + 第 X/Y 篇 + 上一章/下一章边界禁用 → ③衍生二创列表；无关联整块不渲染）→ 评论区（右栏末块）。
@@ -2547,8 +2548,8 @@ interface ContentDetailOverlayProps {
 **Key Constraints**
 - 只渲染 image/video 内容的有序媒体集（顺序由 `sort_order ASC, id ASC` 的存储契约决定，见 #83）；其他内容类型的文件走附件下载列表，两者语义分离（术语权威：「媒体集」≠「附件」）。
 - contain 不裁切：媒体按原始纵横比完整显示，禁止强制 `object-cover` 裁切（先例缺陷：详情页 `aspect-[16/9] max-h-96` 把竖图剪成横向矩形）。
-- 容器几何稳定：由首项媒体决定，浏览会话内切换不跳版。
-- 超高图（`height / width > 2`）限高 + 内部滚动（如容器内 `overflow-y-auto`），不撑破详情布局。
+- 容器几何（#753）：按当前项媒体决定（首项锁高退役）；移动端通栏自然比例 + 0.75×可用宽最低占位（横图留空居中不裁切）。
+- **长图（#753，`h/w ≥ 16/9` 含 9:16 边界，单一共享常量）**：移动端初始顶部 3:4 折叠（高 4W/3）+ 底部渐隐 +「查看长图」就地展开（不冒泡打开查看器），展开后由页面/浮层主体滚动，不保留 70vh 内部滚动；PC 端随容器等比缩窄居中完整显示。展开状态按内容/图片身份隔离，换内容复位。
 
 **Props 接口**
 ```ts
@@ -2562,14 +2563,14 @@ interface MediaGalleryProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="relative border border-border-default rounded-lg bg-canvas-default overflow-hidden">`，几何由首项比例确定（桌面双栏场景由 Overlay 传入高度约束）。
+- 外层容器: `<div className="relative border border-border-default rounded-lg bg-canvas-default overflow-hidden">`，几何按当前项比例（#753；桌面双栏场景由 Overlay 传入高度约束 contain）。
 - 媒体项: `object-contain w-full h-full`；当前项 `aria-current="true"`，隐藏项从焦点序移除（`inert` 或 `hidden`）。
 - 指示点: 底部居中低调位置指示点——透明圆 = 未浏览，实心圆 = 当前项；`aria-label` 说明「第 X 张 / 共 N 张」；不得闪烁或随切换跳动。
 - 翻页: 左右按钮（`outline`/`ghost` 变体，44px 触控目标，键盘可聚焦）+ 滑动手势（触摸滑动翻页）；按钮在首项/末项时 disabled。
 - 视频项: 展示 `<video controls poster={posterUrl}>`，第一帧 poster 为兜底；点击非 controls 区域也可进入查看器。
 
 **尺寸规范**
-- 容器宽度 = 可用内容宽度（与正文共享同一水平框架，不得窄于正文区）；高度由首项纵横比 + 超高限高共同决定。
+- 容器宽度 = 媒体实际可用宽（#753 移动端通栏，不受正文 padding 二次挤压）；高度由当前项纵横比 + 0.75W 最低占位共同决定（长图见折叠条款）。
 - 桌面双栏（Overlay 内）：高度上限 = 视口可用高度，宽度按媒体比例自适应。
 - 指示点间距 `gap-2`，直径 8px（`w-2 h-2`）。
 
@@ -3276,6 +3277,7 @@ interface VersionHistoryProps {
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - **媒体集上传编排（#80 决策 / #84 权威）**：image 内容 = 纯图片集 2~9 张；video 内容 = 纯视频集 1~3 个；数量上下限是运行时配置，由 public config 暴露安全值并前端消费（后端为权威校验方，前端只消费合同）。不允许图文混排媒体集；纵横比可混。其他内容类型（article/sheet_music/mod/audio/template/prompt）保持附件语义。
+- **按族分组提示（#726）**：附件模式下传入 `familyHints`（注册表投影）时，单一「限制：NMB」行替换为逐族行——`族名：扩展名白名单（或 MIME 说明） · 最大 NMB · 必传/可选`；`required_any_of` 语义 = 命中族标必传（"至少上传一个"），不表示集合内每族都必传；无扩展名白名单的族（text 等）显示族名与 MIME 说明，`client_accept` 的 `*` 通配符不得当文案上屏；不传 `familyHints` 的调用点（IP 封面、编辑器图片）维持旧行为。数据全部来自注册表与 config 投影（含 FALLBACK 兜底表——model3d 族与 3d_print 行不缺失），前端不自建映射。
 
 **Props 接口**
 ```ts
@@ -3285,6 +3287,7 @@ interface FileUploaderProps {
   contentType: 'image' | 'video' | string;
   maxCount?: number;                        // 媒体集数量上限（public config）
   minCount?: number;                        // 媒体集数量下限（public config）
+  familyHints?: UploadFamilyHint[];         // #726 按族分组提示（lib/public-config 投影）
   value?: UploadItem[];
   onChange?: (items: UploadItem[]) => void;
   isBusy?: boolean;
@@ -3555,6 +3558,8 @@ interface AgentToolStatus {
 - 页面外层：受保护的全高工作区，位于共享 Header 下方。
 - 桌面布局：会话侧栏 + 主对话区；主区包含会话标题行、消息流（三层生成形态）、引用列表和固定输入区。
 - **三层生成形态（A-06 核心，DeepSeek 同构顺序）**：思考折叠区（AgentThinkingBlock，流式展开→完成自动折叠，可手动重开）→ 工具步骤区（AgentToolStatus 可折叠，流式展开→完成折叠，展示步骤数/命中数/参数摘要/耗时）→ 逐字正文（react-markdown 受控渲染 + 行内 [n] 角标）。
+- **回合级折叠组件族 V4 边框（#750，2026-10-01）**：思考内容框、工具步骤列表框、本轮详情内容框、引用卡外框四类主框 = `rounded-md border-[1.5px] border-border-strong bg-canvas-default px-3 py-2`（与页面默认底同色，靠边框分层）；折叠头胶囊（AgentMetaPill，含「已深度思考 / N 个工具步骤 / 本轮详情 / N 条参考来源」）同步 1.5px `border-strong` + `bg-canvas-default` 底、保持 `rounded-full` 与紧凑视觉高度，coarse 指针命中区放大至 ≥44px；激活态（参考来源入口）保留 `accent-subtle` 背景反馈，#720 键盘焦点仍为 1px 细描边；卡片内部徽标/侧栏分隔线/错误卡/消息气泡不在此例外内（例外登记见 design-system.md 核心原则 2）。
+- **本轮详情胶囊触发（#750）**：一轮终态的用量/trace 入口从裸 `details/summary` 换成共享胶囊触发器（TurnDetailsDisclosure）——单一受控 button 触发（不嵌套 summary，杜绝双切换），默认折叠、可反复开合，`aria-expanded` 与内容可见状态同源；usage/trace 展示条件与管理员 trace 链接（普通用户纯文本 trace id）语义不变。
 - 会话侧栏：展开态自上而下为 折叠按钮 → 全宽”开启新对话” → 会话历史；**置顶分组（Pinned）在最前，其后 Today/Yesterday/Earlier 时间分组**；每项显示 title（无 title 显示「未命名」）+ 置顶图钉 + 更新时间；悬停/聚焦显示 ⋯ 菜单 = 重命名 / 置顶(取消置顶) / 删除。可收为 56px 窄栏并持久化（localStorage）。
 - 移动布局：单列全高页面，会话导航收进抽屉（Esc 关闭），顶部标题与底部输入区保持可达。
 - 图标: `<Icon className=”text-fg-muted w-4 h-4” />`
@@ -3586,15 +3591,16 @@ interface AgentToolStatus {
 
 **关键交互**
 - Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
-- **行内引用锚定（A-06）**：正文句末 `[1][2]` 渲染为可点击 sup 角标（`markdown.citationJump` a11y 名）；点击滚动到对应引用卡片（`#agent-citation-{index}`）并短暂高亮（ring-2，约 1.8s）+ 聚焦；超出引用数或无引用时渲染为纯文本 sup。纯展示层映射，服务端复验语义零改动。
+- **行内引用锚定（A-06 + FT-5 #697）**：正文句末 `[1][2]` 角标按**轮内全局编号**命中引用（跨多次检索累计、复验剔除不压缩；编号键控 `#agent-citation-{number}`）渲染为**标题小卡**——编号 + 引用标题截断（约 10 字，accent-subtle 底）的可点击按钮（`markdown.citationJump` a11y 名带编号）；桌面（hover:hover）悬停约 200ms 弹浮窗（完整标题 + 简介节选 + `markdown.citationView` 查看提示；Esc/移开关闭、滚动跟随、视口钳制），触屏不弹浮窗点按直跳；点击直接打开共享 `ContentDetailOverlay`（IP 引用直接进 `/ip/[id]` 详情页），2026-09-06 实测修复后的直开契约不变。编号未命中（越界/被剔）渲染为纯文本 sup 兜底；无引用轮不渲染角标。纯展示层映射，编号对齐由服务端（工具输出 cite 标注 + 编号集合剥离）保证。
 - 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
-- **IP 引用卡（SP-19 G2-1，Q16/Q5）**：`zone='ip'` 引用卡 = 标题 +「IP」徽标 + 分类徽标（`ipCategory.*` 11 类词表）+ 简介摘录，无统计字段；与内容卡混排同一「站内依据」区（折叠阈值照旧）。点击与行内 `[n]` 角标均不走 `ContentDetailOverlay`，直接 `router.push('/ip/[id]')` 落 IP 详情页。
+- **参考来源侧栏（FT-4 #696，2026-09-28；#751 修订 2026-10-01）**：回答底部「N 条参考来源」入口按钮 toggle 右侧「参考来源」面板（`AgentCitationsSidebar`）——桌面（≥768px）为对话区右缘固定宽 `min(440px,38vw)` 侧栏（最大 440px、窄桌面按 38vw 收窄；顶栏下方起高，flex 推挤对话区左移，消息列 max-w-3xl 与文本宽度不变；双通道关闭 = 再点来源按钮 / 侧栏 X）；移动（<768px）为底部抽屉（`inset-x-0` 全宽，把手拖拽过半 / 快滑 / 内容滚动到顶后继续下拉三路关闭，手写 pointer events 不引依赖）。面板内容 = 最近一次点击来源的那条回答的引用卡（复用 AgentCitationCard）；原内联折叠列表（#399 FOLD_THRESHOLD）退役。**无横向溢出约束（#751）**：桌面/移动两分支内容区仅纵向滚动（`overflow-x-hidden` 仅兜底）；列表 `grid-cols-1` + `li min-w-0` + 卡片 `min-w-0` + 标题行「序号定宽 + 标题 `min-w-0 flex-1 truncate` + 单徽标 `ml-auto shrink-0`」构成完整收缩链；IP 双徽标（含英文长分类）独立元信息行可换行；摘录 `break-words` 限两行；标题完整可达名称保留在 `aria-label`。
+- **IP 引用卡（SP-19 G2-1，Q16/Q5）**：`zone='ip'` 引用卡 = 标题（truncate）+ 独立元信息行「IP」徽标 + 分类徽标（`ipCategory.*` 11 类词表，可换行）+ 简介摘录，无统计字段；与内容卡混排同一「参考来源」面板。点击与行内 `[n]` 角标均不走 `ContentDetailOverlay`，直接 `router.push('/ip/[id]')` 落 IP 详情页。
 - **消息操作（A-06）**：最后一条 assistant 消息悬停/聚焦显示操作行 = 复制（clipboard + toast）/ 重新生成（保留用户消息、撤下本轮 think/answer 行重发同一 query）；流式中 = 停止（composer 内切换）。
 - **侧边栏 ⋯ 菜单（A-06）**：重命名 = 内联输入（Enter 提交 PATCH title / Esc 取消，≤50 rune）；置顶切换 PATCH pinned（列表置顶分组重排）；删除 = ConfirmModal + owner-scoped `DELETE /api/v1/agent/conversations/:id`，取消不发请求。头部不再放置删除按钮（反冗余）。
 - “开始新对话”不删除旧会话且无需确认。删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
 - 会话标题：active 会话显示 title（无 title 显示「未命名 #id」）；自动标题由服务端首轮后异步生成。
 - 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
-- 所有可交互元素使用设计系统可见 focus ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
+- 焦点反馈遵循设计系统「焦点反馈分级」三层框架（FT-1 立档、#720 修订）：自明态控件软化聚焦（仅边框加深）；键盘 focus-visible 一律 1px 细描边；选中态只留筛选/状态类（参考来源按钮等激活用背景微变）；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
 - 代码块：rehype-highlight 高亮 + 悬停复制按钮（markdown.copyCode）；外链（http/https 绝对地址）`target=_blank rel=noopener noreferrer`，站内相对链接原样。
 - Esc 只关闭当前打开的内容详情浮层或会话抽屉，不离开 Agent 工作台。
 
@@ -6132,8 +6138,22 @@ interface SortSelectProps {
 
 **状态变体**
 - scan-card（扫描门拦截）：`data-testid="attachment-scan-card"`；ShieldAlert 图标 + 扫描状态文案（content.preview.scanStatus.*）+ 右侧下载入口（allow_copy 时）。scannable 族群非 clean（含 not_required 接线异常、pending/scanning/manual_review/blocked/failed/legacy_unscanned）一律此态，与下载门同源同判。
-- viewer（document 族）：移交 DocumentViewer（懒加载）。
-- download-card（无查看器/缺 URL）：FileWarning 图标 + 原始文件名（历史行回退类型标签）+ 大小（MB，两位小数）+ 下载按钮，`data-testid="attachment-download-card"`。
+- entry（#722 预览入口卡，document/model3d/audio 三族群且有签名 URL 的默认态）：`data-testid="attachment-preview-entry"`；族群图标（FileText/Box/Music）+ 族群标签 + 原始文件名 + 大小（MB，两位小数）+「预览」按钮（`data-testid="attachment-preview-button"`，primary 药丸）+ 下载入口（allow_copy 时）。默认不请求预览字节；点击后才挂载对应查看器（组件内 `active` 状态机，一旦激活不回退）。
+- viewer：点击 entry 后按族群挂载——document → DocumentViewer（懒加载）、model3d → ModelViewer（懒加载）、audio → AudioPlayer。
+- download-card（无查看器/缺 URL/.mtl）：FileWarning 图标 + 原始文件名（历史行回退类型标签）+ 大小（MB，两位小数）+ 下载按钮，`data-testid="attachment-download-card"`。
+
+## Component: AudioPlayer 音频播放器
+
+音频附件的内置播放器（#722）：SoundCloud 式紧凑条，底层原生 `<audio>`（preload=metadata，不引新依赖）；经 AttachmentPreview 预览入口点击后挂载。
+
+**布局**
+- 卡片基底 `rounded-lg border border-border bg-card p-4 w-full`（移动端全宽自适应），`data-testid="audio-player"`。
+- 上行：圆形播放/暂停钮（`h-9 w-9 rounded-full bg-primary`，Play/Pause 图标）+ 右侧文件名（truncate）+ 时间行 `当前 / 总时长`（`data-testid="audio-time"`，m:ss；未知时长显加载中文案）。
+- 下行：进度条 `h-1.5 rounded-full bg-muted`，已播段 `bg-primary`；`role="slider"` `tabindex=0`（←/→ ±5s、Home/End），点击/拖动 seek（pointer capture）。
+
+**交互合同**
+- 卸载/切换附件：暂停 + 移除 src + load() 释放资源；StrictMode 双挂载时 effect 重挂载显式恢复 src。
+- 错误态：AlertTriangle +「预览加载失败」+ 下载入口（与其他查看器错误卡同形）。
 
 ## Component: DocumentViewer 文档查看器
 
@@ -6147,3 +6167,30 @@ docx = mammoth → DOMPurify 严格 sanitizer → 富文本渲染；xlsx = excel
 **安全合同**
 - 渲染前双重净化：DOMPurify 白名单（标签/属性/URI 协议，禁 script/style/iframe/object/embed/link/meta，禁 data-* 属性）+ DOMParser 后处理（img src 仅接受内嵌 `data:image/*`，外链资源剥除；a 补 rel 并中和危险 href）。
 - 预算合同：`document_preview_max_mb`（压缩体积，默认 10MB）+ 解析规模上限（xlsx 200k cells、docx 2MB HTML）；超限走 degraded，不在浏览器解析。
+
+## Component: ModelViewer 3D 模型查看器
+
+three.js 精确锁版 + OrbitControls + 自动居中 fit-to-view + XY 底面网格 + 三视图按钮（#689）。独立懒分块（next/dynamic ssr:false），three 全家桶不进主包。
+
+**布局**
+- 画布：`h-80 w-full overflow-hidden rounded-lg border border-border bg-card`，`role="img"` + aria-label（文件名）；底行左侧视图按钮组（`role="group"`）右侧下载入口。
+- 视图按钮药丸：orbit/front/side/top，选中 `bg-primary text-primary-foreground`，`aria-pressed`。
+
+**坐标合同（唯一权威）**
+- 统一 Z-up、XY=build plate；GridHelper 旋到 XY 平面、置于 bbox 底面之下。
+- Top=+Z / Front=-Y / Side=+X；三视图用正交机位（禁用 orbit 交互），自由旋转为透视机位（阻尼 + 滚轮缩放）。
+- 俯视图 up 用水平轴 (0,1,0)（观察方向与 +Z up 平行时确定朝向）；其余视图维持 Z-up。
+- 正交 frustum 随容器宽高比同步（垂直基准半幅 = radius×1.4，水平按比例），resize/比例变化不失真（#722）。
+
+**场景句柄合同（#722）**
+- `SceneHandle = { setView(view), dispose() }`：切换机位与销毁分离；裸函数（含清理函数）被 `asSceneHandle` 运行时守卫拒绝（历史缺陷：清理函数被误存为视图控制器，按钮 `.apply` 命中 Function.prototype.apply 执行卸载 → 切视图空白）。
+- 画布 CSS 尺寸由 `setSize` 写 style（DPR 2 下不再按物理像素当 CSS 尺寸渲染）。
+
+**状态变体**
+- loading：Loader2 + 百分比进度。
+- degraded：FileText +「文件较大，暂不提供在线预览」+ 下载入口（预算合同：model3d_max_preview_mb / model3d_max_triangles / gcode_max_lines，解析前估计规模，超限不渲染）。
+- error：AlertTriangle（destructive）+ 失败文案 + 下载入口。
+- ready：画布 + 视图按钮 + 下载。
+
+**族群合同**
+- stl/obj/ply/3mf/gcode 五格式预览；.mtl 落下载卡不预览（V1 无 OBJ+MTL 材质匹配——OSS key 随机化使 basename 匹配不可实现）。

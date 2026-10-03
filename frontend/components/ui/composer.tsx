@@ -44,6 +44,9 @@ interface ComposerProps {
   /** 左下角控件插槽（#539 深度思考开关等）；渲染于底部预留区，不与文本重叠。 */
   leading?: ReactNode;
   rows?: number;
+  /** #725：移动端触控命中扩展——发送/停止钮视觉保持 36px 契约，伪元素
+   * 外扩命中区（≥44px，仅移动端生效）；默认 false = 私信/评论现状。 */
+  expandMobileHit?: boolean;
   maxHeight?: number;
   maxLength?: number;
   className?: string;
@@ -61,6 +64,7 @@ export const Composer = forwardRef(function Composer({
   submitDisabled,
   submitting,
   rows = 1,
+  expandMobileHit = false,
   maxHeight = COMPOSER_MAX_HEIGHT,
   maxLength,
   className,
@@ -100,7 +104,9 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
   return (
     <div
       className={cn(
-        "relative rounded-md border border-border-default bg-canvas-default focus-within:border-accent-emphasis focus-within:ring-1 focus-within:ring-accent-emphasis disabled:cursor-not-allowed disabled:opacity-60",
+        /* FT-1 选中态分级：软化 focus-within（原 accent 边 + 1px 环），
+           仅边框加深到 border-strong，无背景变化。 */
+        "relative rounded-md border border-border-default bg-canvas-default focus-within:border-border-strong disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
     >
@@ -121,9 +127,11 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
         className="block w-full resize-none overflow-y-auto bg-transparent px-3 pb-11 pt-2 pr-11 text-sm text-fg-default placeholder:text-fg-subtle focus:outline-none disabled:cursor-not-allowed"
         style={{ maxHeight }}
       />
-      {/* #539：左下角控件区（与内嵌动作钮同一底部预留带，8px 内边距）。 */}
+      {/* #539：左下角控件区（与内嵌动作钮同一底部预留带，8px 内边距）。
+          FT-2：加 gap-2——深度思考开关与模型选择器之间的间隔不再依赖
+          按钮自身 px-2。 */}
       {leading ? (
-        <div className="absolute bottom-2 left-2 flex items-center">{leading}</div>
+        <div className="absolute bottom-2 left-2 flex items-center gap-2">{leading}</div>
       ) : null}
       {/* 内嵌动作按钮：右下角 8px、36px 实底圆钮两态（见文件头契约）。
           #417：流式期渲染停止按钮（同一内嵌位，Square 图标 + stopLabel）。 */}
@@ -132,7 +140,10 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
           type="button"
           aria-label={stopLabel}
           onClick={onStop}
-          className="absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-default"
+          className={cn(
+            "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            expandMobileHit && "after:absolute after:-inset-2 after:content-[''] md:after:inset-0",
+          )}
         >
           <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
           <span className="sr-only">{stopLabel}</span>
@@ -144,7 +155,8 @@ ref: React.ForwardedRef<HTMLTextAreaElement>,
         onClick={onSubmit}
         disabled={submitDisabled || disabled}
         className={cn(
-          "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas-default",
+          "absolute bottom-2 right-2 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          expandMobileHit && "after:absolute after:-inset-2 after:content-[''] md:after:inset-0",
           submitting || !(submitDisabled || disabled)
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
             : "bg-canvas-subtle text-fg-subtle",

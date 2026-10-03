@@ -462,7 +462,24 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	c.AgentTokenService = service.NewAgentAccessTokenService(
 		repository.NewAgentAccessTokenRepository(db), cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)
+	// #754 A：search_ips 显式浏览 seam（approved+category 在 LIMIT 前过滤，
+	// newest / most_contents 均带 id 同分排序）。
+	c.AgentService.SetIPBrowseRepository(c.IPRepo)
 	c.AgentService.SetUsageGuideService(c.UsageGuideService)
+	// #728 自动生成缓存（发布预热 + 存量懒生成共用入口；server 与 worker
+	// 双进程经 Redis 租约去重）。降级：Redis 缺席时 GetOrGenerate 退化为
+	// 本地生成，守卫写仍生效。
+	usageGuideCacheSvc := service.NewUsageGuideCacheService(
+		repository.NewUsageGuideCacheRepository(db),
+		service.NewRedisSingleflight(rdb),
+		c.PromptRegistryService,
+		repository.NewUsageGuideRepository(db),
+		c.ContentRepo,
+		cfg,
+	)
+	c.AgentService.SetUsageGuideCacheService(usageGuideCacheSvc)
+	// 发布转正式 → 双语指导预热（异步、失败不阻塞发布）。
+	c.ReviewService.SetUsageGuidePreheater(c.AgentService.PreheatUsageGuides)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
 	c.AgentService.SetPromptResolver(c.PromptRegistryService)
 	// SP-21 T2: turn instrumentation rides the shared async writer.

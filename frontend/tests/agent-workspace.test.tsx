@@ -9,7 +9,14 @@ import enMessages from "@/messages/en.json";
 import { api, ApiRequestError } from "@/lib/api";
 import { clearPublicConfigCache } from "@/lib/public-config";
 import { ToastProvider } from "@/components/ui/Toast";
-import { act, cleanup, fireEvent, installDom, render, waitFor, within } from "./runtime-test-helpers";
+import { act, cleanup, configure, fireEvent, installDom, render, waitFor, within } from "./runtime-test-helpers";
+
+/* 全量单进程串行跑（CI 形态，run-tests.mjs 把全部 .tsx 测试喂进一个 node
+   进程）时，先行文件的遗留句柄会拖慢本文件的流式结算链路：默认 1s 的
+   waitFor 在 CI 三轮实证不够（3093ms 卡满 3s 超时仍红；本地单文件恒绿、
+   本地全量可复现漂红 84/88）。文件级放宽默认等待上限；显式 timeout 不受
+   影响，600ms 短重试等语义保持。 */
+configure({ asyncUtilTimeout: 8000 });
 
 const root = path.resolve(process.cwd());
 
@@ -45,8 +52,11 @@ let authUser: {
   username: string;
   email: string;
   email_verified_at: string | null;
+  /* #750：本轮详情管理员 trace 链接差异需要 role 参与 stub。 */
+  role?: string;
 } | null = null;
 const routerPushes: string[] = [];
+const routerReplaces: string[] = [];
 
 Module._load = function loadWithNavigationStub(request, parent, isMain) {
   if (request === "next/navigation") {
@@ -55,6 +65,9 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
       useRouter: () => ({
         push: (path: string) => {
           routerPushes.push(path);
+        },
+        replace: (path: string) => {
+          routerReplaces.push(path);
         },
       }),
       usePathname: () => "/agent",
@@ -209,14 +222,14 @@ const workspaceMessages = {
       hits: "{count} hits",
     },
     citations: {
-      title: "Site references",
-      count: "{count} verified references",
+      /* FT-4：统一命名「参考来源」+ 侧栏键（折叠键随内联列表退役）。 */
+      title: "Reference sources",
+      count: "{count}",
       invalid: "Reference unavailable",
       zoneOriginal: "Original",
       zoneFanwork: "Fanwork",
-      /* #399 折叠键镜像真实 catalog（MISSING_MESSAGE 反模式防护）。 */
-      collapse: "Collapse citations",
-      expand: "Show citations ({count})",
+      close: "Close reference sources",
+      entry: "{count} reference sources",
     },
     noEvidence: {
       title: "Not enough evidence",
@@ -267,6 +280,28 @@ const originalGet = api.get;
 const originalDelete = api.delete;
 const originalPatch = api.patch;
 
+
+/** FT-4（#696）：引用卡住参考来源侧栏——测试先点入口按钮开面板。 */
+async function openCitationsPanel(view: ReturnType<typeof renderWithIntl>) {
+  /* 树重建竞态防护（同 badge 点击反模式）：done 触发的会话历史回放会把
+     整棵消息树原子替换，点击落在 detached 节点上即静默失效（本地全量与
+     CI 三轮实证的 84/88 漂红根因）。点击后验证侧栏确已打开，未开则重查
+     新鲜入口节点补点，与 badge 点击的轮询补点同一模式。 */
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const entry = await waitFor(() => view.getByRole("button", { name: /reference sources/ }), { timeout: 3000 });
+    fireEvent.click(entry);
+    const opened = await waitFor(
+      () => view.getByRole("button", { name: "Close reference sources" }),
+      { timeout: 600 },
+    ).then(
+      () => true,
+      () => false,
+    );
+    if (opened) return entry;
+  }
+  throw new assert.AssertionError({ message: "citations panel did not open after detached-click retries" });
+}
+
 test.afterEach(() => {
   cleanup();
   api.get = originalGet;
@@ -274,6 +309,7 @@ test.afterEach(() => {
   api.patch = originalPatch;
   authUser = null;
   routerPushes.length = 0;
+  routerReplaces.length = 0;
   window.localStorage.clear();
   delete (globalThis as Record<string, unknown>).fetch;
 });
@@ -817,6 +853,78 @@ test("grounded done with follow_ups renders chips; click fills composer without 
   }
 });
 
+test("first-round follow-ups survive the FT-3 route remount via the terminal stash (#715)", async () => {
+  installDom();
+  const now = new Date();
+  const events = streamEvents().map((event) =>
+    event.type === "done"
+      ? { ...event, follow_ups: ["What else by this author?", "Show watercolor tutorials"] }
+      : event,
+  );
+  const stub = installSSEFetch(events);
+  const now2 = new Date();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now2.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 2, conversation_id: 7, role: "assistant", phase: "tools", tools: [{ name: "search_content", status: "success", duration_ms: 42 }] },
+          { id: 3, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const replacesBefore = routerReplaces.length;
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(
+      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" })),
+      { timeout: 8000 },
+    );
+    assert.ok(
+      routerReplaces.slice(replacesBefore).includes("/agent/c/7"),
+      "first-round done replaced into the conversation URL",
+    );
+
+    /* 模拟 FT-3 路由重挂载：unmount 清空内存活动轮（key={id} 换树），
+       重挂载实例只能靠历史回放 + 模块级 stash 重建终态。 */
+    view.unmount();
+    const remounted = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
+    await waitFor(() => assert.ok(remounted.getByText("hello world")), { timeout: 8000 });
+    const chip = await waitFor(
+      () => remounted.getByRole("button", { name: /Show watercolor tutorials/ }),
+      { timeout: 8000 },
+    );
+    assert.ok(
+      remounted.getByRole("group", { name: "Suggested follow-ups" }),
+      "chips revived after the remount history replay",
+    );
+    /* 回填的终态仍接既有交互：chip 点击填 composer。 */
+    fireEvent.click(chip);
+    const composer = remounted.getByRole("textbox") as HTMLTextAreaElement;
+    assert.equal(composer.value, "Show watercolor tutorials", "revived chip still fills the composer");
+
+    /* stash 消费一次即失效：再次重挂载回归历史轮终态缺省（落库契约）。 */
+    remounted.unmount();
+    const third = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
+    await waitFor(() => assert.ok(third.getByText("hello world")), { timeout: 8000 });
+    assert.equal(
+      third.queryByRole("group", { name: "Suggested follow-ups" }),
+      null,
+      "stash is consumed exactly once (history turns keep terminal defaults)",
+    );
+  } finally {
+    stub.restore();
+  }
+});
+
 test("workspace streams an answer and renders citation cards", async () => {
   installDom();
   const now = new Date();
@@ -843,13 +951,59 @@ test("workspace streams an answer and renders citation cards", async () => {
     fireEvent.click(suggestion);
 
     await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
+    await openCitationsPanel(view);
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 8000 });
     /* 工具步骤区完成后自动折叠（A-06）：先展开再断言步骤明细。 */
-    fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
-    await waitFor(() => assert.ok(view.getByText("Searched site content")));
+    /* settle 竞态防护：轮终局重渲染会换掉展开按钮，点击与断言放同一 waitFor
+       内重试（陈旧点击不抛错、断言失败重点）。 */
+    await waitFor(() => {
+      fireEvent.click(view.getByRole("button", { name: "1 tool steps" }));
+      assert.ok(view.getByText("Searched site content"));
+    });
     assert.ok(view.getByText("Original"), "citation card exposes the zone label");
     assert.match(stub.calls[0], /\/api\/v1\/agent\/chat\/stream$/);
     assert.ok(calls.some((call) => call.path.includes("/api/v1/agent/conversations")));
+  } finally {
+    stub.restore();
+  }
+});
+
+test("citations entry pill hugs content instead of stretching the full row (#763)", async () => {
+  installDom();
+  const now = new Date();
+  const stub = installSSEFetch(streamEvents());
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [{ id: 1, conversation_id: 7, role: "user", content: "find me a guide" }],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    const entry = await waitFor(() =>
+      view.getByRole("button", { name: /reference sources/ }), { timeout: 3000 },
+    );
+    /* jsdom 无布局，断言结构：胶囊必须隔一层 max-w 包装，不能是 flex 列
+       容器直接子项（直接子项被 blockify+stretch 拉满整行，即 #763 根因）。 */
+    const wrapper = entry.parentElement;
+    assert.ok(wrapper, "entry pill is wrapped");
+    assert.match(wrapper.className, /max-w-\[85%\]/);
+    /* 开侧栏逻辑不变：点击仍打开参考来源面板。CI 慢机下抽屉挂载可超
+       waitFor 默认 1s（next-intl 4.14 渲染时序更贴边界），与上方 entry
+       轮询同用 3s 上限。 */
+    fireEvent.click(entry);
+    await waitFor(
+      () => assert.ok(view.getByRole("button", { name: "Close reference sources" })),
+      { timeout: 3000 },
+    );
   } finally {
     stub.restore();
   }
@@ -888,6 +1042,7 @@ test("degraded stream hides the model summary and shows fallback references", as
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("Search fallback active")), { timeout: 3000 });
     assert.equal(view.queryByText("model summary that must stay hidden"), null);
+    await openCitationsPanel(view);
     assert.ok(view.getByRole("button", { name: /Fallback result/ }));
   } finally {
     stub.restore();
@@ -922,6 +1077,7 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
   fireEvent.click(suggestion);
   await flushAsyncUpdates();
 
+  await openCitationsPanel(view);
   const citation = await waitFor(() => view.getByRole("button", { name: /Cited content/ }));
   fireEvent.click(citation);
 
@@ -1003,15 +1159,22 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
 
     fireEvent.change(composer, { target: { value: "second question" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
 
-    /* 第二轮完成后，第一轮的引用卡片必须仍在（历史端点回放落库引用），第二轮的新卡片同屏。 */
-    assert.ok(view.getAllByRole("button", { name: /Cited content/ }).length >= 1, "turn-one citation card persists");
+    /* FT-4：引用随答案持久化为各自入口按钮（面板一次展示一条回答的引用）。
+        第二轮完成后两条入口都在；点第一轮入口仍能打开第一轮的引用卡。 */
+    const entries = view.getAllByRole("button", { name: /reference sources/ });
+    assert.ok(entries.length >= 2, "both answers keep their reference-sources entries");
+    /* 点第一轮入口 → 面板展示第一轮引用；再点第二轮入口 → 换为第二轮引用。 */
+    fireEvent.click(entries[0]);
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 8000 });
+    assert.equal(view.queryByRole("button", { name: /Second reference/ }), null, "panel shows the clicked answer's citations only");
+    fireEvent.click(entries[1]);
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Second reference/ })), { timeout: 3000 });
     assert.ok(view.getAllByRole("button", { name: /Second reference/ }).length >= 1, "turn-two citation card renders");
   } finally {
     globalThis.fetch = originalFetch;
@@ -1068,7 +1231,8 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     /* 等引用卡片出现 = done 事件已结算（角标按钮只在 done 后可点）。此后 done 触发的
        会话历史回放仍可能把整棵消息树原子替换，点击落在 detached 节点上即静默失效
        （CI 闪断形态，同 copy 点击反模式）：轮询补点兜底，点击前重查新鲜节点。 */
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 3000 });
+    await openCitationsPanel(view);
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 8000 });
     let dialog: HTMLElement | undefined;
     for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
       try {
@@ -1087,6 +1251,104 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
         ),
       { timeout: 2000 },
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+/* FT-5 (#697)：轮内全局编号对齐——编号有洞（1、3，2 被复验剔除）时角标
+   小卡按编号命中、点击打开对应引用（非数组位置），越界 [2] 渲染纯文本。 */
+test("gap-numbered citations keep badge alignment by turn-global number", async () => {
+  installDom();
+  const now = new Date();
+  const events = sseResponse([
+    { type: "start", trace_id: "t-gap", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "第一 [1] 剔除 [2] 第三 [3]" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "第一 [1] 剔除 [2] 第三 [3]",
+      citations: [
+        { content_id: 3, title: "Cited content", zone: "original", number: 1 },
+        { content_id: 4, title: "Third numbered", zone: "original", number: 3 },
+      ],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const originalFetch = globalThis.fetch;
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        /* done 后历史回放重建消息树：assistant 行带同编号 citations，回放后
+           角标仍按编号渲染（历史回放一致性）。 */
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          {
+            id: 2, conversation_id: 7, role: "assistant", content: "第一 [1] 剔除 [2] 第三 [3]",
+            citations: [
+              { content_id: 3, title: "Cited content", zone: "original", number: 1 },
+              { content_id: 4, title: "Third numbered", zone: "original", number: 3 },
+            ],
+          },
+        ],
+      },
+    },
+    { method: "GET", path: "/api/v1/contents/4", response: { ...CONTENT_DETAIL, content: { ...CONTENT_DETAIL.content, id: 4, title: "Third numbered" } } },
+    { method: "GET", path: "/api/v1/contents/4/related-fanworks", response: { contents: [], total: 0 } },
+  ]);
+  const apiMockedFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/v1/agent/chat/stream")) return events;
+    return apiMockedFetch(input, init);
+  }) as typeof fetch;
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "find me a guide" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText(/第一/)), { timeout: 3000 });
+
+    /* #719 展示号：可见列表 [1,3] 连续映射——角标 [3] 文字/读屏用展示号 2，
+       小卡标题仍按原全局编号命中（Third numbered，非数组第 3 项）。 */
+    const badge3 = await waitFor(() => view.getByRole("button", { name: "Jump to citation 2" }), { timeout: 8000 });
+    assert.ok((badge3.textContent ?? "").startsWith("2"), "chip leads with the DISPLAY number (hole collapsed)");
+    assert.ok((badge3.textContent ?? "").includes("Third numb"), "badge chip carries the matched citation title (truncated)");
+    /* 编号 1 命中第一条引用（展示号 1 不变）。 */
+    const badge1 = view.getByRole("button", { name: "Jump to citation 1" });
+    assert.ok((badge1.textContent ?? "").includes("Cited cont"));
+    /* 越界编号 2 无引用可命中 = 纯文本 sup 兜底，不产生第三个角标按钮。 */
+    assert.equal(view.getAllByRole("button", { name: /Jump to citation/ }).length, 2);
+
+    /* 点击 [3] 直开共享浮层，落在 number=3 的引用目标（content 4）。 */
+    let dialog: HTMLElement | undefined;
+    for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
+      try {
+        fireEvent.click(view.getByRole("button", { name: "Jump to citation 2" }));
+      } catch {
+        /* 消息树替换过渡帧：下一轮重查再点。 */
+      }
+      dialog = await waitFor(() => view.getByRole("dialog"), { timeout: 600 }).catch(() => undefined);
+    }
+    assert.ok(dialog, "numbered badge click must open the overlay");
+    await waitFor(
+      () => assert.ok(within(dialog).getAllByRole("heading", { name: "Third numbered" }).length >= 1),
+      { timeout: 2000 },
+    );
+
+    /* 侧栏卡片：展示号按可见列表顺序连续（01 / 02，无空洞），id 仍键控
+       原全局编号（目标查找与存储不变）。 */
+    await openCitationsPanel(view);
+    await waitFor(() => {
+      assert.ok(view.container.querySelector("#agent-citation-1"), "card id keyed by turn-global number");
+      assert.ok(view.container.querySelector("#agent-citation-3"));
+      assert.ok(!view.container.querySelector("#agent-citation-2"), "dropped number leaves no card");
+      assert.ok(view.getByText("02"), "sidebar shows consecutive display numbers");
+    }, { timeout: 8000 });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1184,6 +1446,7 @@ test("provider error falls back to ordinary keyword results without showing the 
     );
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("Search fallback active")));
+    await openCitationsPanel(view);
     assert.ok(view.getByRole("button", { name: /Keyword fallback result/ }));
     assert.equal(view.queryByText("This request was not completed"), null);
     assert.ok(calls.some((call) => call.path.includes("/api/v1/contents/search?q=Find+beginner-friendly+furniture+mods")));
@@ -1220,6 +1483,71 @@ test("mobile conversation drawer opens from the menu button and closes on Escape
 
   fireEvent.keyDown(document, { key: "Escape" });
   await waitFor(() => assert.equal(view.queryByRole("dialog"), null));
+});
+
+/* #752：移动抽屉高度链——面板 flex 化后 aside 获得受限高度，nav 是唯一
+   会话列表滚动容器（类级契约断言；scrollHeight/clientHeight 几何由真实
+   浏览器验证，jsdom 无布局引擎）。 */
+test("mobile drawer panel stretches the sidebar so nav is the only scrolling list (#752 height chain)", async () => {
+  installDom();
+  const now = Date.now();
+  const day = 86400000;
+  const conversation = (id: number, title: string, updatedAt: number, pinned = false) => ({
+    id,
+    context_type: "general",
+    title,
+    pinned_at: pinned ? new Date(updatedAt).toISOString() : null,
+    created_at: new Date(updatedAt).toISOString(),
+    updated_at: new Date(updatedAt).toISOString(),
+  });
+  const conversations = [
+    conversation(1, "conv-pinned", now - 3600_000, true),
+    ...Array.from({ length: 6 }, (_, i) => conversation(10 + i, `conv-today-${i + 1}`, now - (i + 1) * 600_000)),
+    ...Array.from({ length: 6 }, (_, i) => conversation(20 + i, `conv-yesterday-${i + 1}`, now - day - (i + 1) * 600_000)),
+    ...Array.from({ length: 6 }, (_, i) => conversation(30 + i, `conv-earlier-${i + 1}`, now - 10 * day - (i + 1) * 600_000)),
+  ];
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/31",
+      response: { messages: [{ id: 1, conversation_id: 31, role: "user", content: "q" }] },
+    },
+  ]);
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByRole("button", { name: /conv-earlier-6/ })));
+
+  fireEvent.click(view.getByRole("button", { name: "Open conversation list" }));
+  const dialog = await waitFor(() => view.getByRole("dialog"));
+
+  const panel = dialog.querySelector("div.relative");
+  assert.ok(panel, "drawer panel div exists");
+  assert.match(panel.className, /(^| )flex( |$)/, "#752: panel must be a flex container so the aside stretches to its constrained height");
+  assert.match(panel.className, /h-full/, "panel keeps its constrained full height");
+
+  const aside = dialog.querySelector("aside");
+  assert.ok(aside, "sidebar aside exists inside the panel");
+  const inner = aside.querySelector(":scope > div.flex");
+  assert.ok(inner, "aside renders the inner flex column");
+  assert.match(inner.className, /flex-1/);
+  assert.match(inner.className, /min-h-0/, "inner column keeps the shrink link");
+
+  const nav = aside.querySelector("nav");
+  assert.ok(nav, "conversation nav exists");
+  assert.match(nav.className, /overflow-y-auto/, "nav stays the scrolling list");
+  assert.match(nav.className, /overscroll-contain/, "overscroll containment preserved");
+  assert.match(nav.className, /min-h-0/);
+
+  const scrollingNodes = Array.from(dialog.querySelectorAll("*")).filter(
+    (el) => (el.getAttribute("class") || "").split(/\s+/).includes("overflow-y-auto"),
+  );
+  assert.equal(scrollingNodes.length, 1, "exactly one overflow-y-auto container (the nav) lives in the drawer");
+  assert.equal(scrollingNodes[0], nav);
+
+  /* 末项仍在抽屉 DOM（多分组超一屏场景），关闭与新建入口可达。 */
+  assert.ok(within(dialog).getByRole("button", { name: /conv-earlier-6/ }));
+  assert.ok(within(dialog).getByRole("button", { name: "Start new conversation" }));
+  const closeBtn = within(dialog).getAllByRole("button").find((b) => b.getAttribute("aria-label") === "Close conversation list");
+  assert.ok(closeBtn, "drawer close entry stays reachable");
 });
 
 /* ---------- AgentFeatureGate：feature 开关 ---------- */
@@ -1668,7 +1996,11 @@ test("malformed citation objects are never clickable", async () => {
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("answer text")));
 
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Valid ref/ })));
+    /* 轮 settle 后入口可能重挂载（activeTurn→树内轮），循环点击直至面板出现。 */
+    await waitFor(() => {
+      fireEvent.click(view.getAllByRole("button", { name: /reference sources/ })[0]);
+      assert.ok(view.getByRole("button", { name: /Valid ref/ }));
+    }, { timeout: 3000 });
     assert.equal(view.queryByRole("button", { name: /Bad zone/ }), null, "invalid citation must never be interactive");
     assert.equal(view.queryByRole("button", { name: /Reference unavailable/ }), null);
   } finally {
@@ -1869,7 +2201,8 @@ test("closing the citation overlay restores citation focus and the transcript sc
     fireEvent.click(suggestion);
     await flushAsyncUpdates();
 
-    const citation = await waitFor(() => view.getByRole("button", { name: /Cited content/ }));
+    await openCitationsPanel(view);
+  const citation = await waitFor(() => view.getByRole("button", { name: /Cited content/ }));
     const transcript = view.getByRole("log");
     transcript.scrollTop = 240;
     const anchorBefore = transcript.scrollTop;
@@ -1997,7 +2330,7 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
 
     /* 工具步骤区：折叠态展示计数，展开可见参数摘要与命中数。 */
     await waitFor(() => {
-      fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
+      fireEvent.click(view.getByRole("button", { name: "1 tool steps" }));
       assert.ok(view.getByText("Searched site content"));
     }, { timeout: 3000 });
     assert.ok(view.getByText(/治愈 素材/), "args summary incl. expansion terms is visible");
@@ -2005,6 +2338,74 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     assert.ok(view.getByText("2s"), "duration summary is visible");
   } finally {
     stub.restore();
+  }
+});
+
+/* #750：本轮详情从裸 details/summary 换成共享胶囊触发器——单一可聚焦
+   button 触发（不嵌套 summary，杜绝双切换），aria-expanded 与内容可见
+   状态同源，usage/trace 条件与管理员 trace 链接语义保持。 */
+test("turn details pill: single button trigger, aria-expanded tracks content, admin trace link kept", async () => {
+  installDom();
+  authUser = { id: 1, username: "admin", email: "a@example.com", email_verified_at: "2026-01-01T00:00:00Z", role: "admin" };
+  const events = [
+    { type: "start", trace_id: "t-750", conversation_id: 31, answer_kind: "grounded_content" },
+    { type: "delta", delta: "answer body" },
+    {
+      type: "done",
+      conversation_id: 31,
+      message_id: 311,
+      trace_id: "t-750",
+      answer_kind: "grounded_content",
+      answer: "answer body",
+      citations: [],
+      tools: [],
+      usage: { prompt_tokens: 812, completion_tokens: 240 },
+    },
+  ];
+  const stub = installSSEFetch(events);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/31",
+      response: {
+        messages: [
+          { id: 1, conversation_id: 31, role: "user", content: "any question" },
+          { id: 2, conversation_id: 31, role: "assistant", content: "answer body" },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "any question" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await waitFor(() => assert.ok(view.getByText("answer body")), { timeout: 3000 });
+
+    /* 默认折叠：单一 button 触发（无 summary 嵌套），usage 不可见。 */
+    const trigger = await waitFor(() => view.getByRole("button", { name: "Turn details" }));
+    assert.equal(trigger.tagName, "BUTTON", "trigger must be a plain button, not nested in summary");
+    assert.equal(view.container.querySelector("summary"), null, "native details/summary must be gone");
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.equal(view.queryByText(/Token usage/), null, "usage hidden while collapsed");
+
+    /* 点击一次展开一次；内容与 aria-expanded 同源。 */
+    fireEvent.click(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "true");
+    assert.ok(view.getByText("Token usage: 812 in / 240 out"));
+    const traceLink = view.getByRole("link", { name: "t-750" });
+    assert.ok(
+      (traceLink.getAttribute("href") ?? "").includes("/admin/traces/t-750"),
+      "admin sees trace deep link",
+    );
+
+    /* 再点收起：内容卸载、aria-expanded 回 false。 */
+    fireEvent.click(trigger);
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
+    assert.equal(view.queryByText(/Token usage/), null, "usage unmounts on collapse");
+  } finally {
+    stub.restore();
+    authUser = null;
   }
 });
 
@@ -2322,12 +2723,13 @@ test("#416 page-level horizontal dividers are removed from agent workspace shell
   const sidebarDividers = (sidebar.match(/border-b border-border-default|border-t border-border-default/g) ?? []);
   assert.deepEqual(workspaceDividers, [], "workspace must not render page-level horizontal dividers");
   assert.deepEqual(sidebarDividers, [], "conversation sidebar must not render page-level horizontal dividers");
-  // 竖向面板分隔线保留（非本轮范围）
-  assert.match(workspace, /border-l border-border-default/, "vertical panel divider stays");
+  // 竖向面板分隔线保留（非本轮范围；#721 起随 min-[701px] 断点施加——
+  // ≤700px 纵向布局无左缘分隔线）。
+  assert.match(workspace, /min-\[701px\]:border-l min-\[701px\]:border-border-default/, "vertical panel divider stays (desktop)");
   assert.match(sidebar, /border-r border-border-default/, "vertical panel divider stays");
 });
 
-test("#416 empty state hides the header title and shows the big composer mid-lower", async () => {
+test("#416 empty state hides the header title and centers the composer (FT-2 uniform shape)", async () => {
   installDom();
   installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
   const view = renderWithIntl(<AgentWorkspace />);
@@ -2337,9 +2739,9 @@ test("#416 empty state hides the header title and shows the big composer mid-low
   assert.equal(view.queryByRole("heading", { name: /New conversation/i }), null);
   assert.ok(view.getByRole("button", { name: "Start new conversation" }), "sidebar entry stays");
 
-  // 大号输入框：初始 4 行 + 引导内容同屏
+  // FT-2 两态同形：空态与会话态同 rows=1（多行由 autoresize 长高）
   const composer = view.getByLabelText("Ask the agent");
-  assert.equal(composer.getAttribute("rows"), "4", "empty variant starts as a large multi-line composer");
+  assert.equal(composer.getAttribute("rows"), "3", "#725: empty variant shares the conversation-state shape (now 3 rows)");
   assert.ok(view.getByText(/example|suggestion|layout|music|mod/i, { exact: false }) || true);
 });
 
@@ -2363,7 +2765,7 @@ test("#416 conversation state docks the one-row composer and shows the sourced t
   await waitFor(() => assert.ok(view.getByText("已有一轮对话")));
   assert.equal(view.getAllByText("星尘设定集").length >= 2, true, "title appears in list and header from one source");
   const composer = view.getByLabelText("Ask the agent");
-  assert.equal(composer.getAttribute("rows"), "1", "docked variant keeps the regular bottom form");
+  assert.equal(composer.getAttribute("rows"), "3", "#725: docked variant keeps the regular bottom form (3 rows)");
 });
 
 test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blank restores", async () => {
@@ -2425,4 +2827,22 @@ test("#417 agent composer delegates to the shared embedded Composer", async () =
   assert.match(source, /stopLabel=\{streaming/, "streaming swaps the embedded slot to the stop action");
   assert.doesNotMatch(source, /composer\.style\.height/, "local auto-grow removed (component-owned)");
   assert.match(source, /ref=\{composerRef\}/, "focus flows preserved via ref forwarding");
+});
+
+/* FT-3（#695）会话路由化：四处导航改造 + 深链 404 回退 + 流中卸载 abort。
+   source-contract 钉法（交互级断言见 e2e agent-workspace.mock.spec.ts）。 */
+test("FT-3 conversation routing contract: URL carries conversation identity", async () => {
+  const source = await read("components/agent/AgentWorkspace.tsx");
+  // 切会话 → push(/agent/c/{id})；新建 → push("/agent")
+  assert.ok(source.includes('router.push(`/agent/c/${id}`)'), "select conversation pushes the conversation URL");
+  assert.ok(source.includes('router.push("/agent")'), "new conversation pushes the empty-state entry");
+  // 首轮 done → replace（发完首条按返回不退回空页）；删当前会话/深链 404 → replace("/agent")
+  assert.ok(source.includes('router.replace(`/agent/c/${event.conversation_id}`)'), "first-round done replaces in the conversation URL");
+  assert.ok(source.includes('router.replace("/agent")'), "delete-current and deep-link 404 replace back to /agent");
+  assert.ok(source.includes("error.status === 404"), "deep-link 404 is the replace trigger");
+  // 流中离开补卸载 abort
+  assert.ok(source.includes("useEffect(() => () => controllerRef.current?.abort(), [])"), "unmount aborts the in-flight stream");
+  // 会话路由页存在且 key 强制重挂载
+  const page = await read("app/(protected)/(headered)/agent/c/[conversationId]/page.tsx");
+  assert.ok(page.includes("key={id}") && page.includes("initialConversationId={id}"), "conversation page remounts per id and seeds the workspace");
 });

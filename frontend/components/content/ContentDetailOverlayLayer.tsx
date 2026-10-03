@@ -105,12 +105,12 @@ export function ContentDetailOverlayLayer({
   const [relatedLoaded, setRelatedLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [coverReady, setCoverReady] = useState<boolean | undefined>(undefined);
-  /* #90 桌面相关内容块：仅 ≥1100px 把关联行插槽交给 ContentDetail（RelatedContents
-     自隐藏于 <1100px；移动端关联入口维持 #89 语义——由连续浏览承担，不渲染该行）。 */
+  /* #753 图片布局门：variant 生效视口 1100 → 960（PC 图片语义起效；#90 关联行
+     移交仍按全局 1100 三档，不随本票替换）。 */
   const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 1100px)");
+    const mediaQuery = window.matchMedia("(min-width: 960px)");
     const update = () => setIsDesktop(mediaQuery.matches);
     update();
     mediaQuery.addEventListener("change", update);
@@ -437,7 +437,7 @@ export function ContentDetailOverlayLayer({
         !isFanwork && relatedTotal > 8 ? (
           <Link
             href={`/original/${content.id}/fanworks`}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
           >
             {t("contentDetailOverlay.viewAll")}
           </Link>
@@ -507,12 +507,12 @@ export function ContentDetailOverlayLayer({
 
   if (isSplitMedia) {
     return (
-      <div className="mx-auto w-full max-w-[1280px] min-[1100px]:grid min-[1100px]:h-full min-[1100px]:min-h-0 min-[1100px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[1100px]:items-stretch min-[1100px]:gap-6">
+      <div className="mx-auto w-full max-w-[1280px] min-[960px]:grid min-[960px]:h-full min-[960px]:min-h-0 min-[960px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[960px]:items-stretch min-[960px]:gap-6">
         {/* 左媒体列（#88）：仅 ≥1100px 显示；aspect 盒高度 = 视口可用高（留控件位），
             宽度按首项媒体比例自适应（aspect-ratio 传递尺寸），列内居中不裁切。 */}
-        <div className="hidden min-[1100px]:grid min-[1100px]:h-full min-[1100px]:min-h-0 min-[1100px]:place-items-center min-[1100px]:overflow-hidden">
+        <div className="hidden min-[960px]:grid min-[960px]:h-full min-[960px]:min-h-0 min-[960px]:place-items-center min-[960px]:overflow-hidden">
           <div
-            className="min-[1100px]:h-full min-[1100px]:max-w-full"
+            className="min-[960px]:h-full min-[960px]:max-w-full"
             style={{
               aspectRatio: String(splitRatio),
               maxHeight: splitHasControls
@@ -532,7 +532,7 @@ export function ContentDetailOverlayLayer({
             <1100px 时回到 overlay-scroller 单列滚动，本列不滚动。 */}
         <div
           data-slot="layer-scroller"
-          className="min-w-0 min-[1100px]:h-full min-[1100px]:min-h-0 min-[1100px]:overflow-y-auto min-[1100px]:overscroll-contain"
+          className="min-w-0 min-[960px]:h-full min-[960px]:min-h-0 min-[960px]:overflow-y-auto min-[960px]:overscroll-contain"
         >
           <ContentDetail
             data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
