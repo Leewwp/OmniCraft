@@ -3,8 +3,8 @@ module omnicraft/backend
 go 1.26.0
 
 require (
-	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.16
-	github.com/alibabacloud-go/green-20220302/v3 v3.2.3
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.2.4
+	github.com/alibabacloud-go/green-20220302/v3 v3.5.5
 	github.com/alibabacloud-go/tea v1.5.3
 	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
