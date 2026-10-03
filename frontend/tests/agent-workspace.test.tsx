@@ -996,9 +996,14 @@ test("citations entry pill hugs content instead of stretching the full row (#763
     const wrapper = entry.parentElement;
     assert.ok(wrapper, "entry pill is wrapped");
     assert.match(wrapper.className, /max-w-\[85%\]/);
-    /* 开侧栏逻辑不变：点击仍打开参考来源面板。 */
+    /* 开侧栏逻辑不变：点击仍打开参考来源面板。CI 慢机下抽屉挂载可超
+       waitFor 默认 1s（next-intl 4.14 渲染时序更贴边界），与上方 entry
+       轮询同用 3s 上限。 */
     fireEvent.click(entry);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Close reference sources" })));
+    await waitFor(
+      () => assert.ok(view.getByRole("button", { name: "Close reference sources" })),
+      { timeout: 3000 },
+    );
   } finally {
     stub.restore();
   }
