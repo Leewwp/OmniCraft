@@ -978,7 +978,10 @@ test("citations entry pill hugs content instead of stretching the full row (#763
       method: "GET", path: "/api/v1/agent/conversations/7",
       response: {
         conversation: conversation(7, now.toISOString()),
-        messages: [{ id: 1, conversation_id: 7, role: "user", content: "find me a guide" }],
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 3, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+        ],
       },
     },
   ]);
@@ -988,22 +991,16 @@ test("citations entry pill hugs content instead of stretching the full row (#763
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    const entry = await waitFor(() =>
-      view.getByRole("button", { name: /reference sources/ }), { timeout: 3000 },
-    );
+    /* 复用 openCitationsPanel（FT-4 #696 树竞态防护辅助）：done 触发的会
+       话历史回放会原子替换消息树，首版 mock 详情漏带引用助手消息且自行
+       点击一次了事——重建窗口内入口消失/点击落空（CI 三红 + 本地 6/8
+       漂红实证）。 */
+    const entry = await openCitationsPanel(view);
     /* jsdom 无布局，断言结构：胶囊必须隔一层 max-w 包装，不能是 flex 列
        容器直接子项（直接子项被 blockify+stretch 拉满整行，即 #763 根因）。 */
     const wrapper = entry.parentElement;
     assert.ok(wrapper, "entry pill is wrapped");
     assert.match(wrapper.className, /max-w-\[85%\]/);
-    /* 开侧栏逻辑不变：点击仍打开参考来源面板。CI 慢机下抽屉挂载可超
-       waitFor 默认 1s（next-intl 4.14 渲染时序更贴边界），与上方 entry
-       轮询同用 3s 上限。 */
-    fireEvent.click(entry);
-    await waitFor(
-      () => assert.ok(view.getByRole("button", { name: "Close reference sources" })),
-      { timeout: 3000 },
-    );
   } finally {
     stub.restore();
   }
