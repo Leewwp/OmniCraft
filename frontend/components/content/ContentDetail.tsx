@@ -96,6 +96,12 @@ interface ContentDetailProps {
       评论区/相关内容块）延后一拍挂载，降低入场动画期主线程拥塞；独立详情页
       不传（无动画窗口，直接挂载）。 */
   deferTail?: boolean;
+  /** SP-26 A-8（#780）：作者行内联关注按钮的显隐类。右栏作者卡（ContentSidebar，
+      hidden lg:block）与内联按钮同屏重复的宿主分支传 "lg:hidden"（与侧栏断点
+      同源联动）；右栏不渲染作者卡的分支（浮层 ≥lg 竖图变体，creator 侧栏不进
+      右栏）不传——内联按钮是唯一直接入口，恒显。不破坏 <lg 视口：侧栏隐藏时
+      内联按钮照常渲染为唯一关注入口。 */
+  inlineFollowClassName?: string;
 }
 
 /* SP-19 G3-2：正文走 Markdown 渲染的内容类型（与发布侧 TEXT_PRIMARY_TYPES
@@ -208,6 +214,7 @@ export function ContentDetail({
   variantTail,
   coverHoldSrc,
   deferTail,
+  inlineFollowClassName,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -307,6 +314,7 @@ export function ContentDetail({
                 targetType="user"
                 targetId={authorId}
                 initialFollowing={data.author?.is_following ?? false}
+                className={inlineFollowClassName}
               />
             )}
           </div>
