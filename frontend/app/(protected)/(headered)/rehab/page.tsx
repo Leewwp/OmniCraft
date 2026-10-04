@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -19,7 +19,10 @@ import { ReputationDetail } from "@/components/rehab/ReputationDetail";
 interface Course {
   id: number;
   violation_type: string;
-  content_i18n?: Record<string, string>;
+  // SP-26-C（#782）：后端已按 locale 本地化 title/content（响应不再有
+  // content_i18n 字段，前端不持有语言选择逻辑）。
+  title: string;
+  content: string;
   min_reading_sec: number;
   reward_points: number;
 }
@@ -32,6 +35,7 @@ interface Completion {
 
 export default function RehabPage() {
   const t = useTranslations();
+  const locale = useLocale();
   const { toast } = useToast();
   const { user, refreshUser } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -53,7 +57,7 @@ export default function RehabPage() {
     setPage(nextPage);
     try {
       const [coursesRes, progressRes] = await Promise.all([
-        api.get<{ courses?: Course[]; total?: number; page_size?: number }>(`/api/v1/rehab/courses?page=${nextPage}&page_size=20`),
+        api.get<{ courses?: Course[]; total?: number; page_size?: number }>(`/api/v1/rehab/courses?page=${nextPage}&page_size=20&locale=${locale}`),
         api.get<{ completions?: Completion[] }>("/api/v1/rehab/my-progress"),
       ]);
       const incoming = coursesRes.courses ?? [];
@@ -70,7 +74,7 @@ export default function RehabPage() {
       setLoadingMore(false);
       setLoading(false);
     }
-  }, [t, toast]);
+  }, [locale, t, toast]);
 
   useEffect(() => {
     if (!user) return;
@@ -149,8 +153,8 @@ export default function RehabPage() {
             return (
               <Fragment key={course.id}>
               <CourseCard
+                title={course.title}
                 violationType={course.violation_type}
-                contentI18n={course.content_i18n}
                 minReadingSec={course.min_reading_sec}
                 rewardPoints={course.reward_points}
                 isActive={isActive}
@@ -175,9 +179,9 @@ export default function RehabPage() {
                   </Button>
                 )}
               </CourseCard>
-              {isActive && course.content_i18n && (
+              {isActive && (
                 <div className="mt-2 rounded-md border border-border bg-card/50 p-4">
-                  <CourseContent contentI18n={course.content_i18n} violationType={course.violation_type} />
+                  <CourseContent title={course.title} content={course.content} violationType={course.violation_type} />
                 </div>
               )}
               </Fragment>

@@ -42,6 +42,32 @@ type RehabCourseResponse struct {
 	Completed     bool   `json:"completed"`
 }
 
+// rehabCourseTitles（SP-26-C #782）：violation_type 枚举归属方（后端）持有
+// 的唯一标题知识副本——与 migrations/026_rehab_seed.sql 的五个违规码一一
+// 对应。Title 按 locale 本地化，避免中文界面直出英文 slug；未知违规码
+// 原样回退（测试/扩展期不崩）。
+var rehabCourseTitles = map[string]struct{ zh, en string }{
+	"malicious_report_tag":     {zh: "恶意举报标记", en: "Malicious Report Tagging"},
+	"malicious_comment":        {zh: "恶意评论", en: "Malicious Comments"},
+	"malicious_contribution":   {zh: "恶意投稿", en: "Malicious Contributions"},
+	"malicious_report_comment": {zh: "恶意举报评论", en: "Malicious Comment Reporting"},
+	"judge_error":              {zh: "判官误判", en: "Judge Misjudgment"},
+}
+
+// rehabCourseTitle returns the localized course title for a violation type.
+// Empty/unknown locale falls back to zh; unknown violation types return the
+// raw code so diagnostics stay possible.
+func rehabCourseTitle(violationType, locale string) string {
+	titles, ok := rehabCourseTitles[violationType]
+	if !ok {
+		return violationType
+	}
+	if locale == "en" {
+		return titles.en
+	}
+	return titles.zh
+}
+
 func (s *RehabService) GetAvailableCourses(userID int64, locale string) ([]RehabCourseResponse, error) {
 	courses, err := s.rehabRepo.ListCourses()
 	if err != nil {
@@ -76,7 +102,7 @@ func (s *RehabService) GetAvailableCourses(userID int64, locale string) ([]Rehab
 		result = append(result, RehabCourseResponse{
 			ID:            course.ID,
 			ViolationType: course.ViolationType,
-			Title:         course.ViolationType,
+			Title:         rehabCourseTitle(course.ViolationType, locale),
 			Content:       content,
 			MinReadingSec: course.MinReadingSec,
 			RewardPoints:  course.RewardPoints,
@@ -105,7 +131,7 @@ func (s *RehabService) GetCourseDetail(courseID int64, locale string) (*RehabCou
 	return &RehabCourseResponse{
 		ID:            course.ID,
 		ViolationType: course.ViolationType,
-		Title:         course.ViolationType,
+		Title:         rehabCourseTitle(course.ViolationType, locale),
 		Content:       content,
 		MinReadingSec: course.MinReadingSec,
 		RewardPoints:  course.RewardPoints,
