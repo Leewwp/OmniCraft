@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { getContentHref } from "@/lib/content";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -208,7 +209,7 @@ export default function AdminContentsPage() {
                     )}
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <Link href={`/content/${c.id}`} target="_blank">
+                        <Link href={getContentHref(c.id, c.zone)} target="_blank">
                           <Button size="sm" variant="outline">{t('common.view')}</Button>
                         </Link>
                         {view === "trash" ? (

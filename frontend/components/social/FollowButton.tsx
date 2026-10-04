@@ -80,6 +80,11 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
       )}
       onClick={toggle}
       disabled={interactionBlocked || busy}
+      /* SP-26 A-7（#780）：可访问名按态收敛（关注/取消关注）——恒宽叠放的
+         三个格子会被读屏展平成「取消关注已关注」，aria-label 覆盖内容命名；
+         aria-pressed 标记双态开关语义。 */
+      aria-label={isFollowing ? unfollowLabel : t("social.follow")}
+      aria-pressed={isFollowing}
       title={interactionBlocked ? t(interactionDenialKey(capabilities.interaction_denial_reason)) : undefined}
     >
       {/* 恒宽占位：最长文案「取消关注」常驻隐藏格，宽度任何状态下不变 */}

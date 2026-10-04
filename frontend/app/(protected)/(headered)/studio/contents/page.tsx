@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Eye, Heart, MessageCircle, Edit, Trash2, FileText, ShieldQuestion, BookOpen } from "lucide-react";
 import { api } from "@/lib/api";
+import { getContentHref } from "@/lib/content";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -166,7 +167,8 @@ export default function StudioContentsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <Link
-                    href={`/content/${item.id}`}
+                    /* #781：zone 分流——原创行裸 /content/ 落 404（分区隔离）。 */
+                    href={getContentHref(item.id, item.zone)}
                     className="text-sm font-medium text-foreground hover:text-primary truncate"
                   >
                     {item.title}

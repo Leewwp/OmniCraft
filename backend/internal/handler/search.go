@@ -47,7 +47,10 @@ func (h *SearchHandler) Suggestions(c *gin.Context) {
 
 func (h *SearchHandler) Trending(c *gin.Context) {
 	limit := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
-	items, err := h.searchSvc.GetTrending(limit)
+	// #781 SP-26-B: optional zone filter (original/fanwork); absent keeps the
+	// legacy site-wide mixed ranking (backward compatible).
+	zone := c.Query("zone")
+	items, err := h.searchSvc.GetTrending(limit, zone)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "search failed")
 		return

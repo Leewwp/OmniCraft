@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ScrollText, Megaphone, Activity, ChevronRight, PanelLeftClose, PanelLeft, X, Coins, FlaskConical } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
+import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
 import {
   ADMIN_SIDEBAR_STORAGE_KEY,
@@ -41,6 +42,20 @@ const ADMIN_NAV = [
   { href: "/admin/notifications", labelKey: "navNotifications", icon: Megaphone },
 ];
 
+/* SP-26 A-4（#780，2026-10-04 用户拍板）：admin 区复用全站 <Header />——推翻
+ * SP-19 G1-1「admin 不经 headered / 无顶栏」的旧取向。admin 仍留在 (protected)
+ * 直下（不挪路由组），但布局自带 Header：顶栏可达站点首页、可见当前用户身份
+ * 并可退出。移动端 <701px 出现双顶栏（Header 汉堡 + admin 自有 PanelLeft 顶条）
+ * 为已裁决接受并存，不让位改造。 */
+function AdminHeaderedShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <Header />
+      <div className="flex w-full flex-1 flex-col">{children}</div>
+    </div>
+  );
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
   const { user, isLoading } = useAuth();
@@ -72,9 +87,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 text-sm text-muted-foreground">
-        {t('common.loading')}
-      </div>
+      <AdminHeaderedShell>
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 text-sm text-muted-foreground">
+          {t('common.loading')}
+        </div>
+      </AdminHeaderedShell>
     );
   }
 
@@ -84,18 +101,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!user || user.role !== "admin") {
     return (
-      <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center px-4 py-20 text-center">
-        <Shield className="h-12 w-12 text-muted-foreground" />
-        <h1 className="mt-4 text-xl font-bold tracking-tight">{t('admin.accessDenied')}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t('admin.accessDeniedMsg')}
-        </p>
-      </div>
+      <AdminHeaderedShell>
+        <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center px-4 py-20 text-center">
+          <Shield className="h-12 w-12 text-muted-foreground" />
+          <h1 className="mt-4 text-xl font-bold tracking-tight">{t('admin.accessDenied')}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t('admin.accessDeniedMsg')}
+          </p>
+        </div>
+      </AdminHeaderedShell>
     );
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-0 px-0 min-[701px]:flex-row">
+    <AdminHeaderedShell>
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-0 px-0 min-[701px]:flex-row">
       <aside
         className={cn(
           "hidden shrink-0 flex-col overflow-visible border-r border-border bg-canvas-subtle py-2 transition-[width] duration-200 motion-reduce:transition-none min-[701px]:flex",
@@ -171,7 +191,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
       </aside>
 
-      <div className="sticky top-0 z-30 flex h-12 w-full items-center gap-3 border-b border-border bg-canvas-default px-3 min-[701px]:hidden">
+      {/* A-4：sticky 偏移让位全站 Header（--header-h=52px，z-40 在上）——
+          保持 top-0 会滚到 Header 底下被盖住。 */}
+      <div className="sticky top-[var(--header-h)] z-30 flex h-12 w-full items-center gap-3 border-b border-border bg-canvas-default px-3 min-[701px]:hidden">
         <button
           type="button"
           aria-label={t("nav.openMenu")}
@@ -245,5 +267,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Footer />
       </div>
     </div>
+    </AdminHeaderedShell>
   );
 }

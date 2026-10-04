@@ -19,7 +19,9 @@ export function SidebarWrapper() {
   const [trendingContents, setTrendingContents] = useState<TrendingContentItem[]>([]);
 
   useEffect(() => {
-    api.get<{ trending?: Array<{ text?: string; score?: number; content_id?: number }> }>("/api/v1/search/trending")
+    /* #781（SP-26-B）：带 zone=original 过滤——trending 是全站混区热榜，
+       不过滤时榜单混入二创，且原创行用 /content/ 前缀落 404（分区隔离）。 */
+    api.get<{ trending?: Array<{ text?: string; score?: number; content_id?: number }> }>("/api/v1/search/trending?zone=original")
       .then((data) => {
         if (!data || !Array.isArray(data.trending)) {
           return;
@@ -41,7 +43,8 @@ export function SidebarWrapper() {
     rank: i + 1,
     name: item.title,
     stat: item.score > 0 ? `${t("home.trendingHeat")} ${item.score}` : "",
-    href: `/content/${item.contentId}`,
+    /* #781：榜单行恒指原创详情路由（/content/[id] 对 zone=original 有意 notFound）。 */
+    href: `/original/${item.contentId}`,
   }));
 
   const sections = [

@@ -32,7 +32,10 @@ type TrendingItem struct {
 // the UpdateHotRank rebuild (members are content IDs).
 const hotRankContentsKey = "rank:hot:contents"
 
-func (s *SearchService) GetTrending(limit int) ([]TrendingItem, error) {
+// GetTrending returns the hot-rank trending window. zone is optional: when
+// non-empty (#781 SP-26-B) members outside that zone are filtered out before
+// the window is filled; empty keeps the legacy site-wide mixed behavior.
+func (s *SearchService) GetTrending(limit int, zone string) ([]TrendingItem, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -47,6 +50,13 @@ func (s *SearchService) GetTrending(limit int) ([]TrendingItem, error) {
 	if fetch > 300 {
 		fetch = 300
 	}
+	// #781: the zone filter stacks on top of the over-fetch window, so a
+	// fanwork-dominated rank can exhaust the limit*3 window before any
+	// original member is reached — fetch the full 300-member ceiling instead
+	// of the scaled window when a zone is requested.
+	if zone != "" {
+		fetch = 300
+	}
 	items, err := s.rdb.ZRevRangeWithScores(ctx, hotRankContentsKey, 0, fetch-1).Result()
 	if err != nil {
 		return results, err
@@ -57,7 +67,7 @@ func (s *SearchService) GetTrending(limit int) ([]TrendingItem, error) {
 			ids = append(ids, id)
 		}
 	}
-	titles, err := s.searchRepo.ResolveTrendingContents(ctx, ids)
+	titles, err := s.searchRepo.ResolveTrendingContents(ctx, ids, zone)
 	if err != nil {
 		return results, err
 	}

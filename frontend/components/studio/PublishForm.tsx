@@ -23,7 +23,7 @@ import { IPPicker } from "@/components/studio/IPPicker";
 import { SourceContentPicker, type SourceContent } from "@/components/studio/SourceContentPicker";
 import { CollabUserPicker, type CollabUser } from "@/components/content/CollabUserPicker";
 import { Skeleton } from "@/components/ui/skeleton";
-import { normalizeContentDetailResponse } from "@/lib/content";
+import { normalizeContentDetailResponse, getContentHref } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
 import {
   clientAcceptForContentType,
@@ -464,7 +464,9 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
         if (failedInvites.length > 0) {
           toast("warning", t("studio.publish.collab.inviteFailed", {
             usernames: failedInvites.map((user) => user.username).join(", "),
-            url: `/content/${contentId}`,
+            /* #781：zone 分流——原创内容发布失败提示里的预览 URL 不能裸 /content/
+               （原创区 /content/[id] 落 404）。 */
+            url: getContentHref(contentId, zone),
           }));
         }
       }

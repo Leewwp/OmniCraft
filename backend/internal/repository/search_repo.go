@@ -179,7 +179,9 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID 
 // ResolveTrendingContents maps hot-rank members (content IDs) to their titles
 // under the public visibility scope (FIX-06): unpublished, deleted, private or
 // banned-author entries are dropped so they never reach the discovery surface.
-func (r *SearchRepository) ResolveTrendingContents(ctx context.Context, ids []int64) (map[int64]string, error) {
+// zone (#781 SP-26-B) is optional: non-empty keeps only members of that zone
+// (e.g. the original-zone sidebar hot list); empty keeps the site-wide mix.
+func (r *SearchRepository) ResolveTrendingContents(ctx context.Context, ids []int64, zone string) (map[int64]string, error) {
 	if len(ids) == 0 {
 		return map[int64]string{}, nil
 	}
@@ -187,10 +189,13 @@ func (r *SearchRepository) ResolveTrendingContents(ctx context.Context, ids []in
 		ID    int64  `gorm:"column:id"`
 		Title string `gorm:"column:title"`
 	}
-	if err := ApplyContentVisibilityScope(r.db.WithContext(ctx).Model(&model.ContentItem{}), 0).
+	query := ApplyContentVisibilityScope(r.db.WithContext(ctx).Model(&model.ContentItem{}), 0).
 		Select("content_items.id, content_items.title").
-		Where("content_items.id IN ?", ids).
-		Find(&rows).Error; err != nil {
+		Where("content_items.id IN ?", ids)
+	if zone != "" {
+		query = query.Where("content_items.zone = ?", zone)
+	}
+	if err := query.Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	titles := make(map[int64]string, len(rows))

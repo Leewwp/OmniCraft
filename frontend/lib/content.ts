@@ -1,5 +1,19 @@
 import type { ContentCardData } from "@/components/content/ContentCard";
 
+/**
+ * #781（SP-26-B）：内容详情分区路由——zone 为 original 时走 /original/[id]，
+ * 其余（fanwork/缺省）走 /content/[id]。/content/[contentId] 页对
+ * zone === "original" 有意 notFound()（两详情路由分区隔离为设计行为），
+ * 因此任何携带 zone 语境的详情链接都必须经本 helper 分流，不得裸拼
+ * /content/ 前缀（收敛起点 = lib/agent.ts 引用校验的既有映射）。
+ */
+export function getContentHref(contentId: number, zone?: string): string {
+  if (zone === "original") {
+    return `/original/${contentId}`;
+  }
+  return `/content/${contentId}`;
+}
+
 export interface ContentDetailData extends ContentCardData {
   description?: string;
   body?: string;
