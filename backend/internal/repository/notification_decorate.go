@@ -8,10 +8,11 @@ import (
 )
 
 // SP-18 #509：通知列表装饰——GET /notifications 每条补充 sender（触发者资料，
-// 批量 join 免前端 N+1）与 target_summary（原内容引用块的 kind/title/url）。
+// 批量 join 免前端 N+1）与 target_summary（原内容引用块的 kind/title/url/zone）。
 // 响应只增不改：DecoratedNotification 内嵌原 model.Notification，老字段原样；
-// url 映射与 frontend lib/notification-url.ts 同源（discussion 类在后端直接
-// 批量解析出 ip_id，免前端逐条二跳）。
+// url 映射在后端是唯一真源（#786 前端 lib/notification-url.ts 死模块已删），
+// content/comment 深链按 content_items.zone 分流 /original/{id}（否则原创内容
+// 落分区隔离 404）；discussion 类在后端直接批量解析出 ip_id，免前端逐条二跳。
 
 type NotificationSender struct {
 	ID        int64  `json:"id"`
@@ -24,6 +25,7 @@ type NotificationTargetSummary struct {
 	Kind  string `json:"kind"`
 	Title string `json:"title,omitempty"`
 	URL   string `json:"url,omitempty"`
+	Zone  string `json:"zone,omitempty"`
 }
 
 type DecoratedNotification struct {
@@ -49,7 +51,7 @@ func (r *NotificationRepository) ListDecorated(userID int64, channel string, pag
 
 func (r *NotificationRepository) decorate(items []DecoratedNotification) {
 	senders := r.sendersByIDs(collectSenderIDs(items))
-	contentTitles := r.contentTitlesByIDs(collectTargetIDs(items, "content", "comment"))
+	contentSummaries := r.contentSummariesByIDs(collectTargetIDs(items, "content", "comment"))
 	discussions := r.discussionsByIDs(collectTargetIDs(items, "discussion"))
 	ipNames := r.ipNamesByIDs(collectTargetIDs(items, "ip"))
 	prContentTitles := r.prContentTitlesByIDs(collectTargetIDs(items, "pr"))
@@ -67,8 +69,15 @@ func (r *NotificationRepository) decorate(items []DecoratedNotification) {
 		targetID := *n.TargetID
 		switch kind := *n.TargetType; kind {
 		case "content", "comment":
-			if title, ok := contentTitles[targetID]; ok {
-				n.TargetSummary = &NotificationTargetSummary{Kind: "content", Title: title, URL: "/content/" + strconv.FormatInt(targetID, 10)}
+			if summary, ok := contentSummaries[targetID]; ok {
+				// #786：zone 分流深链——原创内容走 /original/{id}（/content/{id}
+				// 对 zone=original 有意 notFound）。comment 通知的 target 即
+				// 所属内容（social_service Notify 传 content.ID），同分流。
+				url := "/content/" + strconv.FormatInt(targetID, 10)
+				if summary.Zone == "original" {
+					url = "/original/" + strconv.FormatInt(targetID, 10)
+				}
+				n.TargetSummary = &NotificationTargetSummary{Kind: "content", Title: summary.Title, URL: url, Zone: summary.Zone}
 			}
 		case "discussion":
 			if d, ok := discussions[targetID]; ok {
@@ -156,23 +165,33 @@ func (r *NotificationRepository) sendersByIDs(ids []int64) map[int64]Notificatio
 	return result
 }
 
-func (r *NotificationRepository) contentTitlesByIDs(ids []int64) map[int64]string {
-	result := map[int64]string{}
+func (r *NotificationRepository) contentSummariesByIDs(ids []int64) map[int64]struct {
+	Title string
+	Zone  string
+} {
+	result := map[int64]struct {
+		Title string
+		Zone  string
+	}{}
 	if len(ids) == 0 {
 		return result
 	}
 	var rows []struct {
 		ID    int64
 		Title string
+		Zone  string
 	}
 	if err := r.db.Model(&model.ContentItem{}).
-		Select("id, title").
+		Select("id, title, zone").
 		Where("id IN ?", ids).
 		Scan(&rows).Error; err != nil {
 		return result
 	}
 	for _, row := range rows {
-		result[row.ID] = row.Title
+		result[row.ID] = struct {
+			Title string
+			Zone  string
+		}{Title: row.Title, Zone: row.Zone}
 	}
 	return result
 }

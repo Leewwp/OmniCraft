@@ -122,6 +122,41 @@ func TestAdminListAppealsReturnsErrorOnDBFailure(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
+// #786：content 类申诉行补 target_zone——前端「查看内容」深链按 zone 分流
+// /original/{id}，否则原创申诉目标落分区隔离 404。
+func TestAdminListAppealsDecoratesContentTargetZone(t *testing.T) {
+	router, db, token := setupAdminDataSurfaceRouter(t)
+	require.NoError(t, db.AutoMigrate(&model.ContentItem{}))
+
+	require.NoError(t, db.Create(&model.ContentItem{
+		ID: 501, Title: "original appeal target", AuthorID: 1,
+		Zone: "original", ContentType: "article", Status: "published",
+	}).Error)
+	require.NoError(t, db.Create(&model.Appeal{
+		UserID: 1, TargetType: "content", TargetID: 501,
+		Reason: "miscategorized", Status: "pending",
+	}).Error)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/appeals?status=all", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body struct {
+		Appeals []map[string]interface{} `json:"appeals"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	found := false
+	for _, a := range body.Appeals {
+		if a["target_type"] == "content" && a["target_id"] == float64(501) {
+			found = true
+			require.Equal(t, "original", a["target_zone"], "content appeal rows must carry target_zone")
+		}
+	}
+	require.True(t, found, "seeded content appeal row missing from response")
+}
+
 // FR-02（低-7）：提示词版本并发冲突（哨兵 ErrPromptVersionExists）映射 409 而非 500。
 // 用 BEFORE INSERT 触发器确定性制造 LatestVersion→CreateVersion 窗口内的冲突。
 func TestAdminPromptCreateVersionConflictMaps409(t *testing.T) {

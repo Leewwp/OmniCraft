@@ -31,7 +31,6 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "normal": "Normal",
-    "banned": "Banned",
     "page": "Page {current} / {total}",
     "userLabel": "User #{id}",
     "unknown": "Unknown content",
