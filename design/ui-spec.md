@@ -267,6 +267,7 @@
 - 固定高度 `h-[var(--header-h)]` (52px)，sticky 顶部。
 - 底边框 `border-b border-border-default`，1px 分隔。
 - 背景 `bg-canvas-default`，全宽布局。
+- **admin 复用本组件（SP-26 A-4，#780，推翻 SP-19 G1-1「admin 不经 headered」旧决策）**：`app/(protected)/admin/layout.tsx` 直接渲染全站 `<Header />`（不自建第三套顶栏）；移动端 <701px 双顶栏并存（本组件 Menu 汉堡 + admin 自有 sticky PanelLeft 顶条，后者 `top-[var(--header-h)]` 让位偏移）为已裁决接受形态。
 - **品牌入口（page-shell 契约）**：桌面与移动 Logo 一律跳转 `/recommend`（推荐流是唯一品牌落点，二创区 `/` 不承担品牌入口语义）。Header 内层宽度与页面主容器共享同一 page-shell 宽度/gutter 契约（见「Page Shell 宽度契约」），不得出现独立 max-width 造成品牌与内容区横向漂移。
 
 **Page Shell 宽度契约（#64 决策 2 权威，Header/侧边栏/页面主容器共同遵守）**
@@ -425,8 +426,9 @@ interface AgentFollowUpChipsProps {
 
 **视觉层级**
 - 顶部 hero：BookOpen 32px primary 图标 + 2xl 标题 + sm muted 副标题。
+- 演示阶段声明卡（SP-26 A-6，#780，hero 之后）：Info 图标 + 标题 + 三点声明（①站点当前处于演示阶段 ②站内数据为测试用途的 AI 生成数据 ③部分功能仍在更新迭代中），走 i18n `agentAccess.demoNotice.*` zh/en。
 - 三通道卡（`md:grid-cols-3`）：每卡 = 图标 + 右上角状态药丸（可用=primary/10 底+primary 字；P3 上线=muted 底+muted 字）、14px semibold 标题、12px muted 要点列表（1px 圆点引导）。
-- 验证问题卡：等宽字体代码块（`bg-canvas-subtle` + `rounded-lg` + 12px）展示两行 curl 与期望输出注释。
+- 验证问题卡：等宽字体代码块（`bg-canvas-subtle` + `rounded-lg` + 12px）展示两行 curl 与期望输出注释（示例域名用真实演示域 `app.leeppp.online`，2026-10-04 用户裁决首次入库，限本产品页）。
 - 频率/版本/边界三卡：`md:grid-cols-2` 两卡 + 全宽一卡；16px 图标 + 14px semibold 标题 + 12px muted 正文。
 
 **状态变体**
@@ -2387,6 +2389,7 @@ interface FilterPillOption { value: string; label: string; count?: number }
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - **媒体集 vs 附件（#80 语义权威）**：image/video 内容的多文件渲染为 `MediaGallery`（画廊/播放器，可顺序浏览）；mod/乐谱/音频/模板/prompt 等类型的文件保持附件下载列表语义。二者渲染与上传链路完全分离。
 - **收藏状态（#74 权威）**：收藏动作显示“已收藏”（收藏成员关系）或“添加到收藏集”，由同一事实源（用户活动收藏集的成员关系）派生，与 `CollectionPicker` 保持一致。
+- **作者行内联关注按钮按宿主条件渲染（SP-26 A-8，#780）**：`ContentDetail` 可选 prop `inlineFollowClassName`（缺省渲染内联按钮保持既有调用方行为）；原创页 / 二创独立页 / 浮层标准分支传 `"lg:hidden"`（与右栏作者卡 `hidden lg:block` 同断点联动，桌面标准分支不同屏双关注入口），浮层 ≥960 竖图变体分支不传（创作者侧栏不进右栏，内联按钮是唯一直接入口）。改动本节时须保持三分支各有且仅有一个可达关注入口。
 
 **Props 接口**
 ```ts
@@ -3860,6 +3863,7 @@ interface FollowButtonProps {
 
 **视觉结构**
 - 恒宽占位：`<span className="grid justify-items-center">` 内三格同位叠放——常驻 `invisible` 的「取消关注」占位 + 当前态文案（已关注时再叠 hover 态「取消关注」，`group-hover:hidden/inline` 切换）。
+- 可访问名称（SP-26 A-7，#780）：按钮按态设 `aria-label`（关注 / 取消关注，定态覆盖子树计算，invisible 占位 span 双排除不进 accname）+ `aria-pressed={isFollowing}`（toggle 语义）；不得以清理 invisible 占位的方式破坏宽度恒定。
 - 未关注态：primary 实底 + 「关注」；已关注态：primary 实底 + 「已关注」（hover → 「取消关注」+ 红边红字）。
 - 尺寸沿用 Button `size="sm"`；圆形胶囊变体（侧栏创作者卡片）由接入方传 `rounded-full` 类。
 
@@ -4816,43 +4820,43 @@ interface SidebarItem {
 
 **Key Constraints**
 - 内容类型选择卡片网格，用于 `/studio/publish/*` 发布流程步骤 1。
-- 卡片排列从 `config.yaml > publish.type_order_original` 或 `publish.type_order_fanwork` 读取。
+- 卡片排列从 `config.yaml > publish.type_order_original` 或 `publish.type_order_fanwork` 读取（`applyTypeOrder` 重排，配置缺失/为空回退前端默认清单；清单即配置，配置里不存在的类型不展示）。
+- 类型图标统一 lucide 线性体系（SP-26 A-9，#780；原 emoji 与全站视觉语言割裂），由两个发布页声明性映射传入组件引用：image=Image、video=Clapperboard、article=FileText、audio=Music、sheet_music=Music2、template=LayoutTemplate、mod=Puzzle、prompt=Bot、3d_print=Printer、other=Package。
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 **Props 接口**
 ```ts
 interface ContentTypeGridProps {
-  className?: string;
-  zone: 'original' | 'fanwork';
-  types: ContentTypeOption[];
-  onSelect: (type: ContentTypeOption) => void;
+  types: ContentType[];
+  selected?: string | null;
+  onSelect: (type: string) => void;
 }
 
-interface ContentTypeOption {
-  contentType: string;
-  icon: string;
+interface ContentType {
+  value: string;
+  icon: LucideIcon;  // lucide 组件引用（非 emoji 字符串）
   label: string;
   description: string;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6">`
-- 每张卡片: `<button className="border border-border rounded-lg p-6 text-center hover:border-accent-emphasis hover:bg-canvas-subtle transition-all cursor-pointer group hover:-translate-y-1">`
-  - 图标: `<span className="text-4xl mb-3 block">`（emoji 图标 40px）
-  - 标题: `<h3 className="text-base font-medium text-foreground mb-1">`
-  - 描述: `<p className="text-xs text-fg-muted">`
+- 外层容器: `<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">`
+- 每张卡片: `<button className="flex flex-col items-center gap-3 rounded-lg border p-5 text-center transition-all duration-150 cursor-pointer select-none">`
+  - 图标: `<type.icon className="h-8 w-8 text-primary" aria-hidden="true" />`（lucide 32px primary 线性图标）
+  - 标题: `<div className="text-sm font-semibold text-foreground">`
+  - 描述: `<div className="mt-1 text-xs text-muted-foreground">`
 
 **状态变体**
-- default: 白色卡片 + 1px border。
-- hover: border accent 色 + 轻微上浮 `-translate-y-1` + 背景变浅。
-- active: `scale-95` 点击反馈。
+- default: 卡片底 `bg-card` + 1px `border-border`，hover `border-accent/20` + `bg-accent-subtle/5`。
+- selected: `border-accent-emphasis` + `bg-accent-subtle`。
+- active（按压）: `bg-accent-subtle/10`。
 **响应式行为**
-- 移动 (≤700px): 2 列 (`grid-cols-2`)，卡片 padding `p-4`。
-- 平板 (≤1100px): 3 列 (`grid-cols-3`)。
-- PC (>1100px): 4 列 (`grid-cols-4`)，卡片 padding `p-6`。
+- 移动（<640px）: 2 列（`grid-cols-2`）。
+- sm（≥640px）: 3 列（`sm:grid-cols-3`）。
+- lg（≥1024px）: 4 列（`lg:grid-cols-4`）。
 **关键交互**
-- 点击卡片 → `onSelect(type)` → 父组件切换到发布表单（步骤 2），zone + content_type 锁定。
-- 键盘：`Tab` 在卡片间移动，`Enter` 选中。
+- 点击卡片 → `onSelect(type.value)` → 父组件切换到发布表单（步骤 2），zone + content_type 锁定。
+- 键盘：原生 `<button>` 语义，`Tab` 在卡片间移动，`Enter`/`Space` 选中。
 - 发布表单顶部提供「← 返回选择类型」按钮。
 
 ## Component: SourceContentPicker 来源内容选择器
@@ -4996,7 +5000,7 @@ interface CollabUserPickerProps {
 - 顶部：Header `h-[var(--header-h)]`，底边框 `border-b border-border`
 - 主容器：`flex h-[calc(100vh-52px)]`（Header 下方全高），背景 `bg-canvas-subtle`
 - 左侧：StudioSidebar（展开 `w-[228px]` / 收起 `w-12`），右侧 1px border 分隔
-- 右侧：主内容区 `flex-1 overflow-y-auto`，padding `p-6`
+- 右侧：主内容区 `flex-1 overflow-y-auto`，padding `p-6`；移动端（<701px）左 padding 加大为 `pl-16` 让位浮动「展开侧边栏」按钮（SP-26 A-3，#780——浮钮 fixed left-4 top-[60px] 44×44，是移动端侧栏唯一入口不可隐藏；≥701px 浮钮隐藏恢复对称 `px-6`）
 
 **核心组件清单**
 - `Header`
