@@ -3947,9 +3947,10 @@ interface MessageCategoryNavProps {
 interface DecoratedNotification {
   /* …原 Notification 字段原样… */
   sender?: { id: number; username: string; avatar_url: string; bio?: string } | null;
-  target_summary?: { kind: string; title?: string; url?: string } | null;
+  target_summary?: { kind: string; title?: string; url?: string; zone?: string } | null;
 }
 ```
+- **深链 zone 分流（#786）**：`target_summary.url` 由后端 decorate 层按 `content_items.zone` 分流——original → `/original/{id}`（`/content/{id}` 对 zone=original 有意 notFound）、fanwork → `/content/{id}`；`zone` 字段同步透出，前端兜底路径也须经 `lib/content.ts getContentHref` 分流（kind=content 与 comment 同规则，comment 通知 target 即所属内容）。
 
 **状态变体**
 - unread/read 如上；sender 缺失（装饰查询无此用户）= 头像占位圆 + 退化首行标题；target_summary 缺失 = 无引用块无操作行跳转。
