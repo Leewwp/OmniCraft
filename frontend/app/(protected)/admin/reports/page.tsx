@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { reportTargetLabel, statusLabel } from "@/lib/enum-labels";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -110,14 +111,14 @@ export default function AdminReportsPage() {
               </p>
             </div>
             <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", STATUS_COLORS[selectedReport.status] || STATUS_COLORS.pending)}>
-              {selectedReport.status}
+              {statusLabel(t, selectedReport.status)}
             </span>
           </div>
 
           <div className="mt-4 space-y-3">
             <div>
               <p className="text-xs font-medium text-muted-foreground">{t("admin.reports.target")}</p>
-              <p className="text-sm">{selectedReport.target_type} #{selectedReport.target_id}</p>
+              <p className="text-sm">{reportTargetLabel(t, selectedReport.target_type)} #{selectedReport.target_id}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">{t("admin.reports.reason")}</p>
@@ -204,9 +205,9 @@ export default function AdminReportsPage() {
             ariaLabel: t("admin.reports.statusLabel"),
             allLabel: t("admin.reports.allStatuses"),
             options: [
-              { value: "pending", label: "pending" },
-              { value: "resolved", label: "resolved" },
-              { value: "dismissed", label: "dismissed" },
+              { value: "pending", label: statusLabel(t, "pending") },
+              { value: "resolved", label: statusLabel(t, "resolved") },
+              { value: "dismissed", label: statusLabel(t, "dismissed") },
             ],
           },
           {
@@ -216,8 +217,8 @@ export default function AdminReportsPage() {
             ariaLabel: t("admin.reports.typeLabel"),
             allLabel: t("admin.reports.allTypes"),
             options: [
-              { value: "content", label: "content" },
-              { value: "comment", label: "comment" },
+              { value: "content", label: reportTargetLabel(t, "content") },
+              { value: "comment", label: reportTargetLabel(t, "comment") },
             ],
           },
         ]}
@@ -241,12 +242,12 @@ export default function AdminReportsPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{report.reason}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    #{report.id} · {report.target_type} #{report.target_id} · {new Date(report.created_at).toLocaleDateString()}
+                    #{report.id} · {reportTargetLabel(t, report.target_type)} #{report.target_id} · {new Date(report.created_at).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[report.status] || STATUS_COLORS.pending)}>
-                    {report.status}
+                    {statusLabel(t, report.status)}
                   </span>
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
