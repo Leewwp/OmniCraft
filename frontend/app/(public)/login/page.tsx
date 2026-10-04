@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Brush } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { useAuth } from "@/contexts/AuthContext";
 import { safeRedirectPath } from "@/lib/safe-redirect";
 
 // SP-17/T2 (#491)：/login 页与 LoginModal 共用 LoginForm；顺带补齐此前缺失
@@ -15,6 +16,14 @@ function LoginPageContent() {
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+
+  // SP-26 A-5（#780）：登录态访问 /login 重定向回首页（与 /register 的
+  // user-gate 同口径，消除 login/register 登录态行为不一致）。
+  if (user) {
+    router.replace("/");
+    return null;
+  }
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">

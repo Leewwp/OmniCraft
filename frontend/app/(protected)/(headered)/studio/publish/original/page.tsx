@@ -2,21 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import {
+  Image as ImageIcon,
+  Clapperboard,
+  FileText,
+  Music,
+  Music2,
+  LayoutTemplate,
+  Bot,
+  Printer,
+  Package,
+} from "lucide-react";
 import { ContentTypeGrid, applyTypeOrder, type ContentType } from "@/components/studio/ContentTypeGrid";
 import { PublishForm } from "@/components/studio/PublishForm";
 import { fetchPublicConfig } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 
+/* SP-26 A-9（#780）：emoji 图标换 lucide 线性图标（与 fanwork 发布页同步）。 */
 const CONTENT_TYPE_KEYS = [
-  { value: "image", icon: "🖼️" },
-  { value: "video", icon: "🎬" },
-  { value: "article", icon: "📝" },
-  { value: "audio", icon: "🎵" },
-  { value: "sheet_music", icon: "🎼" },
-  { value: "template", icon: "📋" },
-  { value: "prompt", icon: "🤖" },
-  { value: "3d_print", icon: "🖨️" },
-  { value: "other", icon: "📦" },
+  { value: "image", icon: ImageIcon },
+  { value: "video", icon: Clapperboard },
+  { value: "article", icon: FileText },
+  { value: "audio", icon: Music },
+  { value: "sheet_music", icon: Music2 },
+  { value: "template", icon: LayoutTemplate },
+  { value: "prompt", icon: Bot },
+  { value: "3d_print", icon: Printer },
+  { value: "other", icon: Package },
 ] as const;
 
 export default function PublishOriginalPage() {

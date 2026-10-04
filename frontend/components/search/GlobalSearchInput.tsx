@@ -135,6 +135,12 @@ export function GlobalSearchInput({
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    /* SP-26 A-12（#780）：Escape 在 open 状态下恒收起——移出
+       suggestions.length===0 守卫（加载中/空建议时 Esc 此前被吞，只能点外部关闭）。 */
+    if (event.key === "Escape") {
+      if (open) setOpen(false);
+      return;
+    }
     if (!open || suggestions.length === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -142,8 +148,6 @@ export function GlobalSearchInput({
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex((index) => (index <= 0 ? suggestions.length - 1 : index - 1));
-    } else if (event.key === "Escape") {
-      setOpen(false);
     }
   }
 

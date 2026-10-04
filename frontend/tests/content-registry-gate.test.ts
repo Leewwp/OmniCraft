@@ -14,7 +14,7 @@ const ALLOWLIST: Record<string, string> = {
   "lib/public-config.ts": "内置兜底注册表 = 全前端唯一被豁免的完整枚举点（仅旧后端/离线时生效，与后端 DefaultContentRegistry 同基线）",
   "app/(protected)/(headered)/history/page.tsx": "浏览历史筛选为独立 UI 展示序（article 居首），非任何配置序可表达；注册表投影只承载成员关系，展示序属 UI 决策",
   "app/(protected)/(headered)/judge/exam/page.tsx": "判官域独立类型空间（含 comment 伪类型、无 mod），非平台分类学轴",
-  "app/(protected)/(headered)/studio/publish/fanwork/page.tsx": "发布类型格声明性产物（key→emoji 图标 + 文案键推导）；排序已由 type_order 配置驱动（ContentTypeGrid.applyTypeOrder）",
+  "app/(protected)/(headered)/studio/publish/fanwork/page.tsx": "发布类型格声明性产物（key→lucide 图标 + 文案键推导，SP-26 A-9 起 emoji 换 lucide）；排序已由 type_order 配置驱动（ContentTypeGrid.applyTypeOrder）",
   "app/(protected)/(headered)/studio/publish/original/page.tsx": "同上：声明性图标/文案映射，非分类学枚举",
   "components/content/ContentDetail.tsx": "详情页按类型渲染模式/图标/标签的业务分支（markdown 正文、乐谱 viewer、agent 入口等），本批注册表不承载 UI 声明性产物",
   "components/content/ContentTypeFilter.tsx": "合集筛选为独立 UI 展示序（sheet_music/mod/prompt 位序与注册表声明序不同）；成员关系与注册表一致",

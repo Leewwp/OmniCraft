@@ -1,10 +1,13 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ContentType {
   value: string;
-  icon: string;
+  /** SP-26 A-9（#780）：类型图标统一 lucide 线性体系（原 emoji 与全站
+      视觉语言割裂），由发布页声明性映射传入组件引用。 */
+  icon: LucideIcon;
   label: string;
   description: string;
 }
@@ -48,7 +51,7 @@ export function ContentTypeGrid({
                 : "border-border bg-card hover:border-accent/20 hover:bg-accent-subtle/5 active:bg-accent-subtle/10"
             )}
           >
-            <span className="text-3xl">{type.icon}</span>
+            <type.icon className="h-8 w-8 text-primary" aria-hidden="true" />
             <div>
               <div className="text-sm font-semibold text-foreground">
                 {type.label}
