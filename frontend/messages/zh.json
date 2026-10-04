@@ -152,7 +152,7 @@
     "errorPrivacyVersionMismatch": "隐私政策版本不匹配，请刷新页面",
     "errorEmailRequired": "请输入邮箱地址",
     "captchaLoading": "验证码加载中...",
-    "captchaReady": "请先完成验证码再创建账号。",
+    "captchaReady": "请先完成人机验证。",
     "captchaVerified": "验证码已通过",
     "captchaFailed": "验证码验证失败，请重试",
     "errorCaptchaRequired": "请先完成验证码验证再创建账号",
@@ -2916,6 +2916,12 @@
     },
     "channels": {
       "aria": "接入通道"
+    },
+    "demoNotice": {
+      "title": "演示阶段说明",
+      "point1": "本站当前处于演示阶段。",
+      "point2": "站内数据为测试用途的 AI 生成数据。",
+      "point3": "部分功能仍在更新迭代中。"
     },
     "rest": {
       "title": "REST API v1",

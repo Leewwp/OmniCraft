@@ -157,7 +157,7 @@
     "errorPrivacyVersionMismatch": "Privacy version mismatch, please refresh",
     "errorEmailRequired": "Email address is required",
     "captchaLoading": "Loading captcha...",
-    "captchaReady": "Complete the captcha before creating your account.",
+    "captchaReady": "Please complete the captcha verification first.",
     "captchaVerified": "Captcha verified",
     "captchaFailed": "Captcha verification failed, please try again",
     "errorCaptchaRequired": "Please complete the captcha verification before creating your account",
@@ -2916,6 +2916,12 @@
     },
     "channels": {
       "aria": "Access channels"
+    },
+    "demoNotice": {
+      "title": "Demo-stage notice",
+      "point1": "This site is currently in a demo stage.",
+      "point2": "Site data consists of AI-generated data for testing purposes.",
+      "point3": "Some features are still being updated and iterated on."
     },
     "rest": {
       "title": "REST API v1",
