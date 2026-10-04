@@ -77,6 +77,7 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	require.Equal(t, 1, cfg.RAG.Chunking.ChunkingVersion)
 	require.Equal(t, "cl100k_base", cfg.RAG.Chunking.TokenizerEncoding)
 	require.Equal(t, "http://127.0.0.1:9200", cfg.RAG.Index.URL)
+	require.Equal(t, true, cfg.RAG.Index.Enabled)
 	require.Equal(t, 1, cfg.RAG.Index.GenerationStart)
 	require.Equal(t, "text-embedding-v4", cfg.RAG.Index.EmbeddingModel)
 	require.Equal(t, 1, cfg.RAG.Index.HealthPollIntervalSec)
@@ -1245,7 +1246,7 @@ func TestValidateReleaseRejectsInvalidRAGContextualConfig(t *testing.T) {
 		cfg.Agent.EmbeddingDimensions = RAGEmbeddingDimensions
 		cfg.RAG.Chunking = RAGChunkingConfig{MaxTokens: 512, OverlapTokens: 48, ChunkingVersion: 2, TokenizerEncoding: "cl100k_base"}
 		cfg.RAG.Index = RAGIndexConfig{
-			URL: "http://opensearch:9200", GenerationStart: 1, EmbeddingModel: "text-embedding-v4",
+			Enabled: true, URL: "http://opensearch:9200", GenerationStart: 1, EmbeddingModel: "text-embedding-v4",
 			HealthPollIntervalSec: 1, TimeoutSec: 10, AuditTimeoutSec: 2, LockCleanupTimeoutSec: 2,
 			ErrorBodyMaxBytes: 65536, ResponseBodyMaxBytes: 1048576,
 		}

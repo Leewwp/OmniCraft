@@ -138,6 +138,50 @@ func TestIndexerConsumesPublishedEventIdempotently(t *testing.T) {
 	require.Equal(t, int64(1), indexerInboxRows(t, db), "exactly one inbox completion row per (group, event_id)")
 }
 
+// TestIndexerFailOpenProjectionSkipsSyncWithoutDeadLetter proves the #787
+// lean-stack gate: with rag.index.enabled=false the indexer wires
+// FailOpenProjection, whose nil SyncContent return keeps the event on the
+// happy path (inbox completes, embedding side effect fires) instead of
+// exhausting retries into the dead-letter stream — a real projection against
+// a missing OpenSearch would fail every event here.
+func TestIndexerFailOpenProjectionSkipsSyncWithoutDeadLetter(t *testing.T) {
+	db := setupIndexerDB(t)
+	seedIndexerContent(t, db, 5101, "fail-open title")
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	embedder := &recordingEmbedder{}
+	broker := queue.NewRedisStreamBroker(rdb, &queue.QueueConfig{Enabled: true, MaxAttempts: 2, RetryBackoffSec: []int{0, 0}, MaxLen: 100000})
+	defer broker.Stop()
+
+	mgr := NewWorkerManager(broker)
+	mgr.Register(events.TopicContentPublished, indexerGroup,
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection()).Handle)
+	require.NoError(t, mgr.Start(context.Background()))
+
+	payload := indexerEnvelope(t, events.TopicContentPublished, 5101, 5101)
+	require.NoError(t, broker.Publish(context.Background(), events.TopicContentPublished, []byte(payload)))
+
+	deadline := time.Now().Add(8 * time.Second)
+	for embedder.calls.Load() < 1 {
+		if time.Now().After(deadline) {
+			t.Fatal("fail-open indexer never consumed the published event")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	time.Sleep(400 * time.Millisecond)
+
+	dlqLen, err := rdb.XLen(context.Background(), "omnicraft:dead-letter").Result()
+	require.NoError(t, err)
+	require.Zero(t, dlqLen, "fail-open projection must not dead-letter events")
+	require.Equal(t, int64(1), indexerInboxRows(t, db), "the skip still acks via a normal inbox completion")
+}
+
+func TestFailOpenProjectionSyncContentReturnsNil(t *testing.T) {
+	require.NoError(t, NewFailOpenProjection().SyncContent(context.Background(), 42))
+}
+
 // TestIndexerBannedEventRemovesEmbeddingInSameTransaction proves the
 // DB-bound side effect runs inside the inbox transaction: the embedding row
 // disappears with the completion record, and redelivery stays a no-op.
