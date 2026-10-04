@@ -326,6 +326,11 @@ type RAGChunkingConfig struct {
 }
 
 type RAGIndexConfig struct {
+	// Enabled gates the indexer's OpenSearch projection consumer (#787):
+	// false = fail-open skip (structured log + ACK, no retry/DLQ) for stacks
+	// without OpenSearch (lean); true (factory) keeps the Health gate +
+	// retry + DLQ semantics of the full-infra stack.
+	Enabled               bool   `mapstructure:"enabled" json:"enabled"`
 	URL                   string `mapstructure:"url" json:"url"`
 	GenerationStart       int    `mapstructure:"generation_start" json:"generation_start"`
 	EmbeddingModel        string `mapstructure:"embedding_model" json:"embedding_model"`

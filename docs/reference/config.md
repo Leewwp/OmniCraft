@@ -228,6 +228,8 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rag.hybrid.vector_topk` | `int` | VectorTopK |
 | `rag.index.audit_timeout_sec` | `int` | AuditTimeoutSec |
 | `rag.index.embedding_model` | `string` | EmbeddingModel |
+| `rag.index.enabled` | `bool` | Enabled gates the indexer's OpenSearch projection consumer (#787):
+false = fail-open skip (structured log + ACK, no r... |
 | `rag.index.error_body_max_bytes` | `int` | ErrorBodyMaxBytes |
 | `rag.index.generation_start` | `int` | GenerationStart |
 | `rag.index.health_poll_interval_sec` | `int` | HealthPollIntervalSec |
