@@ -721,10 +721,18 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 	countWorker := worker.NewCountWorker(c.RDB, c.DB)
 	embeddingWorker := worker.NewEmbeddingWorker(c.AgentService, c.DB)
 	// #658 收拢：worker 复用容器的 EmbeddingRepo（原两处自建）。
-	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, c.EmbeddingRepo, nil)
+	// #787 投影门：hybrid 开 + rag.index.enabled=false（lean 无 OpenSearch 栈）
+	// 时接 fail-open 包装——记结构化日志后 ACK，不重试不死信；默认 true 保持
+	// 真投影的 Health 门 + 重试 + 死信语义。
+	var indexerProjection worker.ContentProjection
 	if c.Cfg.Features.RAGHybridEnabled {
-		indexerWorker = worker.NewIndexerWorker(c.DB, c.AgentService, c.EmbeddingRepo, c.RAGProjection)
+		if c.Cfg.RAG.Index.Enabled {
+			indexerProjection = c.RAGProjection
+		} else {
+			indexerProjection = worker.NewFailOpenProjection()
+		}
 	}
+	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, c.EmbeddingRepo, indexerProjection)
 
 	subscriptions := []struct {
 		topic   string

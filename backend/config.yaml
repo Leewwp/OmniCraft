@@ -153,6 +153,10 @@ rag:
     timeout_sec: 30
     max_retries: 2
   index:
+    # #787 投影消费门：false = 无 OpenSearch 栈（lean）fail-open——消费端记结构化
+    # 日志后 ACK 跳过，不重试不死信（实例 override 关闭）；true（出厂）保持
+    # full-infra 的 Health 门 + 重试 + 死信语义。词法主路不受影响（postgres）。
+    enabled: true
     # Host-local default; Compose overrides this with the service DNS name.
     # OpenSearch is the optional lexical fallback (full-infra); the canonical
     # lexical primary is rag.hybrid.keyword_source = postgres.

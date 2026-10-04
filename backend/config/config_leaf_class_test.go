@@ -253,6 +253,7 @@ var leafClassification = map[string]string{
 	"rag.hybrid.vector_topk":                                         "conditional",
 	"rag.index.audit_timeout_sec":                                    "conditional",
 	"rag.index.embedding_model":                                      "conditional",
+	"rag.index.enabled":                                              "conditional",
 	"rag.index.error_body_max_bytes":                                 "conditional",
 	"rag.index.generation_start":                                     "conditional",
 	"rag.index.health_poll_interval_sec":                             "conditional",
@@ -451,8 +452,8 @@ func TestLeafClassificationOnlyUsesKnownClasses(t *testing.T) {
 	}
 }
 
-// The census ledger (required 13 / conditional 165 / optional-zero 122 /
-// registry 8 / dead 6 = 314 leaves) is asserted so the doc and the table
+// The census ledger (required 13 / conditional 166 / optional-zero 122 /
+// registry 8 / dead 6 = 315 leaves) is asserted so the doc and the table
 // cannot drift apart silently.
 func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	counts := map[string]int{}
@@ -460,8 +461,8 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 		counts[class]++
 	}
 	require.Equal(t, 13, counts[classRequired])
-	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups switches.
-	require.Equal(t, 165, counts[classConditional])
+	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups + 1 #787 projection gate.
+	require.Equal(t, 166, counts[classConditional])
 	// 122 shipped + 5 (#688) + 3 (#689) new.
 	require.Equal(t, 134, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).
