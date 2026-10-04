@@ -3,6 +3,7 @@ import type {
   AgentStreamEvent,
   AgentStreamTool,
 } from "@/lib/agent-stream";
+import { getContentHref } from "@/lib/content";
 
 /**
  * ui-spec `## Page: /agent` AgentCitation（camelCase）—— 供引用卡片组件与
@@ -128,7 +129,8 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
   const route = candidate.route;
   if (route !== undefined) {
     if (typeof route !== "string") return null;
-    const expectedRoute = zone === "original" ? `/original/${contentId}` : `/content/${contentId}`;
+    /* #781：分区路由映射收敛到 lib/content.ts 的 getContentHref（单一真源）。 */
+    const expectedRoute = getContentHref(contentId, zone);
     if (route !== expectedRoute) return null;
     normalized.route = route;
   }
