@@ -4,8 +4,10 @@ import { Clock, BookOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface CourseCardProps {
+  /** 后端按 locale 本地化的课程标题（SP-26-C #782）。 */
+  title: string;
+  /** 违规码（raw slug），仅以 title 提示保留可查性，不做展示文案。 */
   violationType: string;
-  contentI18n?: Record<string, string>;
   minReadingSec: number;
   rewardPoints: number;
   isActive: boolean;
@@ -14,8 +16,8 @@ interface CourseCardProps {
 }
 
 export function CourseCard({
+  title,
   violationType,
-  contentI18n,
   minReadingSec,
   rewardPoints,
   isActive,
@@ -28,8 +30,8 @@ export function CourseCard({
     <div className="rounded-md border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">
-            {contentI18n?.zh || violationType}
+          <h3 className="text-sm font-semibold" title={violationType}>
+            {title}
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">

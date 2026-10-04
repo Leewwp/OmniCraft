@@ -14,6 +14,7 @@ import { DataList } from "@/components/ui/data-list";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 import { getContentHref } from "@/lib/content";
+import { contentTypeLabel } from "@/lib/enum-labels";
 import { silentError } from "@/lib/error-handler";
 
 type ContentSummary = {
@@ -343,7 +344,7 @@ function HistoryRow({
       {content ? (
         <Link href={getContentHref(content.id, content.zone)} className="min-w-0">
           <p className="truncate text-sm font-medium">{content.title}</p>
-          <p className="text-xs text-muted-foreground">{content.content_type}</p>
+          <p className="text-xs text-muted-foreground">{contentTypeLabel(t, content.content_type)}</p>
         </Link>
       ) : (
         <div className="min-w-0 rounded-md border border-dashed border-border bg-muted/40 p-3">

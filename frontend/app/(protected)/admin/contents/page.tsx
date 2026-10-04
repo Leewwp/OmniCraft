@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getContentHref } from "@/lib/content";
+import { contentTypeLabel, statusLabel, zoneLabel } from "@/lib/enum-labels";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -192,8 +193,8 @@ export default function AdminContentsPage() {
                 {contents.map((c) => (
                   <tr key={c.id} className="border-b border-border hover:bg-muted/20">
                     <td className="max-w-[200px] truncate px-4 py-3 font-medium">{c.title}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{c.content_type}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{c.zone}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{contentTypeLabel(t, c.content_type)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{zoneLabel(t, c.zone)}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{c.author_id}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{c.view_count}</td>
                     {view === "trash" ? (
@@ -203,7 +204,7 @@ export default function AdminContentsPage() {
                     ) : (
                       <td className="px-4 py-3">
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                          {c.status}
+                          {statusLabel(t, c.status)}
                         </span>
                       </td>
                     )}

@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { answerKindLabel, traceStatusLabel } from "@/lib/enum-labels";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -272,7 +273,7 @@ function AdminTracesContent() {
               onChange={(e) => setStatus(e.target.value)}
             >
               <option value="">{t("admin.traces.allStatuses")}</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{traceStatusLabel(t, s)}</option>)}
             </Select>
           </div>
           <div className="flex flex-col gap-1">
@@ -285,7 +286,7 @@ function AdminTracesContent() {
               onChange={(e) => setAnswerKind(e.target.value)}
             >
               <option value="">{t("admin.traces.allAnswerKinds")}</option>
-              {ANSWER_KIND_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+              {ANSWER_KIND_OPTIONS.map((k) => <option key={k} value={k}>{answerKindLabel(t, k)}</option>)}
             </Select>
           </div>
           <div className="flex flex-col gap-1">
@@ -365,10 +366,10 @@ function AdminTracesContent() {
                         run.status === "RUNNING" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                       )}
                     >
-                      {run.status}
+                      {traceStatusLabel(t, run.status)}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-xs">{run.answer_kind || "—"}</td>
+                  <td className="px-3 py-2 text-xs">{run.answer_kind ? answerKindLabel(t, run.answer_kind) : "—"}</td>
                   <td className="px-3 py-2 text-xs">
                     {run.model || "—"}
                     {hasRouting(run.routing_events) && (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+import { ipCategoryLabelKey } from "@/lib/ip-categories";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { buttonVariants } from "@/components/ui/button";
@@ -135,7 +136,7 @@ export default function StudioIPsPage() {
               {ips.map((ip) => (
                 <tr key={ip.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-2.5 font-medium">{ip.name}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground">{ip.category || "-"}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground">{t(ipCategoryLabelKey(ip.category))}</td>
                   <td className="px-4 py-2.5">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs ${

@@ -147,3 +147,78 @@ func TestCompleteCourseDoesNotReportSuccessWhenCacheInvalidationFails(t *testing
 		t.Fatal("cache invalidation failure must not be reported as successful recovery")
 	}
 }
+
+// SP-26-C（#782）：课程标题必须按 locale 本地化——Title 不得再直出
+// violation_type 英文 slug；未知违规码原样回退；正文 Content 同样随 locale。
+func TestGetAvailableCoursesLocalizesTitleAndContent(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.RehabCourse{}, &model.RehabCompletion{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	known := model.RehabCourse{
+		ViolationType: "judge_error",
+		ContentI18n: map[string]interface{}{
+			"zh": "判官职责说明正文",
+			"en": "judge responsibilities body",
+		},
+		MinReadingSec: 60,
+		RewardPoints:  1,
+	}
+	unknown := model.RehabCourse{ViolationType: "future_violation", MinReadingSec: 30, RewardPoints: 1}
+	if err := db.Create(&known).Error; err != nil {
+		t.Fatalf("create known course: %v", err)
+	}
+	if err := db.Create(&unknown).Error; err != nil {
+		t.Fatalf("create unknown course: %v", err)
+	}
+
+	rehab := service.NewRehabService(db, nil)
+
+	byType := func(locale string) map[string]service.RehabCourseResponse {
+		courses, err := rehab.GetAvailableCourses(1, locale)
+		if err != nil {
+			t.Fatalf("list courses (%s): %v", locale, err)
+		}
+		indexed := make(map[string]service.RehabCourseResponse, len(courses))
+		for _, course := range courses {
+			indexed[course.ViolationType] = course
+		}
+		return indexed
+	}
+
+	zh := byType("zh")
+	if got := zh["judge_error"].Title; got != "判官误判" {
+		t.Fatalf("zh title=%q, want 判官误判", got)
+	}
+	if got := zh["judge_error"].Content; got != "判官职责说明正文" {
+		t.Fatalf("zh content=%q, want localized body", got)
+	}
+	if got := zh["future_violation"].Title; got != "future_violation" {
+		t.Fatalf("unknown violation type must fall back to raw code, got %q", got)
+	}
+
+	en := byType("en")
+	if got := en["judge_error"].Title; got != "Judge Misjudgment" {
+		t.Fatalf("en title=%q, want Judge Misjudgment", got)
+	}
+	if got := en["judge_error"].Content; got != "judge responsibilities body" {
+		t.Fatalf("en content=%q, want localized body", got)
+	}
+
+	// 空 locale 与未登录默认走 zh（handler DefaultQuery("locale", "zh")）。
+	empty := byType("")
+	if got := empty["judge_error"].Title; got != "判官误判" {
+		t.Fatalf("empty locale title=%q, want zh fallback 判官误判", got)
+	}
+
+	detail, err := rehab.GetCourseDetail(known.ID, "en")
+	if err != nil {
+		t.Fatalf("get course detail: %v", err)
+	}
+	if detail.Title != "Judge Misjudgment" {
+		t.Fatalf("detail title=%q, want Judge Misjudgment", detail.Title)
+	}
+}

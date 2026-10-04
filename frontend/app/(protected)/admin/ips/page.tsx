@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { statusLabel } from "@/lib/enum-labels";
+import { ipCategoryLabelKey } from "@/lib/ip-categories";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -122,11 +124,11 @@ export default function AdminIPsPage() {
                   <tr key={ip.id} className="border-b border-border hover:bg-muted/20">
                     <td className="px-4 py-3 font-medium">{ip.name}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{ip.slug}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{ip.category || "-"}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{ip.category ? t(ipCategoryLabelKey(ip.category)) : "-"}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{ip.creator_id ?? "-"}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                        {ip.status}
+                        {statusLabel(t, ip.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3">

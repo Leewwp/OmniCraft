@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { feedbackCategoryLabel, priorityLabel, statusLabel } from "@/lib/enum-labels";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -201,15 +202,15 @@ export default function AdminFeedbackPage() {
             <div className="min-w-0">
               <h2 className="text-lg font-semibold">{selectedTicket.title}</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                #{selectedTicket.id} · {selectedTicket.category} · {new Date(selectedTicket.created_at).toLocaleString()}
+                #{selectedTicket.id} · {feedbackCategoryLabel(t, selectedTicket.category)} · {new Date(selectedTicket.created_at).toLocaleString()}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", STATUS_COLORS[selectedTicket.status] || STATUS_COLORS.open)}>
-                {selectedTicket.status}
+                {statusLabel(t, selectedTicket.status)}
               </span>
               <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", PRIORITY_COLORS[selectedTicket.priority] || PRIORITY_COLORS.normal)}>
-                {selectedTicket.priority}
+                {priorityLabel(t, selectedTicket.priority)}
               </span>
             </div>
           </div>
@@ -259,10 +260,10 @@ export default function AdminFeedbackPage() {
               onChange={(e) => handlePatchStatus(e.target.value)}
               disabled={patchBusy}
             >
-              <option value="open">open</option>
-              <option value="in_progress">in_progress</option>
-              <option value="closed">closed</option>
-              <option value="reopened">reopened</option>
+              <option value="open">{statusLabel(t, "open")}</option>
+              <option value="in_progress">{statusLabel(t, "in_progress")}</option>
+              <option value="closed">{statusLabel(t, "closed")}</option>
+              <option value="reopened">{statusLabel(t, "reopened")}</option>
             </Select>
           </div>
           <div className="w-fit min-w-40">
@@ -273,10 +274,10 @@ export default function AdminFeedbackPage() {
               onChange={(e) => handlePatchPriority(e.target.value)}
               disabled={patchBusy}
             >
-              <option value="low">low</option>
-              <option value="normal">normal</option>
-              <option value="high">high</option>
-              <option value="urgent">urgent</option>
+              <option value="low">{priorityLabel(t, "low")}</option>
+              <option value="normal">{priorityLabel(t, "normal")}</option>
+              <option value="high">{priorityLabel(t, "high")}</option>
+              <option value="urgent">{priorityLabel(t, "urgent")}</option>
             </Select>
           </div>
         </div>
@@ -371,10 +372,10 @@ export default function AdminFeedbackPage() {
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           >
             <option value="">{t("admin.feedback.allStatuses")}</option>
-            <option value="open">open</option>
-            <option value="in_progress">in_progress</option>
-            <option value="closed">closed</option>
-            <option value="reopened">reopened</option>
+            <option value="open">{statusLabel(t, "open")}</option>
+            <option value="in_progress">{statusLabel(t, "in_progress")}</option>
+            <option value="closed">{statusLabel(t, "closed")}</option>
+            <option value="reopened">{statusLabel(t, "reopened")}</option>
           </Select>
         </div>
         <div className="w-fit min-w-40">
@@ -385,13 +386,13 @@ export default function AdminFeedbackPage() {
             onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
           >
             <option value="">{t("admin.feedback.allCategories")}</option>
-            <option value="web_bug">web_bug</option>
-            <option value="desktop_deploy">desktop_deploy</option>
-            <option value="content_or_community">content_or_community</option>
-            <option value="account_or_security">account_or_security</option>
-            <option value="agent_quality">agent_quality</option>
-            <option value="feature_request">feature_request</option>
-            <option value="other">other</option>
+            <option value="web_bug">{feedbackCategoryLabel(t, "web_bug")}</option>
+            <option value="desktop_deploy">{feedbackCategoryLabel(t, "desktop_deploy")}</option>
+            <option value="content_or_community">{feedbackCategoryLabel(t, "content_or_community")}</option>
+            <option value="account_or_security">{feedbackCategoryLabel(t, "account_or_security")}</option>
+            <option value="agent_quality">{feedbackCategoryLabel(t, "agent_quality")}</option>
+            <option value="feature_request">{feedbackCategoryLabel(t, "feature_request")}</option>
+            <option value="other">{feedbackCategoryLabel(t, "other")}</option>
           </Select>
         </div>
       </div>
@@ -414,15 +415,15 @@ export default function AdminFeedbackPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{ticket.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    #{ticket.id} · {ticket.category} · {new Date(ticket.created_at).toLocaleDateString()}
+                    #{ticket.id} · {feedbackCategoryLabel(t, ticket.category)} · {new Date(ticket.created_at).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[ticket.status] || STATUS_COLORS.open)}>
-                    {ticket.status}
+                    {statusLabel(t, ticket.status)}
                   </span>
                   <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium", PRIORITY_COLORS[ticket.priority] || PRIORITY_COLORS.normal)}>
-                    {ticket.priority}
+                    {priorityLabel(t, ticket.priority)}
                   </span>
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>

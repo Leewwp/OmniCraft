@@ -73,8 +73,8 @@
     "langEn": "English",
     "publish": "发布",
     "notifications": "通知",
-    "favorites": "我的喜欢",
-    "myOriginal": "我的原创",
+    "favorites": "我的收藏",
+    "myOriginal": "我的创作",
     "agent": "AI Agent",
     "adminPanel": "管理后台"
   },
@@ -195,11 +195,11 @@
     "apiStatus": "后端 API",
     "apiRunning": "运行中",
     "all": "全部",
-    "text": "文字",
+    "text": "图文",
     "image": "图片",
     "video": "视频",
     "audio": "音频",
-    "aiPrompt": "AI提示词",
+    "aiPrompt": "AI 提示词",
     "sheetMusic": "乐谱",
     "template": "模板",
     "mod": "Mod",
@@ -975,13 +975,13 @@
       "colViews": "浏览",
       "colStatus": "状态",
       "colActions": "操作",
-      "ban": "封禁",
-      "banTitle": "封禁内容",
-      "banConfirm": "确认封禁「{title}」吗？封禁后该内容将不再对用户可见，作者信誉分 -3。",
-      "confirmBan": "确认封禁",
-      "banReason": "封禁原因",
+      "ban": "下架",
+      "banTitle": "下架内容",
+      "banConfirm": "确认下架「{title}」吗？下架后该内容将不再对用户可见，作者信誉分 -3。",
+      "confirmBan": "确认下架",
+      "banReason": "下架原因",
       "loadFailed": "加载待审内容失败",
-      "banFailed": "封禁失败",
+      "banFailed": "下架失败",
       "listTab": "内容列表",
       "trashTab": "回收站",
       "restore": "恢复",
@@ -1123,9 +1123,9 @@
       "loadFailed": "加载配置失败",
       "saveFailed": "保存配置失败",
       "invalidValue": "请检查高亮的配置值后再保存。",
-      "audioMaxMb": "音频上限（MB）",
-      "documentMaxMb": "文档上限（MB）",
-      "model3dMaxMb": "3D 模型上限（MB）"
+      "audioMaxMb": "音频最大 (MB)",
+      "documentMaxMb": "文档最大 (MB)",
+      "model3dMaxMb": "3D 模型最大 (MB)"
     },
     "feedback": {
       "title": "反馈管理",
@@ -1930,7 +1930,7 @@
       "template": "模板",
       "sheet_music": "乐谱",
       "mod": "Mod",
-      "prompt": "提示词",
+      "prompt": "AI 提示词",
       "other": "其他"
     },
     "dateRange": {
@@ -2589,13 +2589,13 @@
       "startCreating": "开始创作",
       "edit": "编辑",
       "delete": "删除",
-      "banReason": "封禁原因",
+      "banReason": "下架原因",
       "statusDraft": "草稿",
       "statusPending": "审核中",
       "statusUnderReview": "复核中",
-      "statusBanned": "已封禁",
+      "statusBanned": "已下架",
       "appeal": "去申诉",
-      "editBannedDisabled": "已封禁内容不可编辑，请先申诉",
+      "editBannedDisabled": "已下架内容不可编辑，请先申诉",
       "editDialogTitle": "编辑内容",
       "editDialogHint": "已发布内容的标题或封面变更会重新触发审核。",
       "fieldTitle": "标题",
@@ -2971,6 +2971,77 @@
     "short_drama": "短剧",
     "vtuber": "虚拟主播",
     "other": "其他"
+  },
+  "enums": {
+    "contentType": {
+      "article": "图文",
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "template": "模板",
+      "sheet_music": "乐谱",
+      "mod": "Mod",
+      "prompt": "AI 提示词",
+      "document": "文档",
+      "model3d": "3D 模型",
+      "3d_print": "3D打印",
+      "other": "其他"
+    },
+    "zone": {
+      "original": "原创",
+      "fanwork": "二创"
+    },
+    "role": {
+      "admin": "管理员",
+      "user": "用户"
+    },
+    "status": {
+      "draft": "草稿",
+      "pending": "待处理",
+      "under_review": "审核中",
+      "published": "已发布",
+      "banned": "已下架",
+      "approved": "已通过",
+      "rejected": "已驳回",
+      "resolved": "已解决",
+      "dismissed": "已驳回",
+      "open": "待处理",
+      "in_progress": "处理中",
+      "closed": "已关闭",
+      "reopened": "已重新打开"
+    },
+    "reportTarget": {
+      "content": "内容",
+      "comment": "评论"
+    },
+    "priority": {
+      "low": "低",
+      "normal": "普通",
+      "high": "高",
+      "urgent": "紧急"
+    },
+    "feedbackCategory": {
+      "web_bug": "网页问题",
+      "desktop_deploy": "桌面部署",
+      "content_or_community": "内容或社区",
+      "account_or_security": "账号或安全",
+      "agent_quality": "AI 助手质量",
+      "feature_request": "功能建议",
+      "other": "其他"
+    },
+    "traceStatus": {
+      "RUNNING": "处理中",
+      "SUCCESS": "成功",
+      "ERROR": "失败",
+      "CANCELLED": "已取消"
+    },
+    "answerKind": {
+      "grounded_content": "基于内容引用",
+      "no_evidence": "无依据",
+      "conversational": "对话式",
+      "publish_suggestion": "发布建议",
+      "other": "其他"
+    }
   },
   "editor": {
     "wordCount": "{count} 字",

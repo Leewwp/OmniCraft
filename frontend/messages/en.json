@@ -74,7 +74,7 @@
     "publish": "Publish",
     "notifications": "Notifications",
     "favorites": "My Favorites",
-    "myOriginal": "My Originals",
+    "myOriginal": "My Creations",
     "agent": "AI Agent",
     "adminPanel": "Admin Console"
   },
@@ -195,7 +195,7 @@
     "apiStatus": "Backend API",
     "apiRunning": "Running",
     "all": "All",
-    "text": "Text",
+    "text": "Article",
     "image": "Image",
     "video": "Video",
     "audio": "Audio",
@@ -975,13 +975,13 @@
       "colViews": "Views",
       "colStatus": "Status",
       "colActions": "Actions",
-      "ban": "Ban",
-      "banTitle": "Ban Content",
-      "banConfirm": "Ban \"{title}\"? The content will no longer be visible to users and the author will lose 3 reputation points.",
-      "confirmBan": "Confirm ban",
-      "banReason": "Ban reason",
+      "ban": "Take down",
+      "banTitle": "Take Down Content",
+      "banConfirm": "Take down \"{title}\"? The content will no longer be visible to users and the author will lose 3 reputation points.",
+      "confirmBan": "Confirm takedown",
+      "banReason": "Takedown reason",
       "loadFailed": "Failed to load content review list",
-      "banFailed": "Failed to ban content",
+      "banFailed": "Failed to take down content",
       "listTab": "Contents",
       "trashTab": "Trash",
       "restore": "Restore",
@@ -1123,9 +1123,9 @@
       "loadFailed": "Failed to load config",
       "saveFailed": "Failed to save config",
       "invalidValue": "Review the highlighted configuration value before saving.",
-      "audioMaxMb": "Audio cap (MB)",
-      "documentMaxMb": "Document cap (MB)",
-      "model3dMaxMb": "3D model cap (MB)"
+      "audioMaxMb": "Max Audio (MB)",
+      "documentMaxMb": "Max Document (MB)",
+      "model3dMaxMb": "Max 3D Model (MB)"
     },
     "feedback": {
       "title": "Feedback Management",
@@ -1930,7 +1930,7 @@
       "template": "Template",
       "sheet_music": "Sheet music",
       "mod": "Mod",
-      "prompt": "Prompt",
+      "prompt": "AI Prompt",
       "other": "Other"
     },
     "dateRange": {
@@ -2589,13 +2589,13 @@
       "startCreating": "Start Creating",
       "edit": "Edit",
       "delete": "Delete",
-      "banReason": "Ban reason",
+      "banReason": "Takedown reason",
       "statusDraft": "Draft",
       "statusPending": "In review",
       "statusUnderReview": "Under re-review",
-      "statusBanned": "Banned",
+      "statusBanned": "Taken down",
       "appeal": "Appeal",
-      "editBannedDisabled": "Banned content cannot be edited; appeal first",
+      "editBannedDisabled": "Taken-down content cannot be edited; appeal first",
       "editDialogTitle": "Edit content",
       "editDialogHint": "Title or cover changes on published content trigger re-review.",
       "fieldTitle": "Title",
@@ -2971,6 +2971,77 @@
     "short_drama": "Short Drama",
     "vtuber": "VTuber",
     "other": "Other"
+  },
+  "enums": {
+    "contentType": {
+      "article": "Article",
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "template": "Template",
+      "sheet_music": "Sheet Music",
+      "mod": "Mod",
+      "prompt": "AI Prompt",
+      "document": "Document",
+      "model3d": "3D Model",
+      "3d_print": "3D Printing",
+      "other": "Other"
+    },
+    "zone": {
+      "original": "Original",
+      "fanwork": "Fanwork"
+    },
+    "role": {
+      "admin": "Admin",
+      "user": "User"
+    },
+    "status": {
+      "draft": "Draft",
+      "pending": "Pending",
+      "under_review": "In Review",
+      "published": "Published",
+      "banned": "Taken Down",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "resolved": "Resolved",
+      "dismissed": "Dismissed",
+      "open": "Open",
+      "in_progress": "In Progress",
+      "closed": "Closed",
+      "reopened": "Reopened"
+    },
+    "reportTarget": {
+      "content": "Content",
+      "comment": "Comment"
+    },
+    "priority": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "feedbackCategory": {
+      "web_bug": "Web Bug",
+      "desktop_deploy": "Desktop Deploy",
+      "content_or_community": "Content or Community",
+      "account_or_security": "Account or Security",
+      "agent_quality": "AI Assistant Quality",
+      "feature_request": "Feature Request",
+      "other": "Other"
+    },
+    "traceStatus": {
+      "RUNNING": "Processing",
+      "SUCCESS": "Success",
+      "ERROR": "Failed",
+      "CANCELLED": "Cancelled"
+    },
+    "answerKind": {
+      "grounded_content": "Grounded on Content",
+      "no_evidence": "No Evidence",
+      "conversational": "Conversational",
+      "publish_suggestion": "Publish Suggestion",
+      "other": "Other"
+    }
   },
   "editor": {
     "wordCount": "{count} characters",

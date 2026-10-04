@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { roleLabel } from "@/lib/enum-labels";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -179,7 +180,7 @@ export default function AdminUsersPage() {
                         {u.reputation}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{u.role}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{roleLabel(t, u.role)}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`rounded px-2 py-0.5 text-xs ${
