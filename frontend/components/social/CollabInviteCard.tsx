@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
+import { getContentHref } from "@/lib/content";
 import { Button } from "@/components/ui/button";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { useToast } from "@/components/ui/Toast";
@@ -20,6 +21,8 @@ export interface CollabInviteCardProps {
     status: CollabInviteStatus;
     contentId: number;
     contentTitle: string;
+    /** #786：邀请 metadata 的 content_zone（旧邀请缺省回退 /content/）。 */
+    zone?: string;
     inviterUsername: string;
   };
   isCurrentUserInvitee: boolean;
@@ -101,7 +104,7 @@ export function CollabInviteCard({ invite, isCurrentUserInvitee, onAccept, onDec
         {t("collabInviteCard.invitation", { inviter: invite.inviterUsername, title: invite.contentTitle })}
       </p>
       <Link
-        href={`/content/${invite.contentId}`}
+        href={getContentHref(invite.contentId, invite.zone)}
         className="mt-1 inline-block rounded-sm text-sm text-accent-emphasis underline underline-offset-2 focus:outline-none focus-visible:ring-1 focus:ring-accent-emphasis hover:text-accent-hover"
       >
         {invite.contentTitle}

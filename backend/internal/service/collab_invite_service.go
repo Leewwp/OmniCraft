@@ -235,8 +235,11 @@ func (s *CollabInviteService) SendInvite(ctx context.Context, contentID, inviter
 		ExpiresAt: s.now().Add(time.Duration(s.inviteExpireDays()) * 24 * time.Hour),
 	}
 	metadata := model.JSONMap{
-		"content_id":       contentID,
-		"content_title":    content.Title,
+		"content_id":    contentID,
+		"content_title": content.Title,
+		// #786：邀请卡深链按 zone 分流（原创内容 /content/ 会落 404）；
+		// JSONMap 无需迁移，旧邀请缺该键时前端回退 /content/。
+		"content_zone":     content.Zone,
 		"inviter_id":       inviterID,
 		"inviter_username": inviter.Username,
 	}

@@ -46,7 +46,9 @@ const ROLE_LABEL_KEYS: Record<string, string> = {
 };
 
 /** 内容/举报/反馈/IP 共用状态词（under_review=审核中、pending=待处理、
- *  resolved=已解决、dismissed=已驳回，#782 词表拍板值）。 */
+ *  resolved=已解决、dismissed=已驳回，#782 词表拍板值）。pending（举报）与
+ *  open（反馈工单）是两个独立键：zh 文案同为「待处理」是有意同义词，en 区分
+ *  Pending/Open——语义分道时改键文案即可，勿合并键。 */
 const STATUS_LABEL_KEYS: Record<string, string> = {
   draft: "enums.status.draft",
   pending: "enums.status.pending",

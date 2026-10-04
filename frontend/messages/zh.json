@@ -29,7 +29,6 @@
     "enabled": "启用",
     "disabled": "禁用",
     "normal": "正常",
-    "banned": "已封禁",
     "page": "第 {current} / {total} 页",
     "userLabel": "用户 #{id}",
     "unknown": "未知内容",
