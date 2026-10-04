@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { answerKindLabel, traceStatusLabel } from "@/lib/enum-labels";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Activity, ArrowLeft, Zap, Timer, GitBranch, FlaskConical } from "lucide-react";
@@ -241,8 +242,8 @@ export default function AdminTraceDetailPage() {
               run.status === "ERROR" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
               run.status === "CANCELLED" && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
               run.status === "RUNNING" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-            )}>{run.status}</span>
-            <span>{run.answer_kind || "—"}</span>
+            )}>{traceStatusLabel(t, run.status)}</span>
+            <span>{run.answer_kind ? answerKindLabel(t, run.answer_kind) : "—"}</span>
           </p>
         </div>
         <div className="rounded-md border border-border bg-card p-3">
