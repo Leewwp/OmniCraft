@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { BookOpen, Plug, Puzzle, TerminalSquare, ShieldCheck, Gauge, GitBranch } from "lucide-react";
+import { BookOpen, Plug, Puzzle, TerminalSquare, ShieldCheck, Gauge, GitBranch, Info } from "lucide-react";
 
 // SP-16 #448：外部 Agent 接入落地页（对标 aihot.news/agent 的三通道安装引导）。
 // REST 通道随本票可用；MCP 与 Skill 通道为 P3 占位（上线后回填地址与脚本）。
@@ -52,21 +52,38 @@ export default function AgentAccessPage() {
           </div>
         </div>
 
+        {/* SP-26 A-6（#780）：演示阶段声明（用户 2026-10-04 裁决——本产品页为
+            唯一可向访问者声明演示阶段的例外入口，三点口径走 i18n）。 */}
+        <section
+          className="mt-6 rounded-lg border border-border bg-card p-4"
+          aria-label={t("agentAccess.demoNotice.title")}
+        >
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <h2 className="text-sm font-semibold text-foreground">{t("agentAccess.demoNotice.title")}</h2>
+          </div>
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+            <li className="min-w-0 [overflow-wrap:anywhere]">{t("agentAccess.demoNotice.point1")}</li>
+            <li className="min-w-0 [overflow-wrap:anywhere]">{t("agentAccess.demoNotice.point2")}</li>
+            <li className="min-w-0 [overflow-wrap:anywhere]">{t("agentAccess.demoNotice.point3")}</li>
+          </ul>
+        </section>
+
         <section className="mt-8 grid gap-4 md:grid-cols-3" aria-label={t("agentAccess.channels.aria")}>
           {channels.map((ch) => (
-            <div key={ch.titleKey} className="rounded-lg border border-border bg-card p-4">
+            <div key={ch.titleKey} className="min-w-0 rounded-lg border border-border bg-card p-4">
               <div className="flex items-center justify-between">
-                <ch.icon className="h-5 w-5 text-primary" />
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${ch.live ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                <ch.icon className="h-5 w-5 shrink-0 text-primary" />
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${ch.live ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                   {t(ch.statusKey)}
                 </span>
               </div>
               <h2 className="mt-3 text-sm font-semibold text-foreground">{t(ch.titleKey)}</h2>
-              <ul className="mt-2 space-y-1.5">
+              <ul className="mt-2 max-w-full space-y-1.5">
                 {ch.points.map((p) => (
                   <li key={p} className="flex gap-1.5 text-xs text-muted-foreground">
                     <span aria-hidden className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                    {t(p)}
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{t(p)}</span>
                   </li>
                 ))}
               </ul>
@@ -74,42 +91,44 @@ export default function AgentAccessPage() {
           ))}
         </section>
 
-        <section className="mt-8 rounded-lg border border-border bg-card p-5">
+        {/* SP-26 A-6（#780）：curl 示例改用真实演示站域名（用户 2026-10-04
+            同意该域名进入公开仓库——唯一例外仅限本产品页）。 */}
+        <section className="mt-8 min-w-0 rounded-lg border border-border bg-card p-5">
           <h2 className="text-sm font-semibold text-foreground">{t("agentAccess.verify.title")}</h2>
           <p className="mt-1 text-xs text-muted-foreground">{t("agentAccess.verify.subtitle")}</p>
-          <pre className="mt-3 overflow-x-auto rounded-lg bg-canvas-subtle p-3 text-xs leading-relaxed text-foreground"><code>{`curl "https://app.example.com/api/v1/contents/search?q=` + t("agentAccess.verify.keyword") + `&page_size=5"
+          <pre className="mt-3 max-w-full overflow-x-auto rounded-lg bg-canvas-subtle p-3 text-xs leading-relaxed text-foreground"><code>{`curl "https://app.leeppp.online/api/v1/contents/search?q=` + t("agentAccess.verify.keyword") + `&page_size=5"
 
 # 200 → {"items":[{"id":123,"title":"...","content_type":"sheet_music",...}],"total":1}
-curl "https://app.example.com/api/v1/contents/123/guide"   # 使用指导（requirements/steps/safety）`}</code></pre>
+curl "https://app.leeppp.online/api/v1/contents/123/guide"   # 使用指导（requirements/steps/safety）`}</code></pre>
         </section>
 
         <section className="mt-4 grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border border-border bg-card p-5">
+          <div className="min-w-0 rounded-lg border border-border bg-card p-5">
             <div className="flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-muted-foreground" />
+              <Gauge className="h-4 w-4 shrink-0 text-muted-foreground" />
               <h2 className="text-sm font-semibold text-foreground">{t("agentAccess.limits.title")}</h2>
             </div>
-            <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
-              <li>{t("agentAccess.limits.point1")}</li>
-              <li>{t("agentAccess.limits.point2")}</li>
-              <li>{t("agentAccess.limits.point3")}</li>
+            <ul className="mt-2 max-w-full space-y-1.5 text-xs text-muted-foreground">
+              <li className="min-w-0 [overflow-wrap:anywhere]">{t("agentAccess.limits.point1")}</li>
+              <li className="min-w-0 [overflow-wrap:anywhere]">{t("agentAccess.limits.point2")}</li>
+              <li className="min-w-0 [overflow-wrap:anywhere]">{t("agentAccess.limits.point3")}</li>
             </ul>
           </div>
-          <div className="rounded-lg border border-border bg-card p-5">
+          <div className="min-w-0 rounded-lg border border-border bg-card p-5">
             <div className="flex items-center gap-2">
-              <GitBranch className="h-4 w-4 text-muted-foreground" />
+              <GitBranch className="h-4 w-4 shrink-0 text-muted-foreground" />
               <h2 className="text-sm font-semibold text-foreground">{t("agentAccess.versioning.title")}</h2>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">{t("agentAccess.versioning.body")}</p>
+            <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{t("agentAccess.versioning.body")}</p>
           </div>
         </section>
 
-        <section className="mt-4 rounded-lg border border-border bg-card p-5">
+        <section className="mt-4 min-w-0 rounded-lg border border-border bg-card p-5">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+            <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground">{t("agentAccess.boundary.title")}</h2>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">{t("agentAccess.boundary.body")}</p>
+          <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{t("agentAccess.boundary.body")}</p>
         </section>
     </div>
   );

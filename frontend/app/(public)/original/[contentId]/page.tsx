@@ -56,6 +56,9 @@ export default async function OriginalDetailPage({ params }: { params: Promise<{
       <div className="flex-1 min-w-0">
         <ContentDetail
           data={{ ...content, attachments: normalized.attachments, tags: normalized.tags }}
+          /* A-8（#780）：右栏作者卡 ≥lg 可见——桌面分支内联关注按钮让位
+             （lg:hidden），<lg 侧栏隐藏时内联按钮仍是唯一入口。 */
+          inlineFollowClassName="lg:hidden"
           relatedFanworks={{
             sourceContentId: content.id,
             sourceZone: "original",

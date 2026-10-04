@@ -3,21 +3,33 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import {
+  Image as ImageIcon,
+  Clapperboard,
+  FileText,
+  Music,
+  Music2,
+  Puzzle,
+  Bot,
+  Printer,
+  Package,
+} from "lucide-react";
 import { ContentTypeGrid, applyTypeOrder, type ContentType } from "@/components/studio/ContentTypeGrid";
 import { PublishForm, type PrefillWarning } from "@/components/studio/PublishForm";
 import { fetchPublicConfig } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 
+/* SP-26 A-9（#780）：emoji 图标换 lucide 线性图标（与 original 发布页同步）。 */
 const CONTENT_TYPE_KEYS = [
-  { value: "image", icon: "🖼️" },
-  { value: "video", icon: "🎬" },
-  { value: "article", icon: "📝" },
-  { value: "audio", icon: "🎵" },
-  { value: "sheet_music", icon: "🎼" },
-  { value: "mod", icon: "🧩" },
-  { value: "prompt", icon: "🤖" },
-  { value: "3d_print", icon: "🖨️" },
-  { value: "other", icon: "📦" },
+  { value: "image", icon: ImageIcon },
+  { value: "video", icon: Clapperboard },
+  { value: "article", icon: FileText },
+  { value: "audio", icon: Music },
+  { value: "sheet_music", icon: Music2 },
+  { value: "mod", icon: Puzzle },
+  { value: "prompt", icon: Bot },
+  { value: "3d_print", icon: Printer },
+  { value: "other", icon: Package },
 ] as const;
 
 function parsePrefillId(value: string | null): { present: boolean; valid: boolean; id?: number } {

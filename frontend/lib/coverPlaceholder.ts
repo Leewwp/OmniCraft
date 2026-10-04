@@ -17,10 +17,17 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
+/* SP-26 A-11（#780）：截取展示字符前剥离起始标点与首部空白（含连续多个，
+   如「【UI 演示】…」「（《xx》…」）——非字母/数字开头一律剥掉；全标点标题
+   截空后由既有 "??" 兜底。 */
+function stripLeadingPunctuation(title: string): string {
+  return title.replace(/^[^\p{L}\p{N}]+/u, "");
+}
+
 function articlePlaceholder(title: string): string {
   const idx = hashString(title) % COLORS.length;
   const [c1, c2] = COLORS[idx];
-  const chars = title.slice(0, 2).toUpperCase() || "??";
+  const chars = stripLeadingPunctuation(title).slice(0, 2).toUpperCase() || "??";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">
   <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient></defs>
   <rect width="300" height="400" fill="url(#g)"/>

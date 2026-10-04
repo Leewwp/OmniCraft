@@ -472,7 +472,9 @@ export function ContentDetailOverlayLayer({
         onPaneMeasured={handlePaneMeasured}
       >
         {/* SP-17/T4：竖屏作者行的关注由 T3 创作者区自带（含 is_following 初始
-            态），旧的 authorAction 透传会渲染第二个关注按钮，已移除。 */}
+            态），旧的 authorAction 透传会渲染第二个关注按钮，已移除。A-8（#780）：
+            变体分支 creator 侧栏不进右栏，内联关注按钮 = 唯一直接入口，不传
+            inlineFollowClassName（单挂 lg:hidden 会误杀本分支）。 */}
         <ContentDetail
           data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
           coverSync
@@ -541,6 +543,9 @@ export function ContentDetailOverlayLayer({
             deferTail
             coverReady={coverReady}
             coverHoldSrc={motionHoldSrc}
+            /* A-8（#780）：本分支右栏 ContentSidebar ≥lg 可见——内联关注
+               按钮让位（lg:hidden）；<lg 侧栏隐藏时内联按钮仍是唯一入口。 */
+            inlineFollowClassName="lg:hidden"
             sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
             sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
             /* #89 移动单列：可见的媒体区是行内画廊（≥1100px 才隐藏），
@@ -566,6 +571,9 @@ export function ContentDetailOverlayLayer({
           coverSync
           deferTail
           coverHoldSrc={motionHoldSrc}
+          /* A-8（#780）：同 split 分支——右栏侧栏 ≥lg 可见，内联按钮让位；
+             <lg 侧栏隐藏时内联按钮仍是唯一入口。 */
+          inlineFollowClassName="lg:hidden"
           sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
           sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
           onGalleryReachEnd={handleReachEnd}

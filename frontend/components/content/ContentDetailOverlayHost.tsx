@@ -69,6 +69,9 @@ export function ContentDetailOverlayHost({
       <div className="min-w-0 flex-1">
         <ContentDetail
           data={{ ...content, attachments: content.attachments, tags: content.tags }}
+          /* A-8（#780）：右栏作者卡 ≥lg 可见——桌面分支内联关注按钮让位
+             （lg:hidden），<lg 侧栏隐藏时内联按钮仍是唯一入口。 */
+          inlineFollowClassName="lg:hidden"
           sourceOriginal={
             sourceOriginal && sourceOriginal.title
               ? { id: sourceOriginal.id, title: sourceOriginal.title, zone: "original" }

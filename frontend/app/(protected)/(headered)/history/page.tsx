@@ -13,6 +13,7 @@ import { SkeletonCard } from "@/components/ui/skeleton";
 import { DataList } from "@/components/ui/data-list";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
+import { getContentHref } from "@/lib/content";
 import { silentError } from "@/lib/error-handler";
 
 type ContentSummary = {
@@ -340,7 +341,7 @@ function HistoryRow({
         />
       )}
       {content ? (
-        <Link href={`/content/${content.id}`} className="min-w-0">
+        <Link href={getContentHref(content.id, content.zone)} className="min-w-0">
           <p className="truncate text-sm font-medium">{content.title}</p>
           <p className="text-xs text-muted-foreground">{content.content_type}</p>
         </Link>
