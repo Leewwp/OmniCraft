@@ -632,6 +632,39 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	// #786：content 类申诉补 target_zone——前端「查看内容」深链按 zone 分流
+	// /original/{id}，否则原创内容落分区隔离 404。批量一次查询，只增不改。
+	contentTargetIds := make([]int64, 0, len(appeals))
+	for _, a := range appeals {
+		if a["target_type"] == "content" {
+			if id, ok := a["target_id"].(int64); ok && id > 0 {
+				contentTargetIds = append(contentTargetIds, id)
+			}
+		}
+	}
+	if len(contentTargetIds) > 0 {
+		var zones []struct {
+			ID   int64
+			Zone string
+		}
+		if err := h.userRepo.DB().Table("content_items").
+			Select("id, zone").
+			Where("id IN ?", contentTargetIds).
+			Scan(&zones).Error; err == nil {
+			zoneByID := make(map[int64]string, len(zones))
+			for _, z := range zones {
+				zoneByID[z.ID] = z.Zone
+			}
+			for _, a := range appeals {
+				if a["target_type"] != "content" {
+					continue
+				}
+				if id, ok := a["target_id"].(int64); ok {
+					a["target_zone"] = zoneByID[id]
+				}
+			}
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"appeals": appeals, "total": total})
 }
 

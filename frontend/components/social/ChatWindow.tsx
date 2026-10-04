@@ -238,6 +238,7 @@ function inviteFromMetadata(message: Message): {
   status: CollabInviteStatus;
   contentId: number;
   contentTitle: string;
+  zone?: string;
   inviterUsername: string;
 } | null {
   const metadata = message.metadata ?? {};
@@ -246,7 +247,10 @@ function inviteFromMetadata(message: Message): {
   const contentTitle = typeof metadata.content_title === "string" ? metadata.content_title : "";
   const inviterUsername = typeof metadata.inviter_username === "string" ? metadata.inviter_username : "";
   if (!id || !contentId || !contentTitle || !inviterUsername) return null;
-  return { id, status: "pending", contentId, contentTitle, inviterUsername };
+  /* #786：后端建邀请时冗余 content_zone；旧邀请缺该键 → undefined（回退
+     /content/，与历史行为一致）。 */
+  const zone = typeof metadata.content_zone === "string" ? metadata.content_zone : undefined;
+  return { id, status: "pending", contentId, contentTitle, zone, inviterUsername };
 }
 
 function compareMessagesChronologically(a: Message, b: Message): number {

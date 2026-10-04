@@ -8,12 +8,15 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { getContentHref } from "@/lib/content";
 
 interface AppealItem {
   id: number;
   user_id: number;
   target_type: string;
   target_id: number;
+  /** #786：content 类申诉行由后端补 zone（缺省回退 /content/）。 */
+  target_zone?: string;
   reason: string;
   status: string;
   admin_response: string;
@@ -161,7 +164,7 @@ export default function AdminAppealPage() {
                       {/* T31（FIX-27）：content 申诉行内直达预览。 */}
                       {a.target_type === "content" && (
                         <Link
-                          href={`/content/${a.target_id}`}
+                          href={getContentHref(a.target_id, a.target_zone)}
                           className="ml-2 text-primary hover:underline"
                         >
                           {t('admin.appeals.viewContent')}

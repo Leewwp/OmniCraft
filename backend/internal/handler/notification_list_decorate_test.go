@@ -17,9 +17,10 @@ import (
 
 // SP-18 #509 契约：GET /notifications 列表装饰（响应只增不改）。
 // 每条通知新增 sender{id,username,avatar_url}（批量 join，免前端 N+1）与
-// target_summary{kind,title,url}（原内容引用块渲染与深链跳转，映射与
-// frontend lib/notification-url.ts 同源）。老字段（id/channel/title/body/
-// target_type/target_id/sender_id/is_read/created_at）原样保留。
+// target_summary{kind,title,url,zone}（原内容引用块渲染与深链跳转；映射的
+// 唯一真源在后端 decorate 层，#786 起 url 按 zone 分流 /original/{id}，
+// 原 frontend lib/notification-url.ts 死模块已删）。老字段（id/channel/
+// title/body/target_type/target_id/sender_id/is_read/created_at）原样保留。
 
 type decoratedNotification struct {
 	ID         int64           `json:"id"`
@@ -46,6 +47,7 @@ type targetSummary struct {
 	Kind  string `json:"kind"`
 	Title string `json:"title"`
 	URL   string `json:"url"`
+	Zone  string `json:"zone"`
 }
 
 func setupNotificationDecorateRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
@@ -120,7 +122,8 @@ func TestListNotificationsDecoratesSenderAndTargetSummary(t *testing.T) {
 	if n.Sender == nil || n.Sender.Username != "commenter" || n.Sender.ID != 2 || n.Sender.AvatarURL != "https://cdn.example/a.png" {
 		t.Fatalf("notification 1 sender = %+v", n.Sender)
 	}
-	if n.Summary == nil || n.Summary.Kind != "content" || n.Summary.Title != "灵感笔记" || n.Summary.URL != "/content/101" {
+	// #786：content 101 fixture zone=original → 深链分流 /original/{id}。
+	if n.Summary == nil || n.Summary.Kind != "content" || n.Summary.Title != "灵感笔记" || n.Summary.URL != "/original/101" || n.Summary.Zone != "original" {
 		t.Fatalf("notification 1 summary = %+v", n.Summary)
 	}
 	if n.Channel != "reply" || n.TargetType == nil || *n.TargetType != "content" || n.TargetID == nil || *n.TargetID != 101 {

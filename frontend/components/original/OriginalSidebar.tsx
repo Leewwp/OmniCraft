@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
 import { api } from "@/lib/api";
+import { getContentHref } from "@/lib/content";
 
 interface TrendingContentItem {
   title: string;
@@ -43,8 +44,9 @@ export function SidebarWrapper() {
     rank: i + 1,
     name: item.title,
     stat: item.score > 0 ? `${t("home.trendingHeat")} ${item.score}` : "",
-    /* #781：榜单行恒指原创详情路由（/content/[id] 对 zone=original 有意 notFound）。 */
-    href: `/original/${item.contentId}`,
+    /* #781：榜单请求恒带 zone=original，行内链接经 helper 分流到原创详情
+       路由（/content/[id] 对 zone=original 有意 notFound）。 */
+    href: getContentHref(item.contentId, "original"),
   }));
 
   const sections = [

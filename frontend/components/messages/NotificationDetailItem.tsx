@@ -8,6 +8,7 @@ import { FollowButton } from "@/components/social/FollowButton";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getContentHref } from "@/lib/content";
 
 /* 通知详情条目（SP-18 #509 §4.1，B 站式三行结构）：触发者（头像/用户名接
    UserHoverCard，#505 吸收）+ 动作词 + 相对时间 / 动作载荷摘录 / 原内容引用
@@ -26,7 +27,7 @@ export interface DecoratedNotification {
   sender_id?: number;
   created_at: string;
   sender?: { id: number; username: string; avatar_url: string; bio?: string } | null;
-  target_summary?: { kind: string; title?: string; url?: string } | null;
+  target_summary?: { kind: string; title?: string; url?: string; zone?: string } | null;
 }
 
 interface NotificationDetailItemProps {
@@ -96,7 +97,9 @@ export function NotificationDetailItem({ notification: n, onMarkRead }: Notifica
      - 收到的赞：查看作品；PR：查看 PR；关注：真 FollowButton。 */
   const contentTarget =
     summary && (summary.kind === "content" || summary.kind === "comment")
-      ? { base: summary.url ?? `/content/${n.target_id ?? 0}`, isContent: true }
+      ? /* #786：后端 url 已按 zone 分流；兜底路径同样经 helper 分流（原创内容
+           /content/ 会落分区隔离 404）。 */
+        { base: summary.url ?? getContentHref(n.target_id ?? 0, summary.zone), isContent: true }
       : summary?.kind === "discussion" && summary.url
         ? { base: summary.url, isContent: false }
         : null;
