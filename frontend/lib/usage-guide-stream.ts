@@ -65,6 +65,8 @@ export async function streamUsageGuide(
   const maxBufferedLineLength = 2 * 1024 * 1024;
   let buffered = "";
   let sawError = false;
+  // #801：EOF 无 done 不能当成功（半截指南会被面板缓存成已载入）。
+  let sawDone = false;
 
   const handleLine = (line: string): "continue" | "stop" => {
     // gin SSEvent 写出 `data:{...}`（冒号后无空格）；slice(5)+trim 与
@@ -87,6 +89,7 @@ export async function streamUsageGuide(
       return "continue";
     }
     if (ev.type === "done") {
+      sawDone = true;
       return "stop";
     }
     if (ev.type === "error") {
@@ -120,8 +123,13 @@ export async function streamUsageGuide(
     if ((error as Error).name !== "AbortError") handlers.onError?.(error as Error);
     return;
   }
-  if (!sawError) {
+  if (!sawError && sawDone) {
     handlers.onDone?.();
-    handlers.onClose?.();
   }
+  if (!sawError && !sawDone) {
+    handlers.onError?.(new Error("usage guide stream ended without done"));
+  }
+  // #801：error 路径同样收尾（否则面板 loading 态挂死）；abort/异常路径
+  // 已提前 return。
+  handlers.onClose?.();
 }
