@@ -16,7 +16,6 @@ import type { AgentStreamCitation } from "@/lib/agent-stream";
 import {
   shouldShowThinkingPlaceholder,
   type AgentTurn,
-  type AgentTurnTerminal,
 } from "@/lib/agent-turn";
 import { citationDisplayMapOf, remapCitationMarks } from "@/lib/agent";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
@@ -51,11 +50,9 @@ function toCitationBadgeInfo(citation: AgentStreamCitation, index: number): Cita
   };
 }
 
-/* #715（审查 P1）：首轮终态（追问/用量/trace）跨 FT-3 路由重挂载搬运——这些
-   字段不落历史 DTO（落库契约），而首轮 done 必发 replace(/agent/c/{id}) 触发
-   key={id} 重挂载清空内存活动轮。模块级 Map：客户端路由切换不重载模块（恰
-   覆盖重挂载窗口），真实整页刷新重置（与历史轮终态缺省契约一致）。 */
-const firstRoundTerminals = new Map<number, AgentTurnTerminal>();
+/* #715→#795：首轮终态跨路由重挂载的交接已收口到 lib/agent-first-round-handover
+   （本文件 2026-09-12 的模块级 Map 副本从未被本域读写，经 #795 核实 caller 后
+   删除）。 */
 
 /* 单轮块渲染：提问行 + 思考/工具相块（流式展开→完成折叠）+ 正文与引用。
    终态尾部由 renderTerminalTail 以独立兄弟元素渲染（换树窗口 DOM 节点

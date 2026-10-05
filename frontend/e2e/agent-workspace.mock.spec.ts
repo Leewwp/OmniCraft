@@ -849,3 +849,135 @@ test("#417 F6b agent composer embeds send/stop in the input's bottom-right corne
   await wrap.getByRole("button", { name: "Stop generating" }).click();
   await expect(page.getByText("Stopped generating")).toBeVisible({ timeout: 10_000 });
 });
+
+/* #795 首轮交接：走真实 Next.js router.replace 与 key={id} 重挂载——
+   首轮 done → /agent/c/:id → 历史接管，追问/用量/trace 保留且只呈现一次。 */
+test("first-round handover: done replaces into /agent/c/:id, takeover revives follow-ups/usage/trace exactly once (#795)", async ({ page }) => {
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(
+    page,
+    [],
+    {
+      41: [
+        { id: 411, role: "user", content: "首轮问题" },
+        {
+          id: 413,
+          role: "assistant",
+          content: "首轮回答正文。",
+          citations: [],
+        },
+      ],
+    },
+  );
+  await mockStream(page, [
+    { type: "start", trace_id: "mock-trace-795", conversation_id: 41, answer_kind: "grounded_content" },
+    { type: "tool_status", tool: { name: "search_content", status: "success", duration_ms: 9, hits: 1 } },
+    { type: "delta", delta: "首轮回答正文。" },
+    {
+      type: "done",
+      conversation_id: 41,
+      message_id: 413,
+      trace_id: "mock-trace-795",
+      answer_kind: "grounded_content",
+      answer: "首轮回答正文。",
+      citations: [],
+      tools: [{ name: "search_content", status: "success", duration_ms: 9, hits: 1 }],
+      usage: { prompt_tokens: 120, completion_tokens: 45 },
+      follow_ups: ["追问一", "追问二"],
+      degraded: false,
+    },
+  ]);
+
+  await page.goto("/agent");
+  await ask(page, "首轮问题");
+  await expect(page.getByText("首轮回答正文。")).toBeVisible();
+
+  /* 真实 replace：首轮 done 写入会话 URL 并触发 key 重挂载（整页导航不出
+     现——断言落在终态即可，中间的卸载/重挂载由路由自身保证）。 */
+  await expect(page).toHaveURL(/\/agent\/c\/41$/);
+
+  /* 历史接管后：追问 chips 精确一次（chip aria-label = 文本 + 填充动作后缀，
+     故按子串断言；每个标签恰好一个按钮、一个分组容器）。 */
+  await expect(page.getByRole("group", { name: "Suggested follow-ups" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /追问一/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /追问二/ })).toHaveCount(1);
+
+  /* 用量/trace 经「本轮详情」胶囊回填且只呈现一次。 */
+  const details = page.getByRole("button", { name: "Turn details" });
+  await expect(details).toHaveCount(1);
+  await details.click();
+  await expect(page.getByText("Token usage: 120 in / 45 out")).toHaveCount(1);
+  await expect(page.getByText("mock-trace-795")).toHaveCount(1);
+  await page.screenshot({ path: "../screenshots/795-first-round-handover-takeover.png", fullPage: true });
+});
+
+/* #795 迟到隔离：首轮历史回载延迟中离开 → 迟到请求不得污染新会话
+   （cancelled 守卫 + 离开目标时交接记录失效）。 */
+test("late first-round history cannot pollute the conversation opened afterwards (#795)", async ({ page }) => {
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(
+    page,
+    [{ id: 2, context_type: "global", title: "另一会话", updated_at: "2026-08-10T00:00:00Z" }],
+    {
+      2: [
+        { id: 21, role: "user", content: "会话二问题" },
+        { id: 22, role: "assistant", content: "会话二回答。" },
+      ],
+    },
+  );
+  /* 会话 41 的历史门控：请求挂起，直到测试体放行（后注册的路由优先生效；
+     Promise executor 同步执行，定值断言安全）。 */
+  let release41!: () => void;
+  const gate41 = new Promise<void>((resolve) => {
+    release41 = resolve;
+  });
+  await mockApiRoute(page, "**/api/v1/agent/conversations/41", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    await gate41;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        messages: [
+          { id: 411, role: "user", content: "首轮问题" },
+          { id: 413, role: "assistant", content: "首轮回答正文。" },
+        ],
+      }),
+    });
+  });
+  await mockStream(page, [
+    { type: "start", trace_id: "mock-trace-795-late", conversation_id: 41, answer_kind: "grounded_content" },
+    { type: "delta", delta: "首轮回答正文。" },
+    {
+      type: "done",
+      conversation_id: 41,
+      answer_kind: "grounded_content",
+      answer: "首轮回答正文。",
+      citations: [],
+      tools: [],
+      usage: { prompt_tokens: 120, completion_tokens: 45 },
+      follow_ups: ["追问一"],
+      degraded: false,
+    },
+  ]);
+
+  await page.goto("/agent");
+  await ask(page, "首轮问题");
+  await expect(page).toHaveURL(/\/agent\/c\/41$/);
+  /* 历史仍在途（门控）——此刻从侧栏离开目标会话。 */
+  await expect(page.getByRole("button", { name: "另一会话" })).toBeVisible();
+  await page.getByRole("button", { name: "另一会话" }).click();
+  await expect(page).toHaveURL(/\/agent\/c\/2$/);
+  await expect(page.getByText("会话二回答。")).toBeVisible();
+
+  /* 放行迟到的会话 41 历史：不得写入当前视图（无首轮正文/追问/详情）。 */
+  release41();
+  await page.waitForTimeout(500);
+  await expect(page.getByText("会话二回答。")).toBeVisible();
+  await expect(page.getByText("首轮回答正文。")).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Suggested follow-ups" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Turn details" })).toHaveCount(0);
+  await page.screenshot({ path: "../screenshots/795-late-history-isolation.png", fullPage: true });
+});

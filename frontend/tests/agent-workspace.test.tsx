@@ -7,6 +7,11 @@ import { createRequire } from "node:module";
 import { IntlProvider } from "use-intl";
 import enMessages from "@/messages/en.json";
 import { api, ApiRequestError } from "@/lib/api";
+import {
+  resetFirstRoundHandoverStore,
+  takeOverFirstRoundHandover,
+} from "@/lib/agent-first-round-handover";
+import { mapAgentHistoryToTurns, type AgentTurn } from "@/lib/agent-turn";
 import { clearPublicConfigCache } from "@/lib/public-config";
 import { ToastProvider } from "@/components/ui/Toast";
 import { act, cleanup, configure, fireEvent, installDom, render, waitFor, within } from "./runtime-test-helpers";
@@ -57,6 +62,9 @@ let authUser: {
 } | null = null;
 const routerPushes: string[] = [];
 const routerReplaces: string[] = [];
+/* #795：router.replace 观测钩——用例内在 replace 触发时刻同步探测模块状态
+   （证明「保存先于导航」的工作台接线），用例结束必须清空。 */
+let routerReplaceProbe: ((path: string) => void) | null = null;
 
 Module._load = function loadWithNavigationStub(request, parent, isMain) {
   if (request === "next/navigation") {
@@ -68,6 +76,7 @@ Module._load = function loadWithNavigationStub(request, parent, isMain) {
         },
         replace: (path: string) => {
           routerReplaces.push(path);
+          routerReplaceProbe?.(path);
         },
       }),
       usePathname: () => "/agent",
@@ -310,7 +319,11 @@ test.afterEach(() => {
   authUser = null;
   routerPushes.length = 0;
   routerReplaces.length = 0;
+  routerReplaceProbe = null;
   window.localStorage.clear();
+  /* #795：首轮交接记录住模块级 Map（跨用例存活），同实例合并路径不消费——
+     用例间复位防跨文件污染。 */
+  resetFirstRoundHandoverStore();
   delete (globalThis as Record<string, unknown>).fetch;
 });
 
@@ -921,6 +934,80 @@ test("first-round follow-ups survive the FT-3 route remount via the terminal sta
       "stash is consumed exactly once (history turns keep terminal defaults)",
     );
   } finally {
+    stub.restore();
+  }
+});
+
+/* #795 工作台接线证明：done 事件路径先保存交接记录、后 replace——replace
+   触发时刻（探测钩内同步模拟「重挂载即接管」）记录已可被消费。若保存晚于
+   导航（或改回 effect 保存），此处的探测接管会拿到未并入终态的历史。 */
+test("first-round done saves the handover record before router.replace fires (#795 wiring)", async () => {
+  installDom();
+  const now = new Date();
+  const events = streamEvents().map((event) =>
+    event.type === "done"
+      ? {
+          ...event,
+          trace_id: "t795",
+          usage: { prompt_tokens: 812, completion_tokens: 240 },
+          follow_ups: ["What else by this author?"],
+        }
+      : event,
+  );
+  const stub = installSSEFetch(events);
+  const now2 = new Date();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now2.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+        ],
+      },
+    },
+  ]);
+  /* 闭包内赋值 → holder 对象（let 变量的流分析不跨闭包）。 */
+  const probe: { turns?: AgentTurn[] } = {};
+  routerReplaceProbe = () => {
+    /* replace 执行的同步一刻：模拟导航 adapter 即刻重挂载并接管。 */
+    probe.turns = takeOverFirstRoundHandover(
+      7,
+      mapAgentHistoryToTurns(
+        [
+          { id: 1, role: "user", content: "find me a guide" },
+          { id: 2, role: "assistant", content: "hello world" },
+        ],
+        "hidden",
+      ),
+    );
+  };
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(
+      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" })),
+      { timeout: 8000 },
+    );
+    assert.ok(routerReplaces.includes("/agent/c/7"), "first-round done replaced into the conversation URL");
+    const probeTurns = probe.turns;
+    assert.ok(probeTurns, "probe ran synchronously inside router.replace");
+    const probedLast = probeTurns[probeTurns.length - 1];
+    assert.deepEqual(probedLast.terminal.followUps, ["What else by this author?"], "record was saved BEFORE the navigation fired");
+    assert.deepEqual(probedLast.terminal.usage, { prompt_tokens: 812, completion_tokens: 240 });
+    assert.equal(probedLast.terminal.traceId, "t795");
+    /* 探测接管消费了记录：工作台自身的同实例合并走活动轮终态，chips 不丢。 */
+    assert.ok(
+      view.getByRole("button", { name: /What else by this author\?/ }),
+      "same-instance merge still renders the live terminal after the probe consumed the record",
+    );
+  } finally {
+    routerReplaceProbe = null;
     stub.restore();
   }
 });
