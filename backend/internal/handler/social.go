@@ -84,9 +84,8 @@ func (h *SocialHandler) PostComment(c *gin.Context) {
 
 func (h *SocialHandler) DeleteComment(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid comment id")
+	id, ok := pathID(c, "id", "invalid comment id")
+	if !ok {
 		return
 	}
 	// 错误风格与 EditComment 对齐（FIX-31b/F-093）：404/403 专用码，不再落
@@ -108,9 +107,8 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 
 func (h *SocialHandler) EditComment(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid comment id")
+	id, ok := pathID(c, "id", "invalid comment id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -222,9 +220,8 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 }
 
 func (h *SocialHandler) GetDiscussion(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid discussion id")
+	id, ok := pathID(c, "id", "invalid discussion id")
+	if !ok {
 		return
 	}
 	d, err := h.socialSvc.GetDiscussion(id)
@@ -324,9 +321,8 @@ func (h *SocialHandler) ReportContent(c *gin.Context) {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
-	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	contentID, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -354,9 +350,8 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
-	commentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid comment id")
+	commentID, ok := pathID(c, "id", "invalid comment id")
+	if !ok {
 		return
 	}
 	var body struct {

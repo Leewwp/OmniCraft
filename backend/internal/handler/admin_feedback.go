@@ -58,9 +58,8 @@ func (h *AdminFeedbackHandler) ListFeedback(c *gin.Context) {
 }
 
 func (h *AdminFeedbackHandler) GetFeedback(c *gin.Context) {
-	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
+	ticketID, ok := pathID(c, "id", "Invalid ticket ID")
+	if !ok {
 		return
 	}
 
@@ -79,9 +78,8 @@ func (h *AdminFeedbackHandler) GetFeedback(c *gin.Context) {
 }
 
 func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
-	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
+	ticketID, ok := pathID(c, "id", "Invalid ticket ID")
+	if !ok {
 		return
 	}
 
@@ -102,7 +100,7 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 	}
 
 	var ticket *model.FeedbackTicket
-	err = h.withAuditTx(c, service.RecordAdminAuditInput{
+	err := h.withAuditTx(c, service.RecordAdminAuditInput{
 		AdminUserID: middleware.GetUserID(c),
 		Action:      feedbackPatchAuditAction(req.Status),
 		TargetType:  "feedback_ticket",
@@ -149,9 +147,8 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 }
 
 func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
-	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
+	ticketID, ok := pathID(c, "id", "Invalid ticket ID")
+	if !ok {
 		return
 	}
 
@@ -175,7 +172,7 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 
 	var reply *model.FeedbackReply
 	var ticket *model.FeedbackTicket
-	err = h.withAuditTx(c, service.RecordAdminAuditInput{
+	err := h.withAuditTx(c, service.RecordAdminAuditInput{
 		AdminUserID: adminID,
 		Action:      "feedback_reply",
 		TargetType:  "feedback_ticket",

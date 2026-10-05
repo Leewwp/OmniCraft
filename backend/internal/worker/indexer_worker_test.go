@@ -117,7 +117,7 @@ func TestIndexerConsumesPublishedEventIdempotently(t *testing.T) {
 
 	mgr := NewWorkerManager(broker)
 	mgr.Register(events.TopicContentPublished, indexerGroup,
-		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil).Handle)
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection("test")).Handle)
 	require.NoError(t, mgr.Start(context.Background()))
 
 	payload := indexerEnvelope(t, events.TopicContentPublished, 5001, 5001)
@@ -157,7 +157,7 @@ func TestIndexerFailOpenProjectionSkipsSyncWithoutDeadLetter(t *testing.T) {
 
 	mgr := NewWorkerManager(broker)
 	mgr.Register(events.TopicContentPublished, indexerGroup,
-		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection()).Handle)
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection("rag.index.enabled=false")).Handle)
 	require.NoError(t, mgr.Start(context.Background()))
 
 	payload := indexerEnvelope(t, events.TopicContentPublished, 5101, 5101)
@@ -179,7 +179,7 @@ func TestIndexerFailOpenProjectionSkipsSyncWithoutDeadLetter(t *testing.T) {
 }
 
 func TestFailOpenProjectionSyncContentReturnsNil(t *testing.T) {
-	require.NoError(t, NewFailOpenProjection().SyncContent(context.Background(), 42))
+	require.NoError(t, NewFailOpenProjection("rag.index.enabled=false").SyncContent(context.Background(), 42))
 }
 
 // TestIndexerBannedEventRemovesEmbeddingInSameTransaction proves the
@@ -207,7 +207,7 @@ func TestIndexerBannedEventRemovesEmbeddingInSameTransaction(t *testing.T) {
 
 	mgr := NewWorkerManager(broker)
 	mgr.Register(events.TopicContentBanned, indexerGroup,
-		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil).Handle)
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection("test")).Handle)
 	require.NoError(t, mgr.Start(context.Background()))
 
 	payload := indexerEnvelope(t, events.TopicContentBanned, contentID, contentID)
@@ -244,7 +244,7 @@ func TestIndexerPermanentFailureLandsInDLQWithConsumerGroup(t *testing.T) {
 
 	mgr := NewWorkerManager(broker)
 	mgr.Register(events.TopicContentPublished, indexerGroup,
-		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil).Handle)
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection("test")).Handle)
 	require.NoError(t, mgr.Start(context.Background()))
 
 	payload := indexerEnvelope(t, events.TopicContentPublished, 999999, 999999)
@@ -282,7 +282,7 @@ func TestIndexerPermanentFailureLandsInDLQWithConsumerGroup(t *testing.T) {
 func TestIndexerRejectsInvalidEnvelope(t *testing.T) {
 	db := setupIndexerDB(t)
 	embedder := &recordingEmbedder{}
-	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil)
+	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection("test"))
 
 	err := idx.Handle(context.Background(), queue.Message{
 		ID: "1-0", Topic: events.TopicContentPublished, Group: indexerGroup, Payload: []byte("not-json"),
@@ -303,7 +303,7 @@ func TestIndexerRejectsInvalidEnvelope(t *testing.T) {
 func TestIndexerMissingContentIsPermanentFailure(t *testing.T) {
 	db := setupIndexerDB(t)
 	embedder := &recordingEmbedder{}
-	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil)
+	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), NewFailOpenProjection("test"))
 
 	err := idx.Handle(context.Background(), queue.Message{
 		ID: "1-0", Topic: events.TopicContentPublished, Group: indexerGroup,

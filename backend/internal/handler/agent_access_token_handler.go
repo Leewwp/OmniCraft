@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"omnicraft/backend/internal/pkg/response"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -82,9 +81,8 @@ func (h *AgentAccessTokenHandler) Revoke(c *gin.Context) {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
 		return
 	}
-	tokenID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid token id")
+	tokenID, ok := pathID(c, "id", "invalid token id")
+	if !ok {
 		return
 	}
 	if err := h.svc.Revoke(c.Request.Context(), userID, tokenID); err != nil {

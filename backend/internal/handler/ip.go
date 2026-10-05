@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"omnicraft/backend/config"
@@ -166,9 +165,8 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 }
 
 func (h *IPHandler) GetIP(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
+	id, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
 		return
 	}
 
@@ -239,9 +237,8 @@ func (h *IPHandler) hubStats(ipID int64) ipHubStats {
 }
 
 func (h *IPHandler) GetIPContents(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
+	id, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
 		return
 	}
 
