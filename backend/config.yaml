@@ -5,6 +5,8 @@ server:
   read_timeout: 30
   write_timeout: 60
   idle_timeout: 120
+  # #800：SSE 流式路由逐写滚动延期窗口（秒）；write_timeout 仍管非流式端点
+  stream_write_window: 60
 
 observability:
   metrics_port: "9091"
