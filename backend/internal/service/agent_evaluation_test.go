@@ -15,6 +15,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/contentroute"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 )
@@ -417,7 +418,7 @@ func assertEvalCase(t *testing.T, tc agentEvalCase, o evalOutcome, svc *AgentSer
 		require.GreaterOrEqual(t, c.ChunkIndex, 0, "case %s: citation without chunk_index", tc.ID)
 		require.NotEmpty(t, c.Title, "case %s: citation %d without title", tc.ID, c.ContentID)
 		require.NotEmpty(t, c.Zone, "case %s: citation %d without zone", tc.ID, c.ContentID)
-		require.Equal(t, contentRoute(c.Zone, c.ContentID), c.Route, "case %s: citation route must be server-owned", tc.ID)
+		require.Equal(t, contentroute.ContentDetailRoute(c.Zone, c.ContentID), c.Route, "case %s: citation route must be server-owned", tc.ID)
 		require.NotEmpty(t, c.Excerpt, "case %s: citation %d without excerpt", tc.ID, c.ContentID)
 		require.Equal(t, tc.Expected.CitationSource, c.Source, "case %s: citation source mismatch", tc.ID)
 		require.NotContains(t, c.Source, "score", "case %s: citation must not expose score", tc.ID)
