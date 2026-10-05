@@ -17,6 +17,9 @@ interface AppealItem {
   target_id: number;
   /** #786：content 类申诉行由后端补 zone（缺省回退 /content/）。 */
   target_zone?: string;
+  /** #793：后端按数据库当前 zone 计算的详情深链（目标可解析时恒有）；
+   *  缺省（旧响应/目标不存在）回退 getContentHref(target_zone) 镜像。 */
+  target_url?: string;
   reason: string;
   status: string;
   admin_response: string;
@@ -161,10 +164,11 @@ export default function AdminAppealPage() {
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {a.target_id}
-                      {/* T31（FIX-27）：content 申诉行内直达预览。 */}
+                      {/* T31（FIX-27）：content 申诉行内直达预览。#793：优先
+                          后端 target_url，缺省回退 zone 镜像分流。 */}
                       {a.target_type === "content" && (
                         <Link
-                          href={getContentHref(a.target_id, a.target_zone)}
+                          href={a.target_url ?? getContentHref(a.target_id, a.target_zone)}
                           className="ml-2 text-primary hover:underline"
                         >
                           {t('admin.appeals.viewContent')}

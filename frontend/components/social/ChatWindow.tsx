@@ -239,6 +239,7 @@ function inviteFromMetadata(message: Message): {
   contentId: number;
   contentTitle: string;
   zone?: string;
+  url?: string;
   inviterUsername: string;
 } | null {
   const metadata = message.metadata ?? {};
@@ -247,10 +248,12 @@ function inviteFromMetadata(message: Message): {
   const contentTitle = typeof metadata.content_title === "string" ? metadata.content_title : "";
   const inviterUsername = typeof metadata.inviter_username === "string" ? metadata.inviter_username : "";
   if (!id || !contentId || !contentTitle || !inviterUsername) return null;
-  /* #786：后端建邀请时冗余 content_zone；旧邀请缺该键 → undefined（回退
+  /* #793：后端消息读侧按数据库当前 zone 装饰 content_url/content_zone——
+     优先用后端 URL；旧响应/装饰失败缺键时回退 zone 镜像（再缺省回退
      /content/，与历史行为一致）。 */
   const zone = typeof metadata.content_zone === "string" ? metadata.content_zone : undefined;
-  return { id, status: "pending", contentId, contentTitle, zone, inviterUsername };
+  const url = typeof metadata.content_url === "string" && metadata.content_url ? metadata.content_url : undefined;
+  return { id, status: "pending", contentId, contentTitle, zone, url, inviterUsername };
 }
 
 function compareMessagesChronologically(a: Message, b: Message): number {

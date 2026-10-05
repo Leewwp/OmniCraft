@@ -4050,6 +4050,10 @@ interface ChatMessage {
     invite_id?: number;
     content_id?: number;
     content_title?: string;
+    /* #793：读侧装饰字段——后端按数据库当前 zone 恒发（目标可解析时），
+       旧响应/装饰失败缺键时前端回退 getContentHref 镜像。 */
+    content_zone?: string;
+    content_url?: string;
     inviter_id?: number;
     inviter_username?: string;
   };
@@ -4124,6 +4128,11 @@ interface CollabInviteCardProps {
     status: 'pending' | 'accepted' | 'declined' | 'expired';
     contentId: number;
     contentTitle: string;
+    /* #793：后端消息读侧按数据库当前 zone 装饰 metadata.content_url /
+       content_zone——url 为导航真源，缺省（旧响应/装饰失败）回退 zone 镜像
+       （getContentHref，再缺省 /content/）。 */
+    zone?: string;
+    url?: string;
     inviterUsername: string;
   };
   isCurrentUserInvitee: boolean;
