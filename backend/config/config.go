@@ -243,6 +243,9 @@ type ServerConfig struct {
 	ReadTimeout     int    `mapstructure:"read_timeout" json:"read_timeout"`
 	WriteTimeout    int    `mapstructure:"write_timeout" json:"write_timeout"`
 	IdleTimeout     int    `mapstructure:"idle_timeout" json:"idle_timeout"`
+	// #800：流式路由（SSE）逐写滚动延期窗口；write_timeout 仍是非流式
+	// 端点的绝对期限，本值只作用于挂载 StreamWriteDeadline 的路由。
+	StreamWriteWindow int `mapstructure:"stream_write_window" json:"stream_write_window"`
 }
 
 type SecurityConfig struct {
@@ -1608,6 +1611,7 @@ func (c *Config) Validate() error {
 	requirePositiveInt(&errs, "server.read_timeout", c.Server.ReadTimeout)
 	requirePositiveInt(&errs, "server.write_timeout", c.Server.WriteTimeout)
 	requirePositiveInt(&errs, "server.idle_timeout", c.Server.IdleTimeout)
+	requirePositiveInt(&errs, "server.stream_write_window", c.Server.StreamWriteWindow)
 	requireNonEmptyAnyMode(&errs, "database.dsn", c.Database.DSN)
 	requireNonEmptyAnyMode(&errs, "redis.addr", c.Redis.Addr)
 	requireNonEmptyAnyMode(&errs, "web.public_base_url", c.Web.PublicBaseURL)
@@ -2000,6 +2004,9 @@ func (c *Config) ValidateRelease() error {
 	}
 	if c.Server.ReadTimeout <= 0 || c.Server.WriteTimeout <= 0 || c.Server.IdleTimeout <= 0 {
 		errs = append(errs, "server HTTP timeouts must be positive in release mode")
+	}
+	if c.Server.StreamWriteWindow <= 0 {
+		errs = append(errs, "server.stream_write_window must be positive in release mode")
 	}
 
 	if len(errs) > 0 {
