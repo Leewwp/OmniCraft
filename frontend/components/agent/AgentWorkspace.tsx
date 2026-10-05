@@ -20,7 +20,6 @@ import {
   type AgentStreamCitation,
   type AgentStreamEvent,
 } from "@/lib/agent-stream";
-import { type CitationBadgeInfo } from "@/components/content/MarkdownRenderer";
 import { toAgentCitation, type AgentCitation } from "@/lib/agent";
 import {
   applyKeywordFallbackCitations,
@@ -32,8 +31,12 @@ import {
   stopAgentTurn,
   type AgentHistoryMessageDTO,
   type AgentTurn,
-  type AgentTurnTerminal,
 } from "@/lib/agent-turn";
+import {
+  handoverFirstRoundTerminal,
+  invalidateFirstRoundHandover,
+  takeOverFirstRoundHandover,
+} from "@/lib/agent-first-round-handover";
 import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { isProviderDegradation } from "@/lib/agent";
 import { useDelayedUnmount } from "@/lib/use-delayed-unmount";
@@ -99,22 +102,9 @@ const SUGGESTION_KEYS = [
  * #663：树 = Turn[]（TurnModel 双入口装配），活动轮单一状态独立渲染；首轮
  * 活动轮活到历史回载替换树之后（在途不闪空），续问轮 done 终局后 commit 进树。
  */
-/* FT-5 (#697)：引用池 → 角标小卡数据（编号缺失的历史行回退位置序，保持
-   与旧数字角标相同的展示层映射）。 */
-function toCitationBadgeInfo(citation: AgentStreamCitation, index: number): CitationBadgeInfo {
-  return {
-    number: citation.number ?? index + 1,
-    title: citation.title,
-    excerpt: citation.excerpt,
-    kind: citation.zone === "ip" ? "ip" : "content",
-  };
-}
-
-/* #715（审查 P1）：首轮终态（追问/用量/trace）跨 FT-3 路由重挂载搬运——这些
-   字段不落历史 DTO（落库契约），而首轮 done 必发 replace(/agent/c/{id}) 触发
-   key={id} 重挂载清空内存活动轮。模块级 Map：客户端路由切换不重载模块（恰
-   覆盖重挂载窗口），真实整页刷新重置（与历史轮终态缺省契约一致）。 */
-const firstRoundTerminals = new Map<number, AgentTurnTerminal>();
+/* FT-5 (#697)：引用池 → 角标小卡数据（编号缺失的历史行回退位置序）的展示
+   层映射住 AgentTurnBlocks（transcript 渲染域，toCitationBadgeInfo 在用
+   副本）；工作台侧 2026-09-12 复制副本已随 #795 核实删除。 */
 
 export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
@@ -137,6 +127,21 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   /* 活动轮单一状态：live 事件经 reduceAgentTurn 归约；轮内展示状态
      （思考/工具/引用/降级/空轮/错误码/trace/用量/追问/停止）全部住在这里。 */
   const [activeTurn, setActiveTurn] = useState<AgentTurn | null>(null);
+  /* #795：活动轮的实例内镜像——done 事件路径需要同步读到最新轮（流回调闭包
+     与 setState updater 都读不到提交后的状态），首轮交接的「保存先于导航」
+     才拿得到终态本体。所有活动轮变更统一经 commitLiveTurn/updateLiveTurn
+     同步 ref+state（ref 只读于事件路径，渲染仍走 state）。 */
+  const activeTurnRef = useRef<AgentTurn | null>(null);
+  const commitLiveTurn = useCallback((next: AgentTurn | null) => {
+    activeTurnRef.current = next;
+    setActiveTurn(next);
+  }, []);
+  const updateLiveTurn = useCallback(
+    (update: (previous: AgentTurn | null) => AgentTurn | null) => {
+      commitLiveTurn(update(activeTurnRef.current));
+    },
+    [commitLiveTurn],
+  );
   const streaming = activeTurn?.streaming ?? false;
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -297,28 +302,25 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         const pending = activeTurn;
         if (pending && pending.settled && pending.firstRound && mapped.length > 0) {
           setTurns(mergeTerminalIntoLastTurn(mapped, pending.terminal));
-          setActiveTurn(null);
+          commitLiveTurn(null);
         } else {
           /* 重挂载路径（FT-3 首轮 replace → key={id} 重挂载，内存活动轮已清空）：
-             首轮终态从模块级 stash 回填一次——历史 DTO 不落追问/用量/trace，
-             不回填则追问 chips 在每个新会话首轮必丢（#715）。stash 不在上方
-             同实例分支清除：replace 总会发生，旧实例的合并结果随卸载丢弃，
-             重挂载后的新实例才是最终态。 */
-          const stashed = firstRoundTerminals.get(activeId);
-          if (stashed !== undefined) firstRoundTerminals.delete(activeId);
-          setTurns(
-            stashed !== undefined && mapped.length > 0
-              ? mergeTerminalIntoLastTurn(mapped, stashed)
-              : mapped,
-          );
+             首轮终态由 #795 交接 module 接管——历史 DTO 不落追问/用量/trace，
+             不回填则追问 chips 在每个新会话首轮必丢（#715）。takeOver 只在非空
+             历史并入树尾时消费记录一次（空历史不消费、取消/失败到不了这里——
+             cancelled 守卫）；同实例合并不消费记录：replace 总会发生，旧实例
+             的合并结果随卸载丢弃，重挂载后的新实例才是最终态。 */
+          setTurns(takeOverFirstRoundHandover(activeId, mapped));
         }
       })
       .catch((error) => {
         if (!cancelled) {
           setMessagesLoadError(true);
           silentError(error, { component: "AgentWorkspace", action: "load conversation" });
-          /* FT-3：深链他人/已删会话 404 → 落回空态入口（错误横幅随重挂载消失）。 */
+          /* FT-3：深链他人/已删会话 404 → 落回空态入口（错误横幅随重挂载消失）。
+             #795：目标会话已不存在 = 交接记录明确失效，先清理再回退。 */
           if (error instanceof ApiRequestError && error.status === 404) {
+            invalidateFirstRoundHandover(activeId);
             router.replace("/agent");
           }
         }
@@ -332,22 +334,17 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  /* #715：首轮 settle 即把终态写入 stash——随后 replace 重挂载的新实例在历史
-     回载时弹出回填（见上 effect）；写入必须发生在卸载前，故挂在状态提交后
-     的 effect 而非 done 回调（回调闭包读不到最新 activeTurn）。 */
-  useEffect(() => {
-    if (!activeTurn || !activeTurn.settled || !activeTurn.firstRound) return;
-    if (activeId === null) return;
-    firstRoundTerminals.set(activeId, activeTurn.terminal);
-  }, [activeTurn, activeId]);
+  /* #715/#795：首轮终态的交接保存已移入 done 事件的受控路径（handleStreamEvent
+     内 handoverFirstRoundTerminal：先保存、后 replace）——不依赖卸载前可能来
+     不及执行的 effect，导航 adapter 即刻卸载旧实例也不丢记录。 */
 
   /* 续问轮终局（done/error/stop/关流）：commit 进树后清空活动轮——语义等价
      旧「尾行终稿替换 + 轮级态保留」（终态随轮入树，树尾轮渲染到下一轮开始）。 */
   useEffect(() => {
     if (!activeTurn || !activeTurn.settled || activeTurn.firstRound) return;
     setTurns((previous) => [...previous, activeTurn]);
-    setActiveTurn(null);
-  }, [activeTurn]);
+    commitLiveTurn(null);
+  }, [activeTurn, commitLiveTurn]);
 
   /* 仅停留在底部附近时自动跟随流式内容；向上阅读后停止抢滚动。 */
   useEffect(() => {
@@ -392,7 +389,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
   const handleSelectConversation = useCallback((id: number) => {
     fallbackRequestRef.current += 1;
-    setActiveTurn(null);
+    /* #795：离开当前会话 = 其未消费的首轮交接记录明确失效（防迟到回载/
+       日后重开时并入过期终态）。 */
+    if (activeId !== null && activeId !== id) invalidateFirstRoundHandover(activeId);
+    commitLiveTurn(null);
     setActiveId(id);
     setDrawerOpen(false);
     /* FT-3：切会话即导航（URL 承载会话身份；同 id 不重复压栈）。 */
@@ -400,19 +400,21 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       router.push(`/agent/c/${id}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeId, commitLiveTurn]);
 
   const handleNewConversation = useCallback(() => {
     if (streaming) return;
     fallbackRequestRef.current += 1;
+    /* #795：离开目标会话回空态 = 交接记录明确失效。 */
+    if (activeId !== null) invalidateFirstRoundHandover(activeId);
     setActiveId(null);
     setTurns([]);
-    setActiveTurn(null);
+    commitLiveTurn(null);
     setDrawerOpen(false);
     /* FT-3：新建会话回空态入口路由（已在 /agent 时同路由导航为 no-op）。 */
     router.push("/agent");
     focusComposer();
-  }, [streaming]);
+  }, [streaming, activeId, commitLiveTurn]);
 
   const handleCitationOpen = useCallback(
     (citation: AgentCitation, trigger: HTMLElement) => {
@@ -495,11 +497,13 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setConfirmDeleteId(null);
     try {
       await api.delete(`/api/v1/agent/conversations/${id}`);
+      /* #795：会话已删除 = 其交接记录永久失效（含侧栏删除非当前会话）。 */
+      invalidateFirstRoundHandover(id);
       if (activeId === id) {
         fallbackRequestRef.current += 1;
         setActiveId(null);
         setTurns([]);
-        setActiveTurn(null);
+        commitLiveTurn(null);
         /* FT-3：删的是当前会话 → 落回空态入口（不留死 URL）。 */
         router.replace("/agent");
         focusComposer();
@@ -510,7 +514,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       silentError(error, { component: "AgentWorkspace", action: "delete conversation" });
       toast("error", t("agent.workspace.deleteFailed"));
     }
-  }, [activeId, confirmDeleteId, loadConversations, toast, t]);
+  }, [activeId, commitLiveTurn, confirmDeleteId, loadConversations, toast, t]);
 
   const loadKeywordFallback = useCallback(async (query: string, requestId: number) => {
     const trimmed = query.trim();
@@ -553,29 +557,43 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         seen.add(contentId);
         citations.push(citation);
       }
-      setActiveTurn((previous) => (previous ? applyKeywordFallbackCitations(previous, citations) : previous));
+      updateLiveTurn((previous) => (previous ? applyKeywordFallbackCitations(previous, citations) : previous));
     } catch (error) {
       silentError(error, { component: "AgentWorkspace", action: "keyword fallback" });
       if (fallbackRequestRef.current === requestId) {
-        setActiveTurn((previous) => (previous ? applyKeywordFallbackCitations(previous, []) : previous));
+        updateLiveTurn((previous) => (previous ? applyKeywordFallbackCitations(previous, []) : previous));
       }
     }
-  }, []);
+  }, [updateLiveTurn]);
 
   /* live 事件：形状归约进 TurnModel reducer（纯函数）；此处只留回合策略副作用
-     （会话 id 写入/会话列表刷新/AbortController/关键词回退发起）。 */
+     （会话 id 写入/会话列表刷新/AbortController/关键词回退发起/首轮交接）。 */
   const handleStreamEvent = useCallback(
     (event: AgentStreamEvent, turnQuery: string) => {
-      setActiveTurn((previous) => (previous ? reduceAgentTurn(previous, event) : previous));
+      /* #795：归约走 ref 镜像（updater 读不到提交后状态，事件路径需要同步
+         拿到终态本体做交接）。 */
+      const live = activeTurnRef.current;
+      const next = live !== null ? reduceAgentTurn(live, event) : null;
+      if (next !== live) commitLiveTurn(next);
       if (event.type === "done") {
         if (event.conversation_id) {
           setActiveId(event.conversation_id);
           void loadConversations();
-          /* FT-3：首轮会话 id 到 done 才产生——replace 写入会话 URL
-             （push 会让「发完首条按返回」退回空页）。 */
+          /* FT-3 + #795：首轮会话 id 到 done 才产生——先把终态交接记录写入
+             module（跨 key 重挂载存活的唯一载体），再 replace 写入会话 URL
+             （push 会让「发完首条按返回」退回空页）。保存必须先于导航：
+             真实 replace 会即刻卸载本实例，不能靠卸载前来不及执行的 effect。 */
           if (pendingFirstRoundNavRef.current) {
             pendingFirstRoundNavRef.current = false;
-            router.replace(`/agent/c/${event.conversation_id}`);
+            if (next !== null && next.settled && next.firstRound) {
+              handoverFirstRoundTerminal(
+                event.conversation_id,
+                next.terminal,
+                () => router.replace(`/agent/c/${event.conversation_id}`),
+              );
+            } else {
+              router.replace(`/agent/c/${event.conversation_id}`);
+            }
           }
         }
         return;
@@ -593,7 +611,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         }
       }
     },
-    [loadConversations, loadKeywordFallback],
+    [commitLiveTurn, loadConversations, loadKeywordFallback],
   );
 
   /* 发起一轮对话（A-01 续写契约）：上下文由服务端组装，客户端只带
@@ -614,7 +632,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       setTurns((previous) => [...previous, activeTurn]);
     }
     pendingFirstRoundNavRef.current = activeId === null;
-    setActiveTurn(createAgentTurn(query, { id: newLocalTurnId(), firstRound: activeId === null }));
+    commitLiveTurn(createAgentTurn(query, { id: newLocalTurnId(), firstRound: activeId === null }));
 
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -622,12 +640,12 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       onEvent: (event) => handleStreamEvent(event, query),
       onError: (error) => {
         const code = error instanceof AgentStreamError ? error.code : undefined;
-        setActiveTurn((previous) =>
+        updateLiveTurn((previous) =>
           previous ? reduceAgentTurn(previous, { type: "error", error_code: code }) : previous,
         );
       },
       onClose: () => {
-        setActiveTurn((previous) => (previous ? closeAgentStream(previous) : previous));
+        updateLiveTurn((previous) => (previous ? closeAgentStream(previous) : previous));
       },
     }, controller.signal);
   }
@@ -641,7 +659,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
   function handleStop() {
     controllerRef.current?.abort();
-    setActiveTurn((previous) => (previous ? stopAgentTurn(previous) : previous));
+    updateLiveTurn((previous) => (previous ? stopAgentTurn(previous) : previous));
   }
 
   /* SP-15 B #435：追问药丸点击 = 仅填入并聚焦 composer，不自动发送
@@ -657,7 +675,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     if (streaming) return;
     if (activeTurn) {
       const query = activeTurn.query;
-      setActiveTurn(null);
+      commitLiveTurn(null);
       startTurn(query);
       return;
     }
