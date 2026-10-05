@@ -3,7 +3,6 @@ package handler
 import (
 	"math"
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
@@ -25,9 +24,8 @@ func NewVersionHandler(versionSvc *service.VersionService) *VersionHandler {
 }
 
 func (h *VersionHandler) ListVersions(c *gin.Context) {
-	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	contentID, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -57,9 +55,8 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 }
 
 func (h *VersionHandler) GetVersion(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid version id")
+	id, ok := pathID(c, "id", "invalid version id")
+	if !ok {
 		return
 	}
 

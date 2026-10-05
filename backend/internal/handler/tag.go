@@ -75,9 +75,8 @@ func (h *TagHandler) SuggestTag(c *gin.Context) {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
-	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	contentID, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -116,9 +115,8 @@ func (h *TagHandler) ListTagSuggestions(c *gin.Context) {
 
 func (h *TagHandler) UpdateTagSuggestion(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid suggestion id")
+	id, ok := pathID(c, "id", "invalid suggestion id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -171,9 +169,8 @@ func (h *TagHandler) CreateTagGroup(c *gin.Context) {
 
 func (h *TagHandler) UpdateTagGroup(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid group id")
+	id, ok := pathID(c, "id", "invalid group id")
+	if !ok {
 		return
 	}
 	// SP-25 低-23：显式字段白名单（name/tags），未知字段 400——任意 map
@@ -214,9 +211,8 @@ func (h *TagHandler) UpdateTagGroup(c *gin.Context) {
 
 func (h *TagHandler) DeleteTagGroup(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid group id")
+	id, ok := pathID(c, "id", "invalid group id")
+	if !ok {
 		return
 	}
 	if err := h.tagSvc.DeleteTagGroup(id, callerID); err != nil {
@@ -256,9 +252,8 @@ func (h *TagHandler) CreateSavedSearch(c *gin.Context) {
 
 func (h *TagHandler) DeleteSavedSearch(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid saved search id")
+	id, ok := pathID(c, "id", "invalid saved search id")
+	if !ok {
 		return
 	}
 	if err := h.tagSvc.DeleteSavedSearch(id, callerID); err != nil {

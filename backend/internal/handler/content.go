@@ -221,9 +221,8 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 }
 
 func (h *ContentHandler) GetContent(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -358,9 +357,8 @@ func (h *ContentHandler) visibleSourceLite(c *gin.Context, sourceID int64) (int6
 }
 
 func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
-	sourceID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	sourceID, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -485,9 +483,8 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -565,9 +562,8 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -594,9 +590,8 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 

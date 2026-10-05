@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -75,10 +74,8 @@ func NewUserHandler(userRepo *repository.UserRepository, reputSvc *service.Reput
 }
 
 func (h *UserHandler) GetUser(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	id, ok := pathID(c, "id", "invalid user id")
+	if !ok {
 		return
 	}
 
@@ -156,10 +153,8 @@ func (h *UserHandler) checkIsFollowing(c *gin.Context, targetID int64) bool {
 }
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	id, ok := pathID(c, "id", "invalid user id")
+	if !ok {
 		return
 	}
 
@@ -254,10 +249,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 }
 
 func (h *UserHandler) GetReputation(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	id, ok := pathID(c, "id", "invalid user id")
+	if !ok {
 		return
 	}
 
@@ -286,10 +279,8 @@ func (h *UserHandler) GetReputation(c *gin.Context) {
 }
 
 func (h *UserHandler) GetUserContents(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	id, ok := pathID(c, "id", "invalid user id")
+	if !ok {
 		return
 	}
 

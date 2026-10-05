@@ -153,9 +153,8 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	if !h.requireAgentFeature(c) {
 		return
 	}
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 	// #723：输出语言跟随请求 locale（缺省 zh 兼容；非法值按指南 API 约定
@@ -376,9 +375,8 @@ func (h *AgentHandler) UpdateConversation(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || convID <= 0 {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid conversation id")
+	convID, ok := pathID(c, "id", "invalid conversation id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -464,9 +462,8 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid conversation id")
+	convID, ok := pathID(c, "id", "invalid conversation id")
+	if !ok {
 		return
 	}
 	var conv model.AgentConversation
@@ -485,11 +482,12 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 		return
 	}
 	if raw := c.Query("page"); raw != "" {
-		page, err = strconv.Atoi(raw)
-		if err != nil || page <= 0 {
+		requested, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || requested <= 0 {
 			response.ValidationError(c, "invalid page")
 			return
 		}
+		page = requested
 	}
 	if raw := c.Query("page_size"); raw != "" {
 		requested, parseErr := strconv.Atoi(raw)
@@ -603,9 +601,8 @@ func (h *AgentHandler) DeleteConversation(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || convID <= 0 {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid conversation id")
+	convID, ok := pathID(c, "id", "invalid conversation id")
+	if !ok {
 		return
 	}
 

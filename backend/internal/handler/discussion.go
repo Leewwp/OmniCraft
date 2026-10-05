@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
@@ -56,7 +55,10 @@ func (h *DiscussionHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner
 }
 
 func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
-	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	ipID, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
+		return
+	}
 	if !h.ipDiscussionsVisible(c, ipID) {
 		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
@@ -77,7 +79,10 @@ func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
 
 func (h *DiscussionHandler) CreateDiscussion(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	ipID, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
+		return
+	}
 
 	var body struct {
 		Title string `json:"title" binding:"required"`
@@ -103,7 +108,10 @@ func (h *DiscussionHandler) CreateDiscussion(c *gin.Context) {
 }
 
 func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, ok := pathID(c, "id", "invalid discussion id")
+	if !ok {
+		return
+	}
 	page, pageSize := pageQuery(c, 20)
 
 	d, err := h.discRepo.GetByID(id)
@@ -141,7 +149,10 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 
 func (h *DiscussionHandler) ReplyToDiscussion(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	discID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	discID, ok := pathID(c, "id", "invalid discussion id")
+	if !ok {
+		return
+	}
 
 	// 前端 ReplyList 发 content（service 输入是 body）：保留本地 binding 做
 	// 字段映射（T12 前提①），否则全站讨论回复 400。
@@ -189,7 +200,10 @@ func (h *DiscussionHandler) respondSocialServiceError(c *gin.Context, err error)
 // to system administrators so community self-governance cannot be abused by a
 // single point. The AdminRequired middleware enforces the role.
 func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, ok := pathID(c, "id", "invalid discussion id")
+	if !ok {
+		return
+	}
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
@@ -209,7 +223,10 @@ func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
 }
 
 func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
-	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	ipID, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
+		return
+	}
 	if !h.ipDiscussionsVisible(c, ipID) {
 		response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
 		return
@@ -227,9 +244,8 @@ func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 }
 
 func (h *DiscussionHandler) ListByUser(c *gin.Context) {
-	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	userID, ok := pathID(c, "id", "invalid user id")
+	if !ok {
 		return
 	}
 	page, pageSize := pageQuery(c, 20)

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
@@ -22,9 +21,8 @@ func NewIPProposalHandler(svc *service.IPProposalService) *IPProposalHandler {
 }
 
 func (h *IPProposalHandler) ListProposals(c *gin.Context) {
-	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
+	ipID, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
 		return
 	}
 	status := c.Query("status") // open | adopted | rejected | all | "" (history)
@@ -54,9 +52,8 @@ func (h *IPProposalHandler) ListProposals(c *gin.Context) {
 }
 
 func (h *IPProposalHandler) GetProposal(c *gin.Context) {
-	proposalID, err := strconv.ParseInt(c.Param("proposalId"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid proposal id")
+	proposalID, ok := pathID(c, "proposalId", "invalid proposal id")
+	if !ok {
 		return
 	}
 	view, err := h.svc.GetProposal(c.Request.Context(), proposalID, middleware.GetUserID(c))
@@ -68,9 +65,8 @@ func (h *IPProposalHandler) GetProposal(c *gin.Context) {
 }
 
 func (h *IPProposalHandler) CreateProposal(c *gin.Context) {
-	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
+	ipID, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
 		return
 	}
 	var input service.CreateIPProposalInput
@@ -87,9 +83,8 @@ func (h *IPProposalHandler) CreateProposal(c *gin.Context) {
 }
 
 func (h *IPProposalHandler) SubmitVote(c *gin.Context) {
-	proposalID, err := strconv.ParseInt(c.Param("proposalId"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid proposal id")
+	proposalID, ok := pathID(c, "proposalId", "invalid proposal id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -112,9 +107,8 @@ func (h *IPProposalHandler) SubmitVote(c *gin.Context) {
 }
 
 func (h *IPProposalHandler) ListVersions(c *gin.Context) {
-	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
+	ipID, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
 		return
 	}
 	versions, err := h.svc.ListVersions(c.Request.Context(), ipID, middleware.GetUserID(c))

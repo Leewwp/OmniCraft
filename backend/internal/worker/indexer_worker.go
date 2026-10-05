@@ -68,10 +68,10 @@ func (w *IndexerWorker) Handle(ctx context.Context, msg queue.Message) error {
 
 	switch envelope.EventType {
 	case events.TopicContentPublished, events.TopicContentUpdated:
-		if w.projection != nil {
-			if err := w.projection.SyncContent(ctx, envelope.AggregateID); err != nil {
-				return fmt.Errorf("indexer: content projection: %w", err)
-			}
+		// #806 A4：projection 恒非 nil（容器侧 hybrid 关也接线带 reason 的
+		// fail-open），无 nil 分支语义。
+		if err := w.projection.SyncContent(ctx, envelope.AggregateID); err != nil {
+			return fmt.Errorf("indexer: content projection: %w", err)
 		}
 		var text string
 		alreadyConsumed, err := ConsumeInboxTx(ctx, w.db, msg.Group, envelope.EventID, func(ctx context.Context, tx *gorm.DB) error {
@@ -101,10 +101,8 @@ func (w *IndexerWorker) Handle(ctx context.Context, msg queue.Message) error {
 		return nil
 
 	case events.TopicContentBanned, events.TopicContentDeleted:
-		if w.projection != nil {
-			if err := w.projection.SyncContent(ctx, envelope.AggregateID); err != nil {
-				return fmt.Errorf("indexer: content projection: %w", err)
-			}
+		if err := w.projection.SyncContent(ctx, envelope.AggregateID); err != nil {
+			return fmt.Errorf("indexer: content projection: %w", err)
 		}
 		_, err := ConsumeInboxTx(ctx, w.db, msg.Group, envelope.EventID, func(ctx context.Context, tx *gorm.DB) error {
 			return w.embeddingRepo.DeleteByContentIDTx(tx, envelope.AggregateID)

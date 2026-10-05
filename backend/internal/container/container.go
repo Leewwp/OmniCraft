@@ -724,12 +724,14 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 	// #787 投影门：hybrid 开 + rag.index.enabled=false（lean 无 OpenSearch 栈）
 	// 时接 fail-open 包装——记结构化日志后 ACK，不重试不死信；默认 true 保持
 	// 真投影的 Health 门 + 重试 + 死信语义。
-	var indexerProjection worker.ContentProjection
+	// #806 A4：hybrid 关也接线带 reason 的 fail-open（原先接 nil，worker 里
+	// nil 与 fail-open 是两套无声语义）；indexer 的 projection 恒非 nil。
+	var indexerProjection worker.ContentProjection = worker.NewFailOpenProjection("features.rag.hybrid disabled")
 	if c.Cfg.Features.RAGHybridEnabled {
 		if c.Cfg.RAG.Index.Enabled {
 			indexerProjection = c.RAGProjection
 		} else {
-			indexerProjection = worker.NewFailOpenProjection()
+			indexerProjection = worker.NewFailOpenProjection("rag.index.enabled=false")
 		}
 	}
 	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, c.EmbeddingRepo, indexerProjection)

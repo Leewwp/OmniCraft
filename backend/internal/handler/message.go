@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -162,13 +161,12 @@ func (h *MessageHandler) moderateText(ctx context.Context, action, text string) 
 
 func (h *MessageHandler) ListMessages(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
+	convID, ok := pathID(c, "id", "")
+	if !ok {
 		return
 	}
 
-	ok, _ := h.msgRepo.IsParticipant(callerID, convID)
+	ok, _ = h.msgRepo.IsParticipant(callerID, convID)
 	if !ok {
 		response.CodeOnly(c, http.StatusForbidden, "FORBIDDEN")
 		return
@@ -190,9 +188,8 @@ func (h *MessageHandler) ListMessages(c *gin.Context) {
 
 func (h *MessageHandler) DeleteMessage(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	msgID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
+	msgID, ok := pathID(c, "id", "")
+	if !ok {
 		return
 	}
 	if err := h.msgRepo.DeleteMessage(msgID, callerID); err != nil {
@@ -204,9 +201,8 @@ func (h *MessageHandler) DeleteMessage(c *gin.Context) {
 
 func (h *MessageHandler) LeaveConversation(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
+	convID, ok := pathID(c, "id", "")
+	if !ok {
 		return
 	}
 	if err := h.msgRepo.LeaveConversation(convID, callerID); err != nil {

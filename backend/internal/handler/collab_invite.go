@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -29,9 +28,8 @@ func (h *CollabInviteHandler) SendInvite(c *gin.Context) {
 		return
 	}
 
-	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	contentID, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -60,9 +58,8 @@ func (h *CollabInviteHandler) AcceptInvite(c *gin.Context) {
 		return
 	}
 
-	inviteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid invite id")
+	inviteID, ok := pathID(c, "id", "invalid invite id")
+	if !ok {
 		return
 	}
 
@@ -83,9 +80,8 @@ func (h *CollabInviteHandler) DeclineInvite(c *gin.Context) {
 		return
 	}
 
-	inviteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid invite id")
+	inviteID, ok := pathID(c, "id", "invalid invite id")
+	if !ok {
 		return
 	}
 

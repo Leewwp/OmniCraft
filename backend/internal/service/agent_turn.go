@@ -64,11 +64,6 @@ type turnRunner struct {
 	retrievalSources map[string]string
 	degraded         bool
 	streamErr        error
-	// skipFinalize marks exits that pre-#661 returned without the terminal
-	// quartet (SSE handler failure = client disconnect; internal marshal
-	// abort): the flag lets the caller reproduce that exit exactly; the
-	// finalizeTurn convergence takes over from commit ④.
-	skipFinalize bool
 	// SP-21 T2: user-perceived TTFT — first forwarded display delta.
 	firstDisplayDelta time.Time
 	lastUsage         *llm.TokenUsage

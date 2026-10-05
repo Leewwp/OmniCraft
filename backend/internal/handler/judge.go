@@ -158,9 +158,8 @@ func (h *JudgeHandler) SubmitVote(c *gin.Context) {
 }
 
 func (h *JudgeHandler) GetVerdictDetail(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid case id")
+	id, ok := pathID(c, "id", "invalid case id")
+	if !ok {
 		return
 	}
 	judgeCase, votes, err := h.judgeSvc.GetVerdictDetail(id)
@@ -177,9 +176,8 @@ func (h *JudgeHandler) VoteReason(c *gin.Context) {
 		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
 		return
 	}
-	voteID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid vote id")
+	voteID, ok := pathID(c, "id", "invalid vote id")
+	if !ok {
 		return
 	}
 	var body struct {

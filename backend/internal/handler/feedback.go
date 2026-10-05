@@ -7,7 +7,6 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -191,9 +190,8 @@ func (h *FeedbackHandler) GetTicket(c *gin.Context) {
 		return
 	}
 
-	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID")
+	ticketID, ok := pathID(c, "id", "Invalid ticket ID")
+	if !ok {
 		return
 	}
 

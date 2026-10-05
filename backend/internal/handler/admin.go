@@ -221,9 +221,8 @@ func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
 }
 
 func (h *AdminHandler) ApproveIP(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
+	id, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
 		return
 	}
 	entry := h.auditEntry(c, "ip_approve", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "approved"})
@@ -259,9 +258,8 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 }
 
 func (h *AdminHandler) RejectIP(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid ip id")
+	id, ok := pathID(c, "id", "invalid ip id")
+	if !ok {
 		return
 	}
 	// T16 (FIX-24): the rejection reason is mandatory and lands in
@@ -352,9 +350,8 @@ func (h *AdminHandler) ListTrashedContents(c *gin.Context) {
 }
 
 func (h *AdminHandler) BanContent(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -412,9 +409,8 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 }
 
 func (h *AdminHandler) RestoreContent(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404（此前 return nil
@@ -476,9 +472,8 @@ func (h *AdminHandler) emitContentRestoredEvent(ctx context.Context, tx *gorm.DB
 }
 
 func (h *AdminHandler) BanUser(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	id, ok := pathID(c, "id", "invalid user id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -532,9 +527,8 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 }
 
 func (h *AdminHandler) UnbanUser(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	id, ok := pathID(c, "id", "invalid user id")
+	if !ok {
 		return
 	}
 	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404。
@@ -666,9 +660,8 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 }
 
 func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid appeal id")
+	id, ok := pathID(c, "id", "invalid appeal id")
+	if !ok {
 		return
 	}
 	var body struct {
@@ -997,9 +990,8 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 }
 
 func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
+	id, ok := pathID(c, "id", "invalid config id")
+	if !ok {
 		return
 	}
 	var req map[string]interface{}
@@ -1032,9 +1024,8 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 }
 
 func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
+	id, ok := pathID(c, "id", "invalid config id")
+	if !ok {
 		return
 	}
 	entry := h.auditEntry(c, "llm_config_delete", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
@@ -1055,9 +1046,8 @@ func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 }
 
 func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
+	id, ok := pathID(c, "id", "invalid config id")
+	if !ok {
 		return
 	}
 	entry := h.auditEntry(c, "llm_config_activate", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
@@ -1080,9 +1070,8 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 }
 
 func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid config id")
+	id, ok := pathID(c, "id", "invalid config id")
+	if !ok {
 		return
 	}
 	resp, err := h.llmConfigSvc.TestConnection(c.Request.Context(), id)
@@ -1118,9 +1107,8 @@ func (h *AdminHandler) ListReports(c *gin.Context) {
 }
 
 func (h *AdminHandler) ResolveReport(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid report id")
+	id, ok := pathID(c, "id", "invalid report id")
+	if !ok {
 		return
 	}
 	var body struct {

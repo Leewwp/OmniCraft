@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -32,9 +31,8 @@ func NewUsageGuideHandler(guideSvc *service.UsageGuideService, contentRepo *repo
 const usageGuideCacheControl = "public, max-age=60, s-maxage=300"
 
 func (h *UsageGuideHandler) GetGuide(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -69,9 +67,8 @@ func (h *UsageGuideHandler) GetGuide(c *gin.Context) {
 
 // SaveGuide is the studio write path (authReq + author check in service).
 func (h *UsageGuideHandler) SaveGuide(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 	var input service.UsageGuideInput
@@ -94,9 +91,8 @@ func (h *UsageGuideHandler) SaveGuide(c *gin.Context) {
 // GetAuthorGuide returns the author's saved specifics row for the studio
 // editor initial state (authReq + author check).
 func (h *UsageGuideHandler) GetAuthorGuide(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	id, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 	row, err := h.guideSvc.GetSpecifics(c.Request.Context(), middleware.GetUserID(c), id, c.Query("locale"))

@@ -253,14 +253,20 @@ Format as Markdown.`
 // v1 of every slot is byte-identical to the pre-registry hardcoded prompt;
 // golden tests in promptregistry_test.go pin that equivalence.
 var (
+	// slotAgentSystemName 是 const 而非直接内联字面量：SlotAgentSystem 的
+	// Fallback 经 fallbackFor 读 RegistryUpgrades，而 RegistryUpgrades 又要
+	// 引用 slot 名——const 打破 var 初始化环（#806 A5）。
+	slotAgentSystemName = "agent_system"
+
 	SlotAgentSystem = PromptSlot{
-		Name:        "agent_system",
+		Name:        slotAgentSystemName,
 		Description: "主 Agent 系统提示词（surface 上下文前缀 + 检索/引用/会话车道指令；IP 类目子句由 config 追加，不入模板）",
 		Builtin:     agentSystemBuiltin(),
-		// #754 D：无 registry / 读取失败时的 fallback 服务 v6（勘正工具名
-		// + 浏览指导）；Builtin 仍为 v1 corpus（v2+ 升级的前缀不变量与
-		// SeedV1 的历史 v1 种子均不动）。
-		Fallback: agentSystemV6(),
+		// #806 A5：无 registry / 读取失败时的 fallback 从 RegistryUpgrades
+		// 最高版本派生（当前即 #754 D 的 v6：勘正工具名 + 浏览指导），发
+		// 新版不再需要手工同步此处；Builtin 仍为 v1 corpus（v2+ 升级的前
+		// 缀不变量与 SeedV1 的历史 v1 种子均不动）。
+		Fallback: fallbackFor(slotAgentSystemName),
 		RequiredPlaceholders: []string{
 			"surface_context",
 		},

@@ -100,9 +100,8 @@ func (h *CategoryHandler) AdminCreateCategory(c *gin.Context) {
 }
 
 func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid category id")
+	id, ok := pathID(c, "id", "invalid category id")
+	if !ok {
 		return
 	}
 	var updates map[string]interface{}
@@ -142,9 +141,8 @@ func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
 }
 
 func (h *CategoryHandler) AdminDeleteCategory(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid category id")
+	id, ok := pathID(c, "id", "invalid category id")
+	if !ok {
 		return
 	}
 	entry := h.auditEntry(c, "category_delete", "category", strconv.FormatInt(id, 10), map[string]any{"category_id": id})
