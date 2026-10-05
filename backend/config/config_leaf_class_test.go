@@ -340,6 +340,7 @@ var leafClassification = map[string]string{
 	"server.port":                                                    "required",
 	"server.read_timeout":                                            "required",
 	"server.shutdown_timeout":                                        "optional-zero",
+	"server.stream_write_window":                                     "required",
 	"server.write_timeout":                                           "required",
 	"smtp.from_address":                                              "conditional",
 	"smtp.host":                                                      "conditional",
@@ -452,15 +453,16 @@ func TestLeafClassificationOnlyUsesKnownClasses(t *testing.T) {
 	}
 }
 
-// The census ledger (required 13 / conditional 166 / optional-zero 122 /
-// registry 8 / dead 6 = 315 leaves) is asserted so the doc and the table
+// The census ledger (required 14 / conditional 166 / optional-zero 134 /
+// registry 21 / dead 6 = 341 leaves) is asserted so the doc and the table
 // cannot drift apart silently.
 func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	counts := map[string]int{}
 	for _, class := range leafClassification {
 		counts[class]++
 	}
-	require.Equal(t, 13, counts[classRequired])
+	// 13 + 1 #800 server.stream_write_window.
+	require.Equal(t, 14, counts[classRequired])
 	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups + 1 #787 projection gate.
 	require.Equal(t, 166, counts[classConditional])
 	// 122 shipped + 5 (#688) + 3 (#689) new.

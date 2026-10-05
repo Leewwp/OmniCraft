@@ -46,6 +46,7 @@ const minimalValidCoreYAML = `server:
   read_timeout: 30
   write_timeout: 60
   idle_timeout: 120
+  stream_write_window: 60
 database:
   dsn: host=localhost user=test dbname=test
 redis:
@@ -594,7 +595,7 @@ func TestSanitizeAgentMCPServerIDs(t *testing.T) {
 
 func validReleaseConfigForTest() *Config {
 	return &Config{
-		Server:   ServerConfig{Mode: "release", Port: "8080", ShutdownTimeout: 15, ReadTimeout: 30, WriteTimeout: 60, IdleTimeout: 120},
+		Server:   ServerConfig{Mode: "release", Port: "8080", ShutdownTimeout: 15, ReadTimeout: 30, WriteTimeout: 60, IdleTimeout: 120, StreamWriteWindow: 60},
 		Web:      WebConfig{PublicBaseURL: "https://app.omnicraft.prod"},
 		Security: SecurityConfig{AllowedOrigins: []string{"https://app.omnicraft.prod"}},
 		Database: DatabaseConfig{

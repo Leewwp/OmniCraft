@@ -19,11 +19,12 @@ import (
 func validDebugConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Mode:         "debug",
-			Port:         "8080",
-			ReadTimeout:  30,
-			WriteTimeout: 30,
-			IdleTimeout:  60,
+			Mode:              "debug",
+			Port:              "8080",
+			ReadTimeout:       30,
+			WriteTimeout:      30,
+			IdleTimeout:       60,
+			StreamWriteWindow: 60,
 		},
 		Database:      DatabaseConfig{DSN: "host=localhost user=omnicraft dbname=omnicraft"},
 		Redis:         RedisConfig{Addr: "localhost:6379"},
@@ -67,6 +68,7 @@ func TestValidateRejectsMissingRequiredFields(t *testing.T) {
 		{"server.port zero", func(c *Config) { c.Server.Port = "0" }, "server.port"},
 		{"server.read_timeout zero", func(c *Config) { c.Server.ReadTimeout = 0 }, "server.read_timeout"},
 		{"server.write_timeout zero", func(c *Config) { c.Server.WriteTimeout = 0 }, "server.write_timeout"},
+		{"server.stream_write_window zero", func(c *Config) { c.Server.StreamWriteWindow = 0 }, "server.stream_write_window"},
 		{"server.idle_timeout zero", func(c *Config) { c.Server.IdleTimeout = 0 }, "server.idle_timeout"},
 		{"database.dsn empty", func(c *Config) { c.Database.DSN = "" }, "database.dsn"},
 		{"redis.addr empty", func(c *Config) { c.Redis.Addr = "" }, "redis.addr"},
