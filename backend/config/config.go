@@ -243,8 +243,7 @@ type ServerConfig struct {
 	ReadTimeout     int    `mapstructure:"read_timeout" json:"read_timeout"`
 	WriteTimeout    int    `mapstructure:"write_timeout" json:"write_timeout"`
 	IdleTimeout     int    `mapstructure:"idle_timeout" json:"idle_timeout"`
-	// #800：流式路由（SSE）逐写滚动延期窗口；write_timeout 仍是非流式
-	// 端点的绝对期限，本值只作用于挂载 StreamWriteDeadline 的路由。
+	// #800：SSE 流式路由滚动延期窗口；非流式端点仍用 write_timeout。
 	StreamWriteWindow int `mapstructure:"stream_write_window" json:"stream_write_window"`
 }
 

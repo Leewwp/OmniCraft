@@ -241,13 +241,32 @@ func generateConfigTable(fields []ConfigField) string {
 	for _, f := range fields {
 		// Escape pipe characters in description
 		desc := strings.ReplaceAll(f.Description, "|", "\\|")
-		// Truncate long descriptions
+		// Truncate long descriptions. The cut must land on a rune boundary:
+		// a byte slice would split a multi-byte CJK character and corrupt the
+		// generated markdown with invalid UTF-8 (found in #800 follow-up).
 		if len(desc) > 120 {
-			desc = desc[:117] + "..."
+			desc = truncateOnRuneBoundary(desc, 117) + "..."
 		}
 		b.WriteString(fmt.Sprintf("| `%s` | `%s` | %s |\n", f.Path, f.GoType, desc))
 	}
 	return b.String()
+}
+
+// truncateOnRuneBoundary returns the longest prefix of s whose byte length
+// does not exceed maxBytes, never splitting a UTF-8 sequence.
+func truncateOnRuneBoundary(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	end := 0
+	for _, r := range s {
+		size := len(string(r))
+		if end+size > maxBytes {
+			break
+		}
+		end += size
+	}
+	return s[:end]
 }
 
 // CheckConfigSync compares config fields with docs/reference/config.md section 7.

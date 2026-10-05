@@ -317,8 +317,7 @@ Zero means "use the hardcoded default in reputation_service.go". |
 | `server.port` | `string` | Port |
 | `server.read_timeout` | `int` | ReadTimeout |
 | `server.shutdown_timeout` | `int` | ShutdownTimeout |
-| `server.stream_write_window` | `int` | #800：流式路由（SSE）逐写滚动延期窗口；write_timeout 仍是非流式
-端点的绝对期限，本值�... |
+| `server.stream_write_window` | `int` | #800：SSE 流式路由滚动延期窗口；非流式端点仍用 write_timeout。 |
 | `server.write_timeout` | `int` | WriteTimeout |
 | `smtp.from_address` | `string` | FromAddress |
 | `smtp.host` | `string` | Host |
