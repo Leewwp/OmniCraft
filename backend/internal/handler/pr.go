@@ -215,6 +215,8 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
 		case service.ErrPRInvalidState:
 			response.Conflict(c, "pr already resolved")
+		case service.ErrPRConflict:
+			response.Conflict(c, "resource conflict")
 		case service.ErrPRMergeTextMissing:
 			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "merged text required")
 		default:
