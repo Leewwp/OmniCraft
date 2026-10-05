@@ -225,79 +225,133 @@ func (s *UsageGuideCacheService) PreheatContent(ctx context.Context, contentID i
 }
 
 // ---------------------------------------------------------------------------
-// 流式路径原语：租约持有者边生成边转发；等待者合并到共享结果。
+// 流式生命周期单入口（#792）：本 module 拥有命中 / 等待 / 持有三分支，
+// 以及守卫写与租约释放；调用方只提供生成器与转发回调。
 
-// UsageGuideLease is a generation lease handed to the streaming entry.
-type UsageGuideLease struct {
-	sf    RedisSingleflight
-	key   string
-	owner bool
+// resolveGuideTemplate resolves the usage-guide slot ONCE per call: the
+// returned template/version pair is the single identity of this execution —
+// it flows into the cache-hit check, the lease key, the waiter poll and the
+// guarded save. A mid-flight admin label move (SetLabel + Invalidate) can no
+// longer desynchronize the lease from the persisted row.
+func (s *UsageGuideCacheService) resolveGuideTemplate(ctx context.Context) (string, int) {
+	// Resolve 是 nil-receiver 安全的：无注册表态时返回 builtin/0。
+	return s.prompts.Resolve(ctx, promptregistry.SlotUsageGuide)
 }
 
-// AcquireForStream: cache hit → (nil, true, cached); lease owner → (lease,
-// false, ""); otherwise a WAITER lease (owner=false) whose WaitShared merges
-// into the running generation.
-func (s *UsageGuideCacheService) AcquireForStream(ctx context.Context, content *model.ContentItem, locale string) (*UsageGuideLease, bool, string) {
+// GetOrGenerateStream is the single streaming lifecycle entry (#792), the
+// stream counterpart of GetOrGenerate:
+//   - cache hit → one full-text delta + done, zero LLM work;
+//   - lease owner → the caller's generator streams through emit (the module
+//     accumulates in passing); only a fully-successful, fully-forwarded,
+//     non-empty result is guarded-upserted under the START identity, then the
+//     lease is released on every return path;
+//   - waiter → merges into the running generation (single full delta + done
+//     when the shared row lands); wait timeout falls back to local
+//     generation, wait CANCELLATION returns immediately without generating;
+//     waiters never release someone else's lease.
+//
+// generate renders from the fixed template handed to it (no re-resolve);
+// emit/forward keep delta/done semantics and both may return errors — a
+// client disconnect or forwarding failure propagates and nothing is cached.
+func (s *UsageGuideCacheService) GetOrGenerateStream(
+	ctx context.Context,
+	content *model.ContentItem,
+	locale string,
+	generate func(ctx context.Context, template string, emit func(delta string, done bool) error) error,
+	forward func(delta string, done bool) error,
+) error {
+	template, version := s.resolveGuideTemplate(ctx)
 	if s.repo == nil || s.sf == nil || content == nil {
-		return nil, false, ""
+		// 缓存基础设施不可用：直生成直转发（无守卫写）。
+		return generate(ctx, template, func(delta string, done bool) error { return forward(delta, done) })
 	}
 	fingerprint := UsageGuideInputFingerprint(content.Title, content.Description, content.ContentType)
-	version := s.PromptVersion(ctx)
+
 	if cached, ok := s.findValidRow(ctx, content.ID, locale, fingerprint, version); ok {
-		return nil, true, cached
+		return forwardSharedGuide(forward, cached)
 	}
+
 	key := fmt.Sprintf("guide:%d:%s:%s:%d", content.ID, locale, fingerprint, version)
 	acquired, err := s.sf.Acquire(ctx, key, generationLeaseTTL)
 	if err != nil {
+		// dedup 基础设施故障：不阻塞流式路径，退化为本地生成（守卫写仍生效）。
 		slog.WarnContext(ctx, "usage guide cache: stream dedup acquire failed, generating locally", "error", err)
-		return &UsageGuideLease{key: "", owner: true}, false, "" // 本地直生成（无租约守卫仍受 UpsertGuarded 保护）
+		return s.streamAndCache(ctx, content, locale, fingerprint, version, template, generate, forward)
 	}
 	if acquired {
-		return &UsageGuideLease{sf: s.sf, key: key, owner: true}, false, ""
+		defer s.releaseGenerationLease(key)
+		return s.streamAndCache(ctx, content, locale, fingerprint, version, template, generate, forward)
 	}
-	return &UsageGuideLease{key: key, owner: false}, false, ""
+
+	// 与预热任务/其他进程的生成合并：等待共享结果（单等待者断开只取消
+	// 自身等待，不影响共享生成）。
+	if shared, ok := s.waitSharedResult(ctx, content.ID, locale, fingerprint, version); ok {
+		return forwardSharedGuide(forward, shared)
+	}
+	if err := ctx.Err(); err != nil {
+		// 等待取消：直接结束，不另起生成。
+		return err
+	}
+	// 等待超时（生成方崩溃/过慢）——本地兜底生成；守卫防旧写。
+	return s.streamAndCache(ctx, content, locale, fingerprint, version, template, generate, forward)
 }
 
-// Owner reports whether the lease holder must run the generation.
-func (l *UsageGuideLease) Owner() bool { return l != nil && l.owner }
-
-// WaitShared: waiter path — poll the shared row (single waiter cancel only
-// cancels its own wait).
-func (s *UsageGuideCacheService) WaitShared(ctx context.Context, content *model.ContentItem, locale string) (string, bool) {
-	if s.repo == nil || content == nil {
-		return "", false
+// forwardSharedGuide delivers a completed shared/cached guide on the stream
+// contract: one full-text delta, then done.
+func forwardSharedGuide(forward func(delta string, done bool) error, guide string) error {
+	if err := forward(guide, false); err != nil {
+		return err
 	}
-	fingerprint := UsageGuideInputFingerprint(content.Title, content.Description, content.ContentType)
-	return s.waitSharedResult(ctx, content.ID, locale, fingerprint, s.PromptVersion(ctx))
+	return forward("", true)
 }
 
-// SaveComplete persists a fully-successful stream result (owner lease only;
-// guarded against stale writers).
-func (s *UsageGuideCacheService) SaveComplete(ctx context.Context, content *model.ContentItem, locale, result string) {
-	if s.repo == nil || content == nil || strings.TrimSpace(result) == "" {
-		return
+// streamAndCache runs the caller's generator with an emit that forwards while
+// accumulating, then persists ONLY complete successful non-empty results
+// under the start-of-call identity. A guarded refusal (a newer row exists) is
+// not an error — the caller already streamed the generated text.
+func (s *UsageGuideCacheService) streamAndCache(
+	ctx context.Context,
+	content *model.ContentItem,
+	locale, fingerprint string,
+	version int,
+	template string,
+	generate func(ctx context.Context, template string, emit func(delta string, done bool) error) error,
+	forward func(delta string, done bool) error,
+) error {
+	var accumulated strings.Builder
+	emit := func(delta string, done bool) error {
+		accumulated.WriteString(delta)
+		return forward(delta, done)
+	}
+	if err := generate(ctx, template, emit); err != nil {
+		return err
+	}
+	result := accumulated.String()
+	if strings.TrimSpace(result) == "" {
+		return nil // 空结果不缓存
 	}
 	row := &model.ContentUsageGuideCache{
 		ContentItemID:    content.ID,
 		Locale:           locale,
-		PromptVersion:    s.PromptVersion(ctx),
-		InputFingerprint: UsageGuideInputFingerprint(content.Title, content.Description, content.ContentType),
+		PromptVersion:    version,
+		InputFingerprint: fingerprint,
 		ContentUpdatedAt: content.UpdatedAt,
 		GuideMarkdown:    result,
 		Source:           model.UsageGuideCacheSourceAuto,
 	}
-	if _, err := s.repo.UpsertGuarded(ctx, row); err != nil {
+	// 有限时完成落库：独立于（可能已取消的）请求上下文，不阻塞释放。
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	if _, err := s.repo.UpsertGuarded(saveCtx, row); err != nil {
 		slog.WarnContext(ctx, "usage guide cache: stream guarded upsert failed", "error", err)
 	}
+	return nil
 }
 
-// Release drops the generation lease (owner path). Uses a fresh context —
-// the streaming request context may already be cancelled at this point.
-func (l *UsageGuideLease) Release() {
-	if l == nil || !l.owner || l.key == "" || l.sf == nil {
-		return
-	}
+// releaseGenerationLease drops the owner lease with a fresh context — the
+// streaming request context may already be cancelled at this point.
+func (s *UsageGuideCacheService) releaseGenerationLease(key string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_ = l.sf.Release(ctx, l.key)
+	_ = s.sf.Release(ctx, key)
 }
