@@ -668,15 +668,73 @@ func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
 	}
 }
 
-// #690：attachment_policy（required_any_of）违规必须以专用错误码露出
-// （400 ATTACHMENT_POLICY_REQUIRED），而非落 INTERNAL_ERROR——前端
-// ERROR_CODE_MESSAGE_KEYS 依赖该码出双语提示。source-contract 钉法沿
-// content_download_test.go 先例（readHandlerSource）。
+// #690（#794 改行为断言，原为 content.go 字符串位置守门）：
+// attachment_policy（required_any_of）违规必须以专用 400
+// ATTACHMENT_POLICY_REQUIRED 露出而非 INTERNAL_ERROR——前端
+// ERROR_CODE_MESSAGE_KEYS 依赖该码出双语提示。默认注册表 3d_print 声明
+// required_any_of=[model3d]，零附件发布即违规，经真实发布路由验证完整信封。
 func TestPublishRoutes_AttachmentPolicyViolationCode(t *testing.T) {
-	source := readHandlerSource(t, "content.go")
-	for _, needle := range []string{"ErrAttachmentPolicyRequired", "ATTACHMENT_POLICY_REQUIRED"} {
-		if !strings.Contains(source, needle) {
-			t.Fatalf("publish error mapping must translate %s into a dedicated 400 code (got neither)", needle)
-		}
+	router, _, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+
+	body := `{"title":"Policy bound","zone":"original","content_type":"3d_print","is_public":true,"allow_copy":true}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v; body = %s", err, rec.Body.String())
+	}
+	if resp.Code != "ATTACHMENT_POLICY_REQUIRED" {
+		t.Fatalf("code = %q, want ATTACHMENT_POLICY_REQUIRED (body = %s)", resp.Code, rec.Body.String())
+	}
+	if resp.Message != "content type requires at least one attachment of the required family" {
+		t.Fatalf("message = %q, want the fixed contract message", resp.Message)
+	}
+}
+
+// #794：未知错误（无 sentinel 命中）必须落 CreateContent 的历史兜底 500
+// INTERNAL_ERROR（与下载端点的 DB_ERROR 兜底不同，不能统一）。真实路由驱
+// 动：article 发布的写路径只落 content_items，drop 该表后事务以非
+// sentinel 的裸 DB 错误失败——越过全部映射规则抵达兜底。
+func TestCreateContentRoute_UnknownErrorFallsBackToInternalError(t *testing.T) {
+	router, db, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+	if err := db.Migrator().DropTable(&model.ContentItem{}); err != nil {
+		t.Fatalf("drop content_items table: %v", err)
+	}
+
+	body := `{"title":"Fallback publish","zone":"original","content_type":"article","is_public":true,"allow_copy":true}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v; body = %s", err, rec.Body.String())
+	}
+	if resp.Code != "INTERNAL_ERROR" {
+		t.Fatalf("code = %q, want INTERNAL_ERROR (body = %s)", resp.Code, rec.Body.String())
+	}
+	if strings.Contains(resp.Message, "no such table") {
+		t.Fatalf("message = %q, must not leak the internal DB cause", resp.Message)
+	}
+	if resp.Message != "an unexpected error occurred, please try again later" {
+		t.Fatalf("message = %q, want the fixed safe fallback message", resp.Message)
 	}
 }

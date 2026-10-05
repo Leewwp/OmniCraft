@@ -34,18 +34,40 @@ func TestContentDownload_SupportsAttachmentID(t *testing.T) {
 	}
 }
 
+// #794：迁表守门改行为断言（原为按 content.go 字符串位置找
+// AMBIGUOUS_ATTACHMENT 的守门）——多主附件或无主附件且未指定
+// attachment_id 时，真实路由必须以 400 AMBIGUOUS_ATTACHMENT 的完整信封拒绝。
 func TestContentDownload_RejectsAmbiguousWithoutAttachmentID(t *testing.T) {
-	source := readHandlerSource(t, "content.go")
-	if !strings.Contains(source, "AMBIGUOUS_ATTACHMENT") {
-		t.Fatal("DownloadContent must return AMBIGUOUS_ATTACHMENT when multiple or no primary attachments exist and attachment_id is omitted")
-	}
-}
+	t.Run("multiple primary attachments", func(t *testing.T) {
+		router, db := setupDownloadRouter(t, 999, true)
+		author := createDownloadUser(t, db, "author-ambiguous@example.com", "author-ambiguous", false)
+		content := createDownloadContent(t, db, author.ID, nil)
+		second := model.ContentAttachment{
+			ContentItemID: content.ID,
+			FileType:      "sheet_music_pdf",
+			OSSKey:        "uploads/1/sheet-2.pdf",
+			MimeType:      "application/pdf",
+			IsPrimary:     boolPtr(true),
+		}
+		if err := db.Create(&second).Error; err != nil {
+			t.Fatalf("create second primary attachment: %v", err)
+		}
 
-func TestContentDownload_RejectsAttachmentFromOtherContent(t *testing.T) {
-	source := readHandlerSource(t, "content.go")
-	if !strings.Contains(source, "ATTACHMENT_MISMATCH") {
-		t.Fatal("DownloadContent must verify attachment belongs to the requested content")
-	}
+		rec := requestDownload(t, router, content.ID)
+		assertDownloadEnvelope(t, rec, http.StatusBadRequest, "AMBIGUOUS_ATTACHMENT", "specify attachment_id; cannot determine a unique primary attachment")
+	})
+
+	t.Run("no primary attachments", func(t *testing.T) {
+		router, db := setupDownloadRouter(t, 999, true)
+		author := createDownloadUser(t, db, "author-noprimary@example.com", "author-noprimary", false)
+		content := createDownloadContent(t, db, author.ID, nil)
+		if err := db.Model(&model.ContentAttachment{}).Where("content_item_id = ?", content.ID).Update("is_primary", false).Error; err != nil {
+			t.Fatalf("clear primary flag: %v", err)
+		}
+
+		rec := requestDownload(t, router, content.ID)
+		assertDownloadEnvelope(t, rec, http.StatusBadRequest, "AMBIGUOUS_ATTACHMENT", "specify attachment_id; cannot determine a unique primary attachment")
+	})
 }
 
 func TestContentDownload_UsesConfigurableTTL(t *testing.T) {
@@ -186,6 +208,22 @@ func TestContentDownload_DirectHandlerRequiresAuthenticatedUser(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401; body = %s", rec.Code, rec.Body.String())
 	}
+}
+
+// #794：未知错误（无 sentinel 命中）必须落 DownloadContent 的历史兜底
+// 500 DB_ERROR（与发布端点的 INTERNAL_ERROR 兜底不同）。真实路由驱动：
+// 内容行与作者行就绪后 drop ips 表，可见性计数子查询以非 sentinel 的裸
+// DB 错误失败——正好越过全部映射规则抵达兜底。
+func TestContentDownload_UnknownErrorFallsBackToDBError(t *testing.T) {
+	router, db := setupDownloadRouter(t, 999, true)
+	author := createDownloadUser(t, db, "author-fallback@example.com", "author-fallback", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+	if err := db.Migrator().DropTable(&model.IP{}); err != nil {
+		t.Fatalf("drop ips table: %v", err)
+	}
+
+	rec := requestDownload(t, router, content.ID)
+	assertDownloadEnvelope(t, rec, http.StatusInternalServerError, "DB_ERROR", "database operation failed, please try again later")
 }
 
 func TestContentDownload_BlocksAllowCopyFalse(t *testing.T) {
@@ -525,6 +563,25 @@ func assertContentUnavailable(t *testing.T, rec *httptest.ResponseRecorder) {
 	}
 	if !strings.Contains(rec.Body.String(), "CONTENT_UNAVAILABLE") {
 		t.Fatalf("expected CONTENT_UNAVAILABLE response, got %s", rec.Body.String())
+	}
+}
+
+// assertDownloadEnvelope pins the full download error contract: status plus
+// the complete {"code","message"} envelope (#794 迁表守门的行为断言形态).
+func assertDownloadEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantCode, wantMessage string) {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, wantStatus, rec.Body.String())
+	}
+	var body struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v; body = %s", err, rec.Body.String())
+	}
+	if body.Code != wantCode || body.Message != wantMessage {
+		t.Fatalf("envelope = {code:%q message:%q}, want {code:%q message:%q}", body.Code, body.Message, wantCode, wantMessage)
 	}
 }
 
