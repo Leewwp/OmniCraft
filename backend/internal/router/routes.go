@@ -49,6 +49,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// subordinate to rate_limit.enabled — see middleware/guest_ratelimit.go).
 	guestLimiter := middleware.NewGuestRateLimiter(rdb, &cfg.RateLimit, &cfg.Features, time.Now).Tier
 
+	// #800：流式路由（SSE）逐写滚动写期限——write_timeout 的绝对期限
+	// 会切断总时长超限的流式响应；窗口大小走 server.stream_write_window。
+	streamWriteDeadline := middleware.StreamWriteDeadline(time.Duration(cfg.Server.StreamWriteWindow) * time.Second)
+
 	// SP-16 #449: the MCP endpoint joins the per-IP rate-limit matrix with
 	// its own bucket (mcp_per_minute from config, never hardcoded).
 	mcpLimiter := middleware.RedisFixedWindowLimit(
@@ -95,9 +99,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		c.Next()
 	}
 	mcpProxy := gin.WrapH(ctr.MCPHandler)
-	v1.POST("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
-	v1.GET("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
-	v1.DELETE("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
+	v1.POST("/mcp", optAuth, mcpIdentity, mcpLimiter, streamWriteDeadline, mcpProxy)
+	v1.GET("/mcp", optAuth, mcpIdentity, mcpLimiter, streamWriteDeadline, mcpProxy)
+	v1.DELETE("/mcp", optAuth, mcpIdentity, mcpLimiter, streamWriteDeadline, mcpProxy)
 	captchaHandler := handler.NewCaptchaHandler(ctr.CaptchaProvider, ctr.CaptchaTickets)
 	v1.POST("/captcha/verify", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), captchaHandler.Verify)
 
@@ -191,7 +195,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		contents.DELETE("/:id", authReq, editDeleteGuard, contentHandler.DeleteContent)
 		contents.GET("/:id/versions", optAuth, guestLimiter("contents_versions"), cacheable, handler.NewVersionHandler(ctr.VersionService).ListVersions)
 		contents.GET("/:id/prs", optAuth, prHandler.ListPRs)
-		contents.GET("/:id/guide", optAuth, usageGuideHandler.GetGuide)
+		contents.GET("/:id/guide", optAuth, streamWriteDeadline, usageGuideHandler.GetGuide)
 		contents.GET("/:id/guide/specifics", authReq, editDeleteGuard, usageGuideHandler.GetAuthorGuide)
 		contents.PUT("/:id/guide", authReq, editDeleteGuard, usageGuideHandler.SaveGuide)
 		// Download is metered + malware-gated, so it needs the PAT download
@@ -413,7 +417,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.POST("/upload-assist", agentHandler.UploadAssist)
 		agent.POST("/compliance-check", agentHandler.ComplianceCheck)
 		agent.GET("/usage-guide/:id", agentHandler.UsageGuide)
-		agent.POST("/chat/stream", agentHandler.ChatStream)
+		agent.POST("/chat/stream", streamWriteDeadline, agentHandler.ChatStream)
 		agent.GET("/models", agentHandler.ListModels)
 		agent.GET("/conversations", agentHandler.ListConversations)
 		agent.GET("/conversations/:id", agentHandler.GetConversationMessages)
