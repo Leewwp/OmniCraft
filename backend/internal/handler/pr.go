@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
@@ -73,9 +72,8 @@ func (h *PRHandler) SubmitPR(c *gin.Context) {
 }
 
 func (h *PRHandler) GetPR(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
+	id, ok := pathID(c, "id", "invalid pr id")
+	if !ok {
 		return
 	}
 
@@ -99,9 +97,8 @@ func (h *PRHandler) GetPR(c *gin.Context) {
 }
 
 func (h *PRHandler) ListPRs(c *gin.Context) {
-	contentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid content id")
+	contentID, ok := pathID(c, "id", "invalid content id")
+	if !ok {
 		return
 	}
 
@@ -144,9 +141,8 @@ func (h *PRHandler) ListMyIncomingPRs(c *gin.Context) {
 
 func (h *PRHandler) AcceptPR(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
+	id, ok := pathID(c, "id", "invalid pr id")
+	if !ok {
 		return
 	}
 
@@ -168,9 +164,8 @@ func (h *PRHandler) AcceptPR(c *gin.Context) {
 
 func (h *PRHandler) RejectPR(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
+	id, ok := pathID(c, "id", "invalid pr id")
+	if !ok {
 		return
 	}
 
@@ -199,9 +194,8 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 
 func (h *PRHandler) ManualMerge(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid pr id")
+	id, ok := pathID(c, "id", "invalid pr id")
+	if !ok {
 		return
 	}
 
@@ -233,9 +227,8 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 
 func (h *PRHandler) BlockContributor(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	userID, ok := pathID(c, "userId", "invalid user id")
+	if !ok {
 		return
 	}
 	if err := h.prSvc.BlockContributor(callerID, userID); err != nil {
@@ -252,9 +245,8 @@ func (h *PRHandler) BlockContributor(c *gin.Context) {
 
 func (h *PRHandler) UnblockContributor(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid user id")
+	userID, ok := pathID(c, "userId", "invalid user id")
+	if !ok {
 		return
 	}
 	if err := h.prSvc.UnblockContributor(callerID, userID); err != nil {

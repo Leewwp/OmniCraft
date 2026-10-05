@@ -147,13 +147,34 @@ type UpgradeSeed struct {
 // RegistryUpgrades is the ordered list of shipped upgrades. Entries are
 // append-only: an already-shipped upgrade never changes content (versions
 // are immutable); a further bump adds a new entry with the next version.
+// agent_system 条目用 const slotAgentSystemName 而非 SlotAgentSystem.Name：
+// SlotAgentSystem 的 Fallback 经 fallbackFor 读本表，var 相互引用会成
+// 初始化环（#806 A5）。
 var RegistryUpgrades = []UpgradeSeed{
-	{SlotName: SlotAgentSystem.Name, Version: 2, Content: agentSystemV2()},
-	{SlotName: SlotAgentSystem.Name, Version: 3, Content: agentSystemV3()},
-	{SlotName: SlotAgentSystem.Name, Version: 4, Content: agentSystemV4()},
-	{SlotName: SlotAgentSystem.Name, Version: 5, Content: agentSystemV5()},
-	{SlotName: SlotAgentSystem.Name, Version: 6, Content: agentSystemV6()},
+	{SlotName: slotAgentSystemName, Version: 2, Content: agentSystemV2()},
+	{SlotName: slotAgentSystemName, Version: 3, Content: agentSystemV3()},
+	{SlotName: slotAgentSystemName, Version: 4, Content: agentSystemV4()},
+	{SlotName: slotAgentSystemName, Version: 5, Content: agentSystemV5()},
+	{SlotName: slotAgentSystemName, Version: 6, Content: agentSystemV6()},
 	{SlotName: SlotUsageGuide.Name, Version: 2, Content: usageGuideV2()},
+}
+
+// fallbackFor returns the content of the highest shipped upgrade for the
+// slot ("" when none shipped). It runs once at package init through the
+// Slots initializer, so a future v7 appended to RegistryUpgrades updates the
+// registry-less runtime's fallback automatically — the pre-#806 hand-pinned
+// `Fallback: agentSystemV6()` could silently serve a stale version after a
+// forgotten bump.
+func fallbackFor(slotName string) string {
+	best := 0
+	content := ""
+	for _, up := range RegistryUpgrades {
+		if up.SlotName == slotName && up.Version > best {
+			best = up.Version
+			content = up.Content
+		}
+	}
+	return content
 }
 
 // SeedUpgrades applies code-shipped version bumps after SeedV1. Each entry

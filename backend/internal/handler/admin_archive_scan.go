@@ -376,12 +376,8 @@ var errArchiveRestoreTargetExists = errors.New("archive restore target already e
 var errArchiveScanCompletionFailed = errors.New("archive scan completion failed")
 
 func parseArchiveScanJobID(c *gin.Context) (int64, bool) {
-	jobID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || jobID <= 0 {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid archive scan job id")
-		return 0, false
-	}
-	return jobID, true
+	// #806 A1：与全站路径参数同一 INVALID_ID 契约（pathID 薄包装）。
+	return pathID(c, "id", "invalid archive scan job id")
 }
 
 func archiveScanAuditEntry(c *gin.Context, action string, jobID int64, metadata map[string]any) service.RecordAdminAuditInput {

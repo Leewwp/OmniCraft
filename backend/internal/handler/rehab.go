@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
@@ -35,9 +34,8 @@ func (h *RehabHandler) ListCourses(c *gin.Context) {
 }
 
 func (h *RehabHandler) GetCourse(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid course id")
+	id, ok := pathID(c, "id", "invalid course id")
+	if !ok {
 		return
 	}
 	locale := c.DefaultQuery("locale", "zh")
@@ -54,9 +52,8 @@ func (h *RehabHandler) GetCourse(c *gin.Context) {
 }
 
 func (h *RehabHandler) CompleteCourse(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid course id")
+	id, ok := pathID(c, "id", "invalid course id")
+	if !ok {
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -82,9 +79,8 @@ func (h *RehabHandler) CompleteCourse(c *gin.Context) {
 }
 
 func (h *RehabHandler) StartCourse(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid course id")
+	id, ok := pathID(c, "id", "invalid course id")
+	if !ok {
 		return
 	}
 	userID := middleware.GetUserID(c)

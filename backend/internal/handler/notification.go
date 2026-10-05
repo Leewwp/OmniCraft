@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
@@ -35,9 +34,8 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 
 func (h *NotificationHandler) MarkRead(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid notification id")
+	id, ok := pathID(c, "id", "invalid notification id")
+	if !ok {
 		return
 	}
 	if err := h.notifRepo.MarkRead(id, callerID); err != nil {

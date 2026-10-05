@@ -40,6 +40,7 @@ import {
 import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { isProviderDegradation } from "@/lib/agent";
 import { useDelayedUnmount } from "@/lib/use-delayed-unmount";
+import { usePersistentState } from "@/lib/use-persistent-state";
 import {
   AgentConversationSidebar,
   type AgentConversationSummary,
@@ -50,6 +51,13 @@ const SIDEBAR_STORAGE_KEY = "agentSidebarCollapsed";
 const DEEP_THINK_STORAGE_KEY = "agentDeepThink";
 /** #545：模型偏好持久化（注册表 id；失效 id 由选项列表校验兜底）。 */
 const MODEL_STORAGE_KEY = "agentModelPref";
+/* #806 A3：侧栏/深度思考两处磁盘编码原样保留（"collapsed"/"expanded"、
+   "on"/"off"），避免重置既有用户偏好；模型偏好因与异步注册表校验耦合
+   （失效 id 须「不应用但不擦除」）不走 usePersistentState。 */
+const parseSidebarStored = (raw: string) => raw === "collapsed";
+const serializeSidebar = (collapsed: boolean) => (collapsed ? "collapsed" : "expanded");
+const parseDeepThinkStored = (raw: string) => raw === "on";
+const serializeDeepThink = (on: boolean) => (on ? "on" : "off");
 const STICKY_BOTTOM_THRESHOLD = 80;
 /** 输入自动增高上限：约 8 行（leading-6 = 24px × 8 + 上下 padding）后转内部滚动。 */
 
@@ -144,7 +152,12 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   );
   const streaming = activeTurn?.streaming ?? false;
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = usePersistentState<boolean>({
+    storageKey: SIDEBAR_STORAGE_KEY,
+    fallback: false,
+    parse: parseSidebarStored,
+    serialize: serializeSidebar,
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
   /* #721：抽屉动效（延迟卸载走完退出动画）+ 关闭后焦点返回触发按钮。 */
   const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -204,18 +217,15 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   /* FT-3：流中离开（路由切走/组件卸载）补 abort——SSE 连接不再残留。 */
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-
-  /* 侧栏折叠状态持久化（A1.6）。 */
-  useEffect(() => {
-    setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "collapsed");
-  }, []);
-
   /* #539：深度思考开关——默认关（快、省 token），开启后请求带 deep_think，
-     由后端映射到 provider 的思考控制（MiniMax M3 thinking.type）。 */
-  const [deepThink, setDeepThink] = useState(false);
-  useEffect(() => {
-    setDeepThink(window.localStorage.getItem(DEEP_THINK_STORAGE_KEY) === "on");
-  }, []);
+     由后端映射到 provider 的思考控制（MiniMax M3 thinking.type）。
+     持久化经 usePersistentState（#806 A3，编码 "on"/"off" 不变）。 */
+  const [deepThink, setDeepThink] = usePersistentState<boolean>({
+    storageKey: DEEP_THINK_STORAGE_KEY,
+    fallback: false,
+    parse: parseDeepThinkStored,
+    serialize: serializeDeepThink,
+  });
 
   /* #545：模型选择——拉取注册表（>1 供给才渲染选择器；拉取失败静默降级为
      单供给形态，不打扰对话主链路）。偏好持久 localStorage，失效 id 丢弃。 */
@@ -233,9 +243,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       .catch(() => {});
   }, []);
   function toggleDeepThink() {
-    const next = !deepThink;
-    window.localStorage.setItem(DEEP_THINK_STORAGE_KEY, next ? "on" : "off");
-    setDeepThink(next);
+    setDeepThink(!deepThink);
   }
   const deepThinkToggle = (
     <button
@@ -813,9 +821,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           loading={conversationsLoading}
           disabled={streaming}
           onToggleCollapse={() => {
-            const next = !collapsed;
-            setCollapsed(next);
-            window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "collapsed" : "expanded");
+            setCollapsed(!collapsed);
           }}
           onSelect={handleSelectConversation}
           onNewConversation={handleNewConversation}

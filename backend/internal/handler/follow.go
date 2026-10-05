@@ -34,9 +34,8 @@ func (h *FollowHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
 
 func (h *FollowHandler) FollowUser(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
+	targetID, ok := pathID(c, "id", "")
+	if !ok {
 		return
 	}
 	// SP-25 低-24：self-follow 拒绝；目标必须存在且未封禁（此前
@@ -70,9 +69,8 @@ func (h *FollowHandler) FollowUser(c *gin.Context) {
 
 func (h *FollowHandler) UnfollowUser(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
+	targetID, ok := pathID(c, "id", "")
+	if !ok {
 		return
 	}
 	if err := h.followRepo.Unfollow(callerID, "user", targetID); err != nil {
@@ -84,9 +82,8 @@ func (h *FollowHandler) UnfollowUser(c *gin.Context) {
 
 func (h *FollowHandler) FollowIP(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
+	ipID, ok := pathID(c, "id", "")
+	if !ok {
 		return
 	}
 	// SP-25 低-24：IP 目标存在性校验（防悬挂关注关系）。
@@ -109,9 +106,8 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 
 func (h *FollowHandler) UnfollowIP(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
-	ipID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.CodeOnly(c, http.StatusBadRequest, "INVALID_ID")
+	ipID, ok := pathID(c, "id", "")
+	if !ok {
 		return
 	}
 	if err := h.followRepo.Unfollow(callerID, "ip", ipID); err != nil {
@@ -122,7 +118,10 @@ func (h *FollowHandler) UnfollowIP(c *gin.Context) {
 }
 
 func (h *FollowHandler) GetFollowers(c *gin.Context) {
-	targetID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	targetID, ok := pathID(c, "id", "invalid user id")
+	if !ok {
+		return
+	}
 	page, pageSize := pageQuery(c, 20)
 	users, total, err := h.followRepo.GetFollowers("user", targetID, page, pageSize)
 	if err != nil {
@@ -134,7 +133,10 @@ func (h *FollowHandler) GetFollowers(c *gin.Context) {
 }
 
 func (h *FollowHandler) GetFollowing(c *gin.Context) {
-	targetID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	targetID, ok := pathID(c, "id", "invalid user id")
+	if !ok {
+		return
+	}
 	page, pageSize := pageQuery(c, 20)
 	follows, total, err := h.followRepo.GetFollowing(targetID, page, pageSize)
 	if err != nil {
