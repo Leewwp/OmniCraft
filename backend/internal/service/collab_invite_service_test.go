@@ -204,12 +204,13 @@ func TestCollabInviteSendOwnerCanInvite(t *testing.T) {
 	require.NoError(t, db.First(&msg, invite.MessageID).Error)
 	require.Equal(t, "collab_invite", msg.MsgType)
 	require.Equal(t, "联合创作邀请", msg.Body)
-	// #786：metadata 冗余 content_zone（邀请卡深链按 zone 分流）。
-	require.Len(t, msg.Metadata, 6)
+	// #793：content_zone 不再写入 metadata——导航事实由消息读取路径按数据库
+	// 当前 zone 装饰（见 handler 侧邀请导航测试）；其余仍是事件快照。
+	require.Len(t, msg.Metadata, 5)
 	require.Equal(t, float64(invite.ID), msg.Metadata["invite_id"])
 	require.Equal(t, float64(100), msg.Metadata["content_id"])
 	require.Equal(t, "Alice Novel", msg.Metadata["content_title"])
-	require.Equal(t, "original", msg.Metadata["content_zone"])
+	require.NotContains(t, msg.Metadata, "content_zone")
 	require.Equal(t, float64(1), msg.Metadata["inviter_id"])
 	require.Equal(t, "alice", msg.Metadata["inviter_username"])
 

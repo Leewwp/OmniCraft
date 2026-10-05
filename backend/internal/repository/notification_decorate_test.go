@@ -59,3 +59,23 @@ func TestDecorateContentTargetURLsSplitByZone(t *testing.T) {
 	require.Equal(t, "/content/102", fanwork.URL)
 	require.Equal(t, "fanwork", fanwork.Zone)
 }
+
+// #793：共享批量导航取数——按页一次 IN 查询 id→{title,zone}，不存在的 ID 无
+// 条目（通知装饰 / admin 申诉 / 消息读侧共用；查询失败 fail-open 见 handler 侧
+// 邀请导航测试）。
+func TestContentNavigationSummariesByIDs(t *testing.T) {
+	_, db := setupNotificationDecorateRepo(t)
+
+	require.NoError(t, db.Exec(`INSERT INTO users (id, email, password_hash, username) VALUES
+		(1, 'author@example.test', 'hash', 'author')`).Error)
+	require.NoError(t, db.Exec(`INSERT INTO content_items (id, title, author_id, zone, content_type) VALUES
+		(201, 'original work', 1, 'original', 'article'),
+		(202, 'fanwork', 1, 'fanwork', 'article')`).Error)
+
+	nav := NewContentNavigationRepository(db)
+	summaries := nav.SummariesByIDs([]int64{201, 202, 999, 201})
+	require.Len(t, summaries, 2, "unknown ids must be absent, duplicates collapsed")
+	require.Equal(t, ContentNavSummary{Title: "original work", Zone: "original"}, summaries[201])
+	require.Equal(t, ContentNavSummary{Title: "fanwork", Zone: "fanwork"}, summaries[202])
+	require.Empty(t, nav.SummariesByIDs(nil))
+}

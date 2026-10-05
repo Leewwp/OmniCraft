@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/contentroute"
 )
 
 // SP-18 #509：通知列表装饰——GET /notifications 每条补充 sender（触发者资料，
@@ -12,7 +13,9 @@ import (
 // 响应只增不改：DecoratedNotification 内嵌原 model.Notification，老字段原样；
 // url 映射在后端是唯一真源（#786 前端 lib/notification-url.ts 死模块已删），
 // content/comment 深链按 content_items.zone 分流 /original/{id}（否则原创内容
-// 落分区隔离 404）；discussion 类在后端直接批量解析出 ip_id，免前端逐条二跳。
+// 落分区隔离 404）——#793 起分流计算统一走 internal/pkg/contentroute 纯函数，
+// 批量取数走共享 ContentNavigationRepository；discussion 类在后端直接批量解析
+// 出 ip_id，免前端逐条二跳。
 
 type NotificationSender struct {
 	ID        int64  `json:"id"`
@@ -51,7 +54,9 @@ func (r *NotificationRepository) ListDecorated(userID int64, channel string, pag
 
 func (r *NotificationRepository) decorate(items []DecoratedNotification) {
 	senders := r.sendersByIDs(collectSenderIDs(items))
-	contentSummaries := r.contentSummariesByIDs(collectTargetIDs(items, "content", "comment"))
+	// #793：内容导航批量取数迁共享 ContentNavigationRepository（按页去重、
+	// 一次 IN 查询），admin 申诉与消息读侧走同一能力。
+	contentSummaries := NewContentNavigationRepository(r.db).SummariesByIDs(collectTargetIDs(items, "content", "comment"))
 	discussions := r.discussionsByIDs(collectTargetIDs(items, "discussion"))
 	ipNames := r.ipNamesByIDs(collectTargetIDs(items, "ip"))
 	prContentTitles := r.prContentTitlesByIDs(collectTargetIDs(items, "pr"))
@@ -70,14 +75,16 @@ func (r *NotificationRepository) decorate(items []DecoratedNotification) {
 		switch kind := *n.TargetType; kind {
 		case "content", "comment":
 			if summary, ok := contentSummaries[targetID]; ok {
-				// #786：zone 分流深链——原创内容走 /original/{id}（/content/{id}
+				// #786/#793：zone 分流深链——原创内容走 /original/{id}（/content/{id}
 				// 对 zone=original 有意 notFound）。comment 通知的 target 即
-				// 所属内容（social_service Notify 传 content.ID），同分流。
-				url := "/content/" + strconv.FormatInt(targetID, 10)
-				if summary.Zone == "original" {
-					url = "/original/" + strconv.FormatInt(targetID, 10)
+				// 所属内容（social_service Notify 传 content.ID），同分流；
+				// 路由计算统一走 contentroute 纯函数（唯一后端真源）。
+				n.TargetSummary = &NotificationTargetSummary{
+					Kind:  "content",
+					Title: summary.Title,
+					URL:   contentroute.ContentDetailRoute(summary.Zone, targetID),
+					Zone:  summary.Zone,
 				}
-				n.TargetSummary = &NotificationTargetSummary{Kind: "content", Title: summary.Title, URL: url, Zone: summary.Zone}
 			}
 		case "discussion":
 			if d, ok := discussions[targetID]; ok {
@@ -161,37 +168,6 @@ func (r *NotificationRepository) sendersByIDs(ids []int64) map[int64]Notificatio
 	}
 	for _, row := range rows {
 		result[row.ID] = row
-	}
-	return result
-}
-
-func (r *NotificationRepository) contentSummariesByIDs(ids []int64) map[int64]struct {
-	Title string
-	Zone  string
-} {
-	result := map[int64]struct {
-		Title string
-		Zone  string
-	}{}
-	if len(ids) == 0 {
-		return result
-	}
-	var rows []struct {
-		ID    int64
-		Title string
-		Zone  string
-	}
-	if err := r.db.Model(&model.ContentItem{}).
-		Select("id, title, zone").
-		Where("id IN ?", ids).
-		Scan(&rows).Error; err != nil {
-		return result
-	}
-	for _, row := range rows {
-		result[row.ID] = struct {
-			Title string
-			Zone  string
-		}{Title: row.Title, Zone: row.Zone}
 	}
 	return result
 }

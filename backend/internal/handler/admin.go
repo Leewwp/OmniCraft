@@ -15,6 +15,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/contentroute"
 	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/response"
@@ -632,35 +633,31 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
-	// #786：content 类申诉补 target_zone——前端「查看内容」深链按 zone 分流
-	// /original/{id}，否则原创内容落分区隔离 404。批量一次查询，只增不改。
+	// #786/#793：content 类申诉补 target_zone（保留）+ 增量 target_url——前端
+	// 「查看内容」深链按 zone 分流 /original/{id}，否则原创内容落分区隔离 404。
+	// 批量取数走共享 ContentNavigationRepository（按页去重、一次 IN 查询），
+	// 路由计算走 contentroute 纯函数；查询失败/目标不存在 → 两键都不发（恒发
+	// URL+zone 只适用于成功解析的有效目标，前端回退 getContentHref 旧语义）。
 	contentTargetIds := make([]int64, 0, len(appeals))
+	seenContentIds := make(map[int64]bool, len(appeals))
 	for _, a := range appeals {
 		if a["target_type"] == "content" {
-			if id, ok := a["target_id"].(int64); ok && id > 0 {
+			if id, ok := a["target_id"].(int64); ok && id > 0 && !seenContentIds[id] {
+				seenContentIds[id] = true
 				contentTargetIds = append(contentTargetIds, id)
 			}
 		}
 	}
 	if len(contentTargetIds) > 0 {
-		var zones []struct {
-			ID   int64
-			Zone string
-		}
-		if err := h.userRepo.DB().Table("content_items").
-			Select("id, zone").
-			Where("id IN ?", contentTargetIds).
-			Scan(&zones).Error; err == nil {
-			zoneByID := make(map[int64]string, len(zones))
-			for _, z := range zones {
-				zoneByID[z.ID] = z.Zone
+		zoneSummaries := repository.NewContentNavigationRepository(h.userRepo.DB()).SummariesByIDs(contentTargetIds)
+		for _, a := range appeals {
+			if a["target_type"] != "content" {
+				continue
 			}
-			for _, a := range appeals {
-				if a["target_type"] != "content" {
-					continue
-				}
-				if id, ok := a["target_id"].(int64); ok {
-					a["target_zone"] = zoneByID[id]
+			if id, ok := a["target_id"].(int64); ok {
+				if summary, resolved := zoneSummaries[id]; resolved {
+					a["target_zone"] = summary.Zone
+					a["target_url"] = contentroute.ContentDetailRoute(summary.Zone, id)
 				}
 			}
 		}
