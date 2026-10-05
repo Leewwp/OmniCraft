@@ -620,21 +620,12 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 			}
 			return handler("", true)
 		}
-		// #728 缓存命中：单 delta 全文 + done（零 LLM、免配额——配额
-		// 预留在 handler 层，命中在预留之前由 HasCachedGuide 判定跳过）。
-		if s.usageGuideCache != nil {
-			if cached, ok := s.usageGuideCache.FindValid(ctx, content, locale); ok {
-				if err := handler(cached, false); err != nil {
-					return err
-				}
-				return handler("", true)
-			}
-		}
 	}
 
-	// #723：stream 不再用代码内硬编码英文 prompt——与非流式共用同一
-	// usage_guide_prompt 槽位（含 guide_focus 分型与 v2 输出语言条款），
-	// 消除双链漂移。
+	// #723：stream 与非流式共用同一 usage_guide_prompt 槽位（含
+	// guide_focus 分型与 v2 输出语言条款），消除双链漂移。#792 起：模板
+	// 由缓存入口单次 Resolve 固定后交给生成器渲染（promptregistry.Render），
+	// 执行中不再重新 Resolve/RenderSlot——prompt 与缓存版戳同源。
 	var guideType string
 	switch content.ContentType {
 	case "mod":
@@ -644,70 +635,42 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 	default:
 		guideType = "usage instructions and best practices"
 	}
-	prompt := s.prompts.RenderSlot(ctx, promptregistry.SlotUsageGuide, map[string]string{
+	values := map[string]string{
 		"title":        content.Title,
 		"content_type": content.ContentType,
 		"description":  content.Description,
 		"guide_focus":  guideType,
 		"language":     usageGuideLanguageName(locale),
-	})
-	req := llm.ChatRequest{
-		Messages: []llm.ChatMessage{
-			{Role: "system", Content: "You are a helpful content guide writer."},
-			{Role: "user", Content: prompt},
-		},
-		MaxTokens:   800,
-		Temperature: 0.5,
-		Stream:      true,
 	}
 
-	forwardStream := func(sctx context.Context) error {
-		return s.llmProvider.ChatStream(sctx, req, func(delta llm.ChatDelta) error {
-			return handler(delta.Content, delta.Done)
+	// runStream 装配 Provider 请求（政策归 AgentService）；emit 保留
+	// delta/done 与 error 语义——客户端断开/转发失败向上传播，不缓存。
+	runStream := func(gctx context.Context, template string, emit func(delta string, done bool) error) error {
+		req := llm.ChatRequest{
+			Messages: []llm.ChatMessage{
+				{Role: "system", Content: "You are a helpful content guide writer."},
+				{Role: "user", Content: promptregistry.Render(template, values)},
+			},
+			MaxTokens:   800,
+			Temperature: 0.5,
+			Stream:      true,
+		}
+		return s.llmProvider.ChatStream(gctx, req, func(delta llm.ChatDelta) error {
+			return emit(delta.Content, delta.Done)
 		})
 	}
 
 	// #728：draft 直流式（不读不写缓存）。
 	if forceLLM || s.usageGuideCache == nil {
-		return forwardStream(ctx)
+		template, _ := s.prompts.Resolve(ctx, promptregistry.SlotUsageGuide)
+		return runStream(ctx, template, handler)
 	}
 
-	lease, cacheHit, cached := s.usageGuideCache.AcquireForStream(ctx, content, locale)
-	if cacheHit {
-		if err := handler(cached, false); err != nil {
-			return err
-		}
-		return handler("", true)
-	}
-	if lease == nil {
-		// 缓存服务不可用（无 repo）：退化为直生成。
-		return forwardStream(ctx)
-	}
-	if !lease.Owner() {
-		// 与预热/其他进程的生成合并：等待共享结果（单等待者断开只取消
-		// 自身等待）；超时本地兜底。
-		if shared, ok := s.usageGuideCache.WaitShared(ctx, content, locale); ok {
-			if err := handler(shared, false); err != nil {
-				return err
-			}
-			return handler("", true)
-		}
-	}
-
-	// 租约持有者：边流式转发边累计；仅完整成功（ChatStream 无错返回）
-	// 落缓存——半截流/失败不缓存。
-	var accumulated strings.Builder
-	streamErr := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
-		accumulated.WriteString(delta.Content)
-		return handler(delta.Content, delta.Done)
-	})
-	if streamErr == nil && strings.TrimSpace(accumulated.String()) != "" {
-		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
-		s.usageGuideCache.SaveComplete(saveCtx, content, locale, accumulated.String())
-		cancel()
-	}
-	lease.Release()
-	return streamErr
+	// #792：缓存生命周期（命中/等待/持有、守卫写、释放）收口在缓存
+	// module 的流式单入口；本次执行的 template/version 同次解析，同一
+	// 身份贯穿租约键、等待查询与落库。缓存命中在入口内判定（吸收流式
+	// 路径的 FindValid 双读；handler 层 HasCachedGuide 免配额预检不变）。
+	return s.usageGuideCache.GetOrGenerateStream(ctx, content, locale, runStream, handler)
 }
 
 type ModerationResult struct {
