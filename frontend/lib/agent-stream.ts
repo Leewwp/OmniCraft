@@ -172,6 +172,16 @@ export async function startAgentStream(
   // 上限防御恶意超长行（done 事件含全量 answer+citations，正常远小于此值）。
   const maxBufferedLineLength = 2 * 1024 * 1024;
   let buffered = "";
+  // #801：服务端写期限/代理切断会让流在没有任何终态事件的情况下 EOF——
+  // 此前干净 EOF 一律走 onClose，工作台静默收场（问题悬着无回答无错误）。
+  // 记录终态是否到达；干净 EOF 而未见 done/error 时补发一条错误事件，走
+  // 既有错误呈现路径（不置 degraded，不触发 #684 关键词回退）。
+  let sawTerminal = false;
+  const forward = (event: AgentStreamEvent | null) => {
+    if (!event) return;
+    if (event.type === "done" || event.type === "error") sawTerminal = true;
+    handlers.onEvent(event);
+  };
   try {
     for (;;) {
       const { done, value } = await reader.read();
@@ -185,18 +195,19 @@ export async function startAgentStream(
         const line = buffered.slice(0, newlineIndex);
         buffered = buffered.slice(newlineIndex + 1);
         newlineIndex = buffered.indexOf("\n");
-        const event = parseAgentStreamLine(line);
-        if (event) handlers.onEvent(event);
+        forward(parseAgentStreamLine(line));
       }
     }
     const tail = buffered + decoder.decode();
     if (tail) {
-      const event = parseAgentStreamLine(tail);
-      if (event) handlers.onEvent(event);
+      forward(parseAgentStreamLine(tail));
     }
   } catch (error) {
     if ((error as Error).name !== "AbortError") handlers.onError?.(error as Error);
     return;
+  }
+  if (!sawTerminal) {
+    handlers.onEvent({ type: "error", error_code: "STREAM_ENDED_WITHOUT_DONE" });
   }
   handlers.onClose?.();
 }
