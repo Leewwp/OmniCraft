@@ -270,6 +270,17 @@ func (s *PRService) ManualMerge(prID int64, callerID int64, mergedText string) (
 		return nil, ErrPRMergeTextMissing
 	}
 
+	// Re-check the base at merge time (TOCTOU): a newer version may have
+	// landed between SubmitPR and here — merging on a stale base is the same
+	// non-fast-forward conflict SubmitPR rejects.
+	latest, err := s.versionRepo.GetLatest(pr.ContentItemID)
+	if err != nil {
+		return nil, err
+	}
+	if latest != nil && latest.ID != pr.BaseVersionID {
+		return nil, ErrPRConflict
+	}
+
 	versions, err := s.versionRepo.ListByContent(pr.ContentItemID)
 	if err != nil {
 		return nil, err

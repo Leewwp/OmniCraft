@@ -214,6 +214,40 @@ func TestAcceptThenManualMergeSucceeds(t *testing.T) {
 	require.ErrorIs(t, svc.AcceptPR(pr.ID, author), ErrPRInvalidState)
 }
 
+// TDD #5（TOCTOU）：SubmitPR 时校验 base == 最新版本，但 PR 提交后、合并前
+// 可能又出现新版本；ManualMerge 必须在执行合并前复检 base 是否仍为最新，
+// 过期则返回 ErrPRConflict 且不产生任何合并副作用（状态不变、无新版本、
+// 正文不写）。
+func TestManualMergeRejectsWhenBaseNoLongerLatest(t *testing.T) {
+	svc, vSvc, db := setupPRServiceTest(t)
+	author := seedPRUser(t, db, "author")
+	submitter := seedPRUser(t, db, "submitter")
+	contentID, baseVersionID := seedPRContent(t, db, author, "v1 body")
+
+	pr := submitFixturePR(t, svc, contentID, baseVersionID, submitter, "proposed body")
+
+	// 竞态：PR 提交后、合并前，作者基于同一 base 发布了新版本 → PR base 过期
+	_, err := vSvc.CreateNewVersion(contentID, author, baseVersionID, "author raced ahead")
+	require.NoError(t, err)
+
+	var versionsBefore int64
+	require.NoError(t, db.Model(&model.ContentVersion{}).Where("content_item_id = ?", contentID).Count(&versionsBefore).Error)
+
+	_, err = svc.ManualMerge(pr.ID, author, "merged text")
+	require.ErrorIs(t, err, ErrPRConflict, "merging on a stale base must be rejected")
+
+	// 无合并副作用：PR 仍 open、版本数不变、正文未写
+	var after model.PullRequest
+	require.NoError(t, db.First(&after, pr.ID).Error)
+	require.Equal(t, "open", after.Status)
+	var versionsAfter int64
+	require.NoError(t, db.Model(&model.ContentVersion{}).Where("content_item_id = ?", contentID).Count(&versionsAfter).Error)
+	require.Equal(t, versionsBefore, versionsAfter)
+	var content model.ContentItem
+	require.NoError(t, db.First(&content, contentID).Error)
+	require.Equal(t, "v1 body", content.Description)
+}
+
 // TDD #3（FIX-21②③）：merge 事务内同步 content_items 正文并发出
 // content.updated 索引事件；merge 后给提交者 +3 信誉分（AwardPRMerged）。
 func TestManualMergeSyncsBodyEventAndReputation(t *testing.T) {
