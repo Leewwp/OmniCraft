@@ -14,6 +14,7 @@ import (
 
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/observability"
+	"omnicraft/backend/internal/pkg/contentroute"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 )
@@ -630,7 +631,7 @@ func citationFromSearchSummary(summary ContentSummary) (AgentCitation, bool) {
 		ChunkIndex:     summary.ChunkIndex,
 		Title:          summary.Title,
 		Zone:           summary.Zone,
-		Route:          contentRoute(summary.Zone, summary.ID),
+		Route:          contentroute.ContentDetailRoute(summary.Zone, summary.ID),
 		Excerpt:        summary.Excerpt,
 		Source:         summary.Source,
 	}, true
@@ -654,17 +655,10 @@ func citationFromRetrievalCandidate(candidate AgentRetrievalCandidate) (AgentCit
 		ChunkIndex:     candidate.ChunkIndex,
 		Title:          strings.TrimSpace(candidate.Title),
 		Zone:           candidate.Zone,
-		Route:          contentRoute(candidate.Zone, candidate.ContentID),
+		Route:          contentroute.ContentDetailRoute(candidate.Zone, candidate.ContentID),
 		Excerpt:        truncateRunes(strings.TrimSpace(candidate.Text), 240),
 		Source:         candidate.Source,
 	}, true
-}
-
-func contentRoute(zone string, contentID int64) string {
-	if zone == "original" {
-		return fmt.Sprintf("/original/%d", contentID)
-	}
-	return fmt.Sprintf("/content/%d", contentID)
 }
 
 // ipRoute is the canonical hub route for IP citations (SP-19 G2-1, Q5).
@@ -846,7 +840,7 @@ func (s *AgentService) citationRejectionReason(ctx context.Context, viewerID int
 	if !validCitationSource(citation.Source) {
 		return "invalid_source"
 	}
-	if citation.Route != contentRoute(citation.Zone, citation.ContentID) {
+	if citation.Route != contentroute.ContentDetailRoute(citation.Zone, citation.ContentID) {
 		return "invalid_route"
 	}
 	truth, err := s.loadCitationTruth(ctx, viewerID, citation)
@@ -894,7 +888,7 @@ func (s *AgentService) citationForContent(ctx context.Context, viewerID, content
 		ChunkIndex:     truth.ChunkIndex,
 		Title:          truth.Title,
 		Zone:           truth.Zone,
-		Route:          contentRoute(truth.Zone, truth.ContentID),
+		Route:          contentroute.ContentDetailRoute(truth.Zone, truth.ContentID),
 		Excerpt:        truncateRunes(strings.TrimSpace(truth.Text), 240),
 	}, nil
 }

@@ -237,9 +237,10 @@ func (s *CollabInviteService) SendInvite(ctx context.Context, contentID, inviter
 	metadata := model.JSONMap{
 		"content_id":    contentID,
 		"content_title": content.Title,
-		// #786：邀请卡深链按 zone 分流（原创内容 /content/ 会落 404）；
-		// JSONMap 无需迁移，旧邀请缺该键时前端回退 /content/。
-		"content_zone":     content.Zone,
+		// #793：content_zone 不再写入——导航真源改为消息读取路径按数据库
+		// 当前 zone 装饰（metadata.content_zone/content_url 只增不改响应），
+		// 旧行缺键/过期键由读侧覆盖，历史消息不回写；content_title /
+		// inviter_* 仍是事件快照字段，原样保留。
 		"inviter_id":       inviterID,
 		"inviter_username": inviter.Username,
 	}

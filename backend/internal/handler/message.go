@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/contentroute"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -20,6 +22,7 @@ import (
 
 type MessageHandler struct {
 	msgRepo       *repository.MessageRepository
+	contentNav    *repository.ContentNavigationRepository
 	notifSvc      *service.NotificationService
 	cfg           *config.Config
 	reviewSvc     service.TextReviewer
@@ -51,8 +54,14 @@ type ConversationDTO struct {
 }
 
 // NewMessageHandler receives the container-owned repository (#658 PR-3).
+// msgRepo 允许为 nil（部分装配的路由安全测试）：contentNav 相应留 nil，
+// 装饰取数 fail-open 返回空表。
 func NewMessageHandler(msgRepo *repository.MessageRepository) *MessageHandler {
-	return &MessageHandler{msgRepo: msgRepo}
+	h := &MessageHandler{msgRepo: msgRepo}
+	if msgRepo != nil {
+		h.contentNav = repository.NewContentNavigationRepository(msgRepo.DB())
+	}
+	return h
 }
 
 func (h *MessageHandler) SetNotificationService(ns *service.NotificationService) {
@@ -172,6 +181,9 @@ func (h *MessageHandler) ListMessages(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	// #793：邀请卡深链读侧解析——DB 当前 zone 是导航唯一真源（写时不再落
+	// content_zone 快照），只装饰响应，不回写历史消息。
+	decorateCollabInviteNavigation(h.contentNav, messages)
 	h.msgRepo.UpdateLastRead(callerID, convID)
 	c.JSON(http.StatusOK, gin.H{"messages": messageDTOs(messages), "total": total})
 }
@@ -202,6 +214,76 @@ func (h *MessageHandler) LeaveConversation(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "left conversation"})
+}
+
+// decorateCollabInviteNavigation（#793）在已完成会话参与者校验的消息读取路径上，
+// 为本页 collab_invite 消息装饰 metadata.content_zone / metadata.content_url：
+//   - 按页去重收集 content_id、一次批量查询（ContentNavigationRepository），
+//     不逐条查库；
+//   - 旧行缺键、旧键错误（写时快照过期）、与当前 zone 不一致——一律以数据库
+//     当前 zone 为准；路由计算走 contentroute 纯函数；
+//   - 只改内存中的响应视图，不回写历史消息、不做数据迁移；content_id /
+//     content_title / inviter_* 等事件快照字段原样保留；
+//   - 目标不存在或装饰查询失败（SummariesByIDs fail-open 返回空表）：整条
+//     metadata 原样保留（旧回退语义，前端 getContentHref 兜底），不用空值
+//     覆盖已有键，也不制造 /content/0；内容访问仍由详情读取规则决定，
+//     本装饰不扩大消息/内容授权范围。
+func decorateCollabInviteNavigation(nav *repository.ContentNavigationRepository, messages []model.Message) {
+	ids := make([]int64, 0, len(messages))
+	seen := make(map[int64]bool, len(messages))
+	for i := range messages {
+		if messages[i].MsgType != "collab_invite" || messages[i].Metadata == nil {
+			continue
+		}
+		if id, ok := collabInviteContentID(messages[i].Metadata); ok && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	summaries := nav.SummariesByIDs(ids)
+	if len(summaries) == 0 {
+		return
+	}
+	for i := range messages {
+		m := &messages[i]
+		if m.MsgType != "collab_invite" || m.Metadata == nil {
+			continue
+		}
+		contentID, ok := collabInviteContentID(m.Metadata)
+		if !ok {
+			continue
+		}
+		summary, resolved := summaries[contentID]
+		if !resolved {
+			continue
+		}
+		m.Metadata["content_zone"] = summary.Zone
+		m.Metadata["content_url"] = contentroute.ContentDetailRoute(summary.Zone, contentID)
+	}
+}
+
+// collabInviteContentID 提取邀请 metadata 的 content_id（JSONMap 经 JSON
+// round-trip 后数字为 float64；新写入路径为 int64）。非正数视为无效——
+// 恒发 URL+zone 只适用于可解析的有效内容目标。
+func collabInviteContentID(metadata model.JSONMap) (int64, bool) {
+	switch v := metadata["content_id"].(type) {
+	case float64:
+		if v > 0 && v == math.Trunc(v) {
+			return int64(v), true
+		}
+	case int64:
+		if v > 0 {
+			return v, true
+		}
+	case int:
+		if v > 0 {
+			return int64(v), true
+		}
+	}
+	return 0, false
 }
 
 func conversationDTOs(signer *service.DisplayURLSigner, summaries []repository.ConversationSummary) []ConversationDTO {

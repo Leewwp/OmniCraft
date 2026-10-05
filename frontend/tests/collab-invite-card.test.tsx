@@ -393,6 +393,62 @@ test("ChatWindow falls back to a safe summary for collab_invite messages with in
   assert.equal(view.queryByRole("button", { name: /Accept collaboration invite/ }), null, "no actions for invalid metadata");
 });
 
+test("content link prefers the backend-decorated url over the stale zone mirror", async () => {
+  installCardDom();
+  const view = renderCard(
+    <CollabInviteCard
+      invite={{ ...pendingInvite, zone: "fanwork", url: "/original/601" }}
+      isCurrentUserInvitee
+      onAccept={async () => {}}
+      onDecline={async () => {}}
+    />,
+  );
+
+  await waitFor(() => {
+    const link = view.getByRole("link", { name: pendingInvite.contentTitle }) as HTMLAnchorElement;
+    assert.equal(link.getAttribute("href"), "/original/601", "backend url must win over the stale zone snapshot");
+  });
+});
+
+test("content link falls back to the zone mirror when the backend url is absent", async () => {
+  installCardDom();
+  const view = renderCard(
+    <CollabInviteCard
+      invite={{ ...pendingInvite, zone: "original" }}
+      isCurrentUserInvitee
+      onAccept={async () => {}}
+      onDecline={async () => {}}
+    />,
+  );
+
+  await waitFor(() => {
+    const link = view.getByRole("link", { name: pendingInvite.contentTitle }) as HTMLAnchorElement;
+    assert.equal(link.getAttribute("href"), "/original/601", "zone mirror keeps the #786 split for old responses");
+  });
+});
+
+test("ChatWindow forwards the decorated metadata url to the invite card link", async () => {
+  installCardDom();
+  installChatWindowApiMocks([
+    {
+      id: 22,
+      sender_id: 2,
+      msg_type: "collab_invite",
+      text: "Collaboration invite",
+      body: "Collaboration invite",
+      metadata: { ...inviteMetadata, content_zone: "fanwork", content_url: "/original/601" },
+      created_at: "2026-06-30T12:12:00Z",
+    },
+  ]);
+
+  const view = renderChatWindow();
+
+  await waitFor(() => {
+    const link = view.getByRole("link", { name: pendingInvite.contentTitle }) as HTMLAnchorElement;
+    assert.equal(link.getAttribute("href"), "/original/601", "chat must prefer the backend-decorated navigation url");
+  });
+});
+
 function renderCard(node: React.ReactNode) {
   return renderWithIntl(
     <IntlProvider locale="en" messages={intlMessages}>

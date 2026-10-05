@@ -122,8 +122,9 @@ func TestAdminListAppealsReturnsErrorOnDBFailure(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
-// #786：content 类申诉行补 target_zone——前端「查看内容」深链按 zone 分流
-// /original/{id}，否则原创申诉目标落分区隔离 404。
+// #786/#793：content 类申诉行补 target_zone（保留）+ target_url（增量）——
+// 前端「查看内容」深链按 zone 分流 /original/{id}，路由由后端 contentroute
+// 计算；原创申诉目标不再落分区隔离 404。
 func TestAdminListAppealsDecoratesContentTargetZone(t *testing.T) {
 	router, db, token := setupAdminDataSurfaceRouter(t)
 	require.NoError(t, db.AutoMigrate(&model.ContentItem{}))
@@ -132,9 +133,21 @@ func TestAdminListAppealsDecoratesContentTargetZone(t *testing.T) {
 		ID: 501, Title: "original appeal target", AuthorID: 1,
 		Zone: "original", ContentType: "article", Status: "published",
 	}).Error)
+	require.NoError(t, db.Create(&model.ContentItem{
+		ID: 502, Title: "fanwork appeal target", AuthorID: 1,
+		Zone: "fanwork", ContentType: "article", Status: "published",
+	}).Error)
 	require.NoError(t, db.Create(&model.Appeal{
 		UserID: 1, TargetType: "content", TargetID: 501,
 		Reason: "miscategorized", Status: "pending",
+	}).Error)
+	require.NoError(t, db.Create(&model.Appeal{
+		UserID: 1, TargetType: "content", TargetID: 502,
+		Reason: "miscategorized", Status: "pending",
+	}).Error)
+	require.NoError(t, db.Create(&model.Appeal{
+		UserID: 1, TargetType: "content", TargetID: 503,
+		Reason: "target gone", Status: "pending",
 	}).Error)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/appeals?status=all", nil)
@@ -147,14 +160,27 @@ func TestAdminListAppealsDecoratesContentTargetZone(t *testing.T) {
 		Appeals []map[string]interface{} `json:"appeals"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	found := false
+	byTarget := map[float64]map[string]interface{}{}
 	for _, a := range body.Appeals {
-		if a["target_type"] == "content" && a["target_id"] == float64(501) {
-			found = true
-			require.Equal(t, "original", a["target_zone"], "content appeal rows must carry target_zone")
+		if a["target_type"] == "content" {
+			byTarget[a["target_id"].(float64)] = a
 		}
 	}
-	require.True(t, found, "seeded content appeal row missing from response")
+	require.Len(t, byTarget, 3, "seeded content appeal rows missing from response")
+
+	original := byTarget[501]
+	require.Equal(t, "original", original["target_zone"], "content appeal rows must carry target_zone")
+	require.Equal(t, "/original/501", original["target_url"], "original appeal rows must carry the split target_url")
+
+	fanwork := byTarget[502]
+	require.Equal(t, "fanwork", fanwork["target_zone"])
+	require.Equal(t, "/content/502", fanwork["target_url"], "fanwork appeal rows keep the shared content route")
+
+	// 目标不存在：恒发 URL+zone 不适用——两键都不发，其余行字段原样。
+	missing := byTarget[503]
+	require.NotContains(t, missing, "target_zone")
+	require.NotContains(t, missing, "target_url")
+	require.Equal(t, "target gone", missing["reason"], "other appeal fields must survive unresolved decoration")
 }
 
 // FR-02（低-7）：提示词版本并发冲突（哨兵 ErrPromptVersionExists）映射 409 而非 500。

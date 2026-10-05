@@ -21,8 +21,11 @@ export interface CollabInviteCardProps {
     status: CollabInviteStatus;
     contentId: number;
     contentTitle: string;
-    /** #786：邀请 metadata 的 content_zone（旧邀请缺省回退 /content/）。 */
+    /** #786：邀请 metadata 的 content_zone（旧响应缺省时回退 /content/）。 */
     zone?: string;
+    /** #793：后端消息读侧装饰的 metadata.content_url（数据库当前 zone 的
+     *  导航真源）；缺省（旧响应/装饰失败）回退 getContentHref(zone) 镜像。 */
+    url?: string;
     inviterUsername: string;
   };
   isCurrentUserInvitee: boolean;
@@ -104,7 +107,7 @@ export function CollabInviteCard({ invite, isCurrentUserInvitee, onAccept, onDec
         {t("collabInviteCard.invitation", { inviter: invite.inviterUsername, title: invite.contentTitle })}
       </p>
       <Link
-        href={getContentHref(invite.contentId, invite.zone)}
+        href={invite.url ?? getContentHref(invite.contentId, invite.zone)}
         className="mt-1 inline-block rounded-sm text-sm text-accent-emphasis underline underline-offset-2 focus:outline-none focus-visible:ring-1 focus:ring-accent-emphasis hover:text-accent-hover"
       >
         {invite.contentTitle}

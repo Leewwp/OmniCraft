@@ -50,6 +50,16 @@ func NewMessageRepository(db *gorm.DB) *MessageRepository {
 	return &MessageRepository{db: db}
 }
 
+// DB 暴露底层句柄（#793）：消息读侧装饰复用共享 ContentNavigationRepository
+// 批量取数，避免 handler 为取 db 另持一份依赖。nil receiver 容忍（路由安全
+// 测试会以部分装配的 container 构造 handler）。
+func (r *MessageRepository) DB() *gorm.DB {
+	if r == nil {
+		return nil
+	}
+	return r.db
+}
+
 func (r *MessageRepository) FindOrCreateConversation(userA, userB int64) (int64, error) {
 	var convID int64
 	err := r.withConversationPairTransaction(userA, userB, func(txRepo *MessageRepository) error {
