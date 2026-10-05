@@ -82,6 +82,8 @@ test("multi-byte UTF-8 split mid-character across chunks survives", async () => 
         start(controller) {
           controller.enqueue(bytes.subarray(0, bytes.length - 4));
           controller.enqueue(bytes.subarray(bytes.length - 4));
+          // #801：夹具补终态事件——EOF 无终态现在会补发合成错误。
+          controller.enqueue(new TextEncoder().encode('data: {"type":"done"}\n\n'));
           controller.close();
         },
       }),
@@ -95,7 +97,7 @@ test("multi-byte UTF-8 split mid-character across chunks survives", async () => 
       onError: (error) => errors.push(error),
     });
     assert.deepEqual(errors, []);
-    assert.equal(events.length, 1);
+    assert.equal(events.length, 2, `delta + done, got ${JSON.stringify(events)}`);
     if (events[0].type === "delta") assert.equal(events[0].delta, "你");
   } finally {
     globalThis.fetch = originalFetch;
@@ -106,7 +108,7 @@ test("final line without trailing newline is still delivered", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = csrfFetchOk();
   try {
-    const res = chunkedStreamResponse(['data: {"type":"delta","delta":"收尾"}']);
+    const res = chunkedStreamResponse(['data: {"type":"delta","delta":"收尾"}', '\ndata: {"type":"done"}\n\n']);
     const events: AgentStreamEvent[] = [];
     const errors: Error[] = [];
     await startAgentStream(streamFetch(res), "http://api.test/api/v1/agent/chat/stream", {}, {
@@ -114,7 +116,7 @@ test("final line without trailing newline is still delivered", async () => {
       onError: (error) => errors.push(error),
     });
     assert.deepEqual(errors, []);
-    assert.equal(events.length, 1);
+    assert.equal(events.length, 2, `delta + done, got ${JSON.stringify(events)}`);
     if (events[0].type === "delta") assert.equal(events[0].delta, "收尾");
   } finally {
     globalThis.fetch = originalFetch;
@@ -136,6 +138,65 @@ test("an over-long unterminated line aborts the stream with an error", async () 
     assert.equal(events.length, 0, "no events should leak from a rejected over-long line");
     assert.equal(errors.length, 1, "buffer limit must abort with onError");
     assert.match(errors[0].message, /buffer|line|limit/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+/* #801：服务端写期限/代理切断 = 干净 EOF 且无终态事件——必须补发一条错误
+ * 事件走既有错误呈现路径，不得静默 onClose；有终态时不得重复补发。 */
+
+test("clean EOF without terminal emits synthetic error before close", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = csrfFetchOk();
+  try {
+    const res = chunkedStreamResponse(['data: {"type":"delta","delta":"半截回答"}\n\n']);
+    const events: AgentStreamEvent[] = [];
+    let closed = 0;
+    await startAgentStream(streamFetch(res), "http://api.test/api/v1/agent/chat/stream", {}, {
+      onEvent: (event) => events.push(event),
+      onClose: () => { closed += 1; },
+    });
+    assert.equal(closed, 1, "stream must still close exactly once");
+    assert.equal(events.length, 2, `expected delta + synthetic error, got ${JSON.stringify(events)}`);
+    assert.equal(events[0].type, "delta");
+    assert.equal(events[1].type, "error");
+    if (events[1].type === "error") {
+      assert.equal(events[1].error_code, "STREAM_ENDED_WITHOUT_DONE");
+      assert.notEqual(events[1].degraded, true, "synthetic EOF error must not trigger provider degradation fallback");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("EOF after done does not emit synthetic error", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = csrfFetchOk();
+  try {
+    const res = chunkedStreamResponse(['data: {"type":"delta","delta":"答"}\n\ndata: {"type":"done","conversation_id":9}\n\n']);
+    const events: AgentStreamEvent[] = [];
+    await startAgentStream(streamFetch(res), "http://api.test/api/v1/agent/chat/stream", {}, {
+      onEvent: (event) => events.push(event),
+    });
+    assert.equal(events.length, 2);
+    assert.equal(events[1].type, "done");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("EOF after server error event does not double-report", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = csrfFetchOk();
+  try {
+    const res = chunkedStreamResponse(['data: {"type":"error","error_code":"PROVIDER_TIMEOUT"}\n\n']);
+    const events: AgentStreamEvent[] = [];
+    await startAgentStream(streamFetch(res), "http://api.test/api/v1/agent/chat/stream", {}, {
+      onEvent: (event) => events.push(event),
+    });
+    assert.equal(events.length, 1, `server error must not be duplicated, got ${JSON.stringify(events)}`);
+    assert.equal(events[0].type, "error");
   } finally {
     globalThis.fetch = originalFetch;
   }

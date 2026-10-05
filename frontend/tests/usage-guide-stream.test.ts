@@ -60,11 +60,11 @@ test("multiple complete lines in one chunk all parse", async () => {
   assert.deepEqual(events, ["delta", "delta", "done", "close"]);
 });
 
-test("stream error event surfaces onError without onClose", async () => {
+test("stream error event surfaces onError and closes the stream (#801)", async () => {
   const { events } = await run(sseResponse([
     'event:error\ndata:{"type":"error","error_code":"provider_error","error_message":"provider unavailable"}\n\n',
   ]));
-  assert.deepEqual(events, ["error"]);
+  assert.deepEqual(events, ["error", "close"]);
 });
 
 test("spaced data-prefix variant (data: {...}) also parses", async () => {
@@ -84,4 +84,28 @@ test("structured JSON response delivers the guide in one delta", async () => {
 test("non-2xx response surfaces onError only", async () => {
   const { events } = await run(new Response("nope", { status: 404 }));
   assert.deepEqual(events, ["error"]);
+});
+
+/* #801：EOF 无 done 不能当成功（半截指南会被面板缓存成已载入）——置错并
+ * 关闭；SSE error 事件路径同样补 onClose（否则面板 loading 态挂死）。 */
+
+test("EOF without done reports error and closes, never done", async () => {
+  const { events } = await run(sseResponse([
+    'event:delta\ndata:{"type":"delta","delta":"生成了"}\n\n',
+  ]));
+  assert.deepEqual(events, ["delta", "error", "close"]);
+});
+
+test("SSE error event reports error and closes the spinner state", async () => {
+  const { events } = await run(sseResponse([
+    'event:error\ndata:{"type":"error","error_message":"provider unavailable"}\n\n',
+  ]));
+  assert.deepEqual(events, ["error", "close"]);
+});
+
+test("tail-carried done still completes without error", async () => {
+  const { events } = await run(sseResponse([
+    'event:delta\ndata:{"type":"delta","delta":"完整"}\n\nevent:done\ndata:{"type":"done"}\n\n',
+  ]));
+  assert.deepEqual(events, ["delta", "done", "close"]);
 });
