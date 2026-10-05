@@ -11,7 +11,6 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -210,86 +209,10 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 
 	content, err := h.contentSvc.PublishContentWithContext(c.Request.Context(), input, callerID)
 	if err != nil {
-		if errors.Is(err, service.ErrPublishFrozen) {
-			response.SafeErrorResponse(c, http.StatusForbidden, "PUBLISH_FROZEN", err)
-			return
-		}
-		if errors.Is(err, service.ErrSourceNotAllowedForOriginal) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "SOURCE_NOT_ALLOWED_FOR_ORIGINAL", err)
-			return
-		}
-		if errors.Is(err, service.ErrFanworkSourceRequired) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "FANWORK_SOURCE_REQUIRED", err)
-			return
-		}
-		if errors.Is(err, service.ErrMultipleSourceConflict) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "MULTIPLE_SOURCE_CONFLICT", err)
-			return
-		}
-		if errors.Is(err, service.ErrSourceOriginalUnavailable) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "SOURCE_ORIGINAL_UNAVAILABLE", err)
-			return
-		}
-		if errors.Is(err, service.ErrSourceFanworkUnavailable) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "SOURCE_FANWORK_UNAVAILABLE", err)
-			return
-		}
-		if errors.Is(err, service.ErrUploadGrantInvalid) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "UPLOAD_GRANT_INVALID", err)
-			return
-		}
-		if errors.Is(err, service.ErrMediaSetInvalid) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "MEDIA_SET_INVALID", err)
-			return
-		}
-		if errors.Is(err, service.ErrArchiveAttachmentRequired) {
-			response.Error(c, http.StatusBadRequest, "ARCHIVE_ATTACHMENT_REQUIRED", "mod content requires a zip archive attachment")
-			return
-		}
-		// #690：注册表 attachment_policy（required_any_of）违规面——通用
-		// 引擎错误面（引擎本体随 #688 落地），任何配置了 policy 的类型
-		// 共用，非 3d_print 专属分支。
-		if errors.Is(err, service.ErrAttachmentPolicyRequired) {
-			response.Error(c, http.StatusBadRequest, "ATTACHMENT_POLICY_REQUIRED", "content type requires at least one attachment of the required family")
-			return
-		}
-		if errors.Is(err, archivezip.ErrEncrypted) {
-			response.Error(c, http.StatusBadRequest, "ARCHIVE_ENCRYPTED", "archive is encrypted")
-			return
-		}
-		if errors.Is(err, archivezip.ErrPathInvalid) {
-			response.Error(c, http.StatusBadRequest, "ARCHIVE_PATH_INVALID", "archive path is invalid")
-			return
-		}
-		if errors.Is(err, archivezip.ErrLinkForbidden) {
-			response.Error(c, http.StatusBadRequest, "ARCHIVE_LINK_FORBIDDEN", "archive link is forbidden")
-			return
-		}
-		if errors.Is(err, archivezip.ErrLimitExceeded) {
-			response.Error(c, http.StatusBadRequest, "ARCHIVE_LIMIT_EXCEEDED", "archive limits exceeded")
-			return
-		}
-		if errors.Is(err, archivezip.ErrInvalid) {
-			response.Error(c, http.StatusBadRequest, "ARCHIVE_INVALID", "archive is invalid")
-			return
-		}
-		if errors.Is(err, service.ErrArchiveScanUnavailable) {
-			response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_SCAN_UNAVAILABLE", "archive scanning is unavailable")
-			return
-		}
-		if errors.Is(err, service.ErrArchiveScanFailed) {
-			response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_FAILED", "archive scan failed")
-			return
-		}
-		if errors.Is(err, service.ErrArchiveScanPending) {
-			response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_PENDING", "archive scan is pending")
-			return
-		}
-		if errors.Is(err, service.ErrUploadGrantUnavailable) {
-			response.SafeErrorResponse(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", err)
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		// #794：sentinel→HTTP 合同集中在 errmap.go（publishErrMap，按原分
+		// 支顺序 errors.Is 首个命中）；未知错误兜底保持历史 500
+		// INTERNAL_ERROR。
+		publishErrMap.write(c, err)
 		return
 	}
 
@@ -683,34 +606,9 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 	// HTTP contract.
 	res, err := h.contentSvc.RequestDownload(c.Request.Context(), callerID, id, c.Query("attachment_id"))
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrDownloadUnauthorized):
-			response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
-		case errors.Is(err, service.ErrContentNotFound):
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-		case errors.Is(err, service.ErrDownloadNotPublished):
-			response.Error(c, http.StatusForbidden, "FORBIDDEN", "content not available for download")
-		case errors.Is(err, service.ErrDownloadUnavailable):
-			response.Error(c, http.StatusForbidden, "CONTENT_UNAVAILABLE", "content is unavailable")
-		case errors.Is(err, service.ErrDownloadNotAllowed):
-			response.Error(c, http.StatusForbidden, "FORBIDDEN", "download not allowed")
-		case errors.Is(err, service.ErrOSSNotConfigured):
-			response.Error(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", "oss service not configured")
-		case errors.Is(err, service.ErrNoAttachments):
-			response.Error(c, http.StatusNotFound, "NO_ATTACHMENTS", "no downloadable files")
-		case errors.Is(err, service.ErrInvalidAttachmentID):
-			response.Error(c, http.StatusBadRequest, "INVALID_ATTACHMENT_ID", "invalid attachment_id")
-		case errors.Is(err, service.ErrAttachmentMismatch):
-			response.Error(c, http.StatusBadRequest, "ATTACHMENT_MISMATCH", "attachment does not belong to this content")
-		case errors.Is(err, service.ErrAmbiguousAttachment):
-			response.Error(c, http.StatusBadRequest, "AMBIGUOUS_ATTACHMENT", "specify attachment_id; cannot determine a unique primary attachment")
-		case errors.Is(err, service.ErrArchiveNotClean):
-			response.Error(c, http.StatusForbidden, "ARCHIVE_NOT_CLEAN", "archive is not clean")
-		case errors.Is(err, service.ErrDownloadPresignFailed):
-			response.Error(c, http.StatusInternalServerError, "OSS_ERROR", "failed to generate download url")
-		default:
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		}
+		// #794：sentinel→HTTP 合同集中在 errmap.go（downloadErrMap，按原分
+		// 支顺序 errors.Is 首个命中）；未知错误兜底保持历史 500 DB_ERROR。
+		downloadErrMap.write(c, err)
 		return
 	}
 
