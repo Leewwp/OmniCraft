@@ -201,8 +201,10 @@ func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, wi
 // IsPlatformObjectURL reports whether rawURL is a platform-verified OSS object:
 // only URLs carrying the configured delivery-domain prefix (trimmed domain +
 // "/") qualify. No URL is ever verified without a configured domain. This is
-// the single gate shared by cover-image review, feedback attachment mapping,
-// avatar upload and the avatar-audit tool.
+// a DOMAIN-ONLY shape check reserved for non-authorization semantics (the
+// avatar-audit tool scanning legacy rows, display signing of already-trusted
+// database values); every gate that accepts a user-submitted URL for
+// persistence must use IsPlatformObjectURLForPrincipal instead (#813).
 func IsPlatformObjectURL(domain, rawURL string) bool {
 	url := strings.TrimSpace(rawURL)
 	domain = strings.TrimRight(strings.TrimSpace(domain), "/")
@@ -210,6 +212,26 @@ func IsPlatformObjectURL(domain, rawURL string) bool {
 		return false
 	}
 	return strings.HasPrefix(url, domain+"/")
+}
+
+// IsPlatformObjectURLForPrincipal is the authorization-grade gate for
+// user-submitted platform object URLs that get persisted and later re-signed
+// for every viewer (avatar updates, IP covers, proposal covers, content
+// covers): the object key must resolve under the subject's own uploads
+// namespace (uploads/<userID>/, the presign PUT key layout) and must never be
+// a quarantine object — the archive-scan gate's "quarantine objects are never
+// a delivery target" invariant extends to the signing layer (#813, run-1
+// audit #2). Cross-user uploads keys and sibling prefixes (uploads/71 vs
+// uploads/7) fail closed.
+func IsPlatformObjectURLForPrincipal(domain, rawURL string, userID int64) bool {
+	key, ok := ObjectKeyFromURL(domain, rawURL)
+	if !ok {
+		return false
+	}
+	if strings.HasPrefix(key, "quarantine/") {
+		return false
+	}
+	return strings.HasPrefix(key, fmt.Sprintf("uploads/%d/", userID))
 }
 
 // ObjectURL derives the platform delivery URL for a platform OSS object key

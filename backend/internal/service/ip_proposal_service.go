@@ -149,12 +149,14 @@ func (s *IPProposalService) CreateProposal(ctx context.Context, ipID, proposerID
 	if input.CoverURLChange != nil && *input.CoverURLChange == "" {
 		input.CoverURLChange = nil
 	}
-	// SP-25 低-22：提案封面平台域提交期校验。
+	// SP-25 低-22：提案封面平台域提交期校验。#813 审计 #2：升级为主体
+	// 命名空间绑定——封面 URL 必须落在提案者本人的 uploads/<uid>/ 命名空
+	// 间，隔离区对象与跨用户对象在提交期即拒。
 	if input.CoverURLChange != nil {
 		cover := strings.TrimSpace(*input.CoverURLChange)
 		if cover == "" {
 			input.CoverURLChange = nil
-		} else if s.cfg == nil || !aliyun.IsPlatformObjectURL(s.cfg.OSS.Domain, cover) {
+		} else if s.cfg == nil || !aliyun.IsPlatformObjectURLForPrincipal(s.cfg.OSS.Domain, cover, proposerID) {
 			return nil, ErrProposalCoverNotPlatform
 		}
 	}
@@ -610,9 +612,12 @@ func (s *IPProposalService) adoptTx(tx *gorm.DB, proposal *model.IPProposal, ado
 	}
 	if proposal.CoverURLChange != nil {
 		// SP-25 低-22：采纳时复验平台域（提案可能创建于旧规则之前，
-		// 落库前再挡一次外域图）。
+		// 落库前再挡一次外域图）。#813 审计 #2：复验升级为主体命名空间
+		// 绑定——封面 URL 的提供方与对象属主是提案者（CreateProposal 已按
+		// 提案者命名空间把关；治理常态是社区成员提案、IP 创建者采纳，
+		// 绑定 URL 属主而非 IP 创建者，否则合法封面提案全部死在采纳期）。
 		cover := strings.TrimSpace(*proposal.CoverURLChange)
-		if s.cfg == nil || !aliyun.IsPlatformObjectURL(s.cfg.OSS.Domain, cover) {
+		if s.cfg == nil || !aliyun.IsPlatformObjectURLForPrincipal(s.cfg.OSS.Domain, cover, proposal.ProposerID) {
 			return ErrProposalCoverNotPlatform
 		}
 		changes["cover_url"] = *proposal.CoverURLChange

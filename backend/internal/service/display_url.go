@@ -18,6 +18,39 @@ import (
 // could expire.
 const defaultDisplayURLTTLSec = 3600
 
+// defaultDisplayAttachmentTTLSec is the #813 independent minute-level budget
+// for content-attachment display signing (decision ①): preview families
+// (image / video / sheet_music) are signed on a channel separate from the
+// generic display budget above, so an AllowCopy=false exposure window stays
+// minute-level. Anonymous detail responses cache for at most 60s, so the
+// cache never outlives the signature. Configurable via
+// oss.display_attachment_ttl_sec (1..3600).
+const defaultDisplayAttachmentTTLSec = 300
+
+// displayAttachmentFamilies is the #813 attachment-family whitelist (audit
+// #5): only preview-consumed families get signed display URLs. File-delivery
+// families (mod / text / document / audio / model3d) are delivered
+// exclusively through the download gate (AllowCopy + malicious-archive scan
+// + PAT download scope) — their oss_url stays empty everywhere.
+var displayAttachmentFamilies = map[string]bool{
+	"image":       true,
+	"video":       true,
+	"sheet_music": true, // SheetMusicViewer in-page preview (musicxml/midi/pdf)
+}
+
+// isDisplayAttachmentFamily reports whether an attachment family belongs to
+// the display/preview whitelist (#813 audit #5 + decision ①).
+func isDisplayAttachmentFamily(fileType string) bool {
+	return displayAttachmentFamilies[strings.TrimSpace(fileType)]
+}
+
+// isQuarantineObjectKey reports whether an OSS key lives under the quarantine
+// prefix. The archive-scan gate declares quarantine objects are never a
+// delivery target; #813 extends that invariant to every signing path.
+func isQuarantineObjectKey(ossKey string) bool {
+	return strings.HasPrefix(strings.TrimSpace(ossKey), "quarantine/")
+}
+
 // displayURLSignatureBucketSec aligns signed-URL expiry to a fixed 30-minute
 // epoch-aligned window (#428). Within one window every serialization of the
 // same object produces a byte-identical signed URL, so downstream caches
@@ -60,6 +93,9 @@ type DisplayURLSigner struct {
 	client *aliyun.OSSClient
 	domain string
 	ttl    time.Duration
+	// attachmentTTL is the #813 independent minute-level display budget for
+	// content attachments (decision ①), separate from the generic ttl above.
+	attachmentTTL time.Duration
 }
 
 // NewDisplayURLSigner builds a signer from the runtime config. It returns nil
@@ -73,12 +109,23 @@ func NewDisplayURLSigner(cfg *config.Config) *DisplayURLSigner {
 	if ttlSec <= 0 {
 		ttlSec = defaultDisplayURLTTLSec
 	}
+	attachmentTTLSec := cfg.OSS.DisplayAttachmentTTLSec
+	if attachmentTTLSec <= 0 {
+		attachmentTTLSec = defaultDisplayAttachmentTTLSec
+	}
 	client, _ := aliyun.NewOSSClient(cfg.OSS.Endpoint, cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret, cfg.OSS.BucketName)
-	return &DisplayURLSigner{client: client, domain: cfg.OSS.Domain, ttl: time.Duration(ttlSec) * time.Second}
+	return &DisplayURLSigner{
+		client:        client,
+		domain:        cfg.OSS.Domain,
+		ttl:           time.Duration(ttlSec) * time.Second,
+		attachmentTTL: time.Duration(attachmentTTLSec) * time.Second,
+	}
 }
 
 // SignURL returns rawURL as a short-lived signed GET URL when it is a
-// platform OSS object URL, and unchanged otherwise.
+// platform OSS object URL, and unchanged otherwise. Quarantine platform
+// objects are never signed on any path (#813): the URL passes through
+// unsigned and the private bucket rejects the anonymous read.
 func (s *DisplayURLSigner) SignURL(rawURL string) string {
 	if s == nil {
 		return rawURL
@@ -89,6 +136,9 @@ func (s *DisplayURLSigner) SignURL(rawURL string) string {
 	}
 	key, ok := aliyun.ObjectKeyFromURL(s.domain, rawURL)
 	if !ok {
+		return rawURL
+	}
+	if isQuarantineObjectKey(key) {
 		return rawURL
 	}
 	// #428: hand the client the distance to the bucket-aligned absolute
@@ -103,19 +153,21 @@ func (s *DisplayURLSigner) SignURL(rawURL string) string {
 	return signed
 }
 
-// AttachmentURL derives the signed display URL for an attachment object key.
+// AttachmentURL derives the signed display URL for an attachment object key
+// on the #813 independent short-TTL channel (decision ①). Only the
+// display/preview families (image / video / sheet_music) are signed — file
+// delivery families and quarantine keys return "" so the transient oss_url
+// field stays absent and delivery stays exclusive to the download gate.
 // Without a delivery domain there is no canonical display URL to present, so
-// it returns "" and the transient oss_url field stays absent instead of
-// leaking a bare oss_key into an img src.
-func (s *DisplayURLSigner) AttachmentURL(ossKey string) string {
+// it also returns "" instead of leaking a bare oss_key into an img src.
+func (s *DisplayURLSigner) AttachmentURL(ossKey, fileType string) string {
 	if s == nil {
 		return ""
 	}
-	key := strings.TrimSpace(ossKey)
-	if key == "" || strings.TrimSpace(s.domain) == "" {
+	if !isDisplayAttachmentFamily(fileType) {
 		return ""
 	}
-	return s.SignURL(aliyun.ObjectURL(s.domain, key))
+	return s.signAttachmentURL(ossKey, int(s.attachmentTTL.Seconds()))
 }
 
 // DecorateIP signs the IP cover and the nested creator avatar in place. The
@@ -170,13 +222,16 @@ func (s *DisplayURLSigner) DecorateContents(items []model.ContentItem) {
 }
 
 // DecorateAttachments fills the transient OSSURL field with a signed display
-// URL derived from the canonical OSSKey, which stays unchanged.
+// URL derived from the canonical OSSKey, which stays unchanged. #813 audit
+// #5: only the display/preview families are signed — file-delivery families
+// keep an empty OSSURL (the client renders the scan-state card and delivers
+// them through the download endpoint) and quarantine keys are never signed.
 func (s *DisplayURLSigner) DecorateAttachments(attachments []model.ContentAttachment) {
 	if s == nil {
 		return
 	}
 	for i := range attachments {
-		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey)
+		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey, attachments[i].FileType)
 	}
 }
 
@@ -187,14 +242,18 @@ func (s *DisplayURLSigner) DecorateAttachments(attachments []model.ContentAttach
 // download gate):
 //
 //   - gate == nil → legacy unconditional decorate (wirings without a gate);
-//   - every attachment passes RequireAttachmentClean (disabled flag → only
-//     the eternal quarantine-prefix rejection applies);
+//   - #813 audit #5: the family whitelist runs FIRST — file-delivery
+//     families (mod / text / document / audio / model3d) and quarantine keys
+//     never receive a signed URL on any branch;
+//   - every surviving attachment passes RequireAttachmentClean (disabled
+//     flag → only the eternal quarantine-prefix rejection applies);
 //   - rejected attachments keep an empty OSSURL — the row's scan_status
 //     rides the DTO and the client renders the scan-state card;
 //   - admitted scannable-family attachments sign with the scan-aware short
 //     TTL (cap 300s) and NO bucket alignment, so a re-scan that turns an
 //     attachment blocked leaves at most the scan TTL of exposure (v2.2 #1);
-//   - non-scannable attachments keep the ordinary display signing.
+//   - non-scannable display families sign on the #813 independent
+//     minute-level attachment channel (decision ①).
 func (s *DisplayURLSigner) ScanAwareDecorateAttachments(ctx context.Context, attachments []model.ContentAttachment, gate *ArchiveScanGate, scanTTLSec int) {
 	if s == nil {
 		return
@@ -204,26 +263,35 @@ func (s *DisplayURLSigner) ScanAwareDecorateAttachments(ctx context.Context, att
 		return
 	}
 	for i := range attachments {
+		if !isDisplayAttachmentFamily(attachments[i].FileType) {
+			attachments[i].OSSURL = ""
+			continue
+		}
 		if err := gate.RequireAttachmentClean(ctx, attachments[i].ID); err != nil {
 			attachments[i].OSSURL = ""
 			continue
 		}
 		if gate.IsScannableFamily(attachments[i].FileType) {
-			attachments[i].OSSURL = s.attachmentURLShortTTL(attachments[i].OSSKey, gate.ScannablePreviewTTLSec(scanTTLSec))
+			attachments[i].OSSURL = s.signAttachmentURL(attachments[i].OSSKey, gate.ScannablePreviewTTLSec(scanTTLSec))
 			continue
 		}
-		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey)
+		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey, attachments[i].FileType)
 	}
 }
 
-// attachmentURLShortTTL signs without the #428 bucket alignment: the
-// scan-aware preview budget must never stretch to ttl + bucket.
-func (s *DisplayURLSigner) attachmentURLShortTTL(ossKey string, ttlSec int) string {
+// signAttachmentURL signs an attachment object on the short-TTL channel
+// without the #428 bucket alignment: the minute-level preview budget must
+// never stretch to ttl + bucket, and quarantine keys are never signed here
+// either (#813).
+func (s *DisplayURLSigner) signAttachmentURL(ossKey string, ttlSec int) string {
 	if s == nil {
 		return ""
 	}
 	key := strings.TrimSpace(ossKey)
 	if key == "" || strings.TrimSpace(s.domain) == "" || s.client == nil {
+		return ""
+	}
+	if isQuarantineObjectKey(key) {
 		return ""
 	}
 	signed, err := s.client.GetSignedURL(key, http.MethodGet, time.Duration(ttlSec)*time.Second)

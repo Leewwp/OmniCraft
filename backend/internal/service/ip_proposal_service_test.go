@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -399,5 +400,149 @@ func TestListProposalsQueryFiltersAndTotal(t *testing.T) {
 	minVotes, threshold := svc.GovernanceDisplay()
 	if minVotes != 3 || threshold != 0.6 {
 		t.Fatalf("governance display = %d/%v, want 3/0.6", minVotes, threshold)
+	}
+}
+
+/* #813（run-1 审计 #2）：提案封面主体命名空间绑定——提案路径以提案者绑
+ * 定、采纳路径复验提案提供方（proposal.ProposerID）命名空间；他人命名空
+ * 间与隔离区对象在提交期与采纳期都被拒，本人命名空间不受影响。 */
+
+func setupProposalServiceWithOSSDomain(t *testing.T) (*IPProposalService, *gorm.DB) {
+	t.Helper()
+	svc, db := setupProposalService(t)
+	svc.cfg.OSS = config.OSSConfig{Domain: "https://cdn.example.test"}
+	return svc, db
+}
+
+func TestCreateProposalCoverNamespaceBinding(t *testing.T) {
+	svc, db := setupProposalServiceWithOSSDomain(t)
+	proposer, _, _, ip := seedProposalFixtures(t, db)
+	ctx := t.Context()
+
+	// 本人命名空间：通过封面闸，提案正常创建。
+	own := fmt.Sprintf("https://cdn.example.test/uploads/%d/image/cover.png", proposer.ID)
+	proposal, err := svc.CreateProposal(ctx, ip.ID, proposer.ID, CreateIPProposalInput{CoverURLChange: strPtr(own)})
+	if err != nil {
+		t.Fatalf("own-namespace cover must pass: %v", err)
+	}
+	if proposal.CoverURLChange == nil || *proposal.CoverURLChange != own {
+		t.Fatalf("cover change = %v, want stored own-namespace URL", proposal.CoverURLChange)
+	}
+
+	// 他人命名空间与隔离区对象：提交期即拒。
+	for name, cover := range map[string]string{
+		"other user's uploads namespace": "https://cdn.example.test/uploads/99999/image/cover.png",
+		"quarantine object":              "https://cdn.example.test/quarantine/archive-scan/9/2/job11",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := svc.CreateProposal(ctx, ip.ID, proposer.ID, CreateIPProposalInput{CoverURLChange: strPtr(cover)})
+			if err != ErrProposalCoverNotPlatform {
+				t.Fatalf("want ErrProposalCoverNotPlatform, got %v", err)
+			}
+		})
+	}
+}
+
+// seedOpenCoverProposal inserts an open proposal directly so adoption-time
+// re-validation can be exercised against a cover that bypassed the creation
+// gate (legacy rows predating the rule, #813 audit #2).
+func seedOpenCoverProposal(t *testing.T, db *gorm.DB, ip *model.IP, proposerID int64, coverURL string) int64 {
+	t.Helper()
+	proposal := model.IPProposal{
+		IPID: ip.ID, ProposerID: proposerID, Status: "open",
+		CoverURLChange: &coverURL, TagsAdd: "[]", TagsRemove: "[]",
+		DeadlineAt: time.Now().Add(24 * time.Hour),
+	}
+	if err := db.Create(&proposal).Error; err != nil {
+		t.Fatalf("seed open cover proposal: %v", err)
+	}
+	return proposal.ID
+}
+
+func TestAdoptionRevalidatesCoverNamespaceAgainstProposer(t *testing.T) {
+	svc, db := setupProposalServiceWithOSSDomain(t)
+	proposer, _, _, ip := seedProposalFixtures(t, db)
+	ctx := t.Context()
+
+	// 提案者≠IP 创建者的常态：由第三方（proposer）上传的封面经共治采纳。
+	// 采纳复验绑定 proposal.ProposerID（URL 的提供方与对象属主）。
+	outsiderCover := "https://cdn.example.test/uploads/99999/image/cover.png"
+	proposalID := seedOpenCoverProposal(t, db, ip, proposer.ID, outsiderCover)
+
+	voteYes := func(t *testing.T, voterID int64) error {
+		t.Helper()
+		return svc.SubmitVote(ctx, proposalID, voterID, "yes")
+	}
+
+	// 两个follower投yes（follower已seed关注+信誉）。
+	voters := make([]int64, 0, 2)
+	for i := 0; i < 2; i++ {
+		u := &model.User{Email: fmt.Sprintf("cover-voter-%d@example.com", i), Username: fmt.Sprintf("covervoter%d", i), PasswordHash: "x", Reputation: 10, Role: "user"}
+		if err := db.Create(u).Error; err != nil {
+			t.Fatalf("seed voter: %v", err)
+		}
+		if err := db.Create(&model.Follow{FollowerID: u.ID, TargetType: "ip", TargetID: ip.ID}).Error; err != nil {
+			t.Fatalf("seed follow: %v", err)
+		}
+		voters = append(voters, u.ID)
+	}
+	for _, voterID := range voters {
+		if err := voteYes(t, voterID); err != nil {
+			t.Fatalf("vote: %v", err)
+		}
+	}
+
+	// 第三票（提案者）触发采纳：跨命名空间封面 → 事务回滚，采纳失败。
+	if err := voteYes(t, proposer.ID); err != ErrProposalCoverNotPlatform {
+		t.Fatalf("deciding vote want ErrProposalCoverNotPlatform, got %v", err)
+	}
+	var rejected model.IPProposal
+	if err := db.First(&rejected, proposalID).Error; err != nil {
+		t.Fatalf("reload proposal: %v", err)
+	}
+	if rejected.Status != "open" {
+		t.Fatalf("status = %s, want open (adoption rolled back)", rejected.Status)
+	}
+	var untouched model.IP
+	if err := db.First(&untouched, ip.ID).Error; err != nil {
+		t.Fatalf("reload ip: %v", err)
+	}
+	if untouched.CoverURL == outsiderCover {
+		t.Fatalf("cross-namespace cover must not land on the IP profile")
+	}
+}
+
+func TestAdoptionAppliesOwnNamespaceCover(t *testing.T) {
+	svc, db := setupProposalServiceWithOSSDomain(t)
+	proposer, _, _, ip := seedProposalFixtures(t, db)
+	ctx := t.Context()
+
+	// 提案者本人命名空间的封面：三票通过后正常采纳并生效（回归保护：
+	// 主体绑定不得破坏合法共治封面流）。
+	ownCover := fmt.Sprintf("https://cdn.example.test/uploads/%d/image/cover.png", proposer.ID)
+	proposalID := seedOpenCoverProposal(t, db, ip, proposer.ID, ownCover)
+
+	for i := 0; i < 2; i++ {
+		u := &model.User{Email: fmt.Sprintf("own-cover-voter-%d@example.com", i), Username: fmt.Sprintf("owncovervoter%d", i), PasswordHash: "x", Reputation: 10, Role: "user"}
+		if err := db.Create(u).Error; err != nil {
+			t.Fatalf("seed voter: %v", err)
+		}
+		if err := db.Create(&model.Follow{FollowerID: u.ID, TargetType: "ip", TargetID: ip.ID}).Error; err != nil {
+			t.Fatalf("seed follow: %v", err)
+		}
+		if err := svc.SubmitVote(ctx, proposalID, u.ID, "yes"); err != nil {
+			t.Fatalf("vote: %v", err)
+		}
+	}
+	if err := svc.SubmitVote(ctx, proposalID, proposer.ID, "yes"); err != nil {
+		t.Fatalf("deciding vote must adopt an own-namespace cover proposal: %v", err)
+	}
+
+	var updated model.IP
+	if err := db.First(&updated, ip.ID).Error; err != nil {
+		t.Fatalf("reload ip: %v", err)
+	}
+	if updated.CoverURL != ownCover {
+		t.Fatalf("cover = %q, want the adopted own-namespace URL", updated.CoverURL)
 	}
 }

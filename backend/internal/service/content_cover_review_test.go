@@ -206,3 +206,69 @@ func TestPublishVideoCoverPassPublishesContent(t *testing.T) {
 	require.Equal(t, []string{"https://cdn.example.test/uploads/42/image/poster.png"}, green.imageCalls)
 	require.Len(t, green.videoCalls, 1)
 }
+
+// #813（run-1 审计 #2）：内容封面两条存库闸主体命名空间绑定——PATCH 契约
+// 与发布（PublishContent 客户端提交封面）都以内容作者 uid 绑定；作者命名
+// 空间之外的平台对象（他人 uploads / 隔离区）被拒。
+func TestUpdateContentCoverRequiresAuthorNamespace(t *testing.T) {
+	svc, _, _, cleanup := newContentCoverReviewService(t)
+	defer cleanup()
+	const authorID = int64(42)
+	contentID := seedT43Content(t, svc, authorID, "draft")
+
+	for name, cover := range map[string]string{
+		"other user's uploads namespace": "https://cdn.example.test/uploads/43/image/cover.png",
+		"quarantine object":              "https://cdn.example.test/quarantine/archive-scan/9/2/job11",
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := svc.UpdateContentWithContext(context.Background(), contentID, authorID,
+				map[string]interface{}{"cover_image_url": cover})
+			require.ErrorIs(t, err, ErrCoverNotPlatformOSSObject)
+		})
+	}
+
+	var content model.ContentItem
+	require.NoError(t, svc.contentRepo.DB().First(&content, contentID).Error)
+	require.Empty(t, content.CoverImageURL, "cross-namespace cover must not be persisted")
+}
+
+func TestPublishContentCoverRequiresAuthorNamespace(t *testing.T) {
+	svc, _, green, cleanup := newContentCoverReviewService(t)
+	defer cleanup()
+
+	_, err := svc.PublishContent(PublishContentInput{
+		Title:         "cross-namespace cover article",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "article",
+		IsPublic:      true,
+		AllowCopy:     true,
+		CoverImageURL: "https://cdn.example.test/uploads/43/image/cover.png",
+	}, 42)
+	require.ErrorIs(t, err, ErrCoverNotPlatformOSSObject)
+	require.Empty(t, green.imageCalls, "cross-namespace cover must never reach Green")
+
+	_, err = svc.PublishContent(PublishContentInput{
+		Title:         "quarantine cover article",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "article",
+		IsPublic:      true,
+		AllowCopy:     true,
+		CoverImageURL: "https://cdn.example.test/quarantine/archive-scan/9/2/job11",
+	}, 42)
+	require.ErrorIs(t, err, ErrCoverNotPlatformOSSObject)
+
+	// 本人命名空间封面照常发布（回归保护）。
+	content, err := svc.PublishContent(PublishContentInput{
+		Title:         "own-namespace cover article",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "article",
+		IsPublic:      true,
+		AllowCopy:     true,
+		CoverImageURL: "https://cdn.example.test/uploads/42/image/cover.png",
+	}, 42)
+	require.NoError(t, err, "own-namespace cover must keep publishing")
+	require.Equal(t, "https://cdn.example.test/uploads/42/image/cover.png", content.CoverImageURL)
+}

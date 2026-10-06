@@ -553,6 +553,7 @@ func TestSubmitForAIReviewContentCoverBlockBansContent(t *testing.T) {
 	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
 		TargetType:    "content",
 		TargetID:      contentID,
+		AuthorID:      42, // #813: 封面按作者命名空间绑定（uploads/42/...）
 		Title:         "cover fixture",
 		Description:   "cover block must reject publication",
 		CoverImageURL: "https://cdn.example.test/uploads/42/image/poster.png",
@@ -584,6 +585,7 @@ func TestSubmitForAIReviewIPCoverBlockBansIP(t *testing.T) {
 	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
 		TargetType:    "ip",
 		TargetID:      ipID,
+		AuthorID:      42, // #813: 封面按作者命名空间绑定（uploads/42/...）
 		Title:         "ip cover fixture",
 		Description:   "cover block must reject the ip",
 		CoverImageURL: "https://cdn.example.test/uploads/42/ip/cover.png",
@@ -881,4 +883,42 @@ func TestResolveScanURLFallsBackWithoutOSSConfig(t *testing.T) {
 	const url = "https://cdn.example.com/attachment.png"
 	require.Equal(t, url, svc.resolveScanURL(url))
 	require.Nil(t, svc.oss)
+}
+
+// #813（run-1 审计 #2）：AI 复审通道的封面输入同样主体命名空间绑定——
+// 作者命名空间之外的平台对象（他人 uploads 或隔离区）在进入 Green 之前被
+// 拒；本人命名空间不受影响。
+func TestSubmitForAIReviewCoverOutsideAuthorNamespaceRejected(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+	green := &fakeGreenScanner{}
+	svc.green = green
+
+	for name, cover := range map[string]string{
+		"other user's uploads namespace": fmt.Sprintf("https://cdn.example.test/uploads/%d/image/cover.png", userID+1),
+		"quarantine object":              "https://cdn.example.test/quarantine/archive-scan/9/2/job11",
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := svc.SubmitForAIReview(ctx, SubmitReviewInput{
+				TargetType:    "content",
+				TargetID:      contentID,
+				AuthorID:      userID,
+				CoverImageURL: cover,
+			})
+			require.ErrorIs(t, err, ErrCoverNotPlatformOSSObject)
+			require.Empty(t, green.imageCalls, "cross-namespace cover must never reach Green")
+		})
+	}
+
+	// 本人命名空间通过闸并进入图片扫描。
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:    "content",
+		TargetID:      contentID,
+		AuthorID:      userID,
+		CoverImageURL: fmt.Sprintf("https://cdn.example.test/uploads/%d/image/cover.png", userID),
+	}))
+	require.NotEmpty(t, green.imageCalls, "own-namespace cover must reach the image scanner")
 }

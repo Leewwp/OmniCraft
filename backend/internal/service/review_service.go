@@ -215,9 +215,10 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 	// Cover images enter the image review as a first-class input. The cover
 	// must be a platform-verified OSS object: arbitrary URLs are never handed
 	// to Green, and a non-platform cover fails the submission explicitly
-	// (decision 6).
+	// (decision 6). #813 审计 #2：客户端提交的封面按作者主体命名空间绑定
+	// （他人 uploads / 隔离区对象同样失败，不再进入 Green）。
 	if in.CoverImageURL != "" {
-		coverURL, coverErr := s.resolveCoverScanURL(in.CoverImageURL)
+		coverURL, coverErr := s.resolveCoverScanURLForPrincipal(in.CoverImageURL, in.AuthorID)
 		if coverErr != nil {
 			return coverErr
 		}
@@ -741,8 +742,8 @@ const greenScanURLTTL = 15 * time.Minute
 // objects live in the private bucket: an unsigned platform URL gets OSS 403
 // when Aliyun fetches it, so platform object URLs are re-signed as read URLs.
 // External (non-platform) URLs are passed through unchanged — they are already
-// publicly reachable, and resolveCoverScanURL gates cover inputs to platform
-// objects before this layer.
+// publicly reachable, and resolveCoverScanURLForPrincipal gates cover inputs
+// to the author's own platform objects before this layer.
 func (s *ReviewService) resolveScanURL(rawURL string) string {
 	rawURL = strings.TrimSpace(rawURL)
 	if s.oss == nil || s.cfg == nil || rawURL == "" {
@@ -759,14 +760,15 @@ func (s *ReviewService) resolveScanURL(rawURL string) string {
 	return signed
 }
 
-// resolveCoverScanURL verifies a cover URL is a platform OSS object before it
-// is handed to Green. The cover is a client-visible URL (server-derived for
-// media content, client-supplied for IPs and legacy text content), so it must
-// match the configured delivery domain exactly; anything else fails closed
-// with ErrCoverNotPlatformOSSObject instead of scanning an arbitrary URL.
-func (s *ReviewService) resolveCoverScanURL(coverURL string) (string, error) {
+// resolveCoverScanURLForPrincipal is the #813 (audit #2) authorization-grade
+// cover gate for client-submitted cover URLs: the platform domain alone is
+// not authorization — the object key must also live under the author's own
+// uploads namespace and must never be a quarantine object, so no cover input
+// can make the platform persist (and later re-sign for every viewer) an
+// object the author does not own.
+func (s *ReviewService) resolveCoverScanURLForPrincipal(coverURL string, userID int64) (string, error) {
 	coverURL = strings.TrimSpace(coverURL)
-	if s.cfg == nil || !aliyun.IsPlatformObjectURL(s.cfg.OSS.Domain, coverURL) {
+	if s.cfg == nil || !aliyun.IsPlatformObjectURLForPrincipal(s.cfg.OSS.Domain, coverURL, userID) {
 		return "", ErrCoverNotPlatformOSSObject
 	}
 	return coverURL, nil

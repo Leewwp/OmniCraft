@@ -200,7 +200,10 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	if req.AvatarURL != nil {
 		avatarURL := strings.TrimSpace(*req.AvatarURL)
 		if avatarURL != "" {
-			if h.cfg == nil || !aliyun.IsPlatformObjectURL(h.cfg.OSS.Domain, avatarURL) {
+			// #813 审计 #2：avatar 闸主体命名空间绑定——平台域内他人
+			// uploads 命名空间与隔离区对象同样被拒（UpdateUser 已保证
+			// callerID == id，头像主体即路径用户）。
+			if h.cfg == nil || !aliyun.IsPlatformObjectURLForPrincipal(h.cfg.OSS.Domain, avatarURL, id) {
 				response.Error(c, http.StatusBadRequest, "AVATAR_NOT_PLATFORM_OSS_OBJECT", "avatar must be a platform OSS object URL")
 				return
 			}
