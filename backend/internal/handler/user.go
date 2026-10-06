@@ -650,18 +650,24 @@ func (h *UserHandler) reviewAvatarImage(c *gin.Context, avatarURL string) error 
 }
 
 // sanitizeUser projects a user for the SELF view (profile update response):
-// email and preferred_locale are included because the caller is the user.
+// email, preferred_locale and email_verified_at are included because the
+// caller is the user (audit #17: the model no longer serializes the two
+// self-tier fields, so the self projection re-attaches them explicitly).
 // The avatar is a private-OSS display URL, so it crosses the boundary signed
 // (B-002); the caller's model value is left untouched.
 func (h *UserHandler) sanitizeUser(u *model.User) gin.H {
 	resp := h.publicUser(u)
 	resp["email"] = u.Email
 	resp["preferred_locale"] = u.PreferredLocale
+	if u.EmailVerifiedAt != nil {
+		resp["email_verified_at"] = *u.EmailVerifiedAt
+	}
 	return resp
 }
 
 // publicUser projects a user for anonymous/other viewers: no email, no
-// preferred_locale (FIX-19a — registration email must never leak to others).
+// preferred_locale, no email_verified_at (FIX-19a / audit #17 — self-tier
+// data must never leak to others, on any projection surface).
 func (h *UserHandler) publicUser(u *model.User) gin.H {
 	avatarURL := u.AvatarURL
 	if h.displaySigner != nil {
@@ -681,7 +687,7 @@ func (h *UserHandler) publicUser(u *model.User) gin.H {
 }
 
 // isSelfOrAdmin reports whether the caller may see the self-tier projection
-// (email, preferred_locale) of the target user.
+// (email, preferred_locale, email_verified_at) of the target user.
 func isSelfOrAdmin(c *gin.Context, targetID int64) bool {
 	if middleware.GetUserID(c) == targetID {
 		return true
