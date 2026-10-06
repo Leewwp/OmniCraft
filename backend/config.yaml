@@ -604,6 +604,9 @@ agent:
   # SP-23 M3（#568）：MCP client 桥 —— 按 server 注册外部 MCP 工具（stdio 子进
   # 程，惰起），工具名加 mcp_<server>_<tool> 前缀防与本地工具冲突。默认关；
   # 灰度时按 server 单开。结果回填有截断上限；调用超时见 call_timeout_sec。
+  # #816：身份感知 server（声明 identity_env）按调用主体逐 viewer 起子进程
+  # 并注入该 env 键 = viewer id —— env 里静态配置身份键（如 OMNICRAFT_
+  # DOC_USER_ID，大小写不敏感）会被启动校验直接拒绝。
   mcp:
     enabled: false
     call_timeout_sec: 10
@@ -612,12 +615,17 @@ agent:
     # 工作区（草稿）而非 RAG 分片，无引用是常态；超过此 rune 数仍按
     # no_evidence 清空（防借外部工具之名长篇跑题）。0 = 关闭该通道。
     external_answer_max_runes: 4000
+    # 每个身份感知 server 存活的 per-viewer 子进程会话上限（超出按最旧淘
+    # 汰）；声明了任何 identity_env 的 server 时必须为正。
+    identity_session_max: 16
     servers: []
     #  - id: "doc"                        # 工具将暴露为 mcp_doc_draft_read 等
     #    command: "/opt/omnicraft/bin/mcp-docserver"
     #    args: []
+    #    identity_env: "OMNICRAFT_DOC_USER_ID"  # #816 身份感知声明：身份按
+    #                                           # 调用主体逐 viewer 注入该键
     #    env:                              # 键不区分大小写（viper 小写化后桥侧
-    #      OMNICRAFT_DOC_USER_ID: "1"     # 统一回大写注入）；身份经启动 env 注入（SP-16 模式）
+    #      OTHER_KEY: "x"                  # 统一回大写注入）；身份键静态配置会被拒绝
   # SP-23 M1（#566）：generate_image 工具 —— 智谱 CogView-4 OpenAI 兼容 images
   # 端点（≈0.06 元/张），产出图先落平台自有 OSS 再回链（外部图床 URL 绝不
   # 透出）。密钥只走 env：AGENT_IMAGE_API_KEY（缺失或 enabled=false 时工具

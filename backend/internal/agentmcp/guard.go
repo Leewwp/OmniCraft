@@ -21,16 +21,18 @@ func NewGuardedBridge(inner *Bridge, br *breaker.Breaker) *GuardedBridge {
 	return &GuardedBridge{Inner: inner, Breaker: br}
 }
 
-func (g *GuardedBridge) ToolDefinitions(ctx context.Context) []llm.ToolDefinition {
-	return g.Inner.ToolDefinitions(ctx)
+func (g *GuardedBridge) ToolDefinitions(ctx context.Context, viewerID int64) []llm.ToolDefinition {
+	return g.Inner.ToolDefinitions(ctx, viewerID)
 }
 
-func (g *GuardedBridge) CallTool(ctx context.Context, name string, rawArgs json.RawMessage) (string, bool, error) {
+// CallTool executes one bridged tool on behalf of viewerID (#816); the
+// breaker wraps the call, the inner bridge binds the identity.
+func (g *GuardedBridge) CallTool(ctx context.Context, viewerID int64, name string, rawArgs json.RawMessage) (string, bool, error) {
 	var resultJSON string
 	var truncated bool
 	err := g.Breaker.Do(func() error {
 		var err error
-		resultJSON, truncated, err = g.Inner.CallTool(ctx, name, rawArgs)
+		resultJSON, truncated, err = g.Inner.CallTool(ctx, viewerID, name, rawArgs)
 		return err
 	})
 	return resultJSON, truncated, err
