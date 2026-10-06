@@ -135,9 +135,12 @@ func (s *IPProposalService) CreateProposal(ctx context.Context, ipID, proposerID
 		return nil, ErrProposalNotEligible
 	}
 
-	ip, err := s.ipRepo.FindByID(ipID)
-	if err != nil || ip == nil {
-		return nil, ErrProposalNotFound
+	// run-1 审计 #6：写路径补 #446 可见性闸（读路径 GetProposal/
+	// ListProposals/ListVersions 已有）——不可见 IP 上不得发起提案，
+	// 不可见时按 IP 不存在回应（不确认存在性）。
+	ip, err := s.visibleIPForViewer(ctx, ipID, proposerID)
+	if err != nil {
+		return nil, err
 	}
 
 	if input.DescriptionChange != nil && *input.DescriptionChange == "" {
@@ -481,6 +484,20 @@ func (s *IPProposalService) SubmitVote(ctx context.Context, proposalID, voterID 
 	}
 	if user.IsBanned || user.Reputation < s.minReputation() {
 		return ErrProposalNotEligible
+	}
+
+	// run-1 审计 #6：写路径补 #446 可见性闸——隐藏 IP 上的开放提案不可投票
+	//（否则可一路投票到 adoptTx 改写隐藏 IP 的 profile）。事务外预检，避免
+	// 单连接测试环境下 repo 与 tx 自锁。
+	proposal, err := s.proposalRepo.FindByID(proposalID)
+	if err != nil {
+		return err
+	}
+	if proposal == nil {
+		return ErrProposalNotFound
+	}
+	if _, err := s.visibleIPForViewer(ctx, proposal.IPID, voterID); err != nil {
+		return err
 	}
 
 	db := s.proposalRepo.DB()

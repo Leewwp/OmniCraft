@@ -27,7 +27,8 @@ func TestFollowIPDoesNotEmitGhostNotification(t *testing.T) {
 	follower := &model.User{Email: "f@t.local", Username: "follower", PasswordHash: "x", Reputation: 10}
 	require.NoError(t, db.Create(follower).Error)
 	// SP-25 低-24：FollowIP 现校验目标存在性，测试须种真实 IP。
-	require.NoError(t, db.Create(&model.IP{Name: "ghost-ip", Slug: "ghost-ip", Status: "published"}).Error)
+	// run-1 审计 #6 后 FollowIP 走 approved-或-creator 闸，种子须为 approved。
+	require.NoError(t, db.Create(&model.IP{Name: "ghost-ip", Slug: "ghost-ip", Status: "approved"}).Error)
 
 	notifSvc := service.NewNotificationService(repository.NewNotificationRepository(db))
 	h := NewFollowHandler(repository.NewFollowRepository(db))

@@ -36,7 +36,10 @@ func TestRouterSourcePreservesRepresentativeRouteContracts(t *testing.T) {
 	contracts := []string{
 		`v1.GET("/config/public", publicConfigHandler.GetPublicConfig)`,
 		`contents.POST("", authReq, middleware.RequireScopeForPAT("upload"), publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)`,
-		`admin := v1.Group("/admin", authReq, middleware.AdminRequired())`,
+		// run-1 审计 #12：admin 面（组 + 组外 pin）仅限 web JWT 通道——泄露的
+		// admin PAT 不得成为全权机器通道。
+		`admin := v1.Group("/admin", authReq, middleware.RequireJWTChannel(), middleware.AdminRequired())`,
+		`discussions.PATCH("/:id/pin", authReq, middleware.RequireJWTChannel(), middleware.AdminRequired(), discHandler.PinDiscussion)`,
 		`v1.POST("/deploy-grants", func(c *gin.Context)`,
 		`c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "desktop deploy is not enabled"})`,
 		`v1.Any("/payments/*path", func(c *gin.Context)`,
@@ -92,12 +95,13 @@ func TestLegacyFavoritesRoutesAreNotRegistered(t *testing.T) {
 
 	collectionContracts := []string{
 		`collectionGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())`,
-		`v1.POST("/collections", authReq, collectionGuard, collectionHandler.CreateCollection)`,
-		`v1.PUT("/collections/:id", authReq, collectionGuard, collectionHandler.UpdateCollection)`,
-		`v1.DELETE("/collections/:id", authReq, collectionGuard, collectionHandler.DeleteCollection)`,
-		`v1.POST("/collections/:id/items", authReq, collectionGuard, collectionHandler.AddItem)`,
-		`v1.DELETE("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.RemoveItem)`,
-		`v1.PUT("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.UpdateItem)`,
+		// run-1 审计 #11：collections 变更族挂 PAT upload scope 闸（JWT 不受影响）。
+		`v1.POST("/collections", authReq, middleware.RequireScopeForPAT("upload"), collectionGuard, collectionHandler.CreateCollection)`,
+		`v1.PUT("/collections/:id", authReq, middleware.RequireScopeForPAT("upload"), collectionGuard, collectionHandler.UpdateCollection)`,
+		`v1.DELETE("/collections/:id", authReq, middleware.RequireScopeForPAT("upload"), collectionGuard, collectionHandler.DeleteCollection)`,
+		`v1.POST("/collections/:id/items", authReq, middleware.RequireScopeForPAT("upload"), collectionGuard, collectionHandler.AddItem)`,
+		`v1.DELETE("/collections/:id/items/:itemId", authReq, middleware.RequireScopeForPAT("upload"), collectionGuard, collectionHandler.RemoveItem)`,
+		`v1.PUT("/collections/:id/items/:itemId", authReq, middleware.RequireScopeForPAT("upload"), collectionGuard, collectionHandler.UpdateItem)`,
 	}
 	for _, contract := range collectionContracts {
 		if !strings.Contains(source, contract) {
@@ -110,12 +114,14 @@ func TestSeriesMutationRoutesUseAuthAndStandardInteractionGuard(t *testing.T) {
 	source := readRoutesSource(t)
 	contracts := []string{
 		`seriesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())`,
-		`v1.POST("/series", authReq, seriesGuard, seriesHandler.CreateSeries)`,
-		`v1.PUT("/series/:id", authReq, seriesGuard, seriesHandler.UpdateSeries)`,
-		`v1.DELETE("/series/:id", authReq, seriesGuard, seriesHandler.DeleteSeries)`,
-		`v1.POST("/series/:id/items", authReq, seriesGuard, seriesHandler.AddItem)`,
-		`v1.DELETE("/series/:id/items/:itemId", authReq, seriesGuard, seriesHandler.RemoveItem)`,
-		`v1.PUT("/series/:id/items/reorder", authReq, seriesGuard, seriesHandler.ReorderItems)`,
+		// run-1 审计 #11：六条 series 变更路由挂 PAT upload scope 闸
+		//（series 变更=内容组织写；download-only PAT 此前可硬删系列）。
+		`v1.POST("/series", authReq, middleware.RequireScopeForPAT("upload"), seriesGuard, seriesHandler.CreateSeries)`,
+		`v1.PUT("/series/:id", authReq, middleware.RequireScopeForPAT("upload"), seriesGuard, seriesHandler.UpdateSeries)`,
+		`v1.DELETE("/series/:id", authReq, middleware.RequireScopeForPAT("upload"), seriesGuard, seriesHandler.DeleteSeries)`,
+		`v1.POST("/series/:id/items", authReq, middleware.RequireScopeForPAT("upload"), seriesGuard, seriesHandler.AddItem)`,
+		`v1.DELETE("/series/:id/items/:itemId", authReq, middleware.RequireScopeForPAT("upload"), seriesGuard, seriesHandler.RemoveItem)`,
+		`v1.PUT("/series/:id/items/reorder", authReq, middleware.RequireScopeForPAT("upload"), seriesGuard, seriesHandler.ReorderItems)`,
 		`v1.GET("/series", authReq, seriesHandler.ListSeries)`,
 		`v1.GET("/series/candidates", authReq, seriesHandler.ListCandidates)`,
 		`v1.GET("/series/:id", optAuth, seriesHandler.GetSeries)`,

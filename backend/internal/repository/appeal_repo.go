@@ -74,3 +74,14 @@ func (r *AppealRepository) HasPendingAppeal(userID int64, targetType string, tar
 		Count(&count).Error
 	return count > 0, err
 }
+
+// HasPendingAppealForTarget 执行单一 pending 不变量的目标维度检查
+//（run-1 审计 #13）：同一目标同时最多一个 pending 申诉，不论提交者——
+// 此前按 user_id 查重使不变量退化为按调用者。
+func (r *AppealRepository) HasPendingAppealForTarget(targetType string, targetID int64) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.Appeal{}).
+		Where("target_type = ? AND target_id = ? AND status = 'pending'", targetType, targetID).
+		Count(&count).Error
+	return count > 0, err
+}

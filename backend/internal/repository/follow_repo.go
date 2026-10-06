@@ -19,7 +19,11 @@ func NewFollowRepository(db *gorm.DB) *FollowRepository {
 // FollowTargetStatus reports whether a follow target exists and (for users)
 // is not banned (SP-25 低-24): follows against nonexistent or banned targets
 // must be rejected before the FirstOrCreate lands a dangling row.
-func (r *FollowRepository) FollowTargetStatus(targetType string, targetID int64) (exists bool, banned bool, err error) {
+// IP targets additionally follow the #446 visibility rule (run-1 audit #6):
+// a non-approved IP exists only for its creator — hidden hubs neither confirm
+// existence nor admit follow rows that would later satisfy the proposal
+// voting-eligibility precondition.
+func (r *FollowRepository) FollowTargetStatus(targetType string, targetID, viewerID int64) (exists bool, banned bool, err error) {
 	switch targetType {
 	case "user":
 		var user model.User
@@ -32,7 +36,9 @@ func (r *FollowRepository) FollowTargetStatus(targetType string, targetID int64)
 		return true, user.IsBanned, nil
 	case "ip":
 		var count int64
-		if err = r.db.Model(&model.IP{}).Where("id = ?", targetID).Count(&count).Error; err != nil {
+		if err = r.db.Model(&model.IP{}).
+			Where("id = ? AND (status = ? OR creator_id = ?)", targetID, "approved", viewerID).
+			Count(&count).Error; err != nil {
 			return false, false, err
 		}
 		return count > 0, false, nil

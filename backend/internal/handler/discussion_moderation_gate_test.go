@@ -46,7 +46,7 @@ func newDiscussionModerationTestDB(t *testing.T) *gorm.DB {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}, &model.IP{}))
 	// comments/discussions 携带 DEFAULT NOW() DDL，sqlite 不认，手写兼容表。
 	require.NoError(t, db.Exec(`
 		CREATE TABLE comments (
@@ -102,6 +102,14 @@ func setupDiscussionModerationCase(t *testing.T, reviewer service.TextReviewer) 
 	require.NoError(t, db.Create(&low).Error)
 	norm := model.User{Email: "norm@d.local", Username: "normal", Reputation: 10}
 	require.NoError(t, db.Create(&norm).Error)
+	// run-1 审计 #4：PostDiscussion 现在校验挂载 IP 须存在且 approved——
+	// 测试路由用的 /ips/42 需要一颗真实 approved IP。
+	creator := model.User{Email: "ipcreator@d.local", Username: "ipcreator", Reputation: 10}
+	require.NoError(t, db.Create(&creator).Error)
+	require.NoError(t, db.Create(&model.IP{
+		ID: 42, Name: "讨论测试 IP", Slug: "discussion-test-ip", Category: "game",
+		CreatorID: &creator.ID, Status: "approved",
+	}).Error)
 
 	cfg := &config.Config{Server: config.ServerConfig{Mode: "debug"}}
 	socialSvc := service.NewSocialServiceWithRedis(

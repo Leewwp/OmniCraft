@@ -151,6 +151,19 @@ func (h *JudgeHandler) SubmitVote(c *gin.Context) {
 			response.SafeErrorResponse(c, http.StatusConflict, "ALREADY_VOTED", err)
 			return
 		}
+		// run-1 审计 #7/#14：资格闸与结案不可变的专用语义码。
+		if err == service.ErrJudgeQualificationRequired {
+			response.Error(c, http.StatusForbidden, "JUDGE_QUALIFICATION_REQUIRED", "judge qualification required")
+			return
+		}
+		if err == service.ErrCaseClosed {
+			response.Error(c, http.StatusConflict, "CASE_CLOSED", "judge case is closed")
+			return
+		}
+		if err == service.ErrCaseNotFound {
+			response.Error(c, http.StatusNotFound, "NOT_FOUND", "case not found")
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}

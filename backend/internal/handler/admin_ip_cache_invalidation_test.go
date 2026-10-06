@@ -32,7 +32,7 @@ func setupAdminIPCacheRouter(t *testing.T) (*gin.Engine, *gorm.DB, *miniredis.Mi
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.IPTag{}, &model.AdminAuditLog{}, &model.IPReviewLog{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.IPTag{}, &model.AdminAuditLog{}, &model.IPReviewLog{}, &model.IPProposal{}))
 
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})

@@ -44,7 +44,7 @@ func (h *FollowHandler) FollowUser(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "SELF_FOLLOW_NOT_ALLOWED", "cannot follow yourself")
 		return
 	}
-	exists, banned, err := h.followRepo.FollowTargetStatus("user", targetID)
+	exists, banned, err := h.followRepo.FollowTargetStatus("user", targetID, callerID)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -86,8 +86,9 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 	if !ok {
 		return
 	}
-	// SP-25 低-24：IP 目标存在性校验（防悬挂关注关系）。
-	ipExists, _, err := h.followRepo.FollowTargetStatus("ip", ipID)
+	// SP-25 低-24：IP 目标存在性校验（防悬挂关注关系）；run-1 审计 #6：
+	// 目标校验对齐 #446 可见性——非 approved IP 仅创建者可关注（不确认存在）。
+	ipExists, _, err := h.followRepo.FollowTargetStatus("ip", ipID, callerID)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return

@@ -212,6 +212,11 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
 			return
 		}
+		// run-1 审计 #4：挂非公开父/未知目标 → 404（不确认目标存在性）。
+		if err == service.ErrDiscussionTargetInvalid {
+			response.Error(c, http.StatusNotFound, "DISCUSSION_TARGET_INVALID", "discussion target not found or not visible")
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
@@ -232,6 +237,11 @@ func (h *SocialHandler) GetDiscussion(c *gin.Context) {
 	// #446/SP-16 P0：与 /discussions/:id 同口径（T12/F-106）——未发布
 	// （under_review/hidden）讨论不透出详情，此前 social 路径漏了这层门。
 	if d.Status != "published" {
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
+		return
+	}
+	// run-1 审计 #4：social 详情路径补父可见性闸（与 /discussions/:id 同款）。
+	if !discussionParentsVisible(c, h.db, d) {
 		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
 		return
 	}

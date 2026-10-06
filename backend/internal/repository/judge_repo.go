@@ -1,12 +1,18 @@
 package repository
 
 import (
+	"errors"
 	"time"
 
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
 )
+
+// ErrCaseAlreadyClosed marks a CloseCase guarded-claim loss (run-1 audit
+// #14): the case row was already closed, so this close is a no-op and the
+// recorded verdict stands.
+var ErrCaseAlreadyClosed = errors.New("judge case already closed")
 
 type JudgeRepository struct {
 	db *gorm.DB
@@ -105,13 +111,24 @@ func (r *JudgeRepository) GetVoteStats(caseID int64) (approve, reject int64, err
 	return approve, reject, nil
 }
 
+// CloseCase flips a case to a terminal verdict as a guarded claim
+// (run-1 audit #14): only an open row can be closed, so concurrent closes
+// produce exactly one winner and later closes can never rewrite the recorded
+// verdict. Losing the claim returns ErrCaseAlreadyClosed (idempotent no-op).
 func (r *JudgeRepository) CloseCase(id int64, status string, approve, reject int) error {
-	return r.db.Model(&model.JudgeCase{}).Where("id = ?", id).Updates(map[string]interface{}{
+	res := r.db.Model(&model.JudgeCase{}).Where("id = ? AND status = ?", id, "open").Updates(map[string]interface{}{
 		"status":       status,
 		"vote_approve": approve,
 		"vote_reject":  reject,
 		"closed_at":    gorm.Expr("NOW()"),
-	}).Error
+	})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrCaseAlreadyClosed
+	}
+	return nil
 }
 
 func (r *JudgeRepository) ListVotesForCase(caseID int64) ([]model.JudgeVote, error) {

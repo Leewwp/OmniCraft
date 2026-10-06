@@ -24,6 +24,9 @@ var (
 	ErrAlreadyReported       = errors.New("already reported this target")
 	ErrTextBlocked           = errors.New("text rejected by content moderation")
 	ErrModerationUnavailable = errors.New("content moderation unavailable")
+	// run-1 审计 #4：讨论挂载目标不存在或对作者不可见（非公开内容/未过审
+	// IP）——按 404 语义回应，不确认目标存在性。
+	ErrDiscussionTargetInvalid = errors.New("discussion target not found or not visible")
 )
 
 const defaultMinScoreForInteraction = 3
@@ -191,6 +194,11 @@ func (s *SocialService) PostDiscussion(ctx context.Context, input PostDiscussion
 	if err := s.ensureCanInteract(authorID); err != nil {
 		return nil, err
 	}
+	// run-1 审计 #4 写侧闸：挂载目标先于文本审核校验——内容项须对作者
+	// 可见（ContentVisibleToViewer），IP 须 approved 或由作者创建。
+	if err := s.validateDiscussionTarget(input, authorID); err != nil {
+		return nil, err
+	}
 	if err := s.moderateText(ctx, "discussion", strings.TrimSpace(input.Title)+"\n"+input.Body); err != nil {
 		return nil, err
 	}
@@ -207,6 +215,34 @@ func (s *SocialService) PostDiscussion(ctx context.Context, input PostDiscussion
 		return nil, err
 	}
 	return d, nil
+}
+
+// validateDiscussionTarget enforces the write-side parent gate (run-1 audit
+// #4): a discussion may only attach to a content item visible to the author
+// (same scope as the read paths) and to an IP that is approved or created by
+// the author. Unknown or invisible targets fail with
+// ErrDiscussionTargetInvalid instead of landing a published discussion on a
+// hidden parent.
+func (s *SocialService) validateDiscussionTarget(input PostDiscussionInput, authorID int64) error {
+	if input.ContentItemID != nil {
+		content, err := s.contentRepo.FindByID(*input.ContentItemID)
+		if err != nil || content == nil {
+			return ErrDiscussionTargetInvalid
+		}
+		if !repository.ContentVisibleToViewer(s.socialRepo.DB(), content, authorID) {
+			return ErrDiscussionTargetInvalid
+		}
+	}
+	if input.IPID != nil {
+		var ip model.IP
+		if err := s.socialRepo.DB().First(&ip, *input.IPID).Error; err != nil {
+			return ErrDiscussionTargetInvalid
+		}
+		if ip.Status != "approved" && (ip.CreatorID == nil || *ip.CreatorID != authorID) {
+			return ErrDiscussionTargetInvalid
+		}
+	}
+	return nil
 }
 
 func (s *SocialService) GetDiscussion(id int64) (*model.Discussion, error) {

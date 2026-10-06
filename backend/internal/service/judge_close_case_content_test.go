@@ -31,7 +31,7 @@ func setupT41JudgeCloseTest(t *testing.T) (*JudgeService, *gorm.DB, *t11CaptureP
 	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, db.AutoMigrate(
 		&model.User{}, &model.ContentItem{}, &model.JudgeCase{}, &model.JudgeVote{},
-		&model.ReputationLog{}, &model.OutboxEvent{},
+		&model.JudgeQualification{}, &model.ReputationLog{}, &model.OutboxEvent{},
 	))
 
 	mr := miniredis.RunT(t)
@@ -57,6 +57,13 @@ func seedT41Users(t *testing.T, db *gorm.DB) (author, judge1, judge2 int64) {
 	author = seedReviewUser(t, db)
 	judge1 = seedReviewUser(t, db)
 	judge2 = seedReviewUser(t, db)
+	// run-1 审计 #7 起 SubmitVote 走 CheckQualification 资格闸——判官须持
+	// article 类型资格行（与线上考试通过后的在册资格一致）。
+	for _, j := range []int64{judge1, judge2} {
+		require.NoError(t, db.Create(&model.JudgeQualification{
+			UserID: j, ContentType: "article", IsActive: true,
+		}).Error)
+	}
 	return
 }
 
@@ -148,7 +155,9 @@ func TestJudgeCloseRejectBansContentWithoutReputationPenalty(t *testing.T) {
 	require.Contains(t, notifies[0]["body"], "judge", "通知 body 应带闭案 reason（T11 契约）")
 
 	var reputationLogs int64
-	require.NoError(t, db.Model(&model.ReputationLog{}).Count(&reputationLogs).Error)
+	// run-1 审计 #7 后判官持在册资格 → 闭案会发 judge_accuracy 奖励；本断言
+	// 的意图是「内容作者不被扣分」，按作者维度计数。
+	require.NoError(t, db.Model(&model.ReputationLog{}).Where("user_id = ?", author).Count(&reputationLogs).Error)
 	require.Equal(t, int64(0), reputationLogs, "判官闭案 reject 不扣信誉分（扣分语义属 AI/admin 通道）")
 }
 
