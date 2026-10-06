@@ -4,7 +4,10 @@ package main
 // stdio server exposing draft_read / draft_suggest / draft_apply_edit over
 // the agent workspace draft store. It is launched as a subprocess by the MCP
 // client bridge (SP-23 M3) or directly by an MCP inspector; identity is
-// bound at launch time via environment, never per call:
+// bound at launch time via environment, never per call. Through the bridge
+// (#816) the env identity is the CALLING viewer's id: the bridge declares
+// the server identity-aware (identity_env) and spawns one subprocess per
+// viewer, so a session never serves two users:
 //
 //	OMNICRAFT_DOC_USER_ID   required — the user whose drafts are editable
 //	DB_DSN / .env           PostgreSQL wiring via the shared config loader

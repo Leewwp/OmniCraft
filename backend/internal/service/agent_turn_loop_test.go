@@ -53,7 +53,7 @@ type fakeLoopRuntime struct {
 	responder func(name string, raw json.RawMessage) (*AgentToolOutcome, error)
 }
 
-func (f *fakeLoopRuntime) ToolDefinitions(context.Context) []llm.ToolDefinition { return nil }
+func (f *fakeLoopRuntime) ToolDefinitions(context.Context, int64) []llm.ToolDefinition { return nil }
 
 func (f *fakeLoopRuntime) ExecuteTool(_ context.Context, name string, raw json.RawMessage, scope ToolScope) (*AgentToolOutcome, error) {
 	f.calls = append(f.calls, scope)
