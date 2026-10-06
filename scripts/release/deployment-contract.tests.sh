@@ -58,6 +58,7 @@ SMTP_PASSWORD=smtp-strong-secret
 NEXT_PUBLIC_API_URL=https://api.omnicraft.test
 INTERNAL_API_URL=https://api.omnicraft.test
 NEXT_PUBLIC_SITE_URL=https://app.omnicraft.test
+PGBOUNCER_IMAGE=edoburu/pgbouncer@sha256:4c1ca296ef525f108f5d3552cc337c0c09587cf8dae7f0067fd93349e47dc1cd
 """)
 
 with open(out + "/override.yaml", "w") as f:
@@ -98,6 +99,8 @@ rate_limit:
   enabled: true
   normal_per_minute: 100
   upload_per_hour: 200
+agent:
+  web_agent_enabled: false
 """)
 
 def manifest(version, commit, digest, previous, head):
@@ -218,6 +221,22 @@ m["images"]["backend"]["ref"] = "registry.example/omnicraft-backend:latest"
 json.dump(m, open(sys.argv[1], "w"), indent=2)
 PY
 expect_deploy 1 "floating backend image rejected" "$F" -Drill
+
+# ------------------------------------- mutable pgbouncer tag rejected
+# PGBOUNCER_IMAGE is the only data-plane image reference that Compose
+# interpolates from the env file; preflight must reject a mutable tag before
+# deploy reaches `docker compose up`.
+F="$TEMP_ROOT/mutable-pgbouncer"
+make_fixture "$F"
+python3 - "$F/env" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read().replace(
+    "PGBOUNCER_IMAGE=edoburu/pgbouncer@sha256:4c1ca296ef525f108f5d3552cc337c0c09587cf8dae7f0067fd93349e47dc1cd",
+    "PGBOUNCER_IMAGE=edoburu/pgbouncer:latest")
+open(p, "w").write(s)
+PY
+expect_deploy 1 "mutable pgbouncer tag rejected" "$F" -Drill
 
 # ------------------------------------------------- malformed digest shape
 F="$TEMP_ROOT/bad-digest"

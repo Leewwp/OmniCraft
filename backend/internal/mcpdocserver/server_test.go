@@ -3,6 +3,7 @@ package mcpdocserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -170,7 +171,8 @@ func TestDraftApplyEditConfirmGate(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "stale") {
 		t.Fatalf("bogus token err = %v", err)
 	}
-	// 3) valid token from draft_read → applied
+	// 3) valid token from draft_read → stage 1 preview, then the batch
+	//    token it issues carries user_confirmed=true into the write
 	read, err := callTool(t, client, "draft_read", map[string]any{"draft_id": 7})
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +192,7 @@ func TestDraftApplyEditConfirmGate(t *testing.T) {
 	}
 
 	out, err := callTool(t, client, "draft_apply_edit", map[string]any{
-		"draft_id": 7, "confirm_token": read["confirm_token"], "user_confirmed": true, "edits": edits,
+		"draft_id": 7, "confirm_token": stage1["confirm_token"], "user_confirmed": true, "edits": edits,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -234,9 +236,24 @@ func TestDraftApplyEditAtomicBatch(t *testing.T) {
 		t.Fatal("a rejected batch must not partially apply")
 	}
 
-	// tags and title ops in one batch
+	// tags and title ops in one batch: stage 1 issues the batch token, then
+	// the confirmed call applies all three ops atomically
+	stage1, err := callTool(t, client, "draft_apply_edit", map[string]any{
+		"draft_id": 7, "confirm_token": read["confirm_token"],
+		"edits": []map[string]any{
+			{"op": "update_title", "text": "灯塔短篇·改"},
+			{"op": "update_tags", "tags": []string{"灯塔", "海"}},
+			{"op": "insert_after", "index": -1, "text": "新开头段。"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stage1["status"] != "needs_confirmation" {
+		t.Fatalf("stage1 status = %v", stage1["status"])
+	}
 	out, err := callTool(t, client, "draft_apply_edit", map[string]any{
-		"draft_id": 7, "confirm_token": read["confirm_token"], "user_confirmed": true,
+		"draft_id": 7, "confirm_token": stage1["confirm_token"], "user_confirmed": true,
 		"edits": []map[string]any{
 			{"op": "update_title", "text": "灯塔短篇·改"},
 			{"op": "update_tags", "tags": []string{"灯塔", "海"}},
@@ -254,21 +271,183 @@ func TestDraftApplyEditAtomicBatch(t *testing.T) {
 	}
 }
 
+// TestDraftApplyEditUserConfirmedCannotSkipPreview（审计 #9 / #814）：
+// user_confirmed 是模型自报布尔——只有草案级令牌时它不得免预览直写，
+// 必须先走 stage 1 拿到批次令牌。
+func TestDraftApplyEditUserConfirmedCannotSkipPreview(t *testing.T) {
+	store := &memStore{byID: map[int64]*model.AgentDraft{7: seedDraft(42)}}
+	client := newTestSession(t, store, 42)
+	before := store.byID[7].Body
+
+	read, err := callTool(t, client, "draft_read", map[string]any{"draft_id": 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := callTool(t, client, "draft_apply_edit", map[string]any{
+		"draft_id": 7, "confirm_token": read["confirm_token"], "user_confirmed": true,
+		"edits": []map[string]any{
+			{"op": "replace_paragraph", "index": 1, "text": "未经预览的直写内容。"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("draft-level token with user_confirmed must degrade to preview, got error %v", err)
+	}
+	if out["status"] != "needs_confirmation" {
+		t.Fatalf("status = %v, want needs_confirmation", out["status"])
+	}
+	if store.byID[7].Body != before {
+		t.Fatal("user_confirmed=true without a batch token must not write")
+	}
+}
+
+// TestDraftApplyEditBatchTokenBinding（审计 #9 / #814）：预览批次 A 拿到的
+// 确认令牌用于应用批次 B（换批次套用）必须失效。
+func TestDraftApplyEditBatchTokenBinding(t *testing.T) {
+	store := &memStore{byID: map[int64]*model.AgentDraft{7: seedDraft(42)}}
+	client := newTestSession(t, store, 42)
+	read, err := callTool(t, client, "draft_read", map[string]any{"draft_id": 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batchA := []map[string]any{
+		{"op": "replace_paragraph", "index": 1, "text": "批次A的替换文本。"},
+	}
+	// stage 1 previews batch A and returns a batch-specific token.
+	stage1, err := callTool(t, client, "draft_apply_edit", map[string]any{
+		"draft_id": 7, "confirm_token": read["confirm_token"], "edits": batchA,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batchToken, _ := stage1["confirm_token"].(string)
+	if batchToken == "" || batchToken == read["confirm_token"] {
+		t.Fatalf("stage 1 must issue a batch-specific token, got %q", batchToken)
+	}
+	if strings.Contains(store.byID[7].Body, "批次A") {
+		t.Fatal("stage 1 must not write")
+	}
+
+	// The batch-A token cannot apply a different batch B.
+	batchB := []map[string]any{
+		{"op": "replace_paragraph", "index": 1, "text": "批次B的偷换文本。"},
+	}
+	_, err = callTool(t, client, "draft_apply_edit", map[string]any{
+		"draft_id": 7, "confirm_token": batchToken, "user_confirmed": true, "edits": batchB,
+	})
+	if err == nil || !strings.Contains(err.Error(), "stale") {
+		t.Fatalf("batch-A token applying batch B must be rejected as stale, got %v", err)
+	}
+	if strings.Contains(store.byID[7].Body, "批次B") || strings.Contains(store.byID[7].Body, "批次A") {
+		t.Fatalf("rejected batch-swap must not write, body = %q", store.byID[7].Body)
+	}
+
+	// The same token DOES apply its own batch.
+	if _, err := callTool(t, client, "draft_apply_edit", map[string]any{
+		"draft_id": 7, "confirm_token": batchToken, "user_confirmed": true, "edits": batchA,
+	}); err != nil {
+		t.Fatalf("batch token applying its own batch must succeed: %v", err)
+	}
+	if !strings.Contains(store.byID[7].Body, "批次A的替换文本") {
+		t.Fatalf("batch A not applied: %q", store.byID[7].Body)
+	}
+}
+
+// TestPreviewEditsTagsAndInsertDiff（审计 #9 / #814）：update_tags 与
+// insert_after#-1 的预览 diff 必须带 before/after，预览才是可批准对象。
+func TestPreviewEditsTagsAndInsertDiff(t *testing.T) {
+	store := &memStore{byID: map[int64]*model.AgentDraft{7: seedDraft(42)}}
+	client := newTestSession(t, store, 42)
+	read, err := callTool(t, client, "draft_read", map[string]any{"draft_id": 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := callTool(t, client, "draft_apply_edit", map[string]any{
+		"draft_id": 7, "confirm_token": read["confirm_token"],
+		"edits": []map[string]any{
+			{"op": "update_tags", "tags": []string{"灯塔", "海"}},
+			{"op": "insert_after", "index": -1, "text": "新开头段。"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["status"] != "needs_confirmation" {
+		t.Fatalf("status = %v", out["status"])
+	}
+	diff, _ := out["diff"].([]any)
+	byOp := map[string]map[string]any{}
+	for _, item := range diff {
+		entry, _ := item.(map[string]any)
+		if entry != nil {
+			byOp[fmt.Sprint(entry["op"])] = entry
+		}
+	}
+	tags, ok := byOp["update_tags"]
+	if !ok {
+		t.Fatalf("update_tags missing from diff: %v", diff)
+	}
+	if _, ok := tags["before"]; !ok {
+		t.Fatalf("update_tags diff lacks before: %v", tags)
+	}
+	if after, _ := tags["after"].([]any); len(after) != 2 {
+		t.Fatalf("update_tags diff after = %v", tags["after"])
+	}
+	insert, ok := byOp["insert_after#-1"]
+	if !ok {
+		t.Fatalf("insert_after#-1 missing from diff: %v", diff)
+	}
+	if after, _ := insert["after"].(string); after != "新开头段。" {
+		t.Fatalf("insert_after#-1 diff after = %v", insert["after"])
+	}
+}
+
 func TestConfirmTokenBinding(t *testing.T) {
-	// token binds user+draft+timestamp: a different user's token never verifies
+	// token binds user+draft+timestamp+edit batch: a different user's,
+	// version's or batch's token never verifies
 	draft := seedDraft(42)
 	draft.UpdatedAt = time.Unix(1700000000, 0)
-	token := ConfirmToken([]byte("s"), 7, 42, draft.UpdatedAt.Unix())
-	if ConfirmToken([]byte("s"), 7, 43, draft.UpdatedAt.Unix()) == token {
+	edits := []DraftEdit{{Op: "update_title", Text: "改"}}
+	token, err := ConfirmToken([]byte("s"), 7, 42, draft.UpdatedAt.Unix(), batchHash(edits))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other, _ := ConfirmToken([]byte("s"), 7, 43, draft.UpdatedAt.Unix(), batchHash(edits)); other == token {
 		t.Fatal("token must bind the user")
 	}
-	if ConfirmToken([]byte("s"), 7, 42, draft.UpdatedAt.Unix()+1) == token {
+	if other, _ := ConfirmToken([]byte("s"), 7, 42, draft.UpdatedAt.Unix()+1, batchHash(edits)); other == token {
 		t.Fatal("token must bind the version timestamp")
 	}
-	if err := verifyConfirmToken([]byte("s"), "", draft); err != errConfirmMissing {
-		t.Fatalf("empty token err = %v", err)
+	if other, _ := ConfirmToken([]byte("s"), 7, 42, draft.UpdatedAt.Unix(), batchHash(nil)); other == token {
+		t.Fatal("token must bind the edit batch")
 	}
-	if err := verifyConfirmToken([]byte("s"), token, draft); err != nil {
-		t.Fatalf("valid token rejected: %v", err)
+	swapped := []DraftEdit{{Op: "update_title", Text: "换"}}
+	if other, _ := ConfirmToken([]byte("s"), 7, 42, draft.UpdatedAt.Unix(), batchHash(swapped)); other == token {
+		t.Fatal("token must change when the batch changes")
+	}
+
+	kind, err := classifyConfirmToken([]byte("s"), "", draft, edits)
+	if err != errConfirmMissing || kind != tokenMissing {
+		t.Fatalf("empty token err = %v kind = %d", err, kind)
+	}
+	kind, err = classifyConfirmToken([]byte("s"), token, draft, edits)
+	if err != nil || kind != tokenBatch {
+		t.Fatalf("batch token classified %d err %v", kind, err)
+	}
+	kind, err = classifyConfirmToken([]byte("s"), token, draft, swapped)
+	if err != errConfirmStale || kind != tokenStale {
+		t.Fatalf("swapped batch must be stale, got kind %d err %v", kind, err)
+	}
+}
+
+// TestConfirmTokenEmptySecret（审计 #9 / #814）：HMAC 空 secret 在 mint 与
+// verify 调用处显式报错，而不是静默用可猜测密钥签发令牌。
+func TestConfirmTokenEmptySecret(t *testing.T) {
+	if _, err := ConfirmToken(nil, 7, 42, 0, ""); err == nil {
+		t.Fatal("empty secret must be an explicit error at mint time")
+	}
+	draft := seedDraft(42)
+	draft.UpdatedAt = time.Unix(1700000000, 0)
+	if _, err := classifyConfirmToken(nil, "sometoken", draft, nil); err == nil {
+		t.Fatal("empty secret must be an explicit error at verify time")
 	}
 }

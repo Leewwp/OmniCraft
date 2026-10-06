@@ -127,15 +127,19 @@ func (s *ReputationService) AwardJudgeAccuracy(userID int64, caseID int64) error
 	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreJudgeAccuracy }), "judge_accuracy", &caseID)
 }
 
+// AwardRehabCourse is the log-based idempotent helper for rehab completions
+// (#814): the reason string is unified with RehabService.CompleteCourse
+// ('rehab_course_completed', previously 'rehab_course') so both paths share
+// one idempotency key.
 func (s *ReputationService) AwardRehabCourse(userID int64, courseID int64) error {
 	var count int64
 	s.db.Model(&model.ReputationLog{}).
-		Where("user_id = ? AND reason = 'rehab_course' AND related_id = ?", userID, courseID).
+		Where("user_id = ? AND reason = 'rehab_course_completed' AND related_id = ?", userID, courseID).
 		Count(&count)
 	if count > 0 {
 		return nil
 	}
-	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreRehabCourse }), "rehab_course", &courseID)
+	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreRehabCourse }), "rehab_course_completed", &courseID)
 }
 
 func (s *ReputationService) PenalizeMaliciousContent(userID int64, contentID int64) error {

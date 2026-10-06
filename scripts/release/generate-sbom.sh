@@ -16,6 +16,11 @@
 #
 # -SkipImages produces an unsigned preview manifest (lockfile ecosystems only)
 # for pull-request builds; release manifests always include container SBOMs.
+#
+# The provenance identity (builder_id / verify_command repository) is derived
+# from GITHUB_REPOSITORY — the true producing repository — and the generator
+# refuses to run without it: a hardcoded identity would be a constant the
+# verifier compares against itself, proving nothing.
 # =============================================================================
 set -euo pipefail
 
@@ -62,6 +67,15 @@ fi
 [ -f "$POLICY" ] || { echo "policy not found: $POLICY" >&2; exit 1; }
 [ -d "$REPO_ROOT/backend/migrations" ] || { echo "migrations dir not found: $REPO_ROOT/backend/migrations" >&2; exit 1; }
 
+if [ -z "${GITHUB_REPOSITORY:-}" ]; then
+  echo "generate-sbom: GITHUB_REPOSITORY (owner/name) is required to derive the provenance identity; refusing to run with an unknown producing repository" >&2
+  exit 1
+fi
+if ! printf '%s' "$GITHUB_REPOSITORY" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
+  echo "generate-sbom: GITHUB_REPOSITORY must be an owner/name pair (got: $GITHUB_REPOSITORY)" >&2
+  exit 1
+fi
+
 mkdir -p "$OUTPUT_DIR/sboms" "$OUTPUT_DIR/container" "$OUTPUT_DIR/stage" "$OUTPUT_DIR/tmp"
 OUT="$(cd "$OUTPUT_DIR" && pwd)"
 
@@ -78,6 +92,7 @@ export OMNICRAFT_SBOM_POLICY="$POLICY"
 export OMNICRAFT_SBOM_COMMIT="$COMMIT"
 export OMNICRAFT_SBOM_VERSION="$VERSION"
 export OMNICRAFT_SBOM_SKIP_IMAGES="$SKIP_IMAGES"
+export OMNICRAFT_SBOM_REPO_ID="$GITHUB_REPOSITORY"
 
 python3 - <<'PY'
 import hashlib
@@ -95,6 +110,7 @@ policy_path = os.environ["OMNICRAFT_SBOM_POLICY"]
 commit = os.environ["OMNICRAFT_SBOM_COMMIT"]
 version = os.environ["OMNICRAFT_SBOM_VERSION"]
 skip_images = os.environ["OMNICRAFT_SBOM_SKIP_IMAGES"] == "1"
+producing_repo = os.environ["OMNICRAFT_SBOM_REPO_ID"]
 
 stage_dir = os.path.join(out, "stage")
 sboms_dir = os.path.join(out, "sboms")
@@ -308,9 +324,9 @@ else:
     provenance = [{
         "type": "github-attestation",
         "scope": "release",
-        "builder_id": f"https://github.com/omnicraft/omnicraft/.github/workflows/sbom.yml@refs/tags/v{version}",
+        "builder_id": f"https://github.com/{producing_repo}/.github/workflows/sbom.yml@refs/tags/v{version}",
         "subject": "release-manifest.json",
-        "verify_command": "gh attestation verify release-manifest.json --repo omnicraft/omnicraft",
+        "verify_command": f"gh attestation verify release-manifest.json --repo {producing_repo}",
     }]
 
 manifest = {
