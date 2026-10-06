@@ -41,6 +41,10 @@ func main() {
 	if len(secret) == 0 {
 		secret = []byte(cfg.Agent.HMACSecret)
 	}
+	if len(secret) == 0 {
+		slog.Error("confirm secret must not be empty: set AGENT_HMAC_SECRET or agent.hmac_secret — draft confirm tokens would be forgeable")
+		os.Exit(2)
+	}
 	db := database.Init(cfg)
 	server := mcpdocserver.NewServer(
 		repository.NewAgentDraftRepository(db),

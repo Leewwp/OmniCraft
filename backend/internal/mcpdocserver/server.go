@@ -52,6 +52,11 @@ var (
 	errConfirmMissing = errors.New("confirmation token required: read the draft, show the planned edit to the user, then pass the returned confirm_token")
 	errConfirmStale   = errors.New("confirmation token stale: the draft changed since it was issued, " + confirmTTLHint)
 	errEditInvalid    = errors.New("invalid edit batch")
+	// errEmptySecret is the explicit mint/verify-time failure for a missing
+	// HMAC key (audit #9 / #814): with an empty secret the confirm gate
+	// would be forgeable, so it must fail loudly instead of silently
+	// signing with a trivially known key.
+	errEmptySecret = errors.New("confirm secret must not be empty")
 )
 
 // Options binds the server identity: the user whose drafts are editable and
@@ -72,24 +77,70 @@ func NewServer(store DraftStore, opts Options) *sdkmcp.Server {
 
 // --- confirmation tokens ------------------------------------------------------
 
-// ConfirmToken mints an HMAC over the draft's current state stamp: any write
-// (ours or a concurrent one) changes updated_at and invalidates the token —
-// optimistic concurrency for the write gate.
-func ConfirmToken(secret []byte, draftID, userID, updatedAtUnix int64) string {
+// ConfirmToken mints an HMAC over the draft's current state stamp AND the
+// edit batch it authorizes (audit #9 / #814): any write (ours or a
+// concurrent one) changes updated_at and invalidates the token — optimistic
+// concurrency for the write gate — and a token minted for one edit batch
+// never verifies for another. editsHash is the SHA256 of the canonicalized
+// batch ("" for the draft-level token draft_read/draft_suggest hand out).
+func ConfirmToken(secret []byte, draftID, userID, updatedAtUnix int64, editsHash string) (string, error) {
+	if len(secret) == 0 {
+		return "", errEmptySecret
+	}
 	mac := hmac.New(sha256.New, secret)
-	fmt.Fprintf(mac, "draft:%d:%d:%d", draftID, userID, updatedAtUnix)
-	return hex.EncodeToString(mac.Sum(nil))[:24]
+	fmt.Fprintf(mac, "draft:%d:%d:%d:%s", draftID, userID, updatedAtUnix, editsHash)
+	return hex.EncodeToString(mac.Sum(nil))[:24], nil
 }
 
-func verifyConfirmToken(secret []byte, token string, draft *model.AgentDraft) error {
-	if strings.TrimSpace(token) == "" {
-		return errConfirmMissing
+// batchHash canonicalizes an edit batch into a stable SHA256: struct field
+// order and JSON encoding are deterministic, so the same logical batch always
+// hashes identically and any substitution (different op, index, text, tags)
+// changes the hash.
+func batchHash(edits []DraftEdit) string {
+	raw, _ := json.Marshal(edits)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
+// tokenKind classifies a presented confirm token against the freshly loaded
+// draft row.
+type tokenKind int
+
+const (
+	tokenMissing tokenKind = iota
+	tokenStale
+	// tokenDraft is the draft-level token from draft_read/draft_suggest: it
+	// proves the caller read the current version and unlocks the preview,
+	// never the write itself.
+	tokenDraft
+	// tokenBatch authorizes applying exactly the batch it was minted over
+	// (handed out by the stage-1 preview of that batch).
+	tokenBatch
+)
+
+// classifyConfirmToken maps the presented token onto tokenKind. An empty
+// HMAC secret is an explicit error (never a silent downgrade).
+func classifyConfirmToken(secret []byte, token string, draft *model.AgentDraft, edits []DraftEdit) (tokenKind, error) {
+	trimmed := strings.TrimSpace(token)
+	if trimmed == "" {
+		return tokenMissing, errConfirmMissing
 	}
-	want := ConfirmToken(secret, draft.ID, draft.UserID, draft.UpdatedAt.Unix())
-	if !hmac.Equal([]byte(want), []byte(strings.TrimSpace(token))) {
-		return errConfirmStale
+	draftToken, err := ConfirmToken(secret, draft.ID, draft.UserID, draft.UpdatedAt.Unix(), "")
+	if err != nil {
+		return tokenStale, err
 	}
-	return nil
+	batchToken, err := ConfirmToken(secret, draft.ID, draft.UserID, draft.UpdatedAt.Unix(), batchHash(edits))
+	if err != nil {
+		return tokenStale, err
+	}
+	switch {
+	case hmac.Equal([]byte(batchToken), []byte(trimmed)):
+		return tokenBatch, nil
+	case hmac.Equal([]byte(draftToken), []byte(trimmed)):
+		return tokenDraft, nil
+	default:
+		return tokenStale, errConfirmStale
+	}
 }
 
 // --- draft_read ---------------------------------------------------------------
@@ -102,11 +153,16 @@ func addDraftRead(s *sdkmcp.Server, store DraftStore, opts Options) {
 	sdkmcp.AddTool(s, &sdkmcp.Tool{
 		Name: "draft_read",
 		Description: "Read one of the bound user's drafts: title, tags, and the paragraph list. " +
-			"The response carries a confirm_token that draft_apply_edit requires after the user approved the edit.",
+			"The response carries a confirm_token that draft_apply_edit needs to obtain a diff preview; " +
+			"the preview response then carries the batch token that authorizes the write.",
 	}, func(ctx context.Context, req *sdkmcp.CallToolRequest, in DraftReadInput) (*sdkmcp.CallToolResult, any, error) {
 		draft, err := store.GetForUser(ctx, opts.UserID, in.DraftID)
 		if err != nil {
 			return nil, nil, errDraftNotFound
+		}
+		token, err := ConfirmToken(opts.ConfirmSecret, draft.ID, draft.UserID, draft.UpdatedAt.Unix(), "")
+		if err != nil {
+			return nil, nil, err
 		}
 		return textResult(map[string]any{
 			"draft_id":      draft.ID,
@@ -115,7 +171,7 @@ func addDraftRead(s *sdkmcp.Server, store DraftStore, opts Options) {
 			"tags":          draft.Tags,
 			"paragraphs":    paragraphList(draft.Body),
 			"version":       draft.UpdatedAt.Unix(),
-			"confirm_token": ConfirmToken(opts.ConfirmSecret, draft.ID, draft.UserID, draft.UpdatedAt.Unix()),
+			"confirm_token": token,
 		})
 	})
 }
@@ -150,6 +206,10 @@ func addDraftSuggest(s *sdkmcp.Server, store DraftStore, opts Options) {
 			}
 		}
 		title, description := suggestMetadata(paragraphs)
+		token, err := ConfirmToken(opts.ConfirmSecret, draft.ID, draft.UserID, draft.UpdatedAt.Unix(), "")
+		if err != nil {
+			return nil, nil, err
+		}
 		out := map[string]any{
 			"draft_id":        draft.ID,
 			"paragraph_count": len(paragraphs),
@@ -159,7 +219,7 @@ func addDraftSuggest(s *sdkmcp.Server, store DraftStore, opts Options) {
 				"description": description,
 				"tags":        suggestTags(draft.Title, paragraphs),
 			},
-			"confirm_token": ConfirmToken(opts.ConfirmSecret, draft.ID, draft.UserID, draft.UpdatedAt.Unix()),
+			"confirm_token": token,
 			"version":       draft.UpdatedAt.Unix(),
 		}
 		if strings.TrimSpace(in.Focus) != "" {
@@ -194,9 +254,10 @@ func addDraftApplyEdit(s *sdkmcp.Server, store DraftStore, opts Options) {
 	sdkmcp.AddTool(s, &sdkmcp.Tool{
 		Name: "draft_apply_edit",
 		Description: "Apply a batch of structured edits to one of the bound user's drafts. Write gate: " +
-			"requires the confirm_token issued by draft_read/draft_suggest for the draft's CURRENT version " +
-			"(any concurrent edit invalidates it) and the caller must have shown the planned edit to the user. " +
-			"The whole batch applies atomically: one invalid edit rejects everything.",
+			"the confirm_token from draft_read/draft_suggest first returns a diff preview (stage 1); the preview " +
+			"response carries a batch-specific confirm_token, and only a follow-up carrying THAT token with " +
+			"user_confirmed=true writes. Tokens are bound to the draft version AND the exact edit batch — " +
+			"any concurrent edit or batch substitution invalidates them. The whole batch applies atomically.",
 	}, func(ctx context.Context, req *sdkmcp.CallToolRequest, in DraftApplyEditInput) (*sdkmcp.CallToolResult, any, error) {
 		// Per-call permission re-check: ownership is re-verified inside
 		// GetForUser, and the token is verified against the freshly loaded
@@ -205,26 +266,38 @@ func addDraftApplyEdit(s *sdkmcp.Server, store DraftStore, opts Options) {
 		if err != nil {
 			return nil, nil, errDraftNotFound
 		}
-		if err := verifyConfirmToken(opts.ConfirmSecret, in.ConfirmToken, draft); err != nil {
-			return nil, nil, err
-		}
 		if len(in.Edits) == 0 || len(in.Edits) > maxEditBatch {
 			return nil, nil, fmt.Errorf("%w: batch size must be 1..%d", errEditInvalid, maxEditBatch)
 		}
-		// Stage 1 (M4 piece 5): without explicit user approval the call
-		// returns the diff preview and writes nothing — the assistant must
-		// show it to the user and re-call with user_confirmed=true.
-		if !in.UserConfirmed {
+		kind, err := classifyConfirmToken(opts.ConfirmSecret, in.ConfirmToken, draft, in.Edits)
+		if err != nil {
+			return nil, nil, err
+		}
+		// Stage 2 of the write gate (audit #9 / #814): only the
+		// batch-specific token minted by a stage-1 preview of THIS batch may
+		// carry user_confirmed=true into a write. A draft-level token —
+		// including one presented with user_confirmed=true — always degrades
+		// to the preview, so the caller must have seen the exact batch
+		// before anything is applied.
+		if kind != tokenBatch || !in.UserConfirmed {
+			batchToken, err := ConfirmToken(opts.ConfirmSecret, draft.ID, draft.UserID, draft.UpdatedAt.Unix(), batchHash(in.Edits))
+			if err != nil {
+				return nil, nil, err
+			}
 			preview, err := previewEdits(draft, in.Edits)
 			if err != nil {
 				return nil, nil, err
+			}
+			message := "show the diff to the user; re-call with user_confirmed=true and this batch confirm_token once they approve"
+			if kind == tokenDraft && in.UserConfirmed {
+				message = "user_confirmed requires the batch-specific token issued by a preview of THIS batch; " + message
 			}
 			return textResult(map[string]any{
 				"status":        "needs_confirmation",
 				"draft_id":      draft.ID,
 				"diff":          preview,
-				"confirm_token": in.ConfirmToken,
-				"message":       "show the diff to the user; re-call with user_confirmed=true and the same confirm_token once they approve",
+				"confirm_token": batchToken,
+				"message":       message,
 			})
 		}
 		updated, applied, err := applyEdits(draft, in.Edits)
@@ -244,19 +317,42 @@ func addDraftApplyEdit(s *sdkmcp.Server, store DraftStore, opts Options) {
 }
 
 // previewEdits validates the batch and renders a before/after diff without
-// writing (stage 1 of the two-stage write gate).
+// writing (stage 1 of the two-stage write gate). Every op entry carries a
+// before/after pair so the preview is exactly what gets approved (audit #9
+// / #814: update_tags and head insertions used to render bare op labels).
 func previewEdits(draft *model.AgentDraft, edits []DraftEdit) ([]map[string]any, error) {
 	updated, applied, err := applyEdits(draft, edits)
 	if err != nil {
 		return nil, err
 	}
 	before, after := paragraphList(draft.Body), paragraphList(updated.Body)
+	beforeTags, afterTags := tagsList(draft.Tags), tagsList(updated.Tags)
 	diff := make([]map[string]any, 0, len(edits))
 	for _, op := range applied {
 		entry := map[string]any{"op": op}
-		if idx, errIdx := indexFromOp(op); errIdx >= 0 && idx >= 0 && idx < len(before) && idx < len(after) {
-			entry["before"] = truncateRunes(before[idx], 120)
-			entry["after"] = truncateRunes(after[idx], 120)
+		n, hashIdx := indexFromOp(op)
+		if hashIdx < 0 {
+			// update_title / update_tags carry no "#index"; tags render a
+			// full before/after list, the title gets its own entry below.
+			if op == "update_tags" {
+				entry["before"], entry["after"] = beforeTags, afterTags
+			}
+			diff = append(diff, entry)
+			continue
+		}
+		if strings.HasPrefix(op, "insert_after") {
+			at := n + 1
+			if n >= 0 && n < len(before) {
+				entry["before"] = truncateRunes(before[n], 120)
+			} else {
+				entry["before"] = "" // head insertion (#-1) has no anchor paragraph
+			}
+			if at >= 0 && at < len(after) {
+				entry["after"] = truncateRunes(after[at], 120)
+			}
+		} else if n >= 0 && n < len(before) && n < len(after) {
+			entry["before"] = truncateRunes(before[n], 120)
+			entry["after"] = truncateRunes(after[n], 120)
 		}
 		diff = append(diff, entry)
 	}
@@ -264,6 +360,16 @@ func previewEdits(draft *model.AgentDraft, edits []DraftEdit) ([]map[string]any,
 		diff = append(diff, map[string]any{"op": "title", "before": draft.Title, "after": updated.Title})
 	}
 	return diff, nil
+}
+
+// tagsList decodes the draft's JSONB tag list for the preview diff; it never
+// returns nil so the diff renders [] instead of null.
+func tagsList(raw model.JSONB) []string {
+	tags := []string{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &tags)
+	}
+	return tags
 }
 
 func indexFromOp(op string) (int, int) {

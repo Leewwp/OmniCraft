@@ -160,16 +160,42 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) (int, error)
 	}
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-		if err := tx.Model(&model.RehabCompletion{}).
-			Where("user_id = ? AND course_id = ?", userID, courseID).
-			Update("completed_at", now).Error; err != nil {
+		// Second layer (audit #16 / #814): the pre-checks outside the
+		// transaction race with concurrent completions, so the completion
+		// state is re-read inside the transaction before the guarded
+		// transition below.
+		var current model.RehabCompletion
+		err := tx.Where("user_id = ? AND course_id = ?", userID, courseID).
+			First(&current).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrCourseNotStarted
+			}
 			return err
 		}
+		if current.CompletedAt != nil {
+			// A concurrent caller already transitioned the row.
+			return nil
+		}
+		now := time.Now()
+		// Guarded state transition: the UPDATE only fires while the row is
+		// still uncompleted, so exactly one concurrent caller sees
+		// RowsAffected == 1. Losers treat 0 as "already awarded elsewhere"
+		// and return idempotent success without logging or scoring.
+		res := tx.Model(&model.RehabCompletion{}).
+			Where("user_id = ? AND course_id = ? AND completed_at IS NULL", userID, courseID).
+			Update("completed_at", now)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return nil
+		}
 		log := &model.ReputationLog{
-			UserID: userID,
-			Delta:  course.RewardPoints,
-			Reason: "rehab_course_completed",
+			UserID:    userID,
+			Delta:     course.RewardPoints,
+			Reason:    "rehab_course_completed",
+			RelatedID: &courseID,
 		}
 		if err := tx.Create(log).Error; err != nil {
 			return err

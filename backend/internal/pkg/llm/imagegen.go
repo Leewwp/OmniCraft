@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -57,15 +58,51 @@ type CogViewClient struct {
 	AllowPrivateHosts bool
 }
 
+// maxRedirectHops bounds the redirect chain the download client follows
+// (audit #8 / #814): every hop re-runs the host guard, and no chain may run
+// longer than this.
+const maxRedirectHops = 5
+
 // NewCogViewClient builds the client; apiBase must not carry a trailing
 // slash (the path is appended verbatim).
 func NewCogViewClient(apiBase, apiKey, model string) *CogViewClient {
-	return &CogViewClient{
+	c := &CogViewClient{
 		APIBase: strings.TrimRight(strings.TrimSpace(apiBase), "/"),
 		APIKey:  apiKey,
 		Model:   model,
-		Client:  &http.Client{Timeout: 90 * time.Second},
 	}
+	transport := &http.Transport{}
+	if base, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = base.Clone()
+	}
+	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	// Socket-level backstop behind the URL guards (DNS-rebinding depth):
+	// even a public-looking hostname must not resolve-and-dial into a
+	// private range. It reads AllowPrivateHosts live so tests can point at
+	// loopback httptest servers by flipping the flag after construction.
+	dialer.Control = func(_, address string, _ syscall.RawConn) error {
+		if c.AllowPrivateHosts {
+			return nil
+		}
+		return guardDialAddress(address)
+	}
+	transport.DialContext = dialer.DialContext
+	c.Client = &http.Client{
+		Timeout:       90 * time.Second,
+		Transport:     transport,
+		CheckRedirect: c.redirectPolicy,
+	}
+	return c
+}
+
+// redirectPolicy guards every redirect hop (audit #8 / #814): the first-hop
+// URL check alone lets a hijacked provider answer the trusted origin with a
+// 30x pointing at an intranet/metadata endpoint.
+func (c *CogViewClient) redirectPolicy(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirectHops {
+		return fmt.Errorf("image download exceeded %d redirect hops", maxRedirectHops)
+	}
+	return c.guardDownloadHost(req.URL)
 }
 
 // GenerateImage runs one images/generations call and downloads the resulting
@@ -164,7 +201,7 @@ func (c *CogViewClient) guardDownloadHost(u *url.URL) error {
 	if c.AllowPrivateHosts {
 		return nil
 	}
-	if base, err := url.Parse(c.APIBase); err == nil && strings.EqualFold(base.Hostname(), host) {
+	if base, err := url.Parse(c.APIBase); err == nil && sameOriginPort(base, u) {
 		return nil
 	}
 	if isPrivateOrLocalHost(host) {
@@ -173,8 +210,35 @@ func (c *CogViewClient) guardDownloadHost(u *url.URL) error {
 	return nil
 }
 
+// sameOriginPort reports whether u matches the api_base trust anchor on
+// scheme, host AND port (explicit or scheme-implied default) — the anchor is
+// origin-scoped, not hostname-scoped (audit #8 / #814: same host on another
+// port must not be exempt).
+func sameOriginPort(base, u *url.URL) bool {
+	if !strings.EqualFold(base.Scheme, u.Scheme) {
+		return false
+	}
+	if !strings.EqualFold(base.Hostname(), u.Hostname()) {
+		return false
+	}
+	return canonicalPort(base) == canonicalPort(u)
+}
+
+func canonicalPort(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return "443"
+	}
+	return "80"
+}
+
 func isPrivateOrLocalHost(host string) bool {
 	h := strings.ToLower(strings.Trim(host, "[]"))
+	// Trailing-dot FQDNs ("localhost.") resolve to the same names as their
+	// dotless form — normalize before suffix matching (audit #8 / #814).
+	h = strings.Trim(h, ".")
 	if h == "localhost" || strings.HasSuffix(h, ".localhost") ||
 		strings.HasSuffix(h, ".local") || strings.HasSuffix(h, ".internal") {
 		return true
@@ -183,8 +247,37 @@ func isPrivateOrLocalHost(host string) bool {
 	if ip == nil {
 		return false
 	}
+	return privateIPOrLocal(ip)
+}
+
+// privateIPOrLocal classifies literal/resolved IPs, including the CGNAT
+// 100.64/10 block carrying the Aliyun IMDS endpoint 100.100.100.200 — the
+// net.IP private helpers do not cover it (audit #8 / #814).
+func privateIPOrLocal(ip net.IP) bool {
+	if ip4 := ip.To4(); ip4 != nil && ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127 {
+		return true
+	}
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
 		ip.IsLinkLocalMulticast() || ip.IsUnspecified()
+}
+
+// guardDialAddress is the dial-time hook behind the URL guards: by the time
+// the resolver has picked an address the URL string is already trusted, so
+// this is the only place a rebinding-style resolution into a private range
+// can still be stopped.
+func guardDialAddress(address string) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("image client dial address %q: %w", address, err)
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	if ip == nil {
+		return fmt.Errorf("image client dial address %q is not an IP literal", address)
+	}
+	if privateIPOrLocal(ip) {
+		return fmt.Errorf("image client must not dial private/loopback/link-local address %s", address)
+	}
+	return nil
 }
 
 func decodeBase64Image(b64 string, maxImageBytes int) ([]byte, error) {

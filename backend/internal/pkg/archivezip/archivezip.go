@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -131,8 +132,123 @@ func (a *accounter) add(n int64) error {
 	return nil
 }
 
+// centralDirBytesPerEntry is the per-entry byte budget granted to the zip
+// central directory (46B fixed record header + generous file-name headroom,
+// audit #3). An archive whose declared directory is larger than
+// MaxZipEntries × this budget would materialize more per-record state than
+// the entry quota allows before any check in validateLevel runs.
+const centralDirBytesPerEntry = 128
+
+// EOCD (end-of-central-directory) record layout, mirrored from the zip spec:
+// signature, disk numbers, entry counts, directory size/offset and the
+// trailing comment length. The 64-bit variants carry the real values when
+// the classic fields hit their 0xFFFF/0xFFFFFFFF sentinels.
+const (
+	eocdSignature      = 0x06054b50
+	eocdLen            = 22
+	eocdMaxSearch      = 65557 // eocdLen + maximum comment (0xFFFF)
+	zip64LocSignature  = 0x07064b50
+	zip64LocLen        = 20
+	zip64EOCDSignature = 0x06064b50
+	zip64EOCDMinLen    = 56
+	dirOffsetSentinel  = 0xFFFFFFFF
+	dirSizeSentinel    = 0xFFFFFFFF
+	entriesSentinel    = 0xFFFF
+)
+
+// checkCentralDir pre-screens the archive budget BEFORE zip.NewReader
+// materializes one zip.File (plus map headroom) per central-directory record
+// (audit #3 / #814): the EOCD at the tail already declares the directory
+// offset/size and entry count, so a pathological archive (e.g. millions of
+// minimal records inside the upload size cap) is rejected after reading only
+// the EOCD tail window. A malformed tail is left for zip.NewReader to rule
+// on — this screen must never reject what the reference parser accepts.
+func (q Quota) checkCentralDir(r io.ReaderAt, size int64) error {
+	dirOffset, dirSize, entries, ok := findCentralDir(r, size)
+	if !ok {
+		return nil
+	}
+	budget := int64(q.MaxZipEntries) * centralDirBytesPerEntry
+	if dirSize > budget {
+		return fmt.Errorf("zip central directory %d bytes exceeds limit %d: %w", dirSize, budget, ErrLimitExceeded)
+	}
+	if entries > int64(q.MaxZipEntries) {
+		return fmt.Errorf("zip entry count %d exceeds limit %d: %w", entries, q.MaxZipEntries, ErrLimitExceeded)
+	}
+	if dirOffset < 0 || dirSize < 0 || dirOffset+dirSize > size {
+		return fmt.Errorf("zip central directory bounds [%d,%d) outside archive of %d bytes: %w",
+			dirOffset, dirOffset+dirSize, size, ErrLimitExceeded)
+	}
+	return nil
+}
+
+// findCentralDir locates the EOCD record (falling back to the ZIP64 EOCD when
+// the classic fields carry sentinels) and reports the declared directory
+// offset/size and total entry count. ok=false means the tail does not carry a
+// parseable EOCD; the caller then defers to zip.NewReader's own verdict.
+func findCentralDir(r io.ReaderAt, size int64) (dirOffset, dirSize, entries int64, ok bool) {
+	if size < eocdLen {
+		return 0, 0, 0, false
+	}
+	window := int64(eocdMaxSearch)
+	if size < window {
+		window = size
+	}
+	buf := make([]byte, window)
+	if _, err := r.ReadAt(buf, size-window); err != nil {
+		return 0, 0, 0, false
+	}
+	// Scan backwards like archive/zip does, so a matching record followed by
+	// a well-formed comment (EOCD + comment ends exactly at the archive tail)
+	// wins over embedded decoy signatures.
+	for i := int(window) - eocdLen; i >= 0; i-- {
+		if binary.LittleEndian.Uint32(buf[i:i+4]) != eocdSignature {
+			continue
+		}
+		commentLen := int(binary.LittleEndian.Uint16(buf[i+20 : i+22]))
+		if i+eocdLen+commentLen != int(window) {
+			continue
+		}
+		n := int64(binary.LittleEndian.Uint16(buf[i+10 : i+12]))
+		s := int64(binary.LittleEndian.Uint32(buf[i+12 : i+16]))
+		o := int64(binary.LittleEndian.Uint32(buf[i+16 : i+20]))
+		if n == entriesSentinel || s == dirSizeSentinel || o == dirOffsetSentinel {
+			return readZip64EOCD(r, buf, i)
+		}
+		return o, s, n, true
+	}
+	return 0, 0, 0, false
+}
+
+// readZip64EOCD resolves the real directory bounds from the ZIP64 EOCD
+// record pointed at by the locator that sits just before the classic EOCD.
+func readZip64EOCD(r io.ReaderAt, eocdWindow []byte, eocdIdx int) (dirOffset, dirSize, entries int64, ok bool) {
+	locIdx := eocdIdx - zip64LocLen
+	if locIdx < 0 {
+		return 0, 0, 0, false
+	}
+	if binary.LittleEndian.Uint32(eocdWindow[locIdx:locIdx+4]) != zip64LocSignature {
+		return 0, 0, 0, false
+	}
+	z64Off := int64(binary.LittleEndian.Uint64(eocdWindow[locIdx+8 : locIdx+16]))
+	rec := make([]byte, zip64EOCDMinLen)
+	if _, err := r.ReadAt(rec, z64Off); err != nil {
+		return 0, 0, 0, false
+	}
+	if binary.LittleEndian.Uint32(rec[:4]) != zip64EOCDSignature {
+		return 0, 0, 0, false
+	}
+	n := int64(binary.LittleEndian.Uint64(rec[32:40]))
+	s := int64(binary.LittleEndian.Uint64(rec[40:48]))
+	o := int64(binary.LittleEndian.Uint64(rec[48:56]))
+	return o, s, n, true
+}
+
 func validateLevel(ctx context.Context, r io.ReaderAt, size int64, q Quota, depth int, acc *accounter, dir string) error {
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := q.checkCentralDir(r, size); err != nil {
 		return err
 	}
 	zr, err := zip.NewReader(r, size)

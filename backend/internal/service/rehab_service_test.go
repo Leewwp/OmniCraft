@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/service"
+	"omnicraft/backend/internal/testutil"
 )
 
 func TestCompleteCourseImmediatelyUnlocksCapabilityAndInteractionGate(t *testing.T) {
@@ -145,6 +147,70 @@ func TestCompleteCourseDoesNotReportSuccessWhenCacheInvalidationFails(t *testing
 
 	if _, err := service.NewRehabService(db, cache).CompleteCourse(user.ID, course.ID); err == nil {
 		t.Fatal("cache invalidation failure must not be reported as successful recovery")
+	}
+}
+
+// TestCompleteCourseConcurrentAwardsExactlyOnce（审计 #16 / #814）：N 个并发
+// CompleteCourse 只允许恰好一次奖励转移——完成态 UPDATE 带谓词 +
+// RowsAffected 守卫，输家幂等返回成功且不写信誉日志、不加分。
+func TestCompleteCourseConcurrentAwardsExactlyOnce(t *testing.T) {
+	db := testutil.OpenEphemeralPostgres(t)
+	if err := db.AutoMigrate(&model.User{}, &model.RehabCourse{}, &model.RehabCompletion{}, &model.ReputationLog{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	now := time.Now()
+	user := model.User{
+		Email: "rehab-concurrent@test.com", Username: "rehab-concurrent",
+		PasswordHash: "hash", Reputation: 2, Role: "user", EmailVerifiedAt: &now,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	course := model.RehabCourse{ViolationType: "concurrent", MinReadingSec: 0, RewardPoints: 1}
+	if err := db.Create(&course).Error; err != nil {
+		t.Fatalf("create course: %v", err)
+	}
+	startedAt := now.Add(-time.Minute)
+	if err := db.Create(&model.RehabCompletion{UserID: user.ID, CourseID: course.ID, StartedAt: &startedAt}).Error; err != nil {
+		t.Fatalf("create completion: %v", err)
+	}
+
+	rehab := service.NewRehabService(db, nil)
+	const concurrency = 24
+	start := make(chan struct{})
+	errs := make([]error, concurrency)
+	var wg sync.WaitGroup
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			_, errs[i] = rehab.CompleteCourse(user.ID, course.ID)
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent completion %d returned error: %v", i, err)
+		}
+	}
+
+	var logCount int64
+	if err := db.Model(&model.ReputationLog{}).
+		Where("user_id = ? AND reason = ?", user.ID, "rehab_course_completed").
+		Count(&logCount).Error; err != nil {
+		t.Fatalf("count reputation logs: %v", err)
+	}
+	if logCount != 1 {
+		t.Fatalf("reputation logs = %d, want exactly 1", logCount)
+	}
+	var refreshed model.User
+	if err := db.First(&refreshed, user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Reputation != 3 {
+		t.Fatalf("reputation = %d, want 3 (exactly one +1 award)", refreshed.Reputation)
 	}
 }
 

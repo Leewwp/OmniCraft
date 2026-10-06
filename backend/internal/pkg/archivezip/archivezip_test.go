@@ -362,6 +362,56 @@ func TestValidateTotalLimitInterruptsStreaming(t *testing.T) {
 	}
 }
 
+// TestValidateCentralDirBudgetRejectedBeforeMaterialization（审计 #3 / #814）：
+// 高记录数小 zip 的威胁不在解压炸弹而在 zip.NewReader 的按记录物化——
+// 500MiB 上限内可塞 ~500 万条极小记录，物化期活堆超过容器限额即单请求
+// OOM。预算必须在物化发生之前、只读 EOCD 尾窗时拒绝（trackingReaderAt
+// 证明拒绝路径没有把中央目录整个读进来）。
+func TestValidateCentralDirBudgetRejectedBeforeMaterialization(t *testing.T) {
+	const entries = 100_000
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for i := 0; i < entries; i++ {
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: fmt.Sprintf("f%06d", i), Method: zip.Store})
+		if err != nil {
+			t.Fatalf("build fixture entry %d: %v", i, err)
+		}
+		_ = w // zero-byte entries: all the attack cost lives in the central directory
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close fixture: %v", err)
+	}
+	data := buf.Bytes()
+	if len(data) < entries*46 {
+		t.Fatalf("fixture too small to be an attack shape: %d bytes", len(data))
+	}
+
+	tr := &trackingReaderAt{r: bytes.NewReader(data)}
+	_, err := Validate(context.Background(), tr, int64(len(data)), defaultQuota)
+	wantSentinel(t, err, ErrLimitExceeded)
+	// 快速拒绝：预筛只允许读 EOCD 尾窗（≤ ~64KiB）；物化路径需要把
+	// ~5MB 的中央目录全部读入。
+	if tr.read > 128*1024 {
+		t.Fatalf("validator read %d bytes before rejecting; the central directory was materialized", tr.read)
+	}
+}
+
+// TestValidateCentralDirBudgetLongNamesAllowed：合法 zip（条目数正常、少数
+// 长文件名）不得被中央目录字节预算误伤。
+func TestValidateCentralDirBudgetLongNamesAllowed(t *testing.T) {
+	entries := make([]testEntry, 0, 64)
+	for i := 0; i < 64; i++ {
+		entries = append(entries, testEntry{
+			name:    fmt.Sprintf("mod/assets/%03d/%s.txt", i, strings.Repeat("深", 40)),
+			content: []byte("x"),
+		})
+	}
+	st := mustValidate(t, buildTestZip(t, entries...), defaultQuota)
+	if st.EntryCount != 64 {
+		t.Fatalf("EntryCount = %d, want 64", st.EntryCount)
+	}
+}
+
 func TestValidateNestedZip(t *testing.T) {
 	inner := buildTestZip(t,
 		testEntry{name: "inner/leaf1.txt", content: []byte("leaf1")},
