@@ -27,6 +27,9 @@ import (
 
 var (
 	greenUIDFormat = regexp.MustCompile(`^\d+$`)
+	// digestPinnedImage matches an immutable image reference
+	// (name@sha256:<64-hex>); mutable tags such as :latest never match.
+	digestPinnedImage = regexp.MustCompile(`^[A-Za-z0-9./_-]+@sha256:[0-9a-f]{64}$`)
 )
 
 type check struct {
@@ -189,6 +192,7 @@ func runChecks(envFile, overrideFile, repoRoot, composeFile string) []check {
 	checkGreenAuthFields(cfg, add)
 	checkFrontendURLs(add)
 	checkPlaceholdersInEnv(add)
+	checkPgbouncerImageDigest(add)
 	checkConfigVolumeReadOnly(composeFile, add)
 
 	return checks
@@ -385,6 +389,18 @@ func checkPlaceholdersInEnv(add func(string, bool, string)) {
 		}
 	}
 	add("env.placeholders", len(bad) == 0, fmt.Sprintf("placeholder values must not appear in production env: %v", bad))
+}
+
+// checkPgbouncerImageDigest enforces the compose-file invariant that the
+// PGBOUNCER_IMAGE environment value (the only data-plane image reference
+// interpolated straight from the env file) is digest-pinned: the pgbouncer
+// container holds POSTGRES_PASSWORD and fronts all database traffic, and it is
+// outside the rollback surface, so a mutable tag must never reach
+// `docker compose up`.
+func checkPgbouncerImageDigest(add func(string, bool, string)) {
+	ref := strings.TrimSpace(os.Getenv("PGBOUNCER_IMAGE"))
+	add("pgbouncer_image.digest_pinned", digestPinnedImage.MatchString(ref),
+		"PGBOUNCER_IMAGE must be a digest-pinned image reference (image@sha256:<64-hex>); mutable tags are rejected")
 }
 
 func containsPlaceholder(value string) bool {
