@@ -5,11 +5,13 @@
 # referenced files (manifest paths are relative to the manifest directory, so
 # downloaded-artifact verification works unchanged), enforces policy component
 # coverage and pinned generators, rejects volatile SBOM fields, and checks
-# provenance reference identity. With -ImageDaemon the container images are
-# cross-checked against the manifest commit via OCI labels.
+# that the declared provenance identity (builder_id) belongs to the producing
+# repository passed via -Repo — a real comparison against a trusted input, not
+# a constant checked against itself. With -ImageDaemon the container images
+# are cross-checked against the manifest commit via OCI labels.
 #
 # Usage:
-#   bash scripts/release/verify-provenance.sh -Manifest <path>
+#   bash scripts/release/verify-provenance.sh -Manifest <path> -Repo <owner/name>
 #       [-Policy <path>] [-RepoRoot <dir>] [-ReportDir <dir>]
 #       [-Preview] [-ImageDaemon]
 # =============================================================================
@@ -22,6 +24,7 @@ MANIFEST=""
 REPORT_DIR=""
 PREVIEW=0
 IMAGE_DAEMON=0
+REPO_ID=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -31,6 +34,9 @@ while [ $# -gt 0 ]; do
     -Policy)
       [ $# -ge 2 ] || { echo "missing value for -Policy" >&2; exit 2; }
       POLICY="$2"; shift 2 ;;
+    -Repo)
+      [ $# -ge 2 ] || { echo "missing value for -Repo" >&2; exit 2; }
+      REPO_ID="$2"; shift 2 ;;
     -RepoRoot)
       [ $# -ge 2 ] || { echo "missing value for -RepoRoot" >&2; exit 2; }
       REPO_ROOT="$2"; shift 2 ;;
@@ -43,13 +49,17 @@ while [ $# -gt 0 ]; do
       IMAGE_DAEMON=1; shift ;;
     *)
       echo "unknown argument: $1" >&2
-      echo "usage: verify-provenance.sh -Manifest <path> [-Policy <path>] [-RepoRoot <dir>] [-ReportDir <dir>] [-Preview] [-ImageDaemon]" >&2
+      echo "usage: verify-provenance.sh -Manifest <path> -Repo <owner/name> [-Policy <path>] [-RepoRoot <dir>] [-ReportDir <dir>] [-Preview] [-ImageDaemon]" >&2
       exit 2 ;;
   esac
 done
 
 if [ -z "$MANIFEST" ]; then
-  echo "usage: verify-provenance.sh -Manifest <path> [-Policy <path>] [-RepoRoot <dir>] [-ReportDir <dir>] [-Preview] [-ImageDaemon]" >&2
+  echo "usage: verify-provenance.sh -Manifest <path> -Repo <owner/name> [-Policy <path>] [-RepoRoot <dir>] [-ReportDir <dir>] [-Preview] [-ImageDaemon]" >&2
+  exit 2
+fi
+if [ -n "$REPO_ID" ] && ! printf '%s' "$REPO_ID" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
+  echo "verify-provenance: -Repo must be an owner/name pair (got: $REPO_ID)" >&2
   exit 2
 fi
 
@@ -71,6 +81,7 @@ export OMNICRAFT_PROV_REPORT="$REPORT_DIR"
 export OMNICRAFT_PROV_PREVIEW="$PREVIEW"
 export OMNICRAFT_PROV_IMAGE_DAEMON="$IMAGE_DAEMON"
 export OMNICRAFT_PROV_SCHEMA="$SCRIPT_DIR/../../release/release-manifest.schema.json"
+export OMNICRAFT_PROV_REPO_ID="$REPO_ID"
 
 python3 - <<'PY'
 import hashlib
@@ -87,6 +98,7 @@ repo_root = os.environ["OMNICRAFT_PROV_REPO"]
 report_dir = os.environ["OMNICRAFT_PROV_REPORT"]
 preview_mode = os.environ["OMNICRAFT_PROV_PREVIEW"] == "1"
 image_daemon = os.environ["OMNICRAFT_PROV_IMAGE_DAEMON"] == "1"
+producing_repo = os.environ.get("OMNICRAFT_PROV_REPO_ID", "")
 
 manifest_dir = os.path.dirname(manifest_path)
 checks = []
@@ -285,25 +297,35 @@ else:
     if not provenance:
         prov_ok = False
         detail = "release manifest must declare provenance references"
+    elif not producing_repo:
+        prov_ok = False
+        detail = ("provenance identity cannot be checked: the verifier must be "
+                  "given the producing repository via -Repo <owner/name>")
     else:
         prov_ok = True
         detail = ""
+        # The declared builder_id must belong to the producing repository passed
+        # via -Repo: a real comparison against a trusted input. Matching a
+        # hardcoded constant would be tautological and prove nothing.
+        expected_builder = re.compile(
+            r"https://github\.com/" + re.escape(producing_repo)
+            + r"/\.github/workflows/sbom\.yml@refs/.+")
         for ref in provenance:
             if ref.get("type") != "github-attestation":
                 prov_ok = False
                 detail = "provenance type must be github-attestation"
                 break
-            if not re.fullmatch(
-                r"https://github\.com/omnicraft/omnicraft/\.github/workflows/sbom\.yml@refs/.+",
-                ref.get("builder_id", "")):
+            if not expected_builder.fullmatch(ref.get("builder_id", "")):
                 prov_ok = False
-                detail = f"foreign builder_id: {ref.get('builder_id')}"
+                detail = (f"builder_id does not match the producing repository "
+                          f"{producing_repo}: {ref.get('builder_id')}")
                 break
             if ref.get("scope") not in ("preview", "release") or not ref.get("subject") or not ref.get("verify_command"):
                 prov_ok = False
                 detail = "provenance reference must declare scope, subject and verify_command"
                 break
-check("provenance.references", prov_ok, detail or "provenance references structurally valid")
+check("provenance.references", prov_ok,
+      detail or f"provenance references bound to producing repository {producing_repo}")
 
 preview_consistent = True
 if manifest.get("preview"):

@@ -27,7 +27,7 @@ jobs:
       - name: Generate full SBOM and release manifest
         run: bash scripts/release/generate-sbom.sh -OutputDir artifacts/sbom -Commit "$GITHUB_SHA"
       - name: Verify SBOM digests and image binding
-        run: bash scripts/release/verify-provenance.sh -Manifest artifacts/sbom/release-manifest.json -ImageDaemon
+        run: bash scripts/release/verify-provenance.sh -Manifest artifacts/sbom/release-manifest.json -ImageDaemon -Repo "$GITHUB_REPOSITORY"
       - name: Upload SBOM evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

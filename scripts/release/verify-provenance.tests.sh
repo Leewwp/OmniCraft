@@ -10,6 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERIFY="$SCRIPT_DIR/verify-provenance.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 POLICY="$REPO_ROOT/release/sbom-policy.json"
+# The producing repository identity the verifier must compare declared
+# builder_ids against (the real repository; foreign identities are rejected).
+PRODUCING_REPO="Leewwp/OmniCraft"
 
 if [ ! -f "$VERIFY" ]; then
   echo "verify-provenance.sh does not exist" >&2
@@ -106,9 +109,9 @@ manifest = {
     "provenance": [{
         "type": "github-attestation",
         "scope": "release",
-        "builder_id": "https://github.com/omnicraft/omnicraft/.github/workflows/sbom.yml@refs/tags/v0.1.0",
+        "builder_id": "https://github.com/Leewwp/OmniCraft/.github/workflows/sbom.yml@refs/tags/v0.1.0",
         "subject": "release-manifest.json",
-        "verify_command": "gh attestation verify release-manifest.json --repo omnicraft/omnicraft",
+        "verify_command": "gh attestation verify release-manifest.json --repo Leewwp/OmniCraft",
     }],
 }
 with open(out_dir + "/release-manifest.json", "w", encoding="utf-8") as f:
@@ -121,7 +124,7 @@ expect_verify() {
   local expected="$1" label="$2" manifest="$3"
   shift 3
   local actual=0
-  bash "$VERIFY" -Manifest "$manifest" -Policy "$POLICY" -RepoRoot "$REPO_ROOT" "$@" \
+  bash "$VERIFY" -Manifest "$manifest" -Policy "$POLICY" -RepoRoot "$REPO_ROOT" -Repo "$PRODUCING_REPO" "$@" \
     >"$TEMP_ROOT/$label.out" 2>"$TEMP_ROOT/$label.err" || actual=$?
   if [ "$actual" -ne "$expected" ]; then
     echo "FAIL: $label: expected exit $expected, got $actual" >&2
@@ -325,6 +328,51 @@ m = json.load(open(sys.argv[1], encoding="utf-8"))
 m["provenance"][0]["builder_id"] = "https://example.com/unknown"
 json.dump(m, open(sys.argv[1], "w"), indent=2)
 PY
-expect_verify 1 "foreign provenance builder rejected" "$CASE/release-manifest.json"
+expect_verify 1 "non-github provenance builder rejected" "$CASE/release-manifest.json"
+
+# ------------------------------------------- foreign repository identity
+# The builder_id is structurally valid (any owner/repo form passes the schema)
+# but names a repository other than the producing one; the verifier must
+# compare the declared identity against the -Repo input and reject it.
+CASE="$TEMP_ROOT/foreign-builder"
+make_fixture "$CASE"
+python3 - "$CASE/release-manifest.json" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1], encoding="utf-8"))
+m["provenance"][0]["builder_id"] = "https://github.com/foreign/attacker/.github/workflows/sbom.yml@refs/tags/v0.1.0"
+json.dump(m, open(sys.argv[1], "w"), indent=2)
+PY
+expect_verify 1 "foreign repository identity rejected" "$CASE/release-manifest.json"
+
+# ---------------------------------------- verifier identity must be real
+# A manifest correctly declared for the producing repository must still be
+# rejected when the verifier is pointed at a different repository identity:
+# the comparison must consume the -Repo input, not a built-in constant.
+CASE="$TEMP_ROOT/verifier-mismatch"
+make_fixture "$CASE"
+rc=0
+bash "$VERIFY" -Manifest "$CASE/release-manifest.json" -Policy "$POLICY" -RepoRoot "$REPO_ROOT" \
+  -Repo "someone/else" >"$TEMP_ROOT/verifier-mismatch.out" 2>"$TEMP_ROOT/verifier-mismatch.err" || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL: verifier pointed at a foreign repository must reject the manifest, got $rc" >&2; exit 1; }
+echo "OK: verifier repo identity mismatch rejected"
+
+# ------------------------------------------- verifier identity required
+# Without -Repo the identity comparison cannot be performed; the provenance
+# check must fail closed instead of comparing against a hardcoded constant.
+CASE="$TEMP_ROOT/no-verifier-repo"
+make_fixture "$CASE"
+rc=0
+bash "$VERIFY" -Manifest "$CASE/release-manifest.json" -Policy "$POLICY" -RepoRoot "$REPO_ROOT" \
+  >"$TEMP_ROOT/no-verifier-repo.out" 2>"$TEMP_ROOT/no-verifier-repo.err" || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL: verification without -Repo must fail closed, got $rc" >&2; exit 1; }
+python3 - "$CASE/provenance-verification.json" <<'PY'
+import json, sys
+report = json.load(open(sys.argv[1], encoding="utf-8"))
+prov = [c for c in report["checks"] if c["name"] == "provenance.references"]
+assert prov and not prov[0]["ok"], "provenance check must fail without -Repo"
+assert "-Repo" in prov[0]["detail"], "failure detail must cite the missing -Repo identity"
+print("no-verifier-repo report assertions passed")
+PY
+echo "OK: verification without repo identity fails closed"
 
 echo "All verify-provenance contract tests passed"

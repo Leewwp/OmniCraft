@@ -52,6 +52,7 @@ SMTP_PASSWORD=smtp-strong-secret
 NEXT_PUBLIC_API_URL=https://api.omnicraft.test
 INTERNAL_API_URL=https://api.omnicraft.test
 NEXT_PUBLIC_SITE_URL=https://app.omnicraft.test
+PGBOUNCER_IMAGE=edoburu/pgbouncer@sha256:4c1ca296ef525f108f5d3552cc337c0c09587cf8dae7f0067fd93349e47dc1cd
 """)
 with open(out + "/override.yaml", "w") as f:
     f.write("""server:
@@ -91,6 +92,8 @@ rate_limit:
   enabled: true
   normal_per_minute: 100
   upload_per_hour: 200
+agent:
+  web_agent_enabled: false
 """)
 def manifest(version, commit, digest, head):
     return {
