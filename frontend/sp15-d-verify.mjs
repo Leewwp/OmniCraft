@@ -13,6 +13,11 @@ const zh = JSON.parse(readFileSync(path.join(process.cwd(), "messages/zh.json"),
 const W = zh.agent.workspace;
 const SHOTS = path.join(process.cwd(), "..", "screenshots");
 const API = "http://localhost:8080";
+const PASSWORD = process.env.A06_VERIFY_PASSWORD;
+if (!PASSWORD) {
+  console.error("A06_VERIFY_PASSWORD is required（夹具凭证见本地运维手册，不入库）");
+  process.exit(1);
+}
 
 const results = [];
 function step(name, ok, detail = "") {
@@ -55,7 +60,7 @@ async function main() {
 
     await page.goto("http://localhost:3000/login");
     await page.fill('input[type="email"]', "a06-verify@seed.omnicraft.local");
-    await page.fill('input[type="password"]', "A06Verify#2026");
+    await page.fill('input[type="password"]', PASSWORD);
     await page.click('button[type="submit"]');
     await page.waitForURL(/agent|recommend|\/$/, { timeout: 15000 }).catch(() => {});
     step("login", !page.url().includes("login"), page.url());
@@ -72,12 +77,12 @@ async function main() {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf_token },
-          body: JSON.stringify({ email: "a06-verify@seed.omnicraft.local", password: "A06Verify#2026" }),
+          body: JSON.stringify({ email: "a06-verify@seed.omnicraft.local", password: PASSWORD }),
         });
         if (!res.ok) return { httpError: res.status };
         const data = await res.json();
         return { token: data?.tokens?.access_token || "" };
-      }, { API });
+      }, { API, PASSWORD });
     const loginRes = await apiLogin();
     step("api-login", !!loginRes.token, `http=${loginRes.httpError ?? 200}`);
     if (!loginRes.token) throw new Error("api login failed");

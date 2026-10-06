@@ -188,7 +188,8 @@ class FixtureSqlTests(unittest.TestCase):
         sql = lib.fixture_users_sql(lib.fixture_user_rows(authors))
         self.assertIn("'O''Brien''s'", sql)
         self.assertIn("ON CONFLICT (email) DO NOTHING", sql)
-        self.assertIn("role = 'admin'", sql)
+        # 2026-10 收口：种子 SQL 一律 role='user'，不得再携带提权语句
+        self.assertNotIn("role = 'admin'", sql)
 
     def test_support_info_json_valid(self):
         rows = lib.fixture_user_rows([{"author_id": "a01", "handle": "x"}])

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import unicodedata
 import time
@@ -37,11 +38,12 @@ CORPUS_EMAIL_DOMAIN = "corpus.omnicraft.local"
 CORPUS_EMAIL_SUFFIX = "@" + CORPUS_EMAIL_DOMAIN
 CORPUS_SUPPORT_MARKER = "corpus-v2"
 IDEMPOTENCY_TAG_PREFIX = "c2:"
-# Fixed bcrypt password hash for corpus fixture users (bcrypt cost 12 of
-# "CorpusV2#2026", generated once; the plaintext lives here for the injector's
-# REST logins).
+# Fixed bcrypt password hash for corpus fixture users (bcrypt cost 12, one-way:
+# usable for seeding only, never for logging in). The matching plaintext is NOT
+# committed — set CORPUS_FIXTURE_PASSWORD from the local ops runbook before
+# running tools that log in as fixture users (e.g. the injector's REST logins).
 FIXTURE_PASSWORD_HASH = "$2b$12$ZHaA7d8luEG3uvw6BQG.QeANbHfylOi62E2VlBV9fmqJFtnu.tu1y"
-FIXTURE_PASSWORD = "CorpusV2#2026"
+FIXTURE_PASSWORD = os.environ.get("CORPUS_FIXTURE_PASSWORD", "")
 FIXTURE_REPUTATION = 80
 
 # SP-19 G1-3: IP category slugs must match the 11-category single source
@@ -337,13 +339,11 @@ def fixture_users_sql(rows: List[Tuple[str, str, str]]) -> str:
             "(%s, %s, %s, %s, %s, %d, 'user', NOW())"
             % (sql_quote(email), sql_quote(FIXTURE_PASSWORD_HASH), sql_quote(username), sql_quote(""), sql_quote(support), FIXTURE_REPUTATION)
         )
-    admin_email = "admin" + CORPUS_EMAIL_SUFFIX
-    # admin role for the corpus admin account (second to last row convention:
-    # fixture_user_rows appends admin then viewer)
-    stmt = (
+    # fixture_user_rows appends the historical "admin" author row then viewer;
+    # every seeded account keeps role 'user' (the former corpus-admin promotion
+    # was removed: a committed-credential fixture account must not hold admin).
+    return (
         "INSERT INTO users (email, password_hash, username, avatar_url, support_info, reputation, role, email_verified_at)\n"
         "VALUES\n" + ",\n".join(values)
         + "\nON CONFLICT (email) DO NOTHING;\n"
-        + "UPDATE users SET role = 'admin' WHERE email = %s AND role <> 'admin';\n" % sql_quote(admin_email)
     )
-    return stmt
