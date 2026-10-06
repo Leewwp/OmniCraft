@@ -1323,3 +1323,38 @@ func TestLoadRAGContextualKeyFallbackChain(t *testing.T) {
 		require.Equal(t, "", Load().RAG.Contextual.APIKey)
 	})
 }
+
+// #813（run-1 审计 #5 + 决策①）：附件展示签名走独立的分钟级短 TTL 通道
+// （与通用 3600s 展示预算分离）。出厂值 300s 落 config.yaml，值域 >0 且
+// ≤3600；0 = 未设置（签名时回退 300s 工厂默认）。
+func TestDefaultOSSDisplayAttachmentTTLSec(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+	require.Equal(t, 300, cfg.OSS.DisplayAttachmentTTLSec,
+		"factory default for oss.display_attachment_ttl_sec is 300s")
+}
+
+func TestValidateDisplayAttachmentTTLSecRange(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		value   int
+		wantErr bool
+	}{
+		{"unset is allowed (signing-time fallback)", 0, false},
+		{"minimum", 1, false},
+		{"maximum", 3600, false},
+		{"above maximum", 3601, true},
+		{"negative", -5, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{OSS: OSSConfig{DisplayAttachmentTTLSec: tc.value}}
+			var errs []string
+			cfg.validateStructure(&errs)
+			joined := strings.Join(errs, "; ")
+			if tc.wantErr {
+				require.Contains(t, joined, "oss.display_attachment_ttl_sec must be between 1 and 3600")
+			} else {
+				require.NotContains(t, joined, "oss.display_attachment_ttl_sec")
+			}
+		})
+	}
+}
