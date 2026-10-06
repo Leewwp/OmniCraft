@@ -311,6 +311,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)
 	// merge 事务（版本+正文+索引事件）/ 缓存失效 / +3 信誉分（FIX-21）。
 	c.PRService.SetMergeSupport(rdb, c.OutboxRepo, c.ReputationService)
+	// #817 审计 #15：PR 提案文本与合并正文走内容创建同款审核管线。
+	c.PRService.SetReviewService(c.ReviewService)
 	c.VersionService = service.NewVersionService(c.VersionRepo, c.ContentRepo)
 	// FIX-42: 发布事务内建初始版本 v1（full=description）。
 	c.ContentService.SetVersionService(c.VersionService)
@@ -350,6 +352,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) (*ServiceC
 	c.ContentService.SetQueueProducer(c.QueueProducer)
 	c.IPService.SetQueueProducer(c.QueueProducer)
 	c.NotificationService.SetQueueProducer(c.QueueProducer)
+	// #817：PR 审核提交切异步 content.review 管线（与内容创建同款）。
+	c.PRService.SetQueueProducer(c.QueueProducer)
 
 	// #658 内容服务收敛 ×2：调度器只读份（上方 c.ContentService）+ 这份
 	// HTTP/MCP 共用全功能份。MCP 写路径由此补上事务性发件箱——外部 Agent

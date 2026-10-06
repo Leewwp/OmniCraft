@@ -9,18 +9,23 @@ type User struct {
 	// Email is PII: never serialized with the model (Author preloads, follower
 	// lists). Handlers that legitimately expose it (self view / auth me / admin)
 	// add it explicitly at the response boundary (FIX-19a).
-	Email                  string     `gorm:"uniqueIndex;not null;size:255" json:"-"`
-	PasswordHash           string     `gorm:"not null;size:255" json:"-"`
-	Username               string     `gorm:"uniqueIndex;not null;size:64" json:"username"`
-	AvatarURL              string     `gorm:"type:text" json:"avatar_url"`
-	Bio                    string     `gorm:"type:text" json:"bio"`
-	Reputation             int        `gorm:"not null;default:10" json:"reputation"`
-	PreferredLocale        string     `gorm:"size:10;default:'zh-CN'"  json:"preferred_locale"`
+	Email           string `gorm:"uniqueIndex;not null;size:255" json:"-"`
+	PasswordHash    string `gorm:"not null;size:255" json:"-"`
+	Username        string `gorm:"uniqueIndex;not null;size:64" json:"username"`
+	AvatarURL       string `gorm:"type:text" json:"avatar_url"`
+	Bio             string `gorm:"type:text" json:"bio"`
+	Reputation      int    `gorm:"not null;default:10" json:"reputation"`
+	PreferredLocale string `gorm:"size:10;default:'zh-CN'" json:"-"`
+	// PreferredLocale / EmailVerifiedAt are self-tier fields (audit #17,
+	// FIX-19a family): the disclosure boundary lives here at the model so
+	// every direct model.User serialization (Author preloads on content /
+	// search / discussion / comment) stops carrying them. Self-view handlers
+	// (sanitizeUser, auth selfUserPayload) re-attach them explicitly.
 	SupportInfo            JSONMap    `gorm:"type:jsonb;not null;default:'{}'" json:"support_info,omitempty"`
 	Role                   string     `gorm:"not null;default:'user';size:20" json:"role"`
 	IsBanned               bool       `gorm:"not null;default:false" json:"is_banned"`
 	BanReason              string     `gorm:"type:text" json:"ban_reason,omitempty"`
-	EmailVerifiedAt        *time.Time `json:"email_verified_at,omitempty"`
+	EmailVerifiedAt        *time.Time `json:"-"`
 	AcceptCollabInvites    bool       `gorm:"not null;default:true" json:"accept_collab_invites"`
 	AcceptedTermsVersion   string     `gorm:"size:32" json:"accepted_terms_version,omitempty"`
 	AcceptedTermsAt        *time.Time `json:"accepted_terms_at,omitempty"`

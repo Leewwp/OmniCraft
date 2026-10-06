@@ -95,13 +95,26 @@ func (h *InternalHandler) AICallback(c *gin.Context) {
 		return
 	}
 
-	result := "pass"
-	for _, r := range callback.Results {
-		result = service.MergeReviewResult(result, service.NormalizeReviewResult(r.Suggestion))
-	}
-
 	var raw map[string]interface{}
 	_ = json.Unmarshal([]byte(content), &raw)
+
+	// Fail-safe verdict routing (#817 审计加固): only a confirmed code 200 —
+	// looked up case-insensitively, because production traffic since
+	// 2026-09-28 shows ~1% callbacks arriving as {"Code": 200} — walks the
+	// automatic semantics. A missing code, an unknown key shape or a non-200
+	// code is routed to MANUAL REVIEW ("review") instead of passing: response
+	// shapes drift, and an empty-code pass-through would silently waive
+	// moderation on exactly that drift (production evidence: 1644 records,
+	// zero non-200 codes so far — the defensive default is safe under any
+	// provider semantics).
+	result := "review"
+	if code, ok := callbackStatusCode(raw); ok && code == http.StatusOK {
+		result = "pass"
+		for _, r := range callback.Results {
+			result = service.MergeReviewResult(result, service.NormalizeReviewResult(r.Suggestion))
+		}
+	}
+
 	input := service.AICallbackInput{
 		TargetType:     targetType,
 		TargetID:       targetID,
@@ -163,6 +176,25 @@ func parseCallbackDataID(dataID string) (string, int64, error) {
 		return "", 0, errors.New("invalid callback target id")
 	}
 	return targetType, id, nil
+}
+
+// callbackStatusCode extracts the provider status code from the raw callback
+// body, case-insensitively: production callbacks have carried both "code" and
+// "Code" keys (#817 evidence), so an exact-match lookup would misclassify the
+// capitalized form as unknown. Only a JSON number is a recognized shape — any
+// other value type (string, bool, null...) reports not-found and the caller
+// routes the callback to manual review.
+func callbackStatusCode(raw map[string]interface{}) (int, bool) {
+	for key, value := range raw {
+		if !strings.EqualFold(key, "code") {
+			continue
+		}
+		if code, ok := value.(float64); ok {
+			return int(code), true
+		}
+		return 0, false
+	}
+	return 0, false
 }
 
 func sha256Hex(s string) string {

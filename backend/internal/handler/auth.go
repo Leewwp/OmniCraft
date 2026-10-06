@@ -314,8 +314,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	})
 }
 
-// selfUserPayload marshals the user (email hidden at model level, FIX-19a) and
-// re-attaches the email explicitly: login and /auth/me are self paths.
+// selfUserPayload marshals the user (email / preferred_locale /
+// email_verified_at hidden at model level, FIX-19a + audit #17) and re-attaches
+// the three self-tier fields explicitly: login and /auth/me are self paths.
 func (h *AuthHandler) selfUserPayload(user *model.User) (map[string]any, error) {
 	payload, err := json.Marshal(user)
 	if err != nil {
@@ -326,6 +327,10 @@ func (h *AuthHandler) selfUserPayload(user *model.User) (map[string]any, error) 
 		return nil, err
 	}
 	userMap["email"] = user.Email
+	userMap["preferred_locale"] = user.PreferredLocale
+	if user.EmailVerifiedAt != nil {
+		userMap["email_verified_at"] = *user.EmailVerifiedAt
+	}
 	return userMap, nil
 }
 

@@ -294,6 +294,75 @@ func TestAICallbackDedicatedRateLimitReturns429(t *testing.T) {
 	}
 }
 
+// TestAICallbackCodeKeyCaseDriftStaysAutomatic（#817 问题3）pins the
+// defensive parse contract: production evidence since 2026-09-28 shows ~1% of
+// callbacks arrive as {"Code": 200} (capitalized key) where all earlier
+// traffic used lowercase. Response shapes drift, so the code lookup must be
+// case-insensitive: a known 200 — regardless of key casing — keeps walking
+// the existing automatic path and must not be misrouted to manual review.
+func TestAICallbackCodeKeyCaseDriftStaysAutomatic(t *testing.T) {
+	for name, codeKey := range map[string]string{"lowercase code": "code", "uppercase Code": "Code"} {
+		t.Run(name, func(t *testing.T) {
+			router, _, db, cleanup := buildAICallbackRouter(t, queue.NewNoopProducer(), "under_review")
+			defer cleanup()
+
+			content := callbackContentWithCodeKey(codeKey, 200, "content:1", "task-case-"+codeKey, "pass")
+			rec := postCallback(t, router, checksumOf(testCallbackUID, testCallbackSeed, content), content)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			}
+			if got := contentStatus(t, db); got != "published" {
+				t.Fatalf("content status = %q, want published (known 200 + pass keeps the automatic path)", got)
+			}
+		})
+	}
+}
+
+// TestAICallbackFailsSafeToManualReviewOnUnknownCode（#817 问题3）：回调体缺
+// code / 未知键形态 / 非 200 一律转人工（fail-safe）——生产 1644 条真实记录
+// 中非 200 code 历史为 0，但响应形态会漂移；空值直通 = 漂移即静默免审。断言
+// 转人工（content → under_review + 记录 result=review），而非自动 pass。
+func TestAICallbackFailsSafeToManualReviewOnUnknownCode(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{
+			name:    "missing code key",
+			content: callbackContentWithCodeKey("", nil, "content:1", "task-missing-code", "pass"),
+		},
+		{
+			name:    "unknown code key form",
+			content: callbackContentWithCodeKey("status_code", 200, "content:1", "task-unknown-key", "pass"),
+		},
+		{
+			name:    "non-200 code",
+			content: callbackContentWithCodeKey("code", 400, "content:1", "task-non-200", "pass"),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router, _, db, cleanup := buildAICallbackRouter(t, queue.NewNoopProducer(), "published")
+			defer cleanup()
+
+			rec := postCallback(t, router, checksumOf(testCallbackUID, testCallbackSeed, tc.content), tc.content)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 (fail-safe is not a callback error); body = %s", rec.Code, rec.Body.String())
+			}
+			if got := contentStatus(t, db); got != "under_review" {
+				t.Fatalf("content status = %q, want under_review (unknown shape must route to manual review)", got)
+			}
+			var record model.AIReviewRecord
+			if err := db.Where("target_type = ? AND target_id = ?", "content", 1).First(&record).Error; err != nil {
+				t.Fatalf("load ai_review_records: %v", err)
+			}
+			if record.Result != "review" {
+				t.Fatalf("record result = %q, want review (recorded as manual review, not auto pass)", record.Result)
+			}
+		})
+	}
+}
+
 // buildAICallbackRouter wires a router with the real ReviewService, sqlite
 // storage and the given queue producer, plus one author user (id 1) and one
 // content item (id 1) in the given start status. Optional cfg mutators run
@@ -455,18 +524,29 @@ func buildAICallbackRouter(t *testing.T, producer queue.Producer, contentStartSt
 // callbackContentJSON builds the content payload of an Aliyun scan-result
 // callback for the given dataId, taskId and suggestions.
 func callbackContentJSON(dataID, taskID string, suggestions ...string) string {
+	return callbackContentWithCodeKey("code", 200, dataID, taskID, suggestions...)
+}
+
+// callbackContentWithCodeKey builds a callback body whose status-code entry
+// uses the given key name and value: an empty key omits the entry entirely,
+// letting the code-shape drift cases (capitalized keys, unknown key names,
+// missing / non-200 values) exercise the fail-safe parse (#817).
+func callbackContentWithCodeKey(codeKey string, code interface{}, dataID, taskID string, suggestions ...string) string {
 	results := make([]map[string]string, 0, len(suggestions))
 	for _, s := range suggestions {
 		results = append(results, map[string]string{"scene": "porn", "label": "callback-test", "suggestion": s})
 	}
-	body, _ := json.Marshal(map[string]interface{}{
+	body := map[string]interface{}{
 		"dataId":  dataID,
 		"taskId":  taskID,
 		"results": results,
-		"code":    200,
 		"message": "OK",
-	})
-	return string(body)
+	}
+	if codeKey != "" {
+		body[codeKey] = code
+	}
+	payload, _ := json.Marshal(body)
+	return string(payload)
 }
 
 // checksumOf computes SHA256(uid + seed + content) as a lowercase hex

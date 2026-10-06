@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,14 +11,16 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/testutil"
 )
 
 // setupPRServiceTest wires an ephemeral Postgres with the version/PR schema
-// (009 + 010) and the transactional outbox (070) so merge assertions can
-// check the content.updated event row written in the same transaction.
+// (009 + 010), the transactional outbox (070) and the AI review records
+// (013 + 068, #817 审计 #15 merge-review trail) so merge assertions can check
+// the content.updated event row and the review record written by the merge.
 func setupPRServiceTest(t *testing.T) (*PRService, *VersionService, *gorm.DB) {
 	t.Helper()
 
@@ -27,6 +30,8 @@ func setupPRServiceTest(t *testing.T) (*PRService, *VersionService, *gorm.DB) {
 	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "migrations", "009_content_versions.sql"))
 	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "migrations", "010_pull_requests.sql"))
 	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "migrations", "070_outbox_inbox.sql"))
+	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "migrations", "013_ai_review.sql"))
+	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "migrations", "068_add_ai_review_records_task_id.sql"))
 
 	svc := NewPRService(
 		repository.NewPRRepository(db),
@@ -310,4 +315,108 @@ func TestParticipantAuthOnVersionAndPRDetail(t *testing.T) {
 	require.NoError(t, err)
 	_, err = svc.GetPRForViewer(pr.ID, 0, true)
 	require.NoError(t, err)
+}
+
+// wirePRReviewService attaches a ReviewService backed by the fake Green
+// scanner so PR review-trail assertions can run without real Aliyun
+// credentials (#817 审计 #15）。
+func wirePRReviewService(t *testing.T, svc *PRService, db *gorm.DB) *fakeGreenScanner {
+	t.Helper()
+	scanner := &fakeGreenScanner{}
+	reviewSvc := NewReviewService(db, nil, &config.Config{}, NewReputationService(db))
+	reviewSvc.SetGreenScanner(scanner)
+	svc.SetReviewService(reviewSvc)
+	return scanner
+}
+
+// TDD #817-问题1（审计 #15）：ManualMerge 在合并事务提交后必须对合并正文
+// 走与内容创建相同的审核路径（publish-first / review-async）——配置 scanner
+// 时合并后存在 target=content 的 ai_review_records 记录，且扫描文本包含
+// 合并正文（此前合并是唯一绕过内容审核的发布写点）。
+func TestManualMergeSubmitsMergedBodyForReview(t *testing.T) {
+	svc, _, db := setupPRServiceTest(t)
+	author := seedPRUser(t, db, "author")
+	submitter := seedPRUser(t, db, "submitter")
+	contentID, baseVersionID := seedPRContent(t, db, author, "v1 body")
+	svc.SetMergeSupport(nil, repository.NewOutboxRepository(db), NewReputationService(db))
+	scanner := wirePRReviewService(t, svc, db)
+
+	pr := submitFixturePR(t, svc, contentID, baseVersionID, submitter, "proposed body")
+	_, err := svc.ManualMerge(pr.ID, author, "merged body needs review")
+	require.NoError(t, err)
+
+	var record model.AIReviewRecord
+	require.NoError(t, db.Where("target_type = ? AND target_id = ?", "content", contentID).
+		Order("id DESC").First(&record).Error, "merge must leave an AI review record for the merged body")
+	require.Equal(t, "pass", record.Result)
+	require.NotEmpty(t, scanner.textCalls, "the merged body must reach the Green text channel")
+	require.Contains(t, strings.Join(scanner.textCalls, "\n"), "merged body needs review")
+}
+
+// TDD #817-问题1（审计 #15）：SubmitPR 的 new_text 同样进审核——记录落在
+// target=pr（提案文本未发布，只建审核轨迹，不牵连内容作者）。
+func TestSubmitPRSubmitsNewTextForReview(t *testing.T) {
+	svc, _, db := setupPRServiceTest(t)
+	author := seedPRUser(t, db, "author")
+	submitter := seedPRUser(t, db, "submitter")
+	contentID, baseVersionID := seedPRContent(t, db, author, "v1 body")
+	scanner := wirePRReviewService(t, svc, db)
+
+	pr := submitFixturePR(t, svc, contentID, baseVersionID, submitter, "proposal body needs scan")
+
+	var record model.AIReviewRecord
+	require.NoError(t, db.Where("target_type = ? AND target_id = ?", "pr", pr.ID).
+		First(&record).Error, "SubmitPR new_text must leave a review record")
+	require.NotEmpty(t, scanner.textCalls)
+	require.Contains(t, strings.Join(scanner.textCalls, "\n"), "proposal body needs scan")
+}
+
+// TDD #817-问题1（审计 #15）：合并路径补 banned-status 守卫——合并把贡献者
+// 文本发布为内容正文，banned 的合并参与者（提交者或调用者）一律拒绝，且
+// 无任何合并副作用（HTTP 层 banned 中间件之外的纵深防御）。
+func TestManualMergeRejectsBannedParticipant(t *testing.T) {
+	svc, _, db := setupPRServiceTest(t)
+	author := seedPRUser(t, db, "author")
+	submitter := seedPRUser(t, db, "submitter")
+	contentID, baseVersionID := seedPRContent(t, db, author, "v1 body")
+
+	pr := submitFixturePR(t, svc, contentID, baseVersionID, submitter, "proposed body")
+
+	require.NoError(t, db.Exec(`UPDATE users SET is_banned = TRUE WHERE id = ?`, submitter).Error)
+	_, err := svc.ManualMerge(pr.ID, author, "")
+	require.ErrorIs(t, err, ErrPRBannedParticipant, "a banned submitter must not land text via merge")
+
+	require.NoError(t, db.Exec(`UPDATE users SET is_banned = TRUE WHERE id = ?`, author).Error)
+	_, err = svc.ManualMerge(pr.ID, author, "")
+	require.ErrorIs(t, err, ErrPRBannedParticipant, "a banned caller must not merge")
+
+	// 无合并副作用：PR 仍 open、正文未写、无新版本（仅 v1 + proposed）
+	var after model.PullRequest
+	require.NoError(t, db.First(&after, pr.ID).Error)
+	require.Equal(t, "open", after.Status)
+	var content model.ContentItem
+	require.NoError(t, db.First(&content, contentID).Error)
+	require.Equal(t, "v1 body", content.Description)
+	var versions int64
+	require.NoError(t, db.Model(&model.ContentVersion{}).Where("content_item_id = ?", contentID).Count(&versions).Error)
+	require.EqualValues(t, 2, versions)
+}
+
+// TDD #817-问题1（审计 #15）：banned 是 admin/AI/判官通道终态，与正文编辑
+// 同族——banned 内容不可被合并改写正文。
+func TestManualMergeRejectsBannedContent(t *testing.T) {
+	svc, _, db := setupPRServiceTest(t)
+	author := seedPRUser(t, db, "author")
+	submitter := seedPRUser(t, db, "submitter")
+	contentID, baseVersionID := seedPRContent(t, db, author, "v1 body")
+
+	pr := submitFixturePR(t, svc, contentID, baseVersionID, submitter, "proposed body")
+
+	require.NoError(t, db.Exec(`UPDATE content_items SET status = 'banned' WHERE id = ?`, contentID).Error)
+	_, err := svc.ManualMerge(pr.ID, author, "must not apply")
+	require.ErrorIs(t, err, ErrPRContentBanned, "merging into a banned content must be rejected")
+
+	var content model.ContentItem
+	require.NoError(t, db.First(&content, contentID).Error)
+	require.Equal(t, "v1 body", content.Description, "banned content body must stay untouched")
 }

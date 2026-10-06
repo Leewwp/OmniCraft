@@ -2,13 +2,18 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/events"
+	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 
 	"github.com/redis/go-redis/v9"
@@ -23,24 +28,49 @@ var (
 	ErrPRInvalidState     = errors.New("pr is already resolved")
 	ErrPRMergeTextMissing = errors.New("merged text required")
 	ErrPRBaseInvalid      = errors.New("base version does not belong to the content")
+	// ErrPRBannedParticipant guards the merge write point (#817 审计 #15): the
+	// merge publishes contributor text as the content body, so a banned caller
+	// or a banned submitter must not land text — defense in depth under the
+	// HTTP-level banned middleware.
+	ErrPRBannedParticipant = errors.New("merge rejected: participant is banned")
+	// ErrPRContentBanned mirrors the edit-path guard: banned is the terminal
+	// state of the admin/AI/judge channels, and a merge rewrites the body.
+	ErrPRContentBanned = errors.New("content is banned and cannot be merged into")
 )
 
 type PRService struct {
-	prRepo      *repository.PRRepository
-	versionRepo *repository.VersionRepository
-	contentRepo *repository.ContentRepository
-	notifSvc    *NotificationService
-	reputSvc    *ReputationService
-	outbox      repository.OutboxWriter
-	rdb         *redis.Client
+	prRepo        *repository.PRRepository
+	versionRepo   *repository.VersionRepository
+	contentRepo   *repository.ContentRepository
+	notifSvc      *NotificationService
+	reputSvc      *ReputationService
+	outbox        repository.OutboxWriter
+	rdb           *redis.Client
+	reviewSvc     *ReviewService
+	queueProducer queue.Producer
 }
 
 func NewPRService(prRepo *repository.PRRepository, vRepo *repository.VersionRepository, cRepo *repository.ContentRepository) *PRService {
-	return &PRService{prRepo: prRepo, versionRepo: vRepo, contentRepo: cRepo}
+	return &PRService{prRepo: prRepo, versionRepo: vRepo, contentRepo: cRepo, queueProducer: queue.NewNoopProducer()}
 }
 
 func (s *PRService) SetNotificationService(ns *NotificationService) {
 	s.notifSvc = ns
+}
+
+// SetReviewService wires the content-safety review pipeline (#817 审计 #15):
+// both the PR proposal text and the merged body must pass the same moderation
+// as directly published content. Without it (tests / local no-op) the merge
+// path stays silent, matching the historical behavior.
+func (s *PRService) SetReviewService(svc *ReviewService) {
+	s.reviewSvc = svc
+}
+
+// SetQueueProducer switches review submission onto the asynchronous
+// content.review pipeline (same seam as ContentService): the merge request
+// never waits for a Green scan, the worker applies the verdict.
+func (s *PRService) SetQueueProducer(p queue.Producer) {
+	s.queueProducer = p
 }
 
 // SetMergeSupport wires the merge-time collaborators: cache invalidation
@@ -51,6 +81,50 @@ func (s *PRService) SetMergeSupport(rdb *redis.Client, outbox repository.OutboxW
 	s.rdb = rdb
 	s.outbox = outbox
 	s.reputSvc = reputSvc
+}
+
+// submitForReview routes PR-domain free text into the same moderation pipeline
+// as content creation (#817 审计 #15): with a real queue producer the scan is
+// published to the content.review topic (publish-first / review-async — the
+// PR write is already durable when this runs), otherwise the configured
+// scanner runs inline. Review failures are logged, never propagated: the PR /
+// merge has already committed and cannot be retried by the caller, so an
+// error response would misreport a completed write (Green outages degrade to
+// the historical no-review behavior instead of a phantom failure).
+func (s *PRService) submitForReview(ctx context.Context, input SubmitReviewInput) {
+	if s.reviewSvc == nil {
+		return
+	}
+	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
+		payload, err := json.Marshal(map[string]interface{}{
+			"action":          "submit_ai_review",
+			"target_type":     input.TargetType,
+			"target_id":       input.TargetID,
+			"content_type":    input.ContentType,
+			"title":           input.Title,
+			"description":     input.Description,
+			"author_id":       input.AuthorID,
+			"cover_image_url": input.CoverImageURL,
+		})
+		if err != nil {
+			slog.Error("failed to marshal pr review payload", "target_type", input.TargetType, "target_id", input.TargetID, "error", err)
+			return
+		}
+		detachedCtx := context.WithoutCancel(ctx)
+		topic := "content.review"
+		if strings.EqualFold(input.TargetType, "ip") {
+			topic = "ip.review"
+		}
+		recovery.GoSafe(func() {
+			if err := s.queueProducer.Publish(detachedCtx, topic, payload); err != nil {
+				slog.Error("failed to publish pr review message", "topic", topic, "target_id", input.TargetID, "error", err)
+			}
+		})
+		return
+	}
+	if err := s.reviewSvc.SubmitForAIReview(ctx, input); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+		slog.Error("pr review submission failed", "target_type", input.TargetType, "target_id", input.TargetID, "error", err)
+	}
 }
 
 type SubmitPRInput struct {
@@ -131,6 +205,21 @@ func (s *PRService) SubmitPR(input SubmitPRInput, submitterID int64) (*model.Pul
 
 	if err := s.prRepo.CreatePR(pr); err != nil {
 		return nil, err
+	}
+
+	// The proposed body is contributor free text (#817 审计 #15): it goes
+	// through the same moderation scan as published content. The record lands
+	// on target pr/<pr id> — the proposal is not published yet, so the verdict
+	// builds the review trail without side effects on the author's live
+	// content (a violating proposal must not ban content the author wrote).
+	if input.NewText != "" {
+		s.submitForReview(context.Background(), SubmitReviewInput{
+			TargetType:  "pr",
+			TargetID:    pr.ID,
+			Title:       content.Title,
+			Description: input.NewText,
+			AuthorID:    submitterID,
+		})
 	}
 
 	return pr, nil
@@ -255,6 +344,26 @@ func (s *PRService) ManualMerge(prID int64, callerID int64, mergedText string) (
 		return nil, ErrPRInvalidState
 	}
 
+	// banned-status guard (#817 审计 #15): banned is the admin/AI/judge
+	// terminal state — same rule as the edit path, a merge must not rewrite
+	// the body of banned content.
+	if content.Status == "banned" {
+		return nil, ErrPRContentBanned
+	}
+	// The merge publishes contributor text as the content body, so every
+	// participant of that write must be in good standing. The HTTP layer
+	// already rejects banned callers; this guards the submitter (whose text
+	// lands) and covers non-HTTP callers.
+	var bannedParticipants []int64
+	if err := s.prRepo.DB().Table("users").
+		Where("id IN ? AND is_banned = ?", []int64{callerID, pr.SubmitterID}, true).
+		Pluck("id", &bannedParticipants).Error; err != nil {
+		return nil, err
+	}
+	if len(bannedParticipants) > 0 {
+		return nil, ErrPRBannedParticipant
+	}
+
 	// Without an explicit merged_text the merge applies the submitted
 	// proposal — that is the whole point of persisting new_text.
 	if mergedText == "" && pr.ProposedVersionID != nil {
@@ -350,6 +459,21 @@ func (s *PRService) ManualMerge(prID int64, callerID int64, mergedText string) (
 			slog.Error("failed to award pr_merged reputation", "pr_id", prID, "submitter_id", pr.SubmitterID, "error", err)
 		}
 	}
+
+	// The merged body is now the published content description (#817 审计
+	// #15): it must not bypass the moderation every other publish path runs.
+	// Same async semantics as content creation (publish-first / review-async)
+	// — the verdict arrives through the existing content review pipeline and
+	// gates the description by the platform's standing semantics (block →
+	// banned + penalty chain, review → manual review queue).
+	s.submitForReview(context.Background(), SubmitReviewInput{
+		TargetType:  "content",
+		TargetID:    content.ID,
+		ContentType: content.ContentType,
+		Title:       content.Title,
+		Description: mergedText,
+		AuthorID:    content.AuthorID,
+	})
 
 	if s.notifSvc != nil {
 		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_merged", "PR 已合并："+content.Title, "", "pr", prID, callerID)
