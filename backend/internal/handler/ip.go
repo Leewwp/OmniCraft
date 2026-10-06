@@ -141,10 +141,12 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 		return
 	}
 
-	// SP-25 低-22：封面必须为平台 OSS 对象（对齐内容域 resolveCoverScanURL
-	// 语义；此前任意 URL 直存，成为外链/外域图残余面）。空 = 无封面，允许。
+	// SP-25 低-22：封面必须为平台 OSS 对象（对齐内容域封面闸语义；此前
+	// 任意 URL 直存，成为外链/外域图残余面）。空 = 无封面，允许。
+	// #813 审计 #2：升级为主体命名空间绑定——封面必须落在创建者本人的
+	// uploads/<uid>/ 命名空间，隔离区对象永不为封面。
 	if coverURL := strings.TrimSpace(input.CoverURL); coverURL != "" {
-		if h.cfg == nil || !aliyun.IsPlatformObjectURL(h.cfg.OSS.Domain, coverURL) {
+		if h.cfg == nil || !aliyun.IsPlatformObjectURLForPrincipal(h.cfg.OSS.Domain, coverURL, callerID) {
 			response.Error(c, http.StatusBadRequest, "COVER_NOT_PLATFORM_OSS_OBJECT", "cover_url must be a platform OSS object URL")
 			return
 		}

@@ -194,6 +194,8 @@ the frontend MAX_DM_LENGTH (2000) so the UI c... |
 | `oss.access_key_id` | `string` | AccessKeyID |
 | `oss.access_key_secret` | `string` | AccessKeySecret |
 | `oss.bucket_name` | `string` | BucketName |
+| `oss.display_attachment_ttl_sec` | `int` | DisplayAttachmentTTLSec is the #813 independent minute-level short-TTL
+channel for content-attachment display signing... |
 | `oss.display_url_ttl_sec` | `int` | DisplayURLTTL bounds the signed GET URLs issued for display media
 (covers, avatars, gallery attachments) at the API s... |
 | `oss.domain` | `string` | Domain |

@@ -282,6 +282,14 @@ type OSSConfig struct {
 	// above the Redis display cache TTL (300s) so cached rows never outlive
 	// their re-issued signatures.
 	DisplayURLTTL int `mapstructure:"display_url_ttl_sec" json:"display_url_ttl_sec"`
+	// DisplayAttachmentTTLSec is the #813 independent minute-level short-TTL
+	// channel for content-attachment display signing (decision ①): display /
+	// preview families (image, video, sheet_music) are signed with this
+	// budget, separate from the generic DisplayURLTTL budget above. Factory
+	// default 300s; anonymous detail responses cache for at most 60s, so the
+	// cache never outlives the signature. Valid range 1..3600 (0 = unset —
+	// signing falls back to the 300s factory default).
+	DisplayAttachmentTTLSec int `mapstructure:"display_attachment_ttl_sec" json:"display_attachment_ttl_sec"`
 }
 
 type GreenConfig struct {
@@ -1648,6 +1656,11 @@ func (c *Config) validateStructure(errs *[]string) {
 	}
 	if err := c.Upload.ValidateGalleryLimits(); err != nil {
 		*errs = append(*errs, "upload."+err.Error())
+	}
+	// #813：附件展示短 TTL 通道值域（>0 且 ≤3600）。0 = 未设置，签名时回
+	// 退 300s 工厂默认；负值或超上限属于配置错误，任何模式直接拒绝。
+	if v := c.OSS.DisplayAttachmentTTLSec; v != 0 && (v < 1 || v > 3600) {
+		*errs = append(*errs, "oss.display_attachment_ttl_sec must be between 1 and 3600")
 	}
 
 	switch strings.ToLower(strings.TrimSpace(c.Captcha.Provider)) {

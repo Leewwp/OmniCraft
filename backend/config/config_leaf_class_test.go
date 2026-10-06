@@ -213,6 +213,7 @@ var leafClassification = map[string]string{
 	"oss.access_key_id":                                              "conditional",
 	"oss.access_key_secret":                                          "conditional",
 	"oss.bucket_name":                                                "conditional",
+	"oss.display_attachment_ttl_sec":                                 "conditional",
 	"oss.display_url_ttl_sec":                                        "conditional",
 	"oss.domain":                                                     "conditional",
 	"oss.download_url_ttl_sec":                                       "conditional",
@@ -463,8 +464,9 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	}
 	// 13 + 1 #800 server.stream_write_window.
 	require.Equal(t, 14, counts[classRequired])
-	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups + 1 #787 projection gate.
-	require.Equal(t, 166, counts[classConditional])
+	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups + 1 #787 projection gate
+	// + 1 #813 attachment display short-TTL channel.
+	require.Equal(t, 167, counts[classConditional])
 	// 122 shipped + 5 (#688) + 3 (#689) new.
 	require.Equal(t, 134, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).

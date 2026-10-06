@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -46,7 +47,9 @@ func TestVideoUploadRequiresDuration(t *testing.T) {
 	require.NoError(t, err, "in-range duration passes")
 }
 
-// 低-22：提案封面平台域（提交端）——外域图被拒、平台域放行。
+// 低-22：提案封面平台域（提交端）——外域图被拒、平台域放行。#813 审计 #2
+// 后闸升级为主体命名空间绑定：放行用例必须是提案者本人的 uploads 命名空
+// 间（跨命名空间拒绝由 TestCreateProposalCoverNamespaceBinding 覆盖）。
 func TestProposalCoverPlatformDomain(t *testing.T) {
 	svc, db := setupProposalService(t)
 	proposer, _, _, ip := seedProposalFixtures(t, db)
@@ -56,9 +59,9 @@ func TestProposalCoverPlatformDomain(t *testing.T) {
 	_, err := svc.CreateProposal(t.Context(), ip.ID, proposer.ID, CreateIPProposalInput{CoverURLChange: &external})
 	require.ErrorIs(t, err, ErrProposalCoverNotPlatform)
 
-	platform := "https://cdn.example-oss.test/covers/x.png"
+	platform := fmt.Sprintf("https://cdn.example-oss.test/uploads/%d/image/cover.png", proposer.ID)
 	_, err = svc.CreateProposal(t.Context(), ip.ID, proposer.ID, CreateIPProposalInput{CoverURLChange: &platform})
-	require.NotErrorIs(t, err, ErrProposalCoverNotPlatform, "platform-domain cover must pass the domain gate")
+	require.NotErrorIs(t, err, ErrProposalCoverNotPlatform, "own-namespace platform cover must pass the gate")
 }
 
 // 低-25：改密 72 字节语义——rune 预算与 bcrypt 字节预算存在缺口，handler
