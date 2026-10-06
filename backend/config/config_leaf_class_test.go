@@ -69,10 +69,12 @@ var leafClassification = map[string]string{
 	"agent.mcp.call_timeout_sec":                   "conditional",
 	"agent.mcp.enabled":                            "conditional",
 	"agent.mcp.external_answer_max_runes":          "conditional",
+	"agent.mcp.identity_session_max":               "conditional",
 	"agent.mcp.result_max_bytes":                   "conditional",
 	"agent.mcp.servers.[].args":                    "conditional",
 	"agent.mcp.servers.[].command":                 "conditional",
 	"agent.mcp.servers.[].id":                      "conditional",
+	"agent.mcp.servers.[].identity_env":            "conditional",
 	"agent.mcp.servers.[].tools":                   "conditional",
 	"agent.models.[].api_base":                     "registry",
 	"agent.models.[].api_key":                      "registry",
@@ -454,8 +456,8 @@ func TestLeafClassificationOnlyUsesKnownClasses(t *testing.T) {
 	}
 }
 
-// The census ledger (required 14 / conditional 166 / optional-zero 134 /
-// registry 21 / dead 6 = 341 leaves) is asserted so the doc and the table
+// The census ledger (required 14 / conditional 169 / optional-zero 134 /
+// registry 21 / dead 6 = 344 leaves) is asserted so the doc and the table
 // cannot drift apart silently.
 func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	counts := map[string]int{}
@@ -465,8 +467,9 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	// 13 + 1 #800 server.stream_write_window.
 	require.Equal(t, 14, counts[classRequired])
 	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups + 1 #787 projection gate
+	// + 2 #816 MCP identity binding leaves (identity_env / identity_session_max)
 	// + 1 #813 attachment display short-TTL channel.
-	require.Equal(t, 167, counts[classConditional])
+	require.Equal(t, 169, counts[classConditional])
 	// 122 shipped + 5 (#688) + 3 (#689) new.
 	require.Equal(t, 134, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).

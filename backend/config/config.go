@@ -793,8 +793,13 @@ type AgentMCPConfig struct {
 	// answers cite workspace data rather than RAG chunks, so the strict
 	// citation gate would otherwise clear every substantive answer to
 	// no_evidence. Zero disables the lane.
-	ExternalAnswerMaxRunes int                    `mapstructure:"external_answer_max_runes" json:"external_answer_max_runes"`
-	Servers                []AgentMCPServerConfig `mapstructure:"servers" json:"servers"`
+	ExternalAnswerMaxRunes int `mapstructure:"external_answer_max_runes" json:"external_answer_max_runes"`
+	// IdentitySessionMax caps live per-viewer subprocess sessions per
+	// identity-aware server (#816): the oldest viewer's session is closed
+	// on overflow. Required (positive) whenever a server declares
+	// identity_env.
+	IdentitySessionMax int                    `mapstructure:"identity_session_max" json:"identity_session_max"`
+	Servers            []AgentMCPServerConfig `mapstructure:"servers" json:"servers"`
 }
 
 // AgentMCPServerConfig is one stdio MCP server subprocess.
@@ -805,6 +810,13 @@ type AgentMCPServerConfig struct {
 	Env     map[string]string `mapstructure:"env" json:"env"`
 	// Tools is an optional allowlist; empty exposes every advertised tool.
 	Tools []string `mapstructure:"tools" json:"tools"`
+	// IdentityEnv declares the server identity-aware (#816): the bridge
+	// spawns one subprocess session per calling viewer and injects this env
+	// key with the viewer id, so tool execution always happens under the
+	// caller's own identity. A static identity in Env is rejected at load
+	// (validateAgentMCPServerEnv) — a shared subprocess bound to one fixed
+	// user is exactly the cross-user impersonation the fix removes.
+	IdentityEnv string `mapstructure:"identity_env" json:"identity_env"`
 }
 
 // AgentImageConfig carries every generate_image limit (Key Rule 6: limits
@@ -1093,6 +1105,39 @@ func validMCPServerID(id string) bool {
 		}
 	}
 	return true
+}
+
+// agentMCPStaticIdentityEnvKeys are env keys that bind a bridged MCP server
+// subprocess to one fixed user identity (#816): a static value here makes
+// every caller's tools execute as that user, so servers carrying them are
+// refused at load and named. Identity reaches identity-aware servers per
+// call instead (identity_env + the calling viewer).
+var agentMCPStaticIdentityEnvKeys = map[string]bool{
+	"OMNICRAFT_DOC_USER_ID": true,
+}
+
+var envNamePattern = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+
+// validateAgentMCPServerEnv enforces the identity-binding rules of one
+// bridged MCP server (#816): identity env keys may never carry a static
+// value (case-insensitive — viper lowercases map keys), and a declared
+// identity_env must be a valid env var name that does not collide with a
+// static entry.
+func validateAgentMCPServerEnv(errs *[]string, i int, srv AgentMCPServerConfig) {
+	identityKey := strings.ToUpper(strings.TrimSpace(srv.IdentityEnv))
+	if srv.IdentityEnv != "" && !envNamePattern.MatchString(identityKey) {
+		*errs = append(*errs, fmt.Sprintf(
+			"agent.mcp.servers[%d] (%s): identity_env %q is not a valid environment variable name",
+			i, srv.ID, srv.IdentityEnv))
+	}
+	for k := range srv.Env {
+		key := strings.ToUpper(k)
+		if agentMCPStaticIdentityEnvKeys[key] || (identityKey != "" && key == identityKey) {
+			*errs = append(*errs, fmt.Sprintf(
+				"agent.mcp.servers[%d] (%s): env %q carries a caller identity and must not be set statically — declare identity_env on the server so the bridge binds each call to its viewer (#816)",
+				i, srv.ID, key))
+		}
+	}
 }
 
 func applyTestMode(cfg *Config) error {
@@ -1843,10 +1888,18 @@ func (c *Config) validateStructure(errs *[]string) {
 	if c.Agent.MCP.Enabled {
 		requirePositiveInt(errs, "agent.mcp.call_timeout_sec", c.Agent.MCP.CallTimeoutSec)
 		requirePositiveInt(errs, "agent.mcp.result_max_bytes", c.Agent.MCP.ResultMaxBytes)
+		hasIdentityServer := false
 		for i, srv := range c.Agent.MCP.Servers {
 			if strings.TrimSpace(srv.ID) == "" || strings.TrimSpace(srv.Command) == "" {
 				*errs = append(*errs, fmt.Sprintf("agent.mcp.servers[%d].id and .command are required when agent.mcp is enabled", i))
 			}
+			validateAgentMCPServerEnv(errs, i, srv)
+			if srv.IdentityEnv != "" {
+				hasIdentityServer = true
+			}
+		}
+		if hasIdentityServer {
+			requirePositiveInt(errs, "agent.mcp.identity_session_max", c.Agent.MCP.IdentitySessionMax)
 		}
 	}
 	// Notification queue (ADR 0005): an enabled queue needs usable bounds —

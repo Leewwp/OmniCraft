@@ -21,14 +21,16 @@ type AgentMCPResult struct {
 }
 
 // mcpToolOutcome routes one mcp_<server>_<tool> call through the bridge and
-// wraps it as a tool outcome. Errors surface with the underlying error
-// string (the #547 lesson: silent success hides dead subprocesses).
-func (s *AgentService) mcpToolOutcome(ctx context.Context, name string, rawArgs json.RawMessage) (*AgentToolOutcome, error) {
+// wraps it as a tool outcome, executed on behalf of viewerID (#816 — the
+// subject is never dropped on the way to the bridge). Errors surface with
+// the underlying error string (the #547 lesson: silent success hides dead
+// subprocesses).
+func (s *AgentService) mcpToolOutcome(ctx context.Context, viewerID int64, name string, rawArgs json.RawMessage) (*AgentToolOutcome, error) {
 	serverID, local, ok := splitMCPToolName(name)
 	if !ok {
 		return nil, ErrAgentToolUnknown
 	}
-	resultJSON, truncated, err := s.mcpBridge.CallTool(ctx, name, rawArgs)
+	resultJSON, truncated, err := s.mcpBridge.CallTool(ctx, viewerID, name, rawArgs)
 	if err != nil {
 		return nil, err
 	}

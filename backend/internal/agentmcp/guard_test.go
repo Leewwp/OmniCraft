@@ -18,7 +18,7 @@ func TestGuardedBridgeOpenSkipsServer(t *testing.T) {
 		t.Fatal("trip failure must propagate")
 	}
 	g := NewGuardedBridge(nil, br) // inner intentionally nil
-	if _, _, err := g.CallTool(context.Background(), "mcp_doc_draft_read", json.RawMessage(`{}`)); !errors.Is(err, breaker.ErrOpen) {
+	if _, _, err := g.CallTool(context.Background(), 1, "mcp_doc_draft_read", json.RawMessage(`{}`)); !errors.Is(err, breaker.ErrOpen) {
 		t.Fatalf("open circuit = %v, want breaker.ErrOpen", err)
 	}
 }

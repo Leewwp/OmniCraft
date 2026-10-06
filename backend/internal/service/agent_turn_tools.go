@@ -26,8 +26,10 @@ import (
 
 // ToolRuntime enumerates the tool surface and executes one tool call.
 type ToolRuntime interface {
-	// ToolDefinitions enumerates the tool schema surface for the model.
-	ToolDefinitions(ctx context.Context) []llm.ToolDefinition
+	// ToolDefinitions enumerates the tool schema surface for the model as
+	// it presents to one viewer (#816 — identity-aware MCP servers discover
+	// their tools under the caller's identity too).
+	ToolDefinitions(ctx context.Context, viewerID int64) []llm.ToolDefinition
 	// ExecuteTool runs one tool call. Raw arguments arrive as model-authored
 	// JSON; argument validation and visibility scoping happen inside the
 	// adapter, never in the orchestrator.
@@ -50,7 +52,7 @@ type ToolScope struct {
 // ToolDefinitions schema surface).
 type localToolRuntime struct{ svc *AgentService }
 
-func (r *localToolRuntime) ToolDefinitions(ctx context.Context) []llm.ToolDefinition {
+func (r *localToolRuntime) ToolDefinitions(ctx context.Context, _ int64) []llm.ToolDefinition {
 	return r.svc.ToolDefinitions()
 }
 
@@ -73,14 +75,16 @@ func (r *localToolRuntime) ExecuteTool(ctx context.Context, name string, rawArgs
 // mcpToolRuntime adapts the guarded MCP bridge. The bridge is optional and
 // late-wired (SetMCPBridge), so the adapter consults the service's current
 // wiring on every call: an unwired bridge contributes no definitions and
-// answers mcp_-prefixed calls with ErrAgentToolUnknown, never a panic.
+// answers mcp_-prefixed calls with ErrAgentToolUnknown, never a panic. The
+// ToolScope viewer rides every call (#816): bridged tools execute under the
+// caller's identity.
 type mcpToolRuntime struct{ svc *AgentService }
 
-func (r *mcpToolRuntime) ToolDefinitions(ctx context.Context) []llm.ToolDefinition {
+func (r *mcpToolRuntime) ToolDefinitions(ctx context.Context, viewerID int64) []llm.ToolDefinition {
 	if r.svc.mcpBridge == nil {
 		return nil
 	}
-	return r.svc.mcpBridge.ToolDefinitions(ctx)
+	return r.svc.mcpBridge.ToolDefinitions(ctx, viewerID)
 }
 
 func (r *mcpToolRuntime) ExecuteTool(ctx context.Context, name string, rawArgs json.RawMessage, scope ToolScope) (*AgentToolOutcome, error) {
@@ -88,7 +92,7 @@ func (r *mcpToolRuntime) ExecuteTool(ctx context.Context, name string, rawArgs j
 	if r.svc.mcpBridge == nil {
 		return nil, withToolError(nil, name, ErrAgentToolUnknown, start)
 	}
-	outcome, err := r.svc.mcpToolOutcome(ctx, name, rawArgs)
+	outcome, err := r.svc.mcpToolOutcome(ctx, scope.ViewerID, name, rawArgs)
 	return outcome, withToolError(outcome, name, err, start)
 }
 
@@ -100,9 +104,9 @@ type dispatchToolRuntime struct {
 	mcp   *mcpToolRuntime
 }
 
-func (r *dispatchToolRuntime) ToolDefinitions(ctx context.Context) []llm.ToolDefinition {
-	tools := r.local.ToolDefinitions(ctx)
-	return append(tools, r.mcp.ToolDefinitions(ctx)...)
+func (r *dispatchToolRuntime) ToolDefinitions(ctx context.Context, viewerID int64) []llm.ToolDefinition {
+	tools := r.local.ToolDefinitions(ctx, viewerID)
+	return append(tools, r.mcp.ToolDefinitions(ctx, viewerID)...)
 }
 
 func (r *dispatchToolRuntime) ExecuteTool(ctx context.Context, name string, rawArgs json.RawMessage, scope ToolScope) (*AgentToolOutcome, error) {
