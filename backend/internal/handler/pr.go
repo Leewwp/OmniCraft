@@ -219,6 +219,12 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 			response.Conflict(c, "resource conflict")
 		case service.ErrPRMergeTextMissing:
 			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "merged text required")
+		case service.ErrPRBannedParticipant:
+			// #817 审计 #15：banned 参与者（提交者/调用者）不得借合并落地文本。
+			response.Error(c, http.StatusForbidden, "PARTICIPANT_BANNED", "merge rejected: participant is banned")
+		case service.ErrPRContentBanned:
+			// banned 终态禁改（与编辑路径 FIX-13 同族）：合并不得改写 banned 正文。
+			response.Error(c, http.StatusForbidden, "CONTENT_BANNED", "content is banned and cannot be merged into")
 		default:
 			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		}

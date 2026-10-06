@@ -37,6 +37,79 @@ func TestUserModelSerializationHidesEmail(t *testing.T) {
 	require.NotContains(t, string(payload), "\"email\"", "model.User JSON must not emit an email key at all")
 }
 
+// 审计 #17（FIX-19a 同族遗漏面）：preferred_locale 与 email_verified_at 是
+// 自视限定字段，披露边界必须落在 model 序列化层——此前只在 handler 投影层
+// 剥离，任何直接序列化 model.User 的公开面（内容/搜索/讨论/评论的 Author
+// 预加载卡）都带着 model json tag 泄漏两字段。
+func TestUserModelSerializationHidesPreferredLocaleAndEmailVerifiedAt(t *testing.T) {
+	verifiedAt := time.Now()
+	user := model.User{
+		ID:              8,
+		Username:        "someone",
+		PreferredLocale: "zh-CN",
+		EmailVerifiedAt: &verifiedAt,
+	}
+	payload, err := json.Marshal(user)
+	require.NoError(t, err)
+	require.NotContains(t, string(payload), "preferred_locale", "model.User JSON must not emit preferred_locale (self-tier data, audit #17)")
+	require.NotContains(t, string(payload), "email_verified_at", "model.User JSON must not emit email_verified_at (self-tier data, audit #17)")
+}
+
+// 审计 #17：公开内容详情 / 搜索 / 讨论 / 评论响应中的作者卡都是 model.User
+// 的直接序列化（ContentItem.Author 预加载、search hydrateAuthors 回填
+// model.User、Discussion/Comment.Author 预加载）——model 层封死后四个面的
+// 作者卡都不再携带 preferred_locale / email_verified_at。
+func TestPublicAuthorCardsHideSelfTierFields(t *testing.T) {
+	verifiedAt := time.Now()
+	author := model.User{
+		ID:              9,
+		Username:        "card-author",
+		PreferredLocale: "zh-CN",
+		EmailVerifiedAt: &verifiedAt,
+	}
+	subjects := map[string]interface{}{
+		"content detail/list card": model.ContentItem{ID: 1, Title: "t", AuthorID: author.ID, Author: author},
+		"search result card":       model.ContentItem{ID: 2, Title: "t2", AuthorID: author.ID, Author: author},
+		"discussion author card":   model.Discussion{ID: 1, AuthorID: author.ID, Author: author},
+		"comment author card":      model.Comment{ID: 1, AuthorID: author.ID, Author: author},
+	}
+	for name, subject := range subjects {
+		payload, err := json.Marshal(subject)
+		require.NoError(t, err, name)
+		require.NotContains(t, string(payload), "preferred_locale", "%s must not leak preferred_locale", name)
+		require.NotContains(t, string(payload), "email_verified_at", "%s must not leak email_verified_at", name)
+	}
+}
+
+// 审计 #17：自视图不受损——GET /users/:id（self/admin 投影）与 /auth/me、
+// 登录响应仍显式携带 preferred_locale 与 email_verified_at。
+func TestSelfViewsKeepPreferredLocaleAndEmailVerifiedAt(t *testing.T) {
+	r, db := setupUserPrivacyRouter(t)
+	self := createPrivacyTestUser(t, db, "selftier@example.com", "user")
+
+	user := getUserBody(t, r, self.ID, map[string]string{
+		"X-Test-User-ID": strconv.FormatInt(self.ID, 10),
+		"X-Test-Role":    "user",
+	})
+	require.Contains(t, user, "preferred_locale", "self view keeps preferred_locale")
+	require.Contains(t, user, "email_verified_at", "self view keeps email_verified_at")
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req.Header.Set("X-Test-User-ID", strconv.FormatInt(self.ID, 10))
+	req.Header.Set("X-Test-Role", "user")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		User map[string]any `json:"user"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.NotNil(t, body.User)
+	require.Contains(t, body.User, "preferred_locale", "/auth/me keeps preferred_locale")
+	require.Contains(t, body.User, "email_verified_at", "/auth/me keeps email_verified_at")
+}
+
 func setupUserPrivacyRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
