@@ -27,10 +27,15 @@ const BODIES = [
   "浏览器端到端演示帖。本篇走 Playwright 填表提交，验证发布主流程与站点观感。\n\n附注：此类内容标记 ui-demo，与合成语料相互独立。",
   "UI 子集演示内容第三篇模板。正文约两段，覆盖最小可读长度，便于列表页摘要展示。",
 ];
+const CORPUS_PASSWORD = process.env.CORPUS_PASSWORD;
+if (!CORPUS_PASSWORD) {
+  console.error("CORPUS_PASSWORD is required（夹具凭证见本地运维手册，不入库）");
+  process.exit(1);
+}
 const AUTHORS = [
-  { email: "a03@corpus.omnicraft.local", password: "CorpusV2#2026" },
-  { email: "a07@corpus.omnicraft.local", password: "CorpusV2#2026" },
-  { email: "a12@corpus.omnicraft.local", password: "CorpusV2#2026" },
+  { email: "a03@corpus.omnicraft.local", password: CORPUS_PASSWORD },
+  { email: "a07@corpus.omnicraft.local", password: CORPUS_PASSWORD },
+  { email: "a12@corpus.omnicraft.local", password: CORPUS_PASSWORD },
 ];
 
 const browser = await chromium.launch();
