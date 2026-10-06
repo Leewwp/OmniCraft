@@ -7,7 +7,11 @@ import { chromium } from "playwright";
 
 const BASE = process.env.WALKTHROUGH_BASE || "http://localhost:3000";
 const EMAIL = process.env.WALKTHROUGH_EMAIL || "smoke-judge@seed.omnicraft.local";
-const PASSWORD = process.env.WALKTHROUGH_PASSWORD || "CorpusV2#2026";
+const PASSWORD = process.env.WALKTHROUGH_PASSWORD;
+if (!PASSWORD) {
+  console.error("WALKTHROUGH_PASSWORD is required（夹具凭证见本地运维手册，不入库）");
+  process.exit(1);
+}
 const SHOT_DIR = "screenshots";
 
 // 顺序导航的受保护页面（对普通用户可访问），登录后硬加载逐个访问

@@ -184,6 +184,10 @@ class Api:
     # -- auth ---------------------------------------------------------------
 
     def login(self, email: str) -> Tuple[str, int]:
+        if not lib.FIXTURE_PASSWORD:
+            raise RuntimeError(
+                "CORPUS_FIXTURE_PASSWORD is not set — fixture credential lives "
+                "in the local ops runbook, not in this repo")
         cached = self.tokens.get(email)
         if cached and cached.get("exp", 0) > time.time() + 5:
             return cached["access"], int(cached["exp"])

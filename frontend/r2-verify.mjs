@@ -9,7 +9,11 @@ import fs from "node:fs";
 const BASE = "http://localhost:3000";
 const OUT = "../screenshots/overlay-r2";
 const EMAIL = process.env.R2_EMAIL || "admin@corpus.omnicraft.local";
-const PASSWORD = process.env.R2_PASSWORD || "CorpusV2#2026";
+const PASSWORD = process.env.R2_PASSWORD;
+if (!PASSWORD) {
+  console.error("R2_PASSWORD is required（夹具凭证见本地运维手册，不入库）");
+  process.exit(1);
+}
 
 fs.mkdirSync(OUT, { recursive: true });
 let passed = 0, failed = 0;

@@ -22,7 +22,7 @@ try {
   const page = await context.newPage();
   await page.goto("http://localhost:3000/login");
   await page.fill('input[type="email"]', "a06-verify@seed.omnicraft.local");
-  await page.fill('input[type="password"]', "A06Verify#2026");
+  await page.fill('input[type="password"]', process.env.A06_VERIFY_PASSWORD || (console.error("A06_VERIFY_PASSWORD is required（夹具凭证见本地运维手册，不入库）"), process.exit(1)));
   await page.click('button[type="submit"]');
   await page.waitForURL(/agent|recommend|\/$/, { timeout: 15000 }).catch(() => {});
 
