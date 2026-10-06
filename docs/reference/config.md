@@ -68,6 +68,8 @@ linkage): cost = generated images x this flat rate. |
 | `agent.mcp.enabled` | `bool` | Enabled |
 | `agent.mcp.external_answer_max_runes` | `int` | ExternalAnswerMaxRunes is the conversational-lane guardrail for turns
 whose only tools were external ones (MCP / imag... |
+| `agent.mcp.identity_session_max` | `int` | IdentitySessionMax caps live per-viewer subprocess sessions per
+identity-aware server (#816): the oldest viewer's ses... |
 | `agent.mcp.result_max_bytes` | `int` | ResultMaxBytes |
 | `agent.mcp.servers` | `[]AgentMCPServerConfig` | Servers |
 | `agent.models` | `[]AgentModelConfig` | Models is the SP-20 (#545) incremental model supply registry. The

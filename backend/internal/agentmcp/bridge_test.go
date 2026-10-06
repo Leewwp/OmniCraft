@@ -77,10 +77,10 @@ func defFor(serverID string, tool *sdkmcp.Tool, ns string) llm.ToolDefinition {
 
 func TestBridgeDisabledIsInert(t *testing.T) {
 	b := New(config.AgentMCPConfig{})
-	if defs := b.ToolDefinitions(context.Background()); defs != nil {
+	if defs := b.ToolDefinitions(context.Background(), 1); defs != nil {
 		t.Fatalf("disabled bridge must expose no tools, got %d", len(defs))
 	}
-	if _, _, err := b.CallTool(context.Background(), "mcp_doc_draft_read", nil); err == nil {
+	if _, _, err := b.CallTool(context.Background(), 1, "mcp_doc_draft_read", nil); err == nil {
 		t.Fatal("disabled bridge must refuse calls")
 	}
 }
@@ -93,7 +93,7 @@ func TestBridgeListAndCallRoundTrip(t *testing.T) {
 	b := New(cfg)
 	dialFake(t, b, "echo", echoServer(t))
 
-	defs := b.ToolDefinitions(context.Background())
+	defs := b.ToolDefinitions(context.Background(), 1)
 	if len(defs) != 1 || defs[0].Name != "mcp_echo_echo" {
 		t.Fatalf("defs = %+v", defs)
 	}
@@ -105,7 +105,7 @@ func TestBridgeListAndCallRoundTrip(t *testing.T) {
 		t.Fatalf("input schema properties missing: %#v", params)
 	}
 
-	out, truncated, err := b.CallTool(context.Background(), "mcp_echo_echo", json.RawMessage(`{"text":"你好 MCP"}`))
+	out, truncated, err := b.CallTool(context.Background(), 1, "mcp_echo_echo", json.RawMessage(`{"text":"你好 MCP"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,10 +121,10 @@ func TestBridgeListAndCallRoundTrip(t *testing.T) {
 	}
 
 	// unknown tool / unknown server
-	if _, _, err := b.CallTool(context.Background(), "mcp_echo_nothing", nil); err == nil {
+	if _, _, err := b.CallTool(context.Background(), 1, "mcp_echo_nothing", nil); err == nil {
 		t.Fatal("unadvertised tool must error")
 	}
-	if _, _, err := b.CallTool(context.Background(), "mcp_ghost_x", nil); err == nil {
+	if _, _, err := b.CallTool(context.Background(), 1, "mcp_ghost_x", nil); err == nil {
 		t.Fatal("unconfigured server must error")
 	}
 }
@@ -136,7 +136,7 @@ func TestBridgeTruncation(t *testing.T) {
 	}
 	b := New(cfg)
 	dialFake(t, b, "echo", echoServer(t))
-	out, truncated, err := b.CallTool(context.Background(), "mcp_echo_echo",
+	out, truncated, err := b.CallTool(context.Background(), 1, "mcp_echo_echo",
 		json.RawMessage(`{"text":"`+strings.Repeat("长", 200)+`"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +181,7 @@ func TestBridgeTimeoutDoesNotHang(t *testing.T) {
 	dialFake(t, b, "slow", s)
 
 	start := time.Now()
-	_, _, err := b.CallTool(context.Background(), "mcp_slow_slow", json.RawMessage(`{}`))
+	_, _, err := b.CallTool(context.Background(), 1, "mcp_slow_slow", json.RawMessage(`{}`))
 	if err == nil {
 		t.Fatal("timeout must surface as an error")
 	}

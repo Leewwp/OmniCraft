@@ -13,7 +13,7 @@ import (
 // 外执行——一个慢/死 server 不得阻塞其他 server 的会话建立；同 server 的并发
 // 调用经 singleflight 共享一次连接。
 
-func stubbedBridge(connect func(ctx context.Context, srv config.AgentMCPServerConfig) (*serverSession, error)) *Bridge {
+func stubbedBridge(connect func(ctx context.Context, srv config.AgentMCPServerConfig, viewerID int64) (*serverSession, error)) *Bridge {
 	b := New(config.AgentMCPConfig{Enabled: true, CallTimeoutSec: 5, ResultMaxBytes: 4096})
 	b.connectFn = connect
 	return b
@@ -21,20 +21,20 @@ func stubbedBridge(connect func(ctx context.Context, srv config.AgentMCPServerCo
 
 func TestSessionSlowServerDoesNotBlockOthers(t *testing.T) {
 	releaseSlow := make(chan struct{})
-	b := stubbedBridge(func(ctx context.Context, srv config.AgentMCPServerConfig) (*serverSession, error) {
+	b := stubbedBridge(func(ctx context.Context, srv config.AgentMCPServerConfig, viewerID int64) (*serverSession, error) {
 		if srv.ID == "slow" {
 			<-releaseSlow // 模拟握手挂起，直到测试放行
 		}
 		return &serverSession{localOf: map[string]string{}}, nil
 	})
 
-	go func() { _, _ = b.session(context.Background(), config.AgentMCPServerConfig{ID: "slow"}) }()
+	go func() { _, _ = b.session(context.Background(), config.AgentMCPServerConfig{ID: "slow"}, 1) }()
 
 	// slow 尚在连接中：fast server 必须能立即完成建立，不被全局锁卡住。
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		sess, err := b.session(context.Background(), config.AgentMCPServerConfig{ID: "fast"})
+		sess, err := b.session(context.Background(), config.AgentMCPServerConfig{ID: "fast"}, 1)
 		if err != nil {
 			t.Errorf("fast session: %v", err)
 		}
@@ -55,7 +55,7 @@ func TestSessionConcurrentSameServerSharesOneConnect(t *testing.T) {
 	var connects sync.WaitGroup
 	connects.Add(1)
 	started := make(chan struct{})
-	b := stubbedBridge(func(ctx context.Context, srv config.AgentMCPServerConfig) (*serverSession, error) {
+	b := stubbedBridge(func(ctx context.Context, srv config.AgentMCPServerConfig, viewerID int64) (*serverSession, error) {
 		close(started)
 		time.Sleep(100 * time.Millisecond)
 		connects.Done()
@@ -69,7 +69,7 @@ func TestSessionConcurrentSameServerSharesOneConnect(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			sess, err := b.session(context.Background(), config.AgentMCPServerConfig{ID: "doc"})
+			sess, err := b.session(context.Background(), config.AgentMCPServerConfig{ID: "doc"}, 1)
 			if err != nil {
 				t.Errorf("caller %d: %v", i, err)
 			}

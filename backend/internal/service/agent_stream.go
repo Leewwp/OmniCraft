@@ -210,7 +210,9 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	systemMsg := s.serverOwnedSystemPrompt(ctx, resolved.Surface, resolved.Content)
 	// #661: tool surface and execution ride the ToolRuntime seam (local
 	// registry + MCP bridge dispatch in production, fake in unit tests).
-	tools := s.toolRuntimeOrFallback().ToolDefinitions(ctx)
+	// #816: the surface is enumerated for the requesting viewer — identity-
+	// aware MCP servers discover tools under the caller's own session.
+	tools := s.toolRuntimeOrFallback().ToolDefinitions(ctx, userID)
 	req := llm.ChatRequest{
 		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
 		Tools:     tools,

@@ -78,10 +78,12 @@ type AgentService struct {
 	titleCache *auxcache.Cache
 }
 
-// AgentMCPBridge is the MCP client seam consumed by the tool loop.
+// AgentMCPBridge is the MCP client seam consumed by the tool loop. Every
+// method carries the calling viewer (#816): identity-aware bridge servers
+// execute under the caller's identity, never a launch-time fixed one.
 type AgentMCPBridge interface {
-	ToolDefinitions(ctx context.Context) []llm.ToolDefinition
-	CallTool(ctx context.Context, name string, rawArgs json.RawMessage) (resultJSON string, truncated bool, err error)
+	ToolDefinitions(ctx context.Context, viewerID int64) []llm.ToolDefinition
+	CallTool(ctx context.Context, viewerID int64, name string, rawArgs json.RawMessage) (resultJSON string, truncated bool, err error)
 }
 
 // SetMCPBridge wires the external-tool bridge (container calls this even

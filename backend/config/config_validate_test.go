@@ -217,6 +217,80 @@ func TestValidateRejectsConditionalQueueMCPAndImageBlocks(t *testing.T) {
 	contains(t, err, "agent.image.session_image_limit")
 }
 
+// TestValidateRejectsMCPStaticIdentityEnv (#816): a bridged MCP server
+// must never carry a static identity env key — the shared subprocess would
+// execute every caller's tools as one fixed user. Load/Validate refuses
+// such servers by id (case-insensitive key), and the per-viewer
+// identity_env declaration is the only accepted identity form.
+func TestValidateRejectsMCPStaticIdentityEnv(t *testing.T) {
+	base := func() *Config {
+		cfg := validDebugConfig()
+		cfg.Agent.MCP.Enabled = true
+		cfg.Agent.MCP.CallTimeoutSec = 10
+		cfg.Agent.MCP.ResultMaxBytes = 8192
+		cfg.Agent.MCP.IdentitySessionMax = 4
+		return cfg
+	}
+
+	// static reserved identity key → refused, server named
+	cfg := base()
+	cfg.Agent.MCP.Servers = []AgentMCPServerConfig{
+		{ID: "doc", Command: "/bin/doc", Env: map[string]string{"OMNICRAFT_DOC_USER_ID": "1"}},
+	}
+	err := cfg.Validate()
+	require.Error(t, err)
+	contains(t, err, "doc")
+	contains(t, err, "OMNICRAFT_DOC_USER_ID")
+
+	// lowercase yaml form (viper lowercases map keys) → equally refused
+	cfg = base()
+	cfg.Agent.MCP.Servers = []AgentMCPServerConfig{
+		{ID: "doc", Command: "/bin/doc", Env: map[string]string{"omnicraft_doc_user_id": "1"}},
+	}
+	err = cfg.Validate()
+	require.Error(t, err)
+	contains(t, err, "doc")
+	contains(t, err, "OMNICRAFT_DOC_USER_ID")
+
+	// a static value colliding with the declared identity_env → refused
+	cfg = base()
+	cfg.Agent.MCP.Servers = []AgentMCPServerConfig{
+		{ID: "docs2", Command: "/bin/doc", IdentityEnv: "MY_APP_USER", Env: map[string]string{"my_app_user": "7"}},
+	}
+	err = cfg.Validate()
+	require.Error(t, err)
+	contains(t, err, "docs2")
+
+	// identity_env must be a valid env var name
+	cfg = base()
+	cfg.Agent.MCP.Servers = []AgentMCPServerConfig{
+		{ID: "doc", Command: "/bin/doc", IdentityEnv: "bad key!"},
+	}
+	err = cfg.Validate()
+	require.Error(t, err)
+	contains(t, err, "doc")
+	contains(t, err, "identity_env")
+
+	// identity-aware servers require the per-viewer session cap
+	cfg = base()
+	cfg.Agent.MCP.IdentitySessionMax = 0
+	cfg.Agent.MCP.Servers = []AgentMCPServerConfig{
+		{ID: "doc", Command: "/bin/doc", IdentityEnv: "OMNICRAFT_DOC_USER_ID"},
+	}
+	err = cfg.Validate()
+	require.Error(t, err)
+	contains(t, err, "agent.mcp.identity_session_max")
+
+	// the per-viewer form (identity_env, no static identity) validates
+	cfg = base()
+	cfg.Agent.MCP.Servers = []AgentMCPServerConfig{
+		{ID: "doc", Command: "/bin/doc", IdentityEnv: "OMNICRAFT_DOC_USER_ID", Env: map[string]string{"OTHER": "x"}},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("identity_env form must validate: %v", err)
+	}
+}
+
 func TestValidateReleaseStillAggregatesStructuralFindings(t *testing.T) {
 	// Regression guard for the shared structure helper: release mode must
 	// keep surfacing structural errors through ValidateRelease (existing
