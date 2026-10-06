@@ -31,6 +31,9 @@ var (
 	ErrReasonSelfVote             = errors.New("cannot vote on your own reason")
 	ErrJudgeQualificationRequired = errors.New("judge qualification required")
 	ErrReasonVoteNotFound         = errors.New("reason target vote not found")
+	// run-1 审计 #14：结案不可变——closed_* 案例拒绝新投票，迟到投票不得
+	// 再触发关闭改写已记录裁决。
+	ErrCaseClosed = errors.New("judge case is closed")
 )
 
 const examQuestionCount = 10
@@ -215,6 +218,26 @@ func (s *JudgeService) GetJudgeQueue(userID int64, page, pageSize int) ([]model.
 }
 
 func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
+	judgeCase, err := s.judgeRepo.FindCase(input.CaseID)
+	if err != nil {
+		return err
+	}
+	if judgeCase == nil {
+		return ErrCaseNotFound
+	}
+	// run-1 审计 #14：结案不可变——closed_* 案例不再接受新投票。
+	if judgeCase.Status != "open" {
+		return ErrCaseClosed
+	}
+	// run-1 审计 #7：资格闸下沉 service 层（覆盖所有调用方），与 VoteReason
+	// 同口径——零资格账号不得投票决定内容发布/封禁。
+	qualified, err := s.judgeRepo.CheckQualification(judgeID, judgeCase.TargetType)
+	if err != nil {
+		return err
+	}
+	if !qualified {
+		return ErrJudgeQualificationRequired
+	}
 	voted, err := s.judgeRepo.HasVoted(input.CaseID, judgeID)
 	if err != nil {
 		return err
@@ -234,10 +257,6 @@ func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
 	}
 
 	approve, reject, _ := s.judgeRepo.GetVoteStats(input.CaseID)
-	judgeCase, err := s.judgeRepo.FindCase(input.CaseID)
-	if err != nil || judgeCase == nil {
-		return nil
-	}
 
 	total := approve + reject
 	if total >= int64(judgeCase.MinVotes) {
@@ -253,7 +272,13 @@ func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
 			newStatus = "closed_reject"
 		}
 		if err := s.judgeRepo.CloseCase(input.CaseID, newStatus, int(approve), int(reject)); err != nil {
-			slog.Error("failed to close judge case", "case_id", input.CaseID, "error", err)
+			// run-1 审计 #14：guarded claim 输家（并发已被关闭）是良性结果，
+			// 不按错误噪音处理；其余失败维持既有 best-effort 日志。
+			if errors.Is(err, repository.ErrCaseAlreadyClosed) {
+				slog.Info("judge case already closed concurrently, skip outcome", "case_id", input.CaseID)
+			} else {
+				slog.Error("failed to close judge case", "case_id", input.CaseID, "error", err)
+			}
 		} else {
 			s.applyCaseOutcome(input.CaseID, judgeCase.TargetID, newStatus)
 			// T39（FIX-03）：闭案提交后对多数派在册判官 +1 准确率奖励（幂等）。

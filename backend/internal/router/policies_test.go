@@ -58,9 +58,9 @@ func TestRoutePolicyAttachmentsPreserveOperationSpecificGuards(t *testing.T) {
 		// free text, so it carries the same publishing guard + upload rate
 		// limit as content publishing.
 		`ips.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), ipHandler.CreateIP)`,
-		`contents.PATCH("/:id", authReq, editDeleteGuard, contentHandler.UpdateContent)`,
+		`contents.PATCH("/:id", authReq, middleware.RequireScopeForPAT("upload"), editDeleteGuard, contentHandler.UpdateContent)`,
 		`social.PATCH("/comments/:id", authReq, commentsGuard, middleware.CommentEditRateLimit(rdb), socialHandler.EditComment)`,
-		`v1.POST("/collections", authReq, collectionGuard, collectionHandler.CreateCollection)`,
+		`v1.POST("/collections", authReq, middleware.RequireScopeForPAT("upload"), collectionGuard, collectionHandler.CreateCollection)`,
 		`messages := v1.Group("/messages", authReq)`,
 		`messages.POST("", messagesGuard, msgHandler.SendMessage)`,
 		// Task 3: Agent generation quota is reserved inside each

@@ -57,7 +57,9 @@ func seedProposalFixtures(t *testing.T, db *gorm.DB) (proposer, follower, outsid
 			t.Fatalf("seed user: %v", err)
 		}
 	}
-	ip = &model.IP{Name: "Proposal IP", Slug: "proposal-ip", Description: "旧简介", Status: "published", CreatorID: &proposer.ID}
+	// run-1 审计 #6 后 CreateProposal/SubmitVote 走 visibleIPForViewer 闸，
+	// 种子 IP 须为真实 approved 状态（此前 "published" 是词表外占位）。
+	ip = &model.IP{Name: "Proposal IP", Slug: "proposal-ip", Description: "旧简介", Status: "approved", CreatorID: &proposer.ID}
 	if err := db.Create(ip).Error; err != nil {
 		t.Fatalf("seed ip: %v", err)
 	}

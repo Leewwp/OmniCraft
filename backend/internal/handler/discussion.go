@@ -6,11 +6,13 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type DiscussionHandler struct {
@@ -125,6 +127,13 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
 		return
 	}
+	// run-1 审计 #4：published 讨论还须过父可见性闸——挂非公开内容/未过审
+	// IP 下的讨论不可按 ID 透出（与列表路径 ContentVisibilitySQL/
+	// ipDiscussionsVisible 同口径）。
+	if !discussionParentsVisible(c, h.socialRepo.DB(), d) {
+		response.Error(c, http.StatusNotFound, "NOT_FOUND", "discussion not found")
+		return
+	}
 
 	comments, total, err := h.socialRepo.ListCommentsByTarget("discussion", id, page, pageSize)
 	if err != nil {
@@ -191,6 +200,9 @@ func (h *DiscussionHandler) respondSocialServiceError(c *gin.Context, err error)
 		response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
 	case errors.Is(err, service.ErrModerationUnavailable):
 		response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
+	case errors.Is(err, service.ErrDiscussionTargetInvalid):
+		// run-1 审计 #4：挂非公开父/未知目标 → 404（与 /social 路径同口径）。
+		response.Error(c, http.StatusNotFound, "DISCUSSION_TARGET_INVALID", "discussion target not found or not visible")
 	default:
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 	}
@@ -268,4 +280,36 @@ func (h *DiscussionHandler) ipDiscussionsVisible(c *gin.Context, ipID int64) boo
 		return false
 	}
 	return ipVisibleToViewer(c, ip)
+}
+
+// discussionParentsVisible gates a discussion detail behind its parent
+// visibility (run-1 audit #4): a published discussion hanging under a
+// non-public content item or a non-approved IP must not surface by id. The
+// content side reuses ContentVisibleToViewer (author-or-public, same scope
+// as the list paths); the IP side reuses ipVisibleToViewer (approved, or
+// creator, or admin — same as the ip-scoped discussion surfaces).
+func discussionParentsVisible(c *gin.Context, db *gorm.DB, d *model.Discussion) bool {
+	if d == nil {
+		return false
+	}
+	viewerID := middleware.GetUserID(c)
+	if d.ContentItemID != nil {
+		var content model.ContentItem
+		if err := db.First(&content, *d.ContentItemID).Error; err != nil {
+			return false
+		}
+		if !repository.ContentVisibleToViewer(db, &content, viewerID) {
+			return false
+		}
+	}
+	if d.IPID != nil {
+		var ip model.IP
+		if err := db.First(&ip, *d.IPID).Error; err != nil {
+			return false
+		}
+		if !ipVisibleToViewer(c, &ip) {
+			return false
+		}
+	}
+	return true
 }

@@ -196,7 +196,11 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 	var total int64
 	q := r.db.Model(&model.Discussion{}).Where("status = ?", "published")
 	if ipID != nil {
-		q = q.Where("ip_id = ?", *ipID)
+		// run-1 审计 #4：ip 维度对齐 #446/ipDiscussionsVisible——非 approved
+		// IP 下的讨论仅 IP 创建者可见（/ips/:id/discussions 已有闸，此处
+		// 补齐 /social/discussions?ip_id=... 旁路）。
+		q = q.Where("ip_id = ?", *ipID).
+			Where("ip_id IN (SELECT id FROM ips WHERE status = ? OR creator_id = ?)", "approved", viewerID)
 	}
 	if contentID != nil {
 		// #446/SP-16 P0：按内容过滤时随内容可见性走（与 ListComments 同口径）。
