@@ -102,7 +102,7 @@
         "properties": {
           "type": { "type": "string", "const": "github-attestation" },
           "scope": { "type": "string", "enum": ["preview", "release"] },
-          "builder_id": { "type": "string", "pattern": "^https://github\\.com/omnicraft/omnicraft/.github/workflows/sbom\\.yml@refs/.+" },
+          "builder_id": { "type": "string", "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/sbom\\.yml@refs/.+", "description": "Producing workflow identity; the repository segment is bound at verification time against the -Repo input, so the schema only enforces the structural owner/repo form" },
           "subject": { "type": "string", "minLength": 1 },
           "verify_command": { "type": "string", "minLength": 1 }
         }

@@ -12,6 +12,11 @@ GENERATE="$SCRIPT_DIR/generate-sbom.sh"
 VERIFY="$SCRIPT_DIR/verify-provenance.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 POLICY="$REPO_ROOT/release/sbom-policy.json"
+# The producing repository identity provenance must be derived from. CI sets
+# the real GITHUB_REPOSITORY; local runs fall back to the same repository so
+# the derivation is exercised against a real identity either way.
+PRODUCING_REPO="Leewwp/OmniCraft"
+export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-$PRODUCING_REPO}"
 
 if [ ! -f "$GENERATE" ]; then
   echo "generate-sbom.sh does not exist" >&2
@@ -77,10 +82,10 @@ expect_exit() {
 
 assert_manifest() {
   local out="$1" expected_components="$2" preview="$3"
-  python3 - "$out" "$FIXTURE/release/sbom-policy.json" "$expected_components" "$preview" <<'PY'
+  python3 - "$out" "$FIXTURE/release/sbom-policy.json" "$expected_components" "$preview" "$GITHUB_REPOSITORY" <<'PY'
 import hashlib, json, sys
 
-out, policy_path, expected_components, preview = sys.argv[1:5]
+out, policy_path, expected_components, preview, producing_repo = sys.argv[1:6]
 manifest = json.load(open(out + "/release-manifest.json", encoding="utf-8"))
 policy = json.load(open(policy_path, encoding="utf-8"))
 
@@ -100,6 +105,18 @@ if manifest["generators"]["syft"]["digest"] != policy["tool_pins"]["syft"]["dige
     fail("generator syft digest is not the pinned policy digest")
 if preview == "false" and len(manifest["provenance"]) == 0:
     fail("release manifest must declare provenance references")
+if preview == "false":
+    prov = manifest["provenance"][0]
+    expected_builder = ("https://github.com/%s/.github/workflows/sbom.yml@refs/tags/v%s"
+                        % (producing_repo, manifest["version"]))
+    if prov["builder_id"] != expected_builder:
+        fail("builder_id must be derived from GITHUB_REPOSITORY (%s) and the "
+             "manifest version: expected %s, got %s"
+             % (producing_repo, expected_builder, prov["builder_id"]))
+    expected_verify = "gh attestation verify release-manifest.json --repo " + producing_repo
+    if prov["verify_command"] != expected_verify:
+        fail("verify_command must be derived from GITHUB_REPOSITORY (%s): expected %s, got %s"
+             % (producing_repo, expected_verify, prov["verify_command"]))
 for comp in manifest["components"]:
     path = out + "/" + comp["sbom_path"]
     digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
@@ -131,6 +148,23 @@ rc=0
 bash "$GENERATE" -OutputDir "$TEMP_ROOT/x" -RepoRoot "$TEMP_ROOT/does-not-exist" >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 1 ] || { echo "FAIL: missing RepoRoot must exit 1" >&2; exit 1; }
 echo "OK: usage errors"
+
+# ------------------------------------------- repository identity required
+# Provenance identity must be derived from GITHUB_REPOSITORY; without it the
+# generator must fail instead of emitting a builder_id for a hardcoded
+# repository. Fails before any docker work.
+OUT_NO_REPO="$TEMP_ROOT/no-repo-id"
+rc=0
+env -u GITHUB_REPOSITORY bash "$GENERATE" -RepoRoot "$FIXTURE" \
+  -Policy "$FIXTURE/release/sbom-policy.json" -OutputDir "$OUT_NO_REPO" -SkipImages \
+  >"$TEMP_ROOT/no-repo-id.out" 2>"$TEMP_ROOT/no-repo-id.err" || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL: generation without GITHUB_REPOSITORY must fail, got $rc" >&2; exit 1; }
+grep -q "GITHUB_REPOSITORY" "$TEMP_ROOT/no-repo-id.err" || {
+  echo "FAIL: missing-identity error must name GITHUB_REPOSITORY" >&2
+  cat "$TEMP_ROOT/no-repo-id.err" >&2
+  exit 1
+}
+echo "OK: generation without repository identity fails"
 
 # ------------------------------------------------------------ Linux bind-mount seam
 # On Linux runners the syft container must write as the caller UID/GID so the
@@ -176,7 +210,8 @@ OUT3="$TEMP_ROOT/full"
 expect_exit 0 "full sbom generation with container" -RepoRoot "$FIXTURE" -Policy "$FIXTURE/release/sbom-policy.json" -OutputDir "$OUT3"
 assert_manifest "$OUT3" 5 false
 rc=0
-bash "$VERIFY" -Manifest "$OUT3/release-manifest.json" -Policy "$FIXTURE/release/sbom-policy.json" -RepoRoot "$FIXTURE" >/dev/null 2>&1 || rc=$?
+bash "$VERIFY" -Manifest "$OUT3/release-manifest.json" -Policy "$FIXTURE/release/sbom-policy.json" \
+  -RepoRoot "$FIXTURE" -Repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 0 ] || { echo "FAIL: verify-provenance must accept the generated full manifest (got $rc)" >&2; exit 1; }
 echo "OK: full manifest accepted by verify-provenance"
 
