@@ -138,11 +138,14 @@ func TestT39MajorityJudgesAwardedOnClose(t *testing.T) {
 	seedT39JudgeUser(t, db, 3912)
 	seedT39JudgeUser(t, db, 3913)
 	// 少数派 C 投票后立即被撤权也不影响已记票；此处保持全员在册。
-	require.NoError(t, db.Create(&model.JudgeCase{ID: 3910, TargetType: "content", TargetID: 400, Status: "open", MinVotes: 2}).Error)
+	// TargetType 沿用生产语义 = content.ContentType（run-1 审计 #7 起
+	// SubmitVote 按 TargetType 匹配资格）。
+	require.NoError(t, db.Create(&model.JudgeCase{ID: 3910, TargetType: "article", TargetID: 400, Status: "open", MinVotes: 2}).Error)
 
 	require.NoError(t, svc.SubmitVote(SubmitVoteInput{CaseID: 3910, Vote: "approve", Reason: "违规"}, 3911))
 	require.NoError(t, svc.SubmitVote(SubmitVoteInput{CaseID: 3910, Vote: "approve"}, 3912))
-	require.NoError(t, svc.SubmitVote(SubmitVoteInput{CaseID: 3910, Vote: "reject"}, 3913))
+	// run-1 审计 #14：第二票（min_votes=2）已闭案，迟到票必须被拒且不计数。
+	require.ErrorIs(t, svc.SubmitVote(SubmitVoteInput{CaseID: 3910, Vote: "reject"}, 3913), ErrCaseClosed)
 
 	var status string
 	require.NoError(t, db.Model(&model.JudgeCase{}).Where("id = ?", 3910).Pluck("status", &status).Error)

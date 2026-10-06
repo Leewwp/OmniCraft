@@ -41,6 +41,8 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 	// T29（FIX-15）：account 申诉固定指向申诉者本人（免填 target_id，
 	// 忽略请求体值防止替他人提交账号申诉；本人存在性由 token 保证）。
 	// T31（FIX-27）：content/comment 目标必须真实存在，防假 id 污染 admin 队列。
+	// run-1 审计 #13：content/comment 目标还须归属申诉者本人——任何人不得
+	// 对他人的内容/评论提申诉（此前仅校验存在性）。
 	if body.TargetType == "account" {
 		body.TargetID = callerID
 	} else {
@@ -55,18 +57,27 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 				response.Error(c, http.StatusNotFound, "TARGET_NOT_FOUND", "appeal target not found")
 				return
 			}
+			if item.AuthorID != callerID {
+				response.Error(c, http.StatusForbidden, "FORBIDDEN", "only the target owner may appeal")
+				return
+			}
 		case "comment":
 			comment, err := h.socialRepo.FindComment(body.TargetID)
 			if err != nil || comment == nil {
 				response.Error(c, http.StatusNotFound, "TARGET_NOT_FOUND", "appeal target not found")
 				return
 			}
+			if comment.AuthorID != callerID {
+				response.Error(c, http.StatusForbidden, "FORBIDDEN", "only the target owner may appeal")
+				return
+			}
 		}
 	}
 
 	// T31（FIX-27 / F-099）：查重失败 fail-closed——DB 错误静默放行会让同一
-	// 目标产生双 pending（appeals 表无 UNIQUE 兜底）。
-	hasPending, err := h.appealRepo.HasPendingAppeal(callerID, body.TargetType, body.TargetID)
+	// 目标产生双 pending（appeals 表无 UNIQUE 兜底）。run-1 审计 #13：单一
+	// pending 不变量按 target 维度执行（同目标最多一个 pending，不论提交者）。
+	hasPending, err := h.appealRepo.HasPendingAppealForTarget(body.TargetType, body.TargetID)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusServiceUnavailable, "APPEAL_CHECK_UNAVAILABLE", err)
 		return

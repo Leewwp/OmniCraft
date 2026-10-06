@@ -35,7 +35,7 @@ func setupT16RejectRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.IPTag{}, &model.AdminAuditLog{}, &model.AIReviewRecord{}, &model.IPReviewLog{}, &model.Notification{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.IPTag{}, &model.AdminAuditLog{}, &model.AIReviewRecord{}, &model.IPReviewLog{}, &model.Notification{}, &model.IPProposal{}))
 
 	cfg := &config.Config{}
 	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)

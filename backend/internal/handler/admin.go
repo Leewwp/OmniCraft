@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
@@ -37,6 +38,19 @@ var errAdminTargetMissing = errors.New("admin target no longer exists")
 // errAppealTargetGone（T31 / FIX-27）：批准申诉时目标已删除/作者被封禁/
 // account 目标已注销——事务内 sentinel，由 ResolveAppeal 映射 409。
 var errAppealTargetGone = errors.New("appeal target is no longer available")
+
+// closeOpenProposalsTx 关闭某 IP 的全部开放提案（run-1 审计 #6 生命周期
+// 清理）：IP approve/reject 状态转换时在 admin 事务内一并收口，隐藏 IP 不
+// 保留可投票的共治面。guarded claim（WHERE status='open'）保证幂等；用 Go
+// 时间戳而非 NOW() 以兼容 sqlite 测试栈。
+func closeOpenProposalsTx(tx *gorm.DB, ipID int64) error {
+	return tx.Model(&model.IPProposal{}).
+		Where("ip_id = ? AND status = ?", ipID, "open").
+		Updates(map[string]interface{}{
+			"status":    "rejected",
+			"closed_at": time.Now(),
+		}).Error
+}
 
 // checkAppealTargetResolvable guards approved appeals against writing state
 // back to targets that can no longer be restored: deleted content or content
@@ -240,7 +254,15 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 			creatorID = *ip.CreatorID
 		}
 		ipName = ip.Name
-		return tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "approved").Error
+		if err := tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "approved").Error; err != nil {
+			return err
+		}
+		// run-1 审计 #6 生命周期清理：pending→approved 转换收口隐藏期创建的
+		// 开放提案；重复 approve（已 approved）不杀在途公开提案（幂等）。
+		if ip.Status != "approved" {
+			return closeOpenProposalsTx(tx, id)
+		}
+		return nil
 	}); err != nil {
 		if h.respondAuditTxError(c, err, http.StatusBadRequest, "ERROR", "failed to approve ip") {
 			return
@@ -293,6 +315,11 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 		}
 		ipName = ip.Name
 		if err := tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "rejected").Error; err != nil {
+			return err
+		}
+		// run-1 审计 #6 生命周期清理：IP 转入 rejected（隐藏）时关闭开放提案
+		// ——隐藏 IP 不保留可投票的共治面（guarded claim，幂等）。
+		if err := closeOpenProposalsTx(tx, id); err != nil {
 			return err
 		}
 		return tx.Create(&model.IPReviewLog{

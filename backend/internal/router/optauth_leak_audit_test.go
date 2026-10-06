@@ -44,6 +44,7 @@ type optAuthLeakFixtures struct {
 	propApproved          int64
 
 	discHidden, discOnPriv int64
+	discOnPendIP           int64
 }
 
 // leakMarkers are the markers that must NEVER surface to anonymous callers.
@@ -260,6 +261,36 @@ func TestOptAuthAnonymousSurfaceZeroLeak(t *testing.T) {
 		expectStatus(t, "hidden discussion via canonical detail", rec, http.StatusNotFound)
 		assertNoLeak(t, "hidden discussion via canonical detail", rec, false)
 
+		// run-1 审计 #4：published 讨论挂非公开父（私有内容 / pending IP）时，
+		// 详情两路径必须 404——此前仅检查讨论自身 status，漏父可见性闸。
+		rec = anonGet(fmt.Sprintf("/api/v1/social/discussions/%d", fx.discOnPriv))
+		expectStatus(t, "priv-parent discussion via social detail", rec, http.StatusNotFound)
+		assertNoLeak(t, "priv-parent discussion via social detail", rec, false)
+
+		rec = anonGet(fmt.Sprintf("/api/v1/discussions/%d", fx.discOnPriv))
+		expectStatus(t, "priv-parent discussion via canonical detail", rec, http.StatusNotFound)
+		assertNoLeak(t, "priv-parent discussion via canonical detail", rec, false)
+
+		rec = anonGet(fmt.Sprintf("/api/v1/discussions/%d", fx.discOnPendIP))
+		expectStatus(t, "pending-ip-parent discussion via canonical detail", rec, http.StatusNotFound)
+		assertNoLeak(t, "pending-ip-parent discussion via canonical detail", rec, false)
+
+		// run-1 审计 #4：/social/discussions?ip_id=... 列表须带 approved-IP
+		// 谓词（对齐 /ips/:id/discussions 的 ipDiscussionsVisible 闸）。
+		rec = anonGet(fmt.Sprintf("/api/v1/social/discussions?ip_id=%d", fx.ipPending))
+		expectStatus(t, "pending-ip discussion list", rec, http.StatusOK)
+		if total := jsonIntField(t, rec.Body.Bytes(), "total"); total != 0 {
+			t.Errorf("[pending-ip discussion list] total = %d, want 0 (discussions of a non-approved ip must not list)", total)
+		}
+		assertNoLeak(t, "pending-ip discussion list", rec, false)
+
+		// control: approved IP 的讨论列表照常。
+		rec = anonGet(fmt.Sprintf("/api/v1/social/discussions?ip_id=%d", fx.ipApproved))
+		expectStatus(t, "approved-ip discussion list", rec, http.StatusOK)
+		if total := jsonIntField(t, rec.Body.Bytes(), "total"); total != 1 {
+			t.Errorf("[approved-ip discussion list] total = %d, want 1; body=%.300s", total, rec.Body.String())
+		}
+
 		rec = anonGet(fmt.Sprintf("/api/v1/users/%d/discussions", fx.authorID))
 		expectStatus(t, "author discussions", rec, http.StatusOK)
 		assertNoLeak(t, "author discussions", rec, false)
@@ -327,11 +358,53 @@ func TestOptAuthAnonymousSurfaceZeroLeak(t *testing.T) {
 			{"own pending ip proposals", fmt.Sprintf("/api/v1/ips/%d/proposals", fx.ipPending), http.StatusOK},
 			{"own private version detail", fmt.Sprintf("/api/v1/versions/%d", fx.vPriv), http.StatusOK},
 			{"own private pr detail", fmt.Sprintf("/api/v1/pr/%d", fx.prPriv), http.StatusOK},
+			// run-1 审计 #4：内容作者读自己私有内容下的讨论详情保持 200。
+			{"own private-content discussion detail", fmt.Sprintf("/api/v1/discussions/%d", fx.discOnPriv), http.StatusOK},
+			{"own private-content discussion social detail", fmt.Sprintf("/api/v1/social/discussions/%d", fx.discOnPriv), http.StatusOK},
+			// run-1 审计 #4：IP 创建者读自己 pending IP 下的讨论详情保持 200。
+			{"own pending-ip discussion detail", fmt.Sprintf("/api/v1/discussions/%d", fx.discOnPendIP), http.StatusOK},
 		} {
 			rec := authGet(tc.path)
 			if rec.Code != tc.want {
 				t.Errorf("[author %s] status = %d, want %d; body=%.300s", tc.label, rec.Code, tc.want, rec.Body.String())
 			}
+		}
+	})
+
+	t.Run("write side parent gate", func(t *testing.T) {
+		// run-1 审计 #4 写侧闸：PostDiscussion 挂非公开父（他人私有内容 /
+		// 非 approved 且非本人创建的 IP）必须被拒；公开目标不受影响。
+		token := makeRoutesSecurityToken(cfg, fx.viewerID, "user")
+		authPost := func(path, body string) *httptest.ResponseRecorder {
+			t.Helper()
+			req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			return rec
+		}
+
+		rec := authPost(fmt.Sprintf("/api/v1/social/discussions"), fmt.Sprintf(`{"content_item_id":%d,"title":"t","body":"b"}`, fx.cPriv))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("[post discussion on foreign private content] status = %d, want 404; body=%.300s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "DISCUSSION_TARGET_INVALID") {
+			t.Errorf("[post discussion on foreign private content] body = %s, want DISCUSSION_TARGET_INVALID", rec.Body.String())
+		}
+
+		rec = authPost("/api/v1/social/discussions", fmt.Sprintf(`{"ip_id":%d,"title":"t","body":"b"}`, fx.ipPending))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("[post discussion on foreign pending ip] status = %d, want 404; body=%.300s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "DISCUSSION_TARGET_INVALID") {
+			t.Errorf("[post discussion on foreign pending ip] body = %s, want DISCUSSION_TARGET_INVALID", rec.Body.String())
+		}
+
+		// control: approved IP 目标照常创建。
+		rec = authPost("/api/v1/social/discussions", fmt.Sprintf(`{"ip_id":%d,"title":"write-gate control","body":"ok"}`, fx.ipApproved))
+		if rec.Code != http.StatusCreated {
+			t.Errorf("[post discussion on approved ip] status = %d, want 201; body=%.300s", rec.Code, rec.Body.String())
 		}
 	})
 }
@@ -569,7 +642,17 @@ func seedOptAuthLeakFixtures(t *testing.T, db *gorm.DB) *optAuthLeakFixtures {
 	if err := db.Create(&discOnPendingIP).Error; err != nil {
 		t.Fatalf("seed discussion on pending ip: %v", err)
 	}
+	// run-1 审计 #4 对照组：approved IP 下的 published 讨论保持公开。
+	discOnApprovedIP := model.Discussion{
+		ID: 964, IPID: ptrInt64(401), AuthorID: 503,
+		Title: "sp16aleakIPAP discussion", Body: "sp16aleakIPAP body",
+		Status: "published", LastActiveAt: now,
+	}
+	if err := db.Create(&discOnApprovedIP).Error; err != nil {
+		t.Fatalf("seed discussion on approved ip: %v", err)
+	}
 	fx.discHidden, fx.discOnPriv = 961, 962
+	fx.discOnPendIP = 963
 
 	// IPs: approved control + pending leak fixture.
 	ipApproved := model.IP{ID: 401, Name: "sp16aleakIPAP name", Slug: "sp16a-ip-ap", Description: "sp16aleakIPAP description", Category: "game", CreatorID: ptrInt64(501), Status: "approved"}

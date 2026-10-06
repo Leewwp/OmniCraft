@@ -182,6 +182,10 @@ func TestJudgeWiringClosedCaseWritesBackAndNotifies(t *testing.T) {
 	const judgeID int64 = 3921
 	seedJudgeWiringUser(t, db, authorID)
 	seedJudgeWiringUser(t, db, judgeID)
+	// run-1 审计 #7：SubmitVote 资格闸——投票判官须持 article 在册资格。
+	require.NoError(t, db.Create(&model.JudgeQualification{
+		UserID: judgeID, ContentType: judgeWiringContentType, IsActive: true,
+	}).Error)
 
 	content := model.ContentItem{
 		Title:       "judge wiring closed case content",
