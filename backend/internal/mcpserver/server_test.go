@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/glebarez/sqlite"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -77,7 +78,17 @@ func newTestMCPStack(t *testing.T) (*sdkmcp.ClientSession, *gorm.DB) {
 	}
 
 	contentRepo := repository.NewContentRepository(db)
-	cfg := &config.Config{}
+	// #813: 假凭证 OSS 域让附件展示签名在测试中真实可算（签名是纯本地
+	// 计算，无网络调用）——get_content 附件投影按家族断言签名有无。
+	cfg := &config.Config{
+		OSS: config.OSSConfig{
+			Endpoint:        "http://127.0.0.1:9201",
+			AccessKeyID:     "test-access-key",
+			AccessKeySecret: "test-access-secret",
+			BucketName:      "test-bucket",
+			Domain:          "http://127.0.0.1:9201/test-bucket",
+		},
+	}
 	guideSvc := service.NewUsageGuideService(repository.NewUsageGuideRepository(db), contentRepo)
 	handler := NewHandler(Deps{
 		DB:            db,
@@ -204,4 +215,70 @@ func TestMCPServerFourReadOnlyTools(t *testing.T) {
 			t.Errorf("categories missed fixture slug: %.200s", text)
 		}
 	})
+}
+
+// #813（审计 #5 + 决策①）：get_content 附件投影与 REST 展示策略对齐——
+// 展示/预览族（image / video / sheet_music）暴露分钟级短时效 oss_url；
+// 文件交付族（mod / text 等）仅元数据（无 oss_url 字段），一律经下载闸
+// （omnicraft_request_download）交付；工具描述如实描述该边界。
+func TestGetContentAttachmentProjectionDisplayFamiliesOnly(t *testing.T) {
+	session, testDB := newTestMCPStack(t)
+
+	// 对已发布的 401 重建附件矩阵：清掉旧 "file" 族附件，按家族播种。
+	require.NoError(t, testDB.Where("content_item_id = ?", 401).Delete(&model.ContentAttachment{}).Error)
+	seeds := []struct {
+		id     int64
+		family string
+		ossKey string
+		scan   string
+	}{
+		{9501, "image", "uploads/301/image/a.png", "not_required"},
+		{9502, "sheet_music", "uploads/301/sheet_music/a.musicxml", "not_required"},
+		{9503, "mod", "uploads/301/mod/a.zip", "clean"},
+		{9504, "text", "uploads/301/text/a.txt", "not_required"},
+	}
+	for _, s := range seeds {
+		require.NoError(t, testDB.Create(&model.ContentAttachment{
+			ID: s.id, ContentItemID: 401, FileType: s.family, OSSKey: s.ossKey, ScanStatus: s.scan,
+		}).Error)
+	}
+
+	text, ok := callToolText(t, session, "omnicraft_get_content", map[string]any{"content_id": 401})
+	if !ok {
+		t.Fatal("get_content errored on public content")
+	}
+	var payload struct {
+		Attachments []map[string]any `json:"attachments"`
+	}
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		t.Fatalf("get_content payload is not JSON: %v; %.200s", err, text)
+	}
+	got := map[string]map[string]any{}
+	for _, att := range payload.Attachments {
+		got[att["file_type"].(string)] = att
+	}
+	for _, family := range []string{"image", "sheet_music"} {
+		ossURL, _ := got[family]["oss_url"].(string)
+		if ossURL == "" {
+			t.Errorf("%s attachment must expose a signed oss_url; got %+v", family, got[family])
+		}
+	}
+	for _, family := range []string{"mod", "text"} {
+		if _, has := got[family]["oss_url"]; has {
+			t.Errorf("%s attachment must be metadata-only (no oss_url key); got %+v", family, got[family])
+		}
+	}
+
+	// 工具描述如实描述家族边界与下载闸独占交付。
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	for _, tl := range tools.Tools {
+		if tl.Name == "omnicraft_get_content" {
+			if !strings.Contains(tl.Description, "metadata only") || !strings.Contains(tl.Description, "download") {
+				t.Errorf("get_content description must state the family boundary honestly: %s", tl.Description)
+			}
+		}
+	}
 }

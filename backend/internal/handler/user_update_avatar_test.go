@@ -27,7 +27,12 @@ import (
 	"omnicraft/backend/internal/testutil"
 )
 
-const testPlatformAvatarURL = "https://cdn.example.test/uploads/7/avatar/2026/08/13/avatar.png"
+// platformAvatarURLFor builds a platform-domain avatar URL inside the user's
+// own uploads namespace — after #813 (audit #2) the avatar gate is
+// principal-bound, so positive-path fixtures must live under uploads/<uid>/.
+func platformAvatarURLFor(userID int64) string {
+	return fmt.Sprintf("https://cdn.example.test/uploads/%d/avatar/2026/08/13/avatar.png", userID)
+}
 
 // fakeAvatarReviewer records every image passed to the moderation seam and
 // returns a scripted result or error, so handler tests assert both the gate
@@ -168,12 +173,37 @@ func TestUpdateUserAvatarRejectsExternalURL(t *testing.T) {
 	requireAvatarStored(t, db, userID, "")
 }
 
+// #813 (run-1 审计 #2)：avatar 闸主体命名空间绑定——平台域内他人命名空间
+// 与隔离区对象同样被拒，且永不到达图片审核器；本人命名空间不受影响（由
+// AllowsPassAndReview 等既有正向路径覆盖）。
+func TestUpdateUserAvatarRejectsCrossNamespaceAndQuarantineURL(t *testing.T) {
+	for name, url := range map[string]string{
+		"other user's uploads namespace": fmt.Sprintf("https://cdn.example.test/uploads/%d/avatar/2026/08/13/avatar.png", 99999),
+		"quarantine object":              "https://cdn.example.test/quarantine/archive-scan/9/2/job11",
+	} {
+		t.Run(name, func(t *testing.T) {
+			reviewer := &fakeAvatarReviewer{result: "pass"}
+			router, db := setupUserUpdateTest(t, "debug", "https://cdn.example.test", reviewer)
+			userID := createUserUpdateTestUser(t, db)
+
+			rec := patchUserAvatar(t, router, userID, url)
+
+			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			require.Equal(t, "AVATAR_NOT_PLATFORM_OSS_OBJECT", body["code"])
+			require.Empty(t, reviewer.calls, "cross-namespace URL must never reach the image scanner")
+			requireAvatarStored(t, db, userID, "")
+		})
+	}
+}
+
 func TestUpdateUserAvatarRejectsEveryURLWhenDomainUnset(t *testing.T) {
 	reviewer := &fakeAvatarReviewer{result: "pass"}
 	router, db := setupUserUpdateTest(t, "debug", "", reviewer)
 	userID := createUserUpdateTestUser(t, db)
 
-	rec := patchUserAvatar(t, router, userID, testPlatformAvatarURL)
+	rec := patchUserAvatar(t, router, userID, platformAvatarURLFor(userID))
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	var body map[string]any
@@ -188,13 +218,13 @@ func TestUpdateUserAvatarRejectsBlockedImage(t *testing.T) {
 	router, db := setupUserUpdateTest(t, "debug", "https://cdn.example.test", reviewer)
 	userID := createUserUpdateTestUser(t, db)
 
-	rec := patchUserAvatar(t, router, userID, testPlatformAvatarURL)
+	rec := patchUserAvatar(t, router, userID, platformAvatarURLFor(userID))
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, "AVATAR_BLOCKED", body["code"])
-	require.Equal(t, []string{testPlatformAvatarURL}, reviewer.calls)
+	require.Equal(t, []string{platformAvatarURLFor(userID)}, reviewer.calls)
 	requireAvatarStored(t, db, userID, "")
 }
 
@@ -205,11 +235,11 @@ func TestUpdateUserAvatarAllowsPassAndReview(t *testing.T) {
 			router, db := setupUserUpdateTest(t, "debug", "https://cdn.example.test", reviewer)
 			userID := createUserUpdateTestUser(t, db)
 
-			rec := patchUserAvatar(t, router, userID, testPlatformAvatarURL)
+			rec := patchUserAvatar(t, router, userID, platformAvatarURLFor(userID))
 
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-			require.Equal(t, []string{testPlatformAvatarURL}, reviewer.calls)
-			requireAvatarStored(t, db, userID, testPlatformAvatarURL)
+			require.Equal(t, []string{platformAvatarURLFor(userID)}, reviewer.calls)
+			requireAvatarStored(t, db, userID, platformAvatarURLFor(userID))
 		})
 	}
 }
@@ -221,11 +251,11 @@ func TestUpdateUserAvatarFailOpenInLocalModeWhenGreenNotConfigured(t *testing.T)
 
 	var rec *httptest.ResponseRecorder
 	logs := captureSlog(t, func() {
-		rec = patchUserAvatar(t, router, userID, testPlatformAvatarURL)
+		rec = patchUserAvatar(t, router, userID, platformAvatarURLFor(userID))
 	})
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	requireAvatarStored(t, db, userID, testPlatformAvatarURL)
+	requireAvatarStored(t, db, userID, platformAvatarURLFor(userID))
 	require.Contains(t, strings.Join(logs, "\n"), "policy=fail_open")
 	require.Contains(t, strings.Join(logs, "\n"), "reason=green_not_configured")
 }
@@ -236,11 +266,11 @@ func TestUpdateUserAvatarFailOpenInLocalModeWhenReviewerNotWired(t *testing.T) {
 
 	var rec *httptest.ResponseRecorder
 	logs := captureSlog(t, func() {
-		rec = patchUserAvatar(t, router, userID, testPlatformAvatarURL)
+		rec = patchUserAvatar(t, router, userID, platformAvatarURLFor(userID))
 	})
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	requireAvatarStored(t, db, userID, testPlatformAvatarURL)
+	requireAvatarStored(t, db, userID, platformAvatarURLFor(userID))
 	require.Contains(t, strings.Join(logs, "\n"), "policy=fail_open")
 	require.Contains(t, strings.Join(logs, "\n"), "reason=review_service_not_wired")
 }
@@ -252,7 +282,7 @@ func TestUpdateUserAvatarFailClosedInReleaseModeWhenModerationFails(t *testing.T
 
 	var rec *httptest.ResponseRecorder
 	logs := captureSlog(t, func() {
-		rec = patchUserAvatar(t, router, userID, testPlatformAvatarURL)
+		rec = patchUserAvatar(t, router, userID, platformAvatarURLFor(userID))
 	})
 
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
@@ -270,7 +300,7 @@ func TestUpdateUserAvatarFailClosedInReleaseModeWhenReviewerNotWired(t *testing.
 
 	var rec *httptest.ResponseRecorder
 	logs := captureSlog(t, func() {
-		rec = patchUserAvatar(t, router, userID, testPlatformAvatarURL)
+		rec = patchUserAvatar(t, router, userID, platformAvatarURLFor(userID))
 	})
 
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
@@ -286,7 +316,7 @@ func TestUpdateUserAvatarAllowsClearingToDefaultWithoutModeration(t *testing.T) 
 	reviewer := &fakeAvatarReviewer{result: "block"}
 	router, db := setupUserUpdateTest(t, "debug", "https://cdn.example.test", reviewer)
 	userID := createUserUpdateTestUser(t, db)
-	require.NoError(t, db.Table("users").Where("id = ?", userID).Update("avatar_url", testPlatformAvatarURL).Error)
+	require.NoError(t, db.Table("users").Where("id = ?", userID).Update("avatar_url", platformAvatarURLFor(userID)).Error)
 
 	rec := patchUserAvatar(t, router, userID, "")
 

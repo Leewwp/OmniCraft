@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"net/url"
 	"strconv"
 	"testing"
@@ -191,8 +192,8 @@ func TestDisplayURLSignerDecoratesModels(t *testing.T) {
 func TestDisplayURLSignerDecoratesAttachmentsWithSignedOSSURL(t *testing.T) {
 	signer := NewDisplayURLSigner(displayTestConfig(0))
 	attachments := []model.ContentAttachment{
-		{OSSKey: "uploads/3/image/gallery-01.png"},
-		{OSSKey: "uploads/3/image/gallery-02.png"},
+		{FileType: "image", OSSKey: "uploads/3/image/gallery-01.png"},
+		{FileType: "image", OSSKey: "uploads/3/image/gallery-02.png"},
 	}
 	signer.DecorateAttachments(attachments)
 
@@ -205,7 +206,7 @@ func TestDisplayURLSignerDecoratesAttachmentsWithSignedOSSURL(t *testing.T) {
 	cfg := displayTestConfig(0)
 	cfg.OSS.Domain = ""
 	domainless := NewDisplayURLSigner(cfg)
-	attachments = []model.ContentAttachment{{OSSKey: "uploads/3/image/x.png"}}
+	attachments = []model.ContentAttachment{{FileType: "image", OSSKey: "uploads/3/image/x.png"}}
 	domainless.DecorateAttachments(attachments)
 	require.Equal(t, "", attachments[0].OSSURL)
 	require.Equal(t, "uploads/3/image/x.png", attachments[0].OSSKey)
@@ -249,4 +250,98 @@ func requireSignedShape(t *testing.T, raw, wantKey string) {
 	// The IP-shaped test endpoint makes the SDK sign path-style URLs
 	// (/bucket/key); the object key must survive signing untouched.
 	require.Equal(t, "/"+displayTestBucket+"/"+wantKey, parsed.Path, "object key drifted")
+}
+
+// #813（审计 #5 + 决策①）：附件展示签名的家族白名单——只有展示/预览族
+// （image / video / sheet_music，SheetMusicViewer 页内消费）获得签名 URL；
+// 文件交付族（mod / text / document / audio / model3d）一律 OSSURL=""，仅
+// 经下载闸交付；quarantine/ 前缀在任何路径永不签名。
+func TestAttachmentDisplayFamilyWhitelistAndQuarantine(t *testing.T) {
+	signer := NewDisplayURLSigner(displayTestConfig(0))
+
+	previewable := []string{"image", "video", "sheet_music"}
+	for _, family := range previewable {
+		attachments := []model.ContentAttachment{{FileType: family, OSSKey: "uploads/3/" + family + "/a.bin"}}
+		signer.DecorateAttachments(attachments)
+		requireSignedShape(t, attachments[0].OSSURL, "uploads/3/"+family+"/a.bin")
+		require.Equal(t, "uploads/3/"+family+"/a.bin", attachments[0].OSSKey, "oss_key must stay canonical")
+	}
+
+	for _, family := range []string{"mod", "text", "document", "audio", "model3d", ""} {
+		attachments := []model.ContentAttachment{{FileType: family, OSSKey: "uploads/3/" + family + "/a.bin"}}
+		signer.DecorateAttachments(attachments)
+		require.Equal(t, "", attachments[0].OSSURL, "file-delivery family %q must not receive a signed display URL", family)
+	}
+
+	// quarantine 键在任何家族（含展示族）都不签。
+	attachments := []model.ContentAttachment{
+		{FileType: "image", OSSKey: "quarantine/archive-scan/9/2/job11"},
+		{FileType: "mod", OSSKey: "quarantine/archive-scan/9/2/job12"},
+	}
+	signer.DecorateAttachments(attachments)
+	require.Equal(t, "", attachments[0].OSSURL, "quarantine key must never be signed")
+	require.Equal(t, "", attachments[1].OSSURL, "quarantine key must never be signed")
+
+	// AttachmentURL 单点契约与 DecorateAttachments 一致。
+	require.NotEmpty(t, signer.AttachmentURL("uploads/3/image/a.png", "image"))
+	require.Empty(t, signer.AttachmentURL("uploads/3/mod/a.zip", "mod"))
+	require.Empty(t, signer.AttachmentURL("quarantine/x", "image"))
+}
+
+// #813 决策①：附件展示签名走独立短 TTL 通道（oss.display_attachment_ttl_sec，
+// 出厂 300s），与通用 3600s 展示预算分离，且不做 #428 桶对齐（Expires 差值
+// 就是配置值本身）。
+func TestAttachmentDisplayTTLIndependentChannel(t *testing.T) {
+	before := time.Now().Unix()
+
+	cfg := displayTestConfig(0)
+	cfg.OSS.DisplayAttachmentTTLSec = 90
+	signer := NewDisplayURLSigner(cfg)
+	signed := signer.AttachmentURL("uploads/3/image/ttl.png", "image")
+	requireSignedShape(t, signed, "uploads/3/image/ttl.png")
+	require.InDelta(t, float64(before+90), float64(signedExpires(t, signed)), 2,
+		"attachment display TTL must come from oss.display_attachment_ttl_sec, without bucket alignment")
+
+	// 未设置（0）回退 300s 工厂默认。
+	defaulted := NewDisplayURLSigner(displayTestConfig(0)).AttachmentURL("uploads/3/image/ttl-default.png", "image")
+	require.InDelta(t, float64(before+300), float64(signedExpires(t, defaulted)), 2,
+		"unset display_attachment_ttl_sec falls back to the 300s factory default")
+
+	// 通用展示通道（封面/头像）不受新键影响，仍是 3600s + 桶对齐。
+	generic := NewDisplayURLSigner(displayTestConfig(0)).SignURL(
+		aliyun.ObjectURL(displayTestDomain, "uploads/7/image/generic.png"))
+	genericAligned := alignDisplayExpiry(time.Unix(before, 0), 3600*time.Second, displayURLSignatureBucketSec)
+	require.InDelta(t, float64(genericAligned), float64(signedExpires(t, generic)), 2,
+		"generic display channel keeps the 3600s bucket-aligned budget")
+}
+
+// quarantine 前缀在任何签名路径不可达：通用 SignURL 通道（封面/头像）对
+// quarantine 平台对象同样拒绝签名（原样返回未签名 URL，私桶匿名读取 403）。
+func TestSignURLNeverSignsQuarantineKeys(t *testing.T) {
+	signer := NewDisplayURLSigner(displayTestConfig(0))
+	quarantine := aliyun.ObjectURL(displayTestDomain, "quarantine/archive-scan/9/2/job11")
+	require.Equal(t, quarantine, signer.SignURL(quarantine), "quarantine platform URL must pass through unsigned")
+}
+
+// ScanAware 路径与白名单一致：gate=nil（委派 DecorateAttachments）时文件
+// 族仍不得拿到签名 URL，展示族照常签名——家族白名单先于一切签名路径。
+func TestScanAwareDecorateRespectsFamilyWhitelist(t *testing.T) {
+	signer := NewDisplayURLSigner(displayTestConfig(0))
+
+	attachments := []model.ContentAttachment{
+		{ID: 1, FileType: "image", OSSKey: "uploads/3/image/a.png"},
+		{ID: 2, FileType: "mod", OSSKey: "uploads/3/mod/a.zip"},
+		{ID: 3, FileType: "document", OSSKey: "uploads/3/document/a.docx"},
+	}
+	signer.ScanAwareDecorateAttachments(context.Background(), attachments, nil, 0)
+	requireSignedShape(t, attachments[0].OSSURL, "uploads/3/image/a.png")
+	require.Equal(t, "", attachments[1].OSSURL, "mod must stay unsigned through the scan-aware path")
+	require.Equal(t, "", attachments[2].OSSURL, "document must stay unsigned through the scan-aware path")
+
+	// 非 nil gate：家族白名单先于扫描门——文件族在触达 RequireAttachmentClean
+	//（无 DB 会 panic）之前即被拒签，证明白名单是第一道分支。
+	gate := NewArchiveScanGate(nil, true, nil)
+	fileOnly := []model.ContentAttachment{{ID: 11, FileType: "mod", OSSKey: "uploads/3/mod/b.zip"}}
+	signer.ScanAwareDecorateAttachments(context.Background(), fileOnly, gate, 0)
+	require.Equal(t, "", fileOnly[0].OSSURL, "file family must be rejected before the scan gate")
 }

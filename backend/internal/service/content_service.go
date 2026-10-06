@@ -290,6 +290,16 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 	if err := s.validatePosterContract(&input); err != nil {
 		return nil, err
 	}
+	// #813 审计 #2：客户端提交的封面（文本形态内容的 cover_image_url；
+	// 媒体形态封面由服务端从附件/海报 grant 派生，不经此路径）按发布作者
+	// 主体命名空间绑定——他人 uploads 命名空间与隔离区对象同步拒绝，
+	// 不再等待异步复审才发现（pending 行也不得先落跨命名空间封面）。
+	// reviewSvc 未装配（最小构造测试路径）沿用既有无校验语义。
+	if input.CoverImageURL != "" && s.reviewSvc != nil {
+		if _, err := s.reviewSvc.resolveCoverScanURLForPrincipal(input.CoverImageURL, authorID); err != nil {
+			return nil, err
+		}
+	}
 	if s.archiveScanEnabled && input.ContentType == "mod" {
 		if len(input.Attachments) == 0 {
 			return nil, ErrArchiveAttachmentRequired
@@ -1016,8 +1026,11 @@ func (s *ContentService) UpdateContentWithContext(ctx context.Context, id int64,
 	}
 	// 封面必须是平台 OSS 对象（非空时）：PATCH 契约的 cover_image_url 直接入
 	// 库并在响应边界签名，外链封面既无法签名也绕过图片审核（FIX-13）。
+	// #813 审计 #2：客户端封面升级为按内容作者主体命名空间绑定——他人
+	// uploads 命名空间与隔离区对象同样被拒（UpdateContent 已保证调用者
+	// 即内容作者，绑定主体即 authorID）。
 	if cover, ok := updates["cover_image_url"].(string); ok && cover != "" && s.reviewSvc != nil {
-		if _, err := s.reviewSvc.resolveCoverScanURL(cover); err != nil {
+		if _, err := s.reviewSvc.resolveCoverScanURLForPrincipal(cover, content.AuthorID); err != nil {
 			return err
 		}
 	}
