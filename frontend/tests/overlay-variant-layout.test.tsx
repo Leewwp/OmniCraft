@@ -248,12 +248,32 @@ const RELATED_DETAIL = {
   source_original: { id: 200, title: "The Original Work", zone: "original" },
 };
 
+/* #846 fanwork 仅带 IP 摘要（含签名封面、无其他关联）——variant 版式右栏的
+   关联 IP 行是唯一关联时也必须渲染。 */
+const IP_ONLY_DETAIL = {
+  content: {
+    id: 27,
+    title: "Fanwork With Covered IP",
+    zone: "fanwork",
+    content_type: "image",
+    author: { id: 12, username: "Fan Author" },
+    status: "published",
+    description: "Covered IP body",
+    ip: { id: 5, name: "Covered IP", cover_url: "/signed/ip-cover.jpg" },
+  },
+  attachments: [
+    { id: 81, content_item_id: 27, file_type: "image", oss_key: "/seed-media/real/gallery/f02.svg", width: 900, height: 1200, sort_order: 0 },
+  ],
+  tags: [],
+};
+
 const detailByPath = new Map<string, unknown>([
   ["/api/v1/contents/21", PORTRAIT_DETAIL],
   ["/api/v1/contents/23", MIXED_DETAIL],
   ["/api/v1/contents/24", LANDSCAPE_DETAIL],
   ["/api/v1/contents/25", RELATED_DETAIL],
   ["/api/v1/contents/26", TALL_DETAIL],
+  ["/api/v1/contents/27", IP_ONLY_DETAIL],
 ]);
 
 const originalGet = api.get;
@@ -453,6 +473,40 @@ test("#397 related block pins order: source original → series → derivatives,
     Node.DOCUMENT_POSITION_FOLLOWING,
     "related block sits before the comments",
   );
+});
+
+test("#846 variant related block renders the linked IP row with the signed cover when present", async () => {
+  /* 有封面：IP 行 = 签名图缩略 + 名称 + Link 跳 /ip/{id}；IP 是唯一关联时整块仍渲染。 */
+  installApiMock();
+  const covered = renderOverlay(<OverlayHarness entryId={27} zone="fanwork" />, true);
+  await openOverlay(covered, "Fanwork With Covered IP");
+
+  const ipLink = await waitFor(() => {
+    const el = document.querySelector('[data-slot="related-ip-link"]');
+    assert.ok(el, "IP-only fanwork must still render the related block with the IP row");
+    return el as HTMLAnchorElement;
+  });
+  assert.equal(ipLink.getAttribute("href"), "/ip/5");
+  const coverImg = ipLink.querySelector("img");
+  assert.ok(coverImg, "IP row shows the signed cover image");
+  assert.equal(coverImg?.getAttribute("src"), "/signed/ip-cover.jpg");
+  assert.ok(ipLink.textContent?.includes("Covered IP"), "IP row carries the IP name");
+});
+
+test("#846 variant IP row without a cover falls back to the IP name head", async () => {
+  /* 无封面：缩略回落名称首两字（IPCard 同款 fallback），不渲染 <img>。 */
+  installApiMock();
+  const plain = renderOverlay(<OverlayHarness entryId={25} zone="fanwork" />, true);
+  await openOverlay(plain, "Fanwork With Relations");
+
+  const fallbackLink = await waitFor(() => {
+    const el = document.querySelector('[data-slot="related-ip-link"]');
+    assert.ok(el, "RELATED_DETAIL fanwork also renders the IP row");
+    return el as HTMLAnchorElement;
+  });
+  assert.equal(fallbackLink.getAttribute("href"), "/ip/3");
+  assert.equal(fallbackLink.querySelector("img"), null, "no cover_url → no img");
+  assert.ok(fallbackLink.textContent?.includes("In"), "two-char fallback from the IP name head");
 });
 
 test("#397 no relations → related block not rendered; comments still last", async () => {

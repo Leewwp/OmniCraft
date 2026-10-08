@@ -19,7 +19,8 @@ export interface ContentDetailData extends ContentCardData {
   body?: string;
   status?: string;
   ip_id?: number;
-  ip?: { id?: number; name?: string; slug?: string };
+  /** #846：后端三读路径（列表/详情/hot）挂载的 IP 摘要；cover_url 为签名展示 URL。 */
+  ip?: { id?: number; name?: string; slug?: string; cover_url?: string };
   source_original_id?: number;
   source_fanwork_id?: number;
   is_public?: boolean;
@@ -151,6 +152,8 @@ function normalizeIP(value: unknown): ContentDetailData["ip"] {
     id,
     name,
     slug: stringValue(raw.slug ?? raw.Slug),
+    // #846：IP 摘要封面（签名 URL）——关联 IP 卡有图显图的展示数据源。
+    cover_url: stringValue(raw.cover_url ?? raw.CoverURL),
   };
 }
 

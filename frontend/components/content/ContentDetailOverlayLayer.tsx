@@ -489,6 +489,9 @@ export function ContentDetailOverlayLayer({
             <DeferredMount>
               <>
                 <OverlayRelatedBlock
+                  /* #846：variant 版式不挂 ContentSidebar，关联 IP 行补在
+                     关联内容块首位（与 split 分支侧栏同一数据源/门槛）。 */
+                  ip={isFanwork && content.ip?.id && content.ip.name ? content.ip : undefined}
                   sourceOriginal={isFanwork ? detail.sourceOriginal ?? null : null}
                   series={content.series_memberships ?? []}
                   related={relatedEntries}

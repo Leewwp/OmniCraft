@@ -479,7 +479,9 @@
     "previousChapter": "Previous",
     "nextChapter": "Next",
     "previousChapterA11y": "Previous: {title}",
-    "nextChapterA11y": "Next: {title}"
+    "nextChapterA11y": "Next: {title}",
+    "ipBadge": "IP",
+    "ipRowA11y": "Related IP: {name}"
   },
   "collections": {
     "picker": {

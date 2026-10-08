@@ -479,7 +479,9 @@
     "previousChapter": "上一章",
     "nextChapter": "下一章",
     "previousChapterA11y": "上一章：{title}",
-    "nextChapterA11y": "下一章：{title}"
+    "nextChapterA11y": "下一章：{title}",
+    "ipBadge": "IP",
+    "ipRowA11y": "关联 IP：{name}"
   },
   "collections": {
     "picker": {

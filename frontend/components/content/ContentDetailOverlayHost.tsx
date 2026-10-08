@@ -23,7 +23,8 @@ interface ContentDetailOverlayHostProps {
   zone: "original" | "fanwork";
   /** SP-17/T4：透传详情 author 的头像与登录视角关注态（侧栏真按钮 + 悬浮卡触发器）。 */
   author?: { id?: number; username?: string; avatar_url?: string; is_following?: boolean };
-  ip?: { id?: number; name?: string; slug?: string };
+  /** #846：cover_url = IP 摘要封面（签名 URL），透传给侧栏关联 IP 卡显图。 */
+  ip?: { id?: number; name?: string; slug?: string; cover_url?: string };
   sourceOriginal?: { id: number; title: string } | null;
   sourceFanwork?: SourceSummary | null;
   relatedFanworks?: RelatedFanworksSlot;
