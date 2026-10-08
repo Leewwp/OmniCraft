@@ -1893,7 +1893,6 @@
     "typeComment": "评论",
     "typeAccount": "账号（封禁申诉）",
     "accountHint": "账号申诉无需填写目标 ID，将自动关联你的账号。",
-    "targetId": "目标 ID",
     "reason": "申诉理由",
     "submit": "提交",
     "submitting": "提交中...",
@@ -1905,7 +1904,16 @@
     "loadFailed": "加载失败",
     "submitFailed": "提交失败",
     "adminResponse": "处理意见",
-    "exists": "该目标已有待处理的申诉，请等待处理完成"
+    "exists": "该目标已有待处理的申诉，请等待处理完成",
+    "typeLabel": "申诉类型",
+    "pickerOpen": "选择近期事件",
+    "pickerChange": "重新选择",
+    "pickerTitle": "选择近期事件",
+    "pickerHint": "从下方选择要申诉的事项。",
+    "pickerEmpty": "暂无可申诉事项",
+    "pickerEmptyHint": "可申诉事项为被下架的内容或被隐藏的评论；若要申诉账号封禁，请关闭本弹窗并将申诉类型改为「账号」。",
+    "banReasonLabel": "下架原因",
+    "commentOn": "评论于"
   },
   "history": {
     "title": "浏览历史",

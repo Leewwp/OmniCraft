@@ -465,6 +465,7 @@ backend/
 | `GET` | `/api/v1/users/:id/following` | followHandler.GetFollowing |
 | `GET` | `/api/v1/users/:id/reputation` | userHandler.GetReputation |
 | `GET` | `/api/v1/users/me/agent-tokens` | agentTokenHandler.List |
+| `GET` | `/api/v1/users/me/comments` | socialHandler.ListMyComments |
 | `GET` | `/api/v1/users/me/contents` | userHandler.GetMyContents |
 | `GET` | `/api/v1/users/me/contributors` | userHandler.GetMyContributors |
 | `GET` | `/api/v1/users/me/followers/stats` | followHandler.GetFollowerStats |
