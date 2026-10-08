@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"omnicraft/backend/internal/model"
@@ -67,6 +68,11 @@ func (r *ContentRepository) FindByID(id int64) (*model.ContentItem, error) {
 		}
 		return nil, err
 	}
+	// #846：详情路径挂载关联 IP 摘要（GetContent 的详情缓存写入发生在本方法
+	// 之后，缓存 JSON 与回源行因此携带同一 ip 形状）。
+	rows := []model.ContentItem{content}
+	r.hydrateIPSummaries(rows)
+	content.IP = rows[0].IP
 	return &content, nil
 }
 
@@ -136,13 +142,60 @@ func (r *ContentRepository) InsertContributorIfAbsent(contentID, userID int64, n
 	`, contentID, userID, now).Error
 }
 
+// hydrateIPSummaries 批量挂载内容行的关联 IP 摘要 {id, name, cover_url}
+// （#846：/contents 列表与详情从未返回嵌套 ip，前端「基于 XX」/「IP：XX」/
+// 关联 IP 卡全链路恒不渲染）。单条 IN 查询去重后一次取回，避免逐行 N+1；
+// 只取摘要列——IP 行的 status/creator/description 等不随内容响应外泄，封面
+// 裸 URL 由 handler 边界的 DecorateContent 签名（与 /ips 列表同一链路）。
+// 口径与内容可见性一致：IP banned 的内容已被 ApplyContentVisibilityScope
+// （列表/来源联动）与 contentVisibleToViewer（详情）排除，本方法不引入新
+// 越权面。摘要属于展示性数据：查询失败记 WARN 后静默降级为无 ip（与缓存
+// 层 Redis 故障当 miss 的降级口径一致），不阻断内容读路径；悬空 ip_id
+// （IP 行已删）同样落为 nil。
+func (r *ContentRepository) hydrateIPSummaries(items []model.ContentItem) {
+	ids := make([]int64, 0, len(items))
+	seen := make(map[int64]bool, len(items))
+	for i := range items {
+		if items[i].IPID != nil && *items[i].IPID > 0 && !seen[*items[i].IPID] {
+			seen[*items[i].IPID] = true
+			ids = append(ids, *items[i].IPID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	var ips []model.IP
+	if err := r.db.Select("id", "name", "cover_url").Where("id IN ?", ids).Find(&ips).Error; err != nil {
+		slog.Warn("hydrate content ip summaries failed", "error", err)
+		return
+	}
+	byID := make(map[int64]*model.IP, len(ips))
+	for i := range ips {
+		byID[ips[i].ID] = &ips[i]
+	}
+	for i := range items {
+		if items[i].IPID == nil {
+			continue
+		}
+		if ip, ok := byID[*items[i].IPID]; ok {
+			items[i].IP = ip
+		}
+	}
+}
+
 func (r *ContentRepository) BatchGetByIDs(ids []int64) ([]model.ContentItem, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 	var contents []model.ContentItem
 	err := r.db.Preload("Author").Where("id IN ? AND deleted_at IS NULL", ids).Find(&contents).Error
-	return contents, err
+	if err != nil {
+		return nil, err
+	}
+	// #846：hot 列表（getHotContents）走本方法取载荷，rank ZSET 只存 ID，
+	// 每次回源都经此挂载，hot 路径与列表/详情天然同形状。
+	r.hydrateIPSummaries(contents)
+	return contents, nil
 }
 
 func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentItem, int64, error) {
@@ -246,6 +299,10 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	if err := q.Offset(offset).Limit(pageSize).Find(&items).Error; err != nil {
 		return nil, 0, err
 	}
+	// #846：主列表（含 hot 缓存未命中回源与 /ips 分享页等复用方）挂载关联
+	// IP 摘要；service 层的列表缓存写入发生在本方法之后，缓存 JSON 与回源
+	// 行携带同一 ip 形状。
+	r.hydrateIPSummaries(items)
 
 	return items, total, nil
 }

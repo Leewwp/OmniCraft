@@ -41,6 +41,8 @@ export interface ContentCardData {
     id?: number;
     name?: string;
     slug?: string;
+    /** #846：IP 摘要封面（后端 hydrate + handler 签名；列表/详情响应携带）。 */
+    cover_url?: string;
   };
 }
 
