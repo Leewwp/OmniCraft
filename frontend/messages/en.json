@@ -75,7 +75,8 @@
     "favorites": "My Favorites",
     "myOriginal": "My Creations",
     "agent": "AI Agent",
-    "adminPanel": "Admin Console"
+    "adminPanel": "Admin Console",
+    "judge": "Cyber Judge"
   },
   "auth": {
     "suspendedTitle": "Account suspended",
@@ -1345,7 +1346,18 @@
     "moderationUnavailable": "The moderation service is temporarily unavailable. Please try again later",
     "commentCount": "{count} comments",
     "commentFolded": "Collapsed · click to show",
-    "commentCollapse": "Collapse"
+    "commentCollapse": "Collapse",
+    "reportCategoryLabel": "Select a reason for your report:",
+    "reportCategoryPornography": "Pornographic or vulgar",
+    "reportCategoryIllegal": "Illegal content",
+    "reportCategoryPlagiarism": "Plagiarism or infringement",
+    "reportCategoryAttack": "Personal attack",
+    "reportCategorySpam": "Spam or advertising",
+    "reportCategoryMisinformation": "Misinformation",
+    "reportCategoryOther": "Other",
+    "reportDetailOptionalLabel": "Additional details (optional)",
+    "reportDetailRequiredLabel": "Additional details (required)",
+    "reportLimitHint": "Report reason is limited to 100 characters"
   },
   "pr": {
     "submit": "Submit Edit Proposal",
@@ -1557,8 +1569,10 @@
   "tagSuggestions": {
     "title": "Tag Suggestion Review",
     "subtitle": "Review tag add/remove suggestions from users",
-    "contentIdLabel": "Content ID",
-    "contentIdPlaceholder": "Enter content ID to view suggestions",
+    "myContentLabel": "My content",
+    "myContentLoading": "Loading your content…",
+    "myContentEmpty": "You have no content yet — publish one first",
+    "selectContentPlaceholder": "Select a content item",
     "refresh": "Refresh",
     "empty": "No pending tag suggestions",
     "colTag": "Tag",

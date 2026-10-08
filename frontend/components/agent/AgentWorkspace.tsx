@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ArrowDown, BookOpen, Brain, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Composer } from "@/components/ui/composer";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
@@ -265,22 +266,24 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   );
   const modelSelector =
     modelOptions.length > 1 ? (
-      <select
-        aria-label={t("agent.workspace.modelLabel")}
-        value={modelPref || modelOptions[0].id}
-        onChange={(event) => {
-          setModelPref(event.target.value);
-          window.localStorage.setItem(MODEL_STORAGE_KEY, event.target.value);
-        }}
-        /* #725：模型选择器同步紧凑形态。 */
-        className="h-6 rounded-md border border-border-default bg-canvas-default px-1 text-[11px] text-fg-default focus:border-border-strong focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        {modelOptions.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.display_name}
-          </option>
-        ))}
-      </select>
+      <div className="w-fit">
+        <Select
+          aria-label={t("agent.workspace.modelLabel")}
+          value={modelPref || modelOptions[0].id}
+          onChange={(event) => {
+            setModelPref(event.target.value);
+            window.localStorage.setItem(MODEL_STORAGE_KEY, event.target.value);
+          }}
+          /* #725：模型选择器同步紧凑形态（#844 换共享 Select，pr-6 保箭头留白）。 */
+          className="h-6 rounded-md border-border-default bg-canvas-default px-1 pr-6 text-[11px] text-fg-default focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {modelOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.display_name}
+            </option>
+          ))}
+        </Select>
+      </div>
     ) : null;
 
   /* 选中会话时加载服务端历史（server-authoritative：moderation 脱敏与跨端一致

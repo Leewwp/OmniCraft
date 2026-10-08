@@ -8,6 +8,7 @@ import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CaptchaWidget, type CaptchaWidgetProps } from "@/components/verification/CaptchaWidget";
 import { Check, Upload, X, Loader2 } from "lucide-react";
@@ -174,10 +175,9 @@ export function FeedbackFormInner({
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">{t("feedback.category")}</label>
-        <select
+        <Select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none"
           required
         >
           <option value="">{t("feedback.selectCategory")}</option>
@@ -186,7 +186,7 @@ export function FeedbackFormInner({
               {t(`feedback.cat_${cat}`)}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="space-y-1">
