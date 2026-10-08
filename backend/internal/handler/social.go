@@ -325,6 +325,98 @@ func reactionSnapshot(db *gorm.DB, userID int64, targetType string, targetID int
 	return counts, viewerReaction, nil
 }
 
+// ListMyComments returns the caller's own comments filtered by status
+// (#845/A3：申诉「近期事件」选择框的数据源——本人被隐藏评论此前无任何
+// 查看途径)。author_id 恒取 auth 上下文、status 白名单仅 hidden，只读
+// 端点无越权面；每行携带关联父对象标题（内容/讨论）便于申诉人辨认。
+func (h *SocialHandler) ListMyComments(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
+		return
+	}
+	status := c.Query("status")
+	if status == "" {
+		status = "hidden"
+	}
+	if status != "hidden" {
+		response.ValidationError(c, "status must be hidden")
+		return
+	}
+	page, pageSize := pageQuery(c, 20)
+
+	comments, total, err := repository.NewSocialRepository(h.db).ListCommentsByAuthorStatus(callerID, status, page, pageSize)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+
+	// 批量回填父对象标题（content_items / discussions），父可能已被软删，
+	// 故按 id 裸查标题不套可见性 scope——受众是评论作者本人（发评时父必然
+	// 对其可见），且 id 全部来自本人评论行，无枚举面。
+	contentIDs := make([]int64, 0, len(comments))
+	discussionIDs := make([]int64, 0, len(comments))
+	for i := range comments {
+		if comments[i].ContentItemID != nil {
+			contentIDs = append(contentIDs, *comments[i].ContentItemID)
+		}
+		if comments[i].DiscussionID != nil {
+			discussionIDs = append(discussionIDs, *comments[i].DiscussionID)
+		}
+	}
+	contentTitles := map[int64]string{}
+	if len(contentIDs) > 0 {
+		var rows []struct {
+			ID    int64
+			Title string
+		}
+		if err := h.db.Table("content_items").Select("id, title").Where("id IN ?", contentIDs).Scan(&rows).Error; err != nil {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+			return
+		}
+		for _, row := range rows {
+			contentTitles[row.ID] = row.Title
+		}
+	}
+	discussionTitles := map[int64]string{}
+	if len(discussionIDs) > 0 {
+		var rows []struct {
+			ID    int64
+			Title string
+		}
+		if err := h.db.Table("discussions").Select("id, title").Where("id IN ?", discussionIDs).Scan(&rows).Error; err != nil {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+			return
+		}
+		for _, row := range rows {
+			discussionTitles[row.ID] = row.Title
+		}
+	}
+
+	payloads := make([]gin.H, 0, len(comments))
+	for i := range comments {
+		parentTitle := ""
+		if comments[i].ContentItemID != nil {
+			parentTitle = contentTitles[*comments[i].ContentItemID]
+		} else if comments[i].DiscussionID != nil {
+			parentTitle = discussionTitles[*comments[i].DiscussionID]
+		}
+		payloads = append(payloads, gin.H{
+			"id":            comments[i].ID,
+			"body":          comments[i].Body,
+			"content_title": parentTitle,
+			"status":        comments[i].Status,
+			"created_at":    comments[i].CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"comments":  payloads,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
 func (h *SocialHandler) ReportContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {

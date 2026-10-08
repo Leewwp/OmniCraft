@@ -1893,7 +1893,6 @@
     "typeComment": "Comment",
     "typeAccount": "Account (ban appeal)",
     "accountHint": "No target ID is needed for an account appeal; it will be linked to your account automatically.",
-    "targetId": "Target ID",
     "reason": "Appeal reason",
     "submit": "Submit",
     "submitting": "Submitting...",
@@ -1905,7 +1904,16 @@
     "loadFailed": "Failed to load",
     "submitFailed": "Failed to submit",
     "adminResponse": "Admin response",
-    "exists": "A pending appeal already exists for this target. Please wait until it is resolved"
+    "exists": "A pending appeal already exists for this target. Please wait until it is resolved",
+    "typeLabel": "Appeal type",
+    "pickerOpen": "Select a recent event",
+    "pickerChange": "Change selection",
+    "pickerTitle": "Select a recent event",
+    "pickerHint": "Pick the item you want to appeal from the list below.",
+    "pickerEmpty": "No appealable items",
+    "pickerEmptyHint": "Appealable items are taken-down content or hidden comments. To appeal an account ban, close this dialog and switch the appeal type to Account.",
+    "banReasonLabel": "Takedown reason",
+    "commentOn": "Commented on"
   },
   "history": {
     "title": "Browsing History",

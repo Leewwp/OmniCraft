@@ -51,7 +51,7 @@ func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, 
 		q = q.Where("parent_id = ?", *parentID)
 	}
 	q.Count(&total)
-// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
+	// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -76,7 +76,7 @@ func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int6
 			Where("target_type = ? AND target_id = ? AND parent_id IS NULL AND status = ?", targetType, targetID, "published")
 	}
 	q.Count(&total)
-// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
+	// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -149,6 +149,27 @@ func (r *SocialRepository) fillReactionCounts(comments []model.Comment) {
 	}
 }
 
+// ListCommentsByAuthorStatus returns the author's own comments filtered by
+// status (#845/A3：申诉「近期事件」选择框的数据源——此前本人被隐藏评论
+// 无任何查看途径)。authorID 恒由 handler 从 auth 上下文注入，不接收
+// 调用方传参，因此不构成越权查询面。
+func (r *SocialRepository) ListCommentsByAuthorStatus(authorID int64, status string, page, pageSize int) ([]model.Comment, int64, error) {
+	var comments []model.Comment
+	var total int64
+	q := r.db.Model(&model.Comment{}).Where("author_id = ? AND status = ?", authorID, status)
+	// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Order("created_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&comments).Error
+	if err != nil {
+		return nil, total, err
+	}
+	return comments, total, nil
+}
+
 func (r *SocialRepository) DeleteComment(id int64) error {
 	return r.db.Model(&model.Comment{}).Where("id = ?", id).Update("status", "hidden").Error
 }
@@ -209,7 +230,7 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 			Where("content_item_id IN (SELECT id FROM content_items WHERE "+visSQL+")", visArgs...)
 	}
 	q.Count(&total)
-// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
+	// SP-25 低-27：Count 吞错修复（故障显性报错，不返回伪 total）。
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

@@ -319,6 +319,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
 		me.GET("/followers/stats", followHandler.GetFollowerStats)
 		me.GET("/contents", userHandler.GetMyContents)
+		// #845/A3：申诉「近期事件」选择框数据源——本人被隐藏评论只读列表
+		// （status 白名单 hidden，author 恒取 auth 上下文）。
+		me.GET("/comments", socialHandler.ListMyComments)
 		// T49: one-request to-do aggregation (open PRs + pending tag suggestions).
 		me.GET("/pending-tasks", userHandler.GetMyPendingTasks)
 		// T50: server-side contributor aggregation for the studio page.
