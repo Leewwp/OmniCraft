@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
@@ -254,15 +255,15 @@ export function UserCollectionsPanel({ ownerId }: { ownerId: number }) {
               {form.mode === "create" && (
                 <label className="block space-y-1">
                   <span className="text-xs font-medium text-foreground">{t("collections.userList.form.zone")}</span>
-                  <select
+                  <Select
                     value={form.zone}
                     onChange={(event) => setForm({ ...form, zone: event.target.value === "fanwork" ? "fanwork" : "original" })}
                     disabled={saving}
-                    className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring md:min-h-9"
+                    className="min-h-11 md:min-h-9"
                   >
                     <option value="original">{t("collections.userList.form.original")}</option>
                     <option value="fanwork">{t("collections.userList.form.fanwork")}</option>
-                  </select>
+                  </Select>
                 </label>
               )}
               <label className="block space-y-1">

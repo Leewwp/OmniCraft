@@ -335,8 +335,10 @@ func (h *SocialHandler) ReportContent(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// #844：reason 与 DB 列 varchar(100)（runes）对齐——validator 的 max 对
+	// 字符串按 rune 计数，超长在绑定层 400，不再打穿为 DB 500。
 	var body struct {
-		Reason string `json:"reason" binding:"required"`
+		Reason string `json:"reason" binding:"required,max=100"`
 		Detail string `json:"detail"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -364,8 +366,9 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// #844：同 ReportContent，reason ≤100 runes 与 DB 列对齐。
 	var body struct {
-		Reason string `json:"reason" binding:"required"`
+		Reason string `json:"reason" binding:"required,max=100"`
 		Detail string `json:"detail"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {

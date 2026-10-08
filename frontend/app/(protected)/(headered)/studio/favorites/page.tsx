@@ -264,10 +264,13 @@ export default function StudioFavoritesPage() {
               {form.mode === "edit" && (
                 <label className="block space-y-1">
                   <span className="text-xs font-medium text-foreground">{t("studio.favorites.form.sortOrder")}</span>
+                  {/* #844：number spinner 去除（参考 admin/categories 正面样板）。 */}
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={form.sortOrder}
-                    onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value) })}
+                    onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value.replace(/\D/g, "")) })}
                     disabled={saving}
                   />
                 </label>

@@ -68,7 +68,17 @@ const intlMessages = {
     dislike: "Dislike",
     report: "Report",
     reportDialogTitle: "Report this content",
-    reportReason: "Please describe the reason for reporting:",
+    reportCategoryLabel: "Select a reason for your report:",
+    reportCategoryPornography: "Pornographic or vulgar",
+    reportCategoryIllegal: "Illegal content",
+    reportCategoryPlagiarism: "Plagiarism or infringement",
+    reportCategoryAttack: "Personal attack",
+    reportCategorySpam: "Spam or advertising",
+    reportCategoryMisinformation: "Misinformation",
+    reportCategoryOther: "Other",
+    reportDetailOptionalLabel: "Additional details (optional)",
+    reportDetailRequiredLabel: "Additional details (required)",
+    reportLimitHint: "Report reason is limited to 100 characters",
     reported: "Reported",
     reportFailed: "Failed to submit report.",
   },
@@ -321,10 +331,11 @@ test("report submits with a reason and a repeat 409 shows the already-reported n
   await waitFor(() => assert.ok(view.getByText("top level body")));
   await login(view);
 
-  /* 第一次举报：填原因提交 → 已举报态 */
+  /* 第一次举报：选预设 chip（垃圾广告）+ 可选补充提交 → 已举报态（#844） */
   fireEvent.click(view.getByRole("button", { name: "Report" }));
   const dialog = view.getByRole("dialog", { name: "Report this content" });
-  fireEvent.change(within(dialog).getByLabelText("Please describe the reason for reporting:"), { target: { value: "spam" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Spam or advertising" }));
+  fireEvent.change(within(dialog).getByLabelText("Additional details (optional)"), { target: { value: "spam" } });
   await act(async () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Report" }));
     await Promise.resolve();
@@ -332,7 +343,7 @@ test("report submits with a reason and a repeat 409 shows the already-reported n
   await waitFor(() => {
     const reportPost = calls.post.find((c) => c.path === "/api/v1/social/comments/1001/report");
     assert.ok(reportPost, "report POST should fire");
-    assert.equal((reportPost!.body as { reason: string }).reason, "spam");
+    assert.equal((reportPost!.body as { reason: string }).reason, "Spam or advertising: spam");
   });
   await waitFor(() => assert.ok(view.getAllByText("Reported").length >= 1, "reported state should render (toast and/or button state)"));
 
