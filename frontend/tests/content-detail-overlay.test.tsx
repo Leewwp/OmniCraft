@@ -520,6 +520,41 @@ test("sidebar related-content entry opens the overlay without leaving the page",
   assert.ok(view.queryByRole("link", { name: /Original 1/ }) === null);
 });
 
+test("#846 sidebar IP card shows the signed cover when present", async () => {
+  installApiMock();
+  installDom();
+  installOverlayTestStubs();
+  render(
+    <IntlProvider locale="en" messages={enMessages}>
+      <ContentSidebar
+        zone="fanwork"
+        ip={{ id: 3, name: "Indigo IP", cover_url: "/signed/sidebar-cover.jpg" }}
+      />
+    </IntlProvider>,
+  );
+  const thumb = document.querySelector("aside .h-11.w-11");
+  assert.ok(thumb, "IP card thumbnail box renders");
+  const coverImg = thumb?.querySelector("img");
+  assert.ok(coverImg, "cover_url present → signed cover image");
+  assert.equal(coverImg?.getAttribute("src"), "/signed/sidebar-cover.jpg");
+  assert.ok(document.querySelector('a[href="/ip/3"]'), "enter-detail link targets the IP page");
+});
+
+test("#846 sidebar IP card without a cover falls back to the IP name head", async () => {
+  installApiMock();
+  installDom();
+  installOverlayTestStubs();
+  render(
+    <IntlProvider locale="en" messages={enMessages}>
+      <ContentSidebar zone="fanwork" ip={{ id: 4, name: "星穹铁道" }} />
+    </IntlProvider>,
+  );
+  const thumb = document.querySelector("aside .h-11.w-11");
+  assert.ok(thumb, "IP card thumbnail box renders");
+  assert.equal(thumb?.querySelector("img"), null, "no cover_url → no img (IPCard 同款 fallback)");
+  assert.equal(thumb?.textContent?.trim(), "星穹", "thumbnail shows the first two characters of the IP name");
+});
+
 test("host wires the fanwork detail page related entry to the overlay", async () => {
   installApiMock();
   installDom();
