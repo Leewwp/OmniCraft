@@ -24,17 +24,23 @@ func (s *IPStatsService) UpdateCategoryCounts(ctx context.Context) error {
 		return nil
 	}
 
+	// #843：口径改为纯 IP 维度——按 ips 表 status='approved' 统计每分类
+	// approved IP 个数（NULL 类目按既有 COALESCE 语义归并 uncategorized，
+	// 保留原行为），不再 JOIN content_items（原口径数的是 fanwork
+	// published 内容行数，标签写「IP」实为内容数）。数据源只有本周期重建
+	// （hot_rank），Incr/Decr 无调用点。
 	var rows []struct {
 		Category string `gorm:"column:category"`
 		Count    int64  `gorm:"column:count"`
 	}
-	s.db.Raw(`
-		SELECT COALESCE(i.category, 'uncategorized') AS category, COUNT(*) AS count
-		FROM content_items ci
-		JOIN ips i ON i.id = ci.ip_id
-		WHERE ci.zone = 'fanwork' AND ci.status = 'published'
-		GROUP BY i.category
-	`).Scan(&rows)
+	if err := s.db.Raw(`
+		SELECT COALESCE(category, 'uncategorized') AS category, COUNT(*) AS count
+		FROM ips
+		WHERE status = 'approved'
+		GROUP BY category
+	`).Scan(&rows).Error; err != nil {
+		return err
+	}
 
 	pipe := s.rdb.Pipeline()
 	pipe.Del(ctx, ipCategoryCountsKey)
