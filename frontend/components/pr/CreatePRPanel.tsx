@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { MilkdownEditor } from "@/components/markdown/MilkdownEditor";
 
 // T48 (FIX-22b): the contributor-facing PR creation panel. Opened from the
@@ -124,18 +125,18 @@ export function CreatePRPanel({ contentId }: CreatePRPanelProps) {
             <label htmlFor="pr-base-version" className="mb-1.5 block text-sm font-medium text-foreground">
               {t("studio.pr.create.baseVersionLabel")}
             </label>
-            <select
+            <Select
               id="pr-base-version"
               value={baseVersionId ?? ""}
               onChange={(e) => setBaseVersionId(Number(e.target.value))}
-              className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="max-w-xs px-3"
             >
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>
                   v{v.version_number}
                 </option>
               ))}
-            </select>
+            </Select>
             {validation ? (
               <p role="alert" className="mt-1 text-xs text-destructive">
                 {validation}

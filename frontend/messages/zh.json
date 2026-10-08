@@ -75,7 +75,8 @@
     "favorites": "我的收藏",
     "myOriginal": "我的创作",
     "agent": "AI Agent",
-    "adminPanel": "管理后台"
+    "adminPanel": "管理后台",
+    "judge": "赛博判官"
   },
   "auth": {
     "suspendedTitle": "账号已被封禁",
@@ -1347,7 +1348,18 @@
     "moderationUnavailable": "审核服务暂时不可用，请稍后重试",
     "commentCount": "{count} 条评论",
     "commentFolded": "已折叠 · 点击显示",
-    "commentCollapse": "收起"
+    "commentCollapse": "收起",
+    "reportCategoryLabel": "请选择举报原因：",
+    "reportCategoryPornography": "色情低俗",
+    "reportCategoryIllegal": "违法违规",
+    "reportCategoryPlagiarism": "抄袭侵权",
+    "reportCategoryAttack": "人身攻击",
+    "reportCategorySpam": "垃圾广告",
+    "reportCategoryMisinformation": "虚假信息",
+    "reportCategoryOther": "其他",
+    "reportDetailOptionalLabel": "补充说明（选填）",
+    "reportDetailRequiredLabel": "补充说明（必填）",
+    "reportLimitHint": "举报原因最长 100 字"
   },
   "pr": {
     "submit": "提交修改申请",
@@ -1559,8 +1571,10 @@
   "tagSuggestions": {
     "title": "标签建议审核",
     "subtitle": "审核用户提交的标签添加/移除建议",
-    "contentIdLabel": "内容 ID",
-    "contentIdPlaceholder": "输入内容 ID 查看标签建议",
+    "myContentLabel": "我的内容",
+    "myContentLoading": "正在加载我的内容…",
+    "myContentEmpty": "暂无自己的内容，先去发布一条吧",
+    "selectContentPlaceholder": "选择要查看的内容",
     "refresh": "刷新",
     "empty": "暂无待审核标签建议",
     "colTag": "标签",
