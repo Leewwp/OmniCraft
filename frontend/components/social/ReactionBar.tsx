@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { ThumbsUp, ThumbsDown, Flag, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { ReportModal } from "@/components/social/ReportModal";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { api, ApiRequestError } from "@/lib/api";
@@ -184,14 +184,10 @@ export function ReactionBar({
         {reported ? t('social.reported') : t('social.report')}
       </Button>
 
-      <ConfirmModal
+      {/* #844：举报预设原因（七项 chips + 可选补充），不再走手输 ConfirmModal。 */}
+      <ReportModal
         open={reportOpen}
         onOpenChange={setReportOpen}
-        title={t('social.reportDialogTitle')}
-        description={t('social.reportReason')}
-        reasonLabel={t('social.reportReason')}
-        confirmLabel={t('social.report')}
-        requireReason
         onConfirm={submitReport}
       />
     </div>

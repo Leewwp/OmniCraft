@@ -70,7 +70,17 @@ const intlMessages = {
     reported: "Reported",
     report: "Report",
     reportDialogTitle: "Report this content",
-    reportReason: "Please describe the reason for reporting:",
+    reportCategoryLabel: "Select a reason for your report:",
+    reportCategoryPornography: "Pornographic or vulgar",
+    reportCategoryIllegal: "Illegal content",
+    reportCategoryPlagiarism: "Plagiarism or infringement",
+    reportCategoryAttack: "Personal attack",
+    reportCategorySpam: "Spam or advertising",
+    reportCategoryMisinformation: "Misinformation",
+    reportCategoryOther: "Other",
+    reportDetailOptionalLabel: "Additional details (optional)",
+    reportDetailRequiredLabel: "Additional details (required)",
+    reportLimitHint: "Report reason is limited to 100 characters",
     reportFailed: "Failed to submit report. Please try again later.",
   },
 };
@@ -183,7 +193,7 @@ test("ReactionBar disables interaction buttons with a localized reason when bloc
   });
 });
 
-test("ReactionBar report uses ConfirmModal reason input and submits on success", async () => {
+test("ReactionBar report uses preset ReportModal chips and submits on success", async () => {
   const calls = installInteractionMocks("allowed");
 
   const view = renderHarness(<ReactionBarHarness contentId={5} />);
@@ -192,7 +202,9 @@ test("ReactionBar report uses ConfirmModal reason input and submits on success",
   fireEvent.click(view.getByRole("button", { name: "Report" }));
   const dialog = view.getByRole("dialog", { name: "Report this content" });
 
-  const reasonInput = within(dialog).getByLabelText(intlMessages.social.reportReason);
+  /* #844：预设单选 chips——先选「垃圾广告」，补充说明选填。 */
+  fireEvent.click(within(dialog).getByRole("button", { name: intlMessages.social.reportCategorySpam }));
+  const reasonInput = within(dialog).getByLabelText(intlMessages.social.reportDetailOptionalLabel);
   fireEvent.change(reasonInput, { target: { value: "spam" } });
 
   await act(async () => {
@@ -204,7 +216,7 @@ test("ReactionBar report uses ConfirmModal reason input and submits on success",
     assert.equal(view.queryByRole("dialog"), null);
     const reportCall = calls.post.find((call) => call.path === "/api/v1/contents/5/report");
     assert.ok(reportCall, "expected POST /api/v1/contents/5/report");
-    assert.deepEqual(reportCall.body, { reason: "spam" });
+    assert.deepEqual(reportCall.body, { reason: `${intlMessages.social.reportCategorySpam}: spam` });
   });
   assert.ok(view.getByRole("button", { name: "Reported" }));
 });
@@ -249,8 +261,7 @@ test("ReactionBar report keeps the modal open after an API failure", async () =>
 
   fireEvent.click(view.getByRole("button", { name: "Report" }));
   const dialog = view.getByRole("dialog", { name: "Report this content" });
-  const reasonInput = within(dialog).getByLabelText(intlMessages.social.reportReason);
-  fireEvent.change(reasonInput, { target: { value: "spam" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: intlMessages.social.reportCategorySpam }));
 
   await act(async () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Report" }));

@@ -6,6 +6,7 @@ import { api, ApiRequestError } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Plus, Trash2, Check, Loader2, Power, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -254,12 +255,11 @@ export default function AgentConfigPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">{t("agentConfig.colProvider")}</label>
-                <select value={form.provider_type} onChange={(e) => setForm({ ...form, provider_type: e.target.value })}
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-border-strong focus:outline-none">
+                <Select value={form.provider_type} onChange={(e) => setForm({ ...form, provider_type: e.target.value })}>
                   <option value="openai_compat">OpenAI Compatible</option>
                   <option value="qwen">Qwen (DashScope)</option>
                   <option value="deepseek">DeepSeek</option>
-                </select>
+                </Select>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">{t("agentConfig.apiBase")}</label>

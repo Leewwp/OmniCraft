@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { ReportModal } from "@/components/social/ReportModal";
 import { AlertTriangle, Eye, Flag, SkipForward } from "lucide-react";
 import { api, ApiRequestError } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -310,14 +310,10 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote, on
         </Button>
       </div>
 
-      <ConfirmModal
+      {/* #844：举报预设原因（七项 chips + 可选补充），不再走手输 ConfirmModal。 */}
+      <ReportModal
         open={reportOpen}
         onOpenChange={setReportOpen}
-        title={t('social.reportDialogTitle')}
-        description={t('social.reportReason')}
-        reasonLabel={t('social.reportReason')}
-        confirmLabel={t('social.report')}
-        requireReason
         onConfirm={submitReport}
       />
     </div>

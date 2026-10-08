@@ -8,6 +8,7 @@ import { Composer } from "@/components/ui/composer";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { ReportModal } from "@/components/social/ReportModal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
@@ -616,14 +617,10 @@ function CommentItem({
         onConfirm={() => { onDelete(comment); setDeleteOpen(false); }}
       />
 
-      <ConfirmModal
+      {/* #844：举报预设原因（七项 chips + 可选补充），不再走手输 ConfirmModal。 */}
+      <ReportModal
         open={reportOpen}
         onOpenChange={setReportOpen}
-        title={t('social.reportDialogTitle')}
-        description={t('social.reportReason')}
-        reasonLabel={t('social.reportReason')}
-        confirmLabel={t('social.report')}
-        requireReason
         onConfirm={submitReport}
       />
     </div>
@@ -807,14 +804,10 @@ function ReplyItem({
         onConfirm={() => { onDelete(reply, rootId); setDeleteOpen(false); }}
       />
 
-      <ConfirmModal
+      {/* #844：举报预设原因（七项 chips + 可选补充），不再走手输 ConfirmModal。 */}
+      <ReportModal
         open={reportOpen}
         onOpenChange={setReportOpen}
-        title={t('social.reportDialogTitle')}
-        description={t('social.reportReason')}
-        reasonLabel={t('social.reportReason')}
-        confirmLabel={t('social.report')}
-        requireReason
         onConfirm={submitReport}
       />
     </div>

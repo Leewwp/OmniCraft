@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { ScrollText, ChevronDown, ChevronRight, History, GitBranch, Plus, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -278,29 +279,33 @@ export default function AdminPromptsPage() {
                     <h3 className="text-sm font-semibold">{t("admin.prompts.versions")}</h3>
                     <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                       diff:
-                      <select
-                        aria-label={t("admin.prompts.diffFrom")}
-                        className="h-7 rounded border border-border bg-background px-1 text-xs focus:border-border-strong focus:outline-none"
-                        value={diffFrom ?? ""}
-                        onChange={(e) => setDiffFrom(e.target.value ? Number(e.target.value) : null)}
-                      >
-                        <option value="">—</option>
-                        {versions.map((v) => (
-                          <option key={v.version} value={v.version}>v{v.version}</option>
-                        ))}
-                      </select>
+                      <div className="w-fit">
+                        <Select
+                          aria-label={t("admin.prompts.diffFrom")}
+                          className="h-7 rounded px-1 pr-6 text-xs"
+                          value={diffFrom ?? ""}
+                          onChange={(e) => setDiffFrom(e.target.value ? Number(e.target.value) : null)}
+                        >
+                          <option value="">—</option>
+                          {versions.map((v) => (
+                            <option key={v.version} value={v.version}>v{v.version}</option>
+                          ))}
+                        </Select>
+                      </div>
                       →
-                      <select
-                        aria-label={t("admin.prompts.diffTo")}
-                        className="h-7 rounded border border-border bg-background px-1 text-xs focus:border-border-strong focus:outline-none"
-                        value={diffTo ?? ""}
-                        onChange={(e) => setDiffTo(e.target.value ? Number(e.target.value) : null)}
-                      >
-                        <option value="">—</option>
-                        {versions.map((v) => (
-                          <option key={v.version} value={v.version}>v{v.version}</option>
-                        ))}
-                      </select>
+                      <div className="w-fit">
+                        <Select
+                          aria-label={t("admin.prompts.diffTo")}
+                          className="h-7 rounded px-1 pr-6 text-xs"
+                          value={diffTo ?? ""}
+                          onChange={(e) => setDiffTo(e.target.value ? Number(e.target.value) : null)}
+                        >
+                          <option value="">—</option>
+                          {versions.map((v) => (
+                            <option key={v.version} value={v.version}>v{v.version}</option>
+                          ))}
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
