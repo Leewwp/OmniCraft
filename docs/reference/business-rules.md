@@ -136,6 +136,15 @@
 - 权限控制：信誉分 < `config.yaml > reputation.min_score_for_interaction`（默认 3）用户禁止下载；封禁用户禁止下载。**所有信誉分门槛统一使用 `min_score_for_interaction`**（发布、评论、众裁、点赞、下载等），不再为下载单独定义阈值
 - 前端下载按钮位于内容详情页 ReactionBar 区域，调用后端获取 OSS 临时签名 URL 后触发浏览器下载
 
+### 附件展示签名通道（#813 → #861 有意放宽）
+
+- 详情接口与 MCP 读工具对「可预览附件」在 API 序列化边界签发分钟级短时效 `oss_url`（TTL 读 `oss.display_attachment_ttl_sec`，出厂 300s，不硬编码；scannable 族走 scan-aware 通道、cap 300s、无桶对齐），DB 与 Redis 只存 canonical `oss_key`。资格判断为**附件级**、只消费持久化元数据（`file_type` + `mime_type`），不信请求侧扩展名/MIME/URL：
+  - 整族准入：`image` / `video` / `sheet_music`（#813 原范围）+ `audio` / `model3d` / `document`（#861 新增）；
+  - `text` 族仅持久化 MIME 规范化 media type 等于 `application/pdf` 时准入（大小写/参数容错）；空 MIME、`text/plain`、仅文件名后缀像 `.pdf` 而 MIME 非 pdf 一律不签；
+  - `mod` 恒不签名（无预览语义）；`text-txt` 恒不签名（走右栏下载行）；旧缺元数据行不绕门，仍走下载入口。
+- 扫描门与下载闸同源同判（#688）：`quarantine/` 前缀永拒；需扫描者（scannable 族或 `scan_required`）非 `clean`（pending/blocked/failed/scanning/manual_review/legacy_unscanned/not_required）拒签，`clean` 放行；非扫描族 `not_required` 正常放行（不误杀）；扫描 feature flag 关闭时仅 quarantine 拒签；无签名器 / OSS 配置缺失不生成签名。拒签即清空 `oss_url`，前端渲染扫描状态卡。
+- **有意放宽理由（#861 记录）**：#813 收窄时 audio/model3d/document 无预览消费方（纯暴露面）；详情统一媒体列使预览成为真实消费方，故三者以同一次签渠道、同扫描门重新准入。**allowCopy 语义（Q12 已接受）**：签名预览 URL 即可取原文件，与乐谱同待遇；正式下载 API 的认证、`allow_copy`、PAT scope、扫描与计数完全不变。
+
 ### 收藏集（Task 122–123）
 
 - **实现状态**：迁移 `058_create_collections.sql` 和原计划 Tasks 1–10 已完成；默认集自愈、legacy reconciliation/cutover 仍以计划 Task 11 为准，未完成前保留旧 `favorites` 兼容路径。
