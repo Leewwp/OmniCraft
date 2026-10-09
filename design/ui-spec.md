@@ -20,7 +20,8 @@
 - Global Design Tokens
 - Global Interaction Patterns
 
-### Pages（49）
+### Pages（50）
+- Page: 访客落地页
 - Page: / 首页
 - Page: /recommend 推荐流
 - Page: /search 搜索页
@@ -324,6 +325,7 @@ interface HeaderProps {
 **关键交互**
 - Logo 点击: 桌面与移动均路由跳转 `/recommend`（不跳 `/`），导航选中态同步。
 - 导航链接点击: 路由跳转，选中项高亮。
+- 二创导航入口身份分流（#853，2026-10-09）：登录用户 → `/`（二创分区页），游客 → `/fanworks`（公开二创区）；`/` 与 `/fanworks` 两路由共享该入口的选中态。游客一律不再指向 `/`——未登录 `/` 是访客落地页（见「Page: 访客落地页」）。
 - AI Agent 跳转 `/agent` 双主体工作台（#854）：入口可见性 = 登录用户沿用 webAgent 门（enabled+邮箱验证），游客看 `guest_agent_enabled` 总闸——总闸关闭或游客不可用时入口消失；入口一律不展示轮数（余量只出现在工作台输入框下沿）。
 - 搜索框聚焦: 展开建议下拉。
 - 发布按钮: 跳转 `/studio/publish/original`（已登录）或 `/login`（未登录）。
@@ -473,12 +475,74 @@ interface AgentFollowUpChipsProps {
 - `screenshots/sp16-settings-agent-tokens-zh.png`：设置页令牌管理卡（含至少一枚令牌行，zh）。
 - `screenshots/sp16-settings-agent-tokens-create-en.png`：创建弹层 + 明文一次展示（en，截图前须对明文做遮挡或使用已吊销令牌）。
 
+## Page: 访客落地页（T1 #853 新增；视觉基准 = R5 原型 + 本节）
+
+**Key Constraints**
+- **根页双态契约（#853）**：`/` 的表面由 AuthProvider 恢复完成后的真实身份决定——未登录 = 访客落地页（本节）；已登录 = 二创分区页（「Page: / 首页」现状零变化）；恢复中 = 中性壳（不闪落地页也不闪二创页、无任何可交互入口）；伪/过期 refresh cookie 归匿名落地页。SSR 只读 refresh cookie 存在性作初始提示，不把「有 cookie」当登录成功、不在 SSR 消耗轮换。
+- **深链永不重定向**（Q1）：一切内容深链（/original、/ips、/ip/*、/content/*、/search 等）无论登录态直达内容；不做「已看过」cookie——每次未登录访问 `/` 都见落地页。
+- 本页是全站唯一 Persuade 面：动效按 design-system「落地页（Persuade 面）动效豁免」执行，其两条硬约束（reduced-motion 全降级为即时完整可见、禁止滚动劫持）为验收红线。
+- 独立路由组壳 `app/(landing)/`：落地页只出现自身一套顶栏，**不带产品 Header/Footer**；其余公开路由保留 `(public)` 原壳（根 layout 继续提供 next-intl / next-themes / AuthProvider）。
+- 文案 i18n：落地页全部文案走 `landing.*`（zh/en 全量双语）；语言/主题控件复用 `nav.*` 键（langZh/langEn/themeLight/themeDark/themeSystem/themeSwitch/language），与产品 Header 同源；演示窗与机制卡内 CSS 新渲染文本走 `landing.demo.*` 双译（视同产品截图的静态像素不作翻译）。
+- 整屏 scroll-snap 经 `html.landing-active` 动态类承载：仅落地页挂载期间生效、卸载移除，社区页面零残留。
+
+**页面结构（五章定稿，Q10 + R3/R4/R5 修订）**
+1. **hero 项目宣言**：背景图 + 遮罩；kicker + 主标题（含强调段）+ 副标题；两个按钮 = 「进入社区」→ `/recommend`（primary）与「体验 AI 助手」→ `/agent`（ghost）。文案基调 = 全民创意分享平台、只讲「你能做什么」（Q17）；落地页全程称「AI 助手」（Q18，URL 与产品内「Agent 工作台」命名不变）。
+2. **三大页面**：见「三大页面舞台」。
+3. **特色机制**：2×2 四机制卡（Q20）= 二创投稿（PR 协作）/ 赛博判官 / 收藏集与系列 / 全品类创作；每卡 = 机制 tag + 机制名 + ≤15 字一句话 + 底部循环 CSS 动画演示使用场景（如投稿卡演示「提交改动→作者审阅→合入」）；引用验真并入 AI 助手 pane 演示不单列（Q20）。
+4. **精选陈列**：见「精选陈列」。
+5. **尾章 CTA**：「进入社区」→ `/recommend` +「体验 AI 助手」→ `/agent` +「注册」→ `/register`，尾注一行；「不用注册就能逛全部内容」信号由本章承载（R4）。
+
+桌面各章 100vh（100dvh）snap 对齐；章节内容 IntersectionObserver 入场揭示（`.reveal` → `.in`）；背景图资产置于可跟踪的 `frontend/public/landing/`，素材不得携带账号角色映射、地址栏、真实个人信息或密钥。
+
+**三大页面舞台（Q23′-A 三态交互 + R5-② 动态命中区）**
+- 三枚浏览器窗框演示 pane：原创区 → `/original`、二创区 → `/fanworks`、AI 助手 → `/agent`；默认态 = 三窗等分、演示定格在代表性帧（负 animation-delay）。
+- **动态命中区（R5-②）**：桌面 hover 触发区 = 该页配图 + 配文当前实际视觉边界的包围盒（getBoundingClientRect 含 transform → 缩放后命中区自动跟随：默认=中、激活=大、让位=小），外扩 8px；空白处不触发也**不复位**（激活粘性防边界抖动）、进入他页视觉才切换、走出舞台复位；mousemove 命中测试按帧合并（rAF）。
+- **点击语义按输入设备分流（Q23′-A）**：桌面（hover+fine pointer）整卡点击 = 进入对应路由；触屏（hover:none）轻点 = 放大演示、再点收起（600ms 预激活防抖，防合成 focus/mouseenter 吞掉首 tap），激活态出现「进入 →」按钮；blur 复位仅桌面生效。
+- **键盘恒导航（§12.2 红线）**：键盘 focus = 预览；Enter/空格 = 无条件导航到对应路由，不得随 pointer 媒体查询变成预览切换（R5 原型缺陷已在实现修正）；pane 带 `role="link"` + `tabIndex=0` + `aria-label`。
+- 导航统一走单出口函数（router.push）；pane 配文常驻完整显示、允许换行（Q23 删除路由 chip）；配文尾部「→」链接是触屏/键盘主通道（阻止冒泡直接导航）。
+- 演示载体 = 纯 CSS 演示（Q19 允许的实现选型；否决 live iframe）；pane 内等比缩放随容器尺寸自适应（ResizeObserver）。
+
+**精选陈列（Q7 三层降级链 + §12.2，零新后端）**
+- 作品子区 = 二创 + 原创混排（带分区徽标）：主序沿用公开 `GET /contents?zone=…&sort=hot` 服务端返回顺序（前端不发明热度权重、不重排），缺封面项过滤、按 id 去重（先到先得 = 主序优先）、一侧不足由另一侧与 `sort=newest` 回补，固定 10 槽。
+- IP 子区 = `GET /ips?sort=most_contents` 主序 → `newest` 回补，封面横排，固定 10 槽；IP 无真实热度序（现行 `hot` 实际回落 newest），主序只用 most_contents。
+- **降级链**：回补后仍 <4 项 → 该子区整段隐藏（宁可少一段不留空壳）；取数失败/空数据按空候选处理同样整段隐藏，不白屏。
+- 选槽为纯函数（`lib/landing-showcase.ts`），固定输入输出确定；作品卡 → `/content/[id]`、IP 卡 → `/ip/[id]`；子区尾部保留「浏览全部 IP 库」→ `/ips`。
+
+**顶栏与圆点导航**
+- 顶栏 = logo（`nav.siteName`，→ `/recommend`）+ 3 章节锚点（#surfaces/#mechanics/#showcase）+ 语言下拉 + 主题下拉 + 「登录」→ `/login` + 主 CTA「进入社区」→ `/recommend`。
+- **语言/主题控件复用产品 Header 同款 DropdownMenu 组件形态与 `nav.*` 文案键**（R5-③，不自创交互）：Globe 图标钮（aria-haspopup）展开「中文 / English」、当前项高亮、点选才切换（写 locale 后整页生效，与产品同语义）；主题三态下拉（亮/暗/跟随系统，默认跟随系统，next-themes 记忆）；两菜单互斥、点外部关闭、不新建持久化键。
+- **右缘磨砂胶囊圆点导航（Q22-A）**：5 点（每章一点）、半透明底 + backdrop blur + 细边，hover 出章节名标签；IntersectionObserver 跟踪当前章（视口中线判定，`aria-current` 同步）；窄屏 ≤820px 隐藏，内容自然滚动可达（Q4 允许无替代）。
+
+**状态变体**
+- 落地页本体无数据 loading 态；精选陈列取数中/失败时对应子区整段不渲染（不出骨架、不出空壳）。
+- `features.guest_agent_enabled` 总闸（T2 立闸；#855 搭车接线落地页入口）：hero 与尾章「体验 AI 助手」按钮按 `agentEntryVisible` 渲染——总闸关闭或配置未知时**两处入口隐藏**（§五「入口消失」分支）；三大页面章 AI 演示窗不受开关影响，其目的地 `/agent` 关闸时即登录引导页（「转登录引导」分支）。落地页与顶栏一律不展示轮数（Q21，余量只出现在工作台输入框下沿）——游客能力口径见 `docs/adr/0006-guest-agent-limited-anonymous-surface.md` 与「Page: /agent」。
+
+**响应式规则**
+- 桌面：章节 100dvh + scroll-snap mandatory（`scroll-snap-stop: always`）。
+- ≤820px：snap 降为 proximity、章节改 auto 高度（min-height 100dvh、overflow 可见）、舞台纵向堆叠、圆点与锚点隐藏。
+- ≤1024px：陈列作品 4 列、IP 5 列；max-height ≤800px 收紧章节顶距与卡片内距。
+- 1024×620 低视口与 200% 缩放：章节内容完整于视口内可读（含 2×2 机制卡第二行，R5 reset 保证）、窄屏/低视口自然增长可读完，不得锁死滚动。
+
+**暗色模式适配**
+- 接产品既有 next-themes 三态；落地页自持整套局部暗色 token（`html.dark .landing` 覆盖同名局部变量），章节遮罩/顶栏/演示窗/机制卡/圆点胶囊/语义色全随主题；双主题关键文本对比度 ≥4.5 入验收（Q24-a）。
+- 落地页 token 为页面局部作用域变量（落于 `app/(landing)/landing.css`），**不登记进产品全局 token 表**、不影响社区页面 token 契约。
+
+**样式作用域红线（R5-① + §12.2，实现级红线）**
+- 落地页样式层第一组规则 = `box-sizing: border-box` + h1/h2/h3/p `margin: 0`，**作用域严格限制在 `.landing` 根之下**，不得改变社区默认盒模型/margin/token。
+- 全部规则收在 `.landing`（或 `html.landing-active` / `html.dark .landing`）作用域之下；scroll-snap 仅挂载期生效。
+
+**孪生路由：/fanworks 公开二创入口（#853，spec §12.2）**
+- 公开路由、**双身份可达**：直接复用原 `/` 的二创渲染与数据逻辑（同一 `FanworksHomeView` + 同一取数），不复制业务实现；页面壳保留 `(public)` 原壳（产品 Header/Footer）。
+- 落地页三大页面二创卡、简介链接、触屏「进入」按钮统一指向 `/fanworks`（消除游客点回落地页的自循环）；登录用户 `/` 内容与本页一致。
+- Header 二创导航入口身份分流：登录用户 → `/`、游客 → `/fanworks`，两路由共享选中态（见「Component: Header」关键交互）。
+
 ## Page: / 首页
 
 **Key Constraints**
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 二创区主页；品牌入口语义归 `Header`（跳 `/recommend`），本页不被视为品牌落点。
+- **双态根页契约（#853，2026-10-09 起）**：本节描述 = `/` 的**已登录表面**；未登录访问 `/` 渲染访客落地页（见「Page: 访客落地页」）、恢复中渲染中性壳、深链永不重定向。二创渲染与数据逻辑与公开 `/fanworks` 共用（同一 `FanworksHomeView` 与取数，不复制实现）；Header 二创导航入口对游客指向 `/fanworks`（见「Component: Header」）。
 - **筛选选中态（#64 决策 4 / 审计问题 12 权威）**：分类 Tab/筛选选中态与 IP 库、原创区一致——彩色药丸 `rounded-full border border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold` + `aria-pressed="true"`（不能只靠颜色表达）；未选中 `text-fg-muted hover:bg-canvas-subtle`。二创区固定 `sort=hot`，无同类 recommended 降级问题。
 
 **视觉层级**
@@ -504,7 +568,7 @@ interface AgentFollowUpChipsProps {
 - loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
 - empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
 - error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- 特殊状态：信誉分不足或权限不足；本表面仅服务已登录身份——未登录访问 `/` 由访客落地页承接（见「Page: 访客落地页」），不做未登录拦截。
 
 **响应式规则**
 - 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。

@@ -82,6 +82,21 @@ function installLandingStubs() {
     if (request === "next-themes") {
       return { useTheme: () => ({ theme: "light", resolvedTheme: "light", setTheme: () => {} }) };
     }
+    // #855 搭车：GuestLanding 的 Agent 入口接 agentEntryVisible 总闸——
+    // 本文件验证的是闸开（常态）下 hero-ai 存在且不带轮数，钉 gate-on 投影。
+    if (request === "@/lib/use-public-config") {
+      return {
+        usePublicConfig: () => ({
+          features: {
+            web_agent_enabled: true,
+            guest_agent_enabled: true,
+            payment_enabled: false,
+            creator_support_enabled: false,
+            desktop_deploy_enabled: false,
+          },
+        }),
+      };
+    }
     // AgentFeatureGate / NotificationDropdown 在单测里退化为最小桩（本票只断言入口 href）。
     if (request === "@/components/agent/AgentFeatureGate") {
       return { AgentFeatureGate: ({ children }: { children?: React.ReactNode }) => children ?? null };

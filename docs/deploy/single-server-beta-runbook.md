@@ -168,6 +168,7 @@ agent:
 - `legal.current_terms_version` and `legal.current_privacy_version` are non-empty.
 - `features.desktop_deploy_enabled` remains `false`.
 - `features.payment_enabled` remains `false` unless payment is separately approved.
+- Landing page surface visuals (screenshots or running-effect assets under `frontend/public/landing/`) are re-verified against the current build and refreshed whenever the depicted pages change; assets must not carry account identities, browser address bars, real personal information, or secrets.
 
 ## 5. Install TLS Certificate
 
