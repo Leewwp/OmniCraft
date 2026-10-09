@@ -35,7 +35,7 @@ require (
 	gorm.io/gorm v1.31.2
 	gorm.io/plugin/dbresolver v1.6.2
 	gorm.io/plugin/opentelemetry v0.1.12
-	modernc.org/sqlite v1.58.0
+	modernc.org/sqlite v1.60.1
 )
 
 require (
@@ -120,7 +120,7 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	modernc.org/libc v1.75.6 // indirect
+	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
