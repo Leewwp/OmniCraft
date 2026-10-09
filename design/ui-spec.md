@@ -720,7 +720,7 @@ interface AgentFollowUpChipsProps {
 
 ## Component: UserHoverCard 用户悬浮卡（SP-17/T3/T4）
 
-P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCard.tsx`）；头像/昵称身份入口的统一资料浮层。**已接入面（T4 收口）**：完整详情页创作者区（ContentDetail 布局A 行）、浮窗 split/单列侧栏创作者卡（OverlayLayer）与独立详情页侧栏（Host，2026-09-13 起接真 FollowButton + is_following 初始态）、竖屏变体作者行（ContentDetail 创作者区自带，旧 authorAction 透传已移除防双按钮）、评论区评论与两级回复作者（昵称触发，紧凑行 showAvatar=false；头像维持 CommentAvatar 展示位防双重头像）。评论区折叠态不显示作者，无触发器。**讨论区三处（#494）**：枢纽讨论列表行作者（IPDiscussionsTab，20px 头像 + 昵称，dynamic 定位；行本体 div role=button 开帖浮层，作者链接 stopPropagation 防误开）、讨论帖详情浮层楼主（DiscussionDetailOverlay 头部，24px 头像）、回帖作者（ReplyList 顶层与嵌套，20px 头像；无 avatar_url 首字母兜底）。
+P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCard.tsx`）；头像/昵称身份入口的统一资料浮层。**已接入面（T4 收口）**：完整详情页创作者区（ContentDetail 布局A 行）、浮窗移动单列侧栏创作者卡（OverlayLayer，桌面统一右栏不挂侧栏）与独立详情页侧栏（Host，2026-09-13 起接真 FollowButton + is_following 初始态）、统一右栏作者行（ContentDetail 创作者区自带，旧 authorAction 透传已移除防双按钮）、评论区评论与两级回复作者（昵称触发，紧凑行 showAvatar=false；头像维持 CommentAvatar 展示位防双重头像）。评论区折叠态不显示作者，无触发器。**讨论区三处（#494）**：枢纽讨论列表行作者（IPDiscussionsTab，20px 头像 + 昵称，dynamic 定位；行本体 div role=button 开帖浮层，作者链接 stopPropagation 防误开）、讨论帖详情浮层楼主（DiscussionDetailOverlay 头部，24px 头像）、回帖作者（ReplyList 顶层与嵌套，20px 头像；无 avatar_url 首字母兜底）。
 
 **Key Constraints**
 - 卡片 300px 宽、1px border 圆角 bg-card + shadow-md（弹层同 confirm-modal 视觉档）；头像 56px；统计三项 `内容 N · 获赞 N · 粉丝 N`（text-xs，数字 font-semibold）。统计行与操作行（发私信/关注、本人视角「查看主页」）在卡内**水平居中**（justify-center，SP-18 #507）；头部行（头像+昵称+bio）保持既有左对齐布局。
@@ -2389,7 +2389,7 @@ interface FilterPillOption { value: string; label: string; count?: number }
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - **媒体集 vs 附件（#80 语义权威）**：image/video 内容的多文件渲染为 `MediaGallery`（画廊/播放器，可顺序浏览）；mod/乐谱/音频/模板/prompt 等类型的文件保持附件下载列表语义。二者渲染与上传链路完全分离。
 - **收藏状态（#74 权威）**：收藏动作显示“已收藏”（收藏成员关系）或“添加到收藏集”，由同一事实源（用户活动收藏集的成员关系）派生，与 `CollectionPicker` 保持一致。
-- **作者行内联关注按钮按宿主条件渲染（SP-26 A-8，#780）**：`ContentDetail` 可选 prop `inlineFollowClassName`（缺省渲染内联按钮保持既有调用方行为）；原创页 / 二创独立页 / 浮层标准分支传 `"lg:hidden"`（与右栏作者卡 `hidden lg:block` 同断点联动，桌面标准分支不同屏双关注入口），浮层 ≥960 竖图变体分支不传（创作者侧栏不进右栏，内联按钮是唯一直接入口）。改动本节时须保持三分支各有且仅有一个可达关注入口。
+- **作者行内联关注按钮按宿主条件渲染（SP-26 A-8，#780；D1 #858 更新）**：`ContentDetail` 可选 prop `inlineFollowClassName`（缺省渲染内联按钮保持既有调用方行为）；原创页 / 二创独立页 / 浮层移动单列分支传 `"lg:hidden"`（与右栏作者卡 `hidden lg:block` 同断点联动，桌面标准分支不同屏双关注入口），浮层桌面统一右栏分支不传（创作者侧栏不进右栏，内联按钮是唯一直接入口）。改动本节时须保持各分支有且仅有一个可达关注入口。
 
 **Props 接口**
 ```ts
@@ -2473,13 +2473,13 @@ interface ContentDetailProps {
 - 转场核心为手动计算的 FLIP 几何：source 矩形 = 触发卡片封面/媒体区；开启动画把该视觉锚点放大为浮层封面几何，同时外壳按同一时间线推进；关闭时仅在 source 矩形仍可测量（在视口、未 detach）时反向回归。
 - source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）；长图当前项同样退化（#753 起两端取景语义仍无法统一：卡片 3:4/9:16 中心裁切 vs 浮窗真实比例 contain）。
 - View Transition API 是渐进增强：`document.startViewTransition` 可用时启用，不支持的环境继续走 FLIP；VT 命名落在两端封面 `<img>` 本身（盒底色/边框差异随 root 交叉淡化消化）。
-- **C1 图源统一（#409 F1 收紧为三处同源）**：卡片封面、点击预取、浮窗首帧（MediaGallery/竖屏集媒体列/CoverImage）三者渲染**同一 URL 串**——位图一律为唯一规范变体 `w=1080`（`coverRenderSrc`，优化器管线），SVG 与 data: 占位直通原地址（优化器对 SVG 400，next/image 对 .svg 本就直通）；浮窗模式的卡片封面用受控 `<img>`（响应式 sizes 无法跨端钉死同一变体）。点击卡片瞬间预取同一变体并 decode；MediaViewer 看大图维持原图。
+- **C1 图源统一（#409 F1 收紧为三处同源）**：卡片封面、点击预取、浮窗首帧（MediaGallery/统一版式媒体列/CoverImage）三者渲染**同一 URL 串**——位图一律为唯一规范变体 `w=1080`（`coverRenderSrc`，优化器管线），SVG 与 data: 占位直通原地址（优化器对 SVG 400，next/image 对 .svg 本就直通）；浮窗模式的卡片封面用受控 `<img>`（响应式 sizes 无法跨端钉死同一变体）。点击卡片瞬间预取同一变体并 decode；MediaViewer 看大图维持原图。
 - **C2 几何统一**：卡片 cover 盒与浮窗锚点盒同一比例数据源——cover 元数据缺失时卡片在封面加载后用实测 intrinsic 回填（与浮窗媒体链同源），防御值同为 3:4；锚点盒不含翻页控件。
 - **C3 快照纯净**：浮层打开期间触发卡带 `data-overlay-motion-lock` 锁定 hover 缩放（VT 旧快照捕获时 `<img>` 未变换位姿），完全关闭后解除。
 - **C4 真就绪**：转场起跑等浮窗实际渲染的封面 `<img>` decode 完成；150ms 上限仅极端网络兜底（点击时预取使解码通常已完成）。
 - **F1 单一时间轴（2026-09-08 取代 #398 落地时的壳层先行反馈形态）**：壳层不透明度与封面几何动画同帧起跑、同长结束、同一缓动族——开 300ms / 关 240ms 逐向单一时钟（每个方向内部壳层与封面共用同一时钟，几何与缓动方向互逆）；旧「壳层 160ms 先行反馈淡入」与「VT root 180ms 交叉淡化」并存的档位差已移除（VT root 交叉淡化并入 300/240 档，关闭方向经 `html[data-vt-close]` 统一压到 240ms）；FLIP/VT/降级三路径同契约。参与 transform 动画的元素动效期间临时提升合成层（will-change），结束释放。
 - **F1 动效期间零换图**：动画进行中禁止封面 src 变化、骨架消失、媒体链附件替换；媒体链选出与卡片封面不同的文件时，首帧保持渲染卡片封面（`coverHoldSrc` 传递），入场落定后才切换到链内媒体。
-- **F1 起跑前几何冻结**：竖屏集媒体列的 width 过渡在入场未落定期关闭（挂载期从百分比兜底到实测像素的过渡不得与共享元素转场同窗）；variant 布局的转场起跑额外等待媒体列首次实测（ResizeObserver 回报）后才测量。
+- **F1 起跑前几何冻结**：统一版式媒体列的 width 过渡在入场未落定期关闭（挂载期从百分比兜底到实测像素的过渡不得与共享元素转场同窗）；统一版式的转场起跑额外等待媒体列首次实测（ResizeObserver 回报）后才测量。
 - **遮罩与面板同钟（2026-09-09 用户验收反馈轮确立）**：遮罩视觉由 dialog 外兄弟层 `.content-detail-backdrop` 承载（`pointer-events-none fixed inset-0 z-[70]`，top-layer 语义保证其在面板之下、页面之上），不透明度与壳层/封面同一时钟驱动——开 = 按压反馈层 0.35（160ms ease-out，数据未就绪期的唯一视觉反馈）→ 入场动效起跑同帧升至 1（VT 路径经「回调内置新态」由 root 交叉淡化承载）；关 = 与壳层同帧 240ms 降至 0；reduced-motion 随 100ms 淡化档。**禁止**使用 `::backdrop` CSS 动画（VT 快照期间真实元素不渲染 + Safari 不执行 `::backdrop` 动画，两方向瞬现瞬消，2026-09-09 用户录屏实锤）；原生 `::backdrop` 仅保留透明命中层（背板点击 target === dialog）。VT 开路径壳层置 1 只能在 startViewTransition 回调内（新态）——回调前置 1 会烘进旧快照、root 交叉淡化失去壳层渐显。桌面面板视觉（底色/边框/圆角/阴影）随壳层元素走、dialog 永久只承担定位与尺寸——入场前壳层 opacity 0 时旧快照里不得残留白板面板。
 - 时长与缓动：开 300ms / 关 240ms，共享缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化（SP-12「动效 150ms」豁免项，用户 2026-09-06 裁决）。
 - 封面加载与主体同步：浮层在最终封面几何内展示媒体加载态（骨架/稳定占位）；封面加载成功才显示主体内容；加载失败显示稳定占位符后仍展示可用详情，不无限阻塞。
@@ -2509,41 +2509,42 @@ interface ContentDetailOverlayProps {
 
 **视觉结构**
 - 遮罩层：固定覆盖视口，`--elevation-3` 浮层阴影 + 1px border + 设计系统浮层背景。
-- 详情容器：复用 `ContentDetail`，包含独立可访问标题、顶部返回/关闭栏（位于滚动主体外）与唯一内部内容滚动区；标题下方不重复作者信息，右侧创作者栏仅头像、昵称、关注（与完整详情页一致）。
+- 详情容器：复用 `ContentDetail`，包含独立可访问标题与唯一内部内容滚动区；桌面统一右栏不重复渲染创作者侧栏（创作者行 = 右栏首位，仅头像、昵称、关注）。
 - 外壳与封面共享同一开合动画进度：开 300ms / 关 240ms，同帧同缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化。
 - 触发卡无缩略图或不在视口时，入场降级为居中轻缩放 + 淡化。
 - Agent 来源不增加专属详情外观。
-- **桌面双栏（#88 权威，#397 起仅全横集）**：仅 image/video 内容且全部素材 w/h ≥ 16:9（恰 16:9 归横图）时，PC 端为左媒体右信息——媒体区（MediaGallery）高度上限 = 视口可用高度，宽度按媒体比例自适应；信息区（标题/作者/操作/正文/评论区）独立滚动；「封面与正文共享同一水平框架」的既有约束继续成立。文本型内容（article/sheet_music 等）若无竖版封面媒体链也维持单栏。
-- **竖屏集新版布局（#397 R2 权威，variant）**：任一素材 w/h < 16:9（含方图/3:2/16:10；混合集一律新版；全部缺几何不判竖维持现设计）且 ≥1100px 视口时走小红书式左媒体/右文字版式——
-  - 朝向判定用素材 intrinsic 尺寸（视频 = 视频尺寸，poster 仅显示）；全类型媒体源链 = 真实媒体集 → 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）。
-  - 媒体列贴边满幅（负 margin 抵消浮窗内边距 ≥960px，#753 图片布局门自 1100 前移），列宽 = 可用高 × 当前图真实比例（逐张自适应、240ms 过渡；上限 = 根区宽 − 右栏最小宽 380px），装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动（旧 3:4 名义宽 + 内滚退役）。图片主体点击进 MediaViewer；翻页由悬停/键盘聚焦可见的显式箭头承担（#753 移除左右 1/3 隐形热区）。
-  - 控件：悬浮半透明圆形左右箭头（hover 显现）+ 底部半透明指示点 + 右上「N / M」角标 + 图片左右 1/3 隐形点击翻页（仅图片项；视频 controls 区不遮挡）+ 中间 1/3 点击进 MediaViewer；单素材无控件。
-  - 壳层 float：顶层为 variant 时移除 header（grid 单行），返回/关闭 = 悬浮半透明圆钮（媒体列左上/右栏右上）；返回钮 hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；sr-only 标题保留 dialog 无障碍名称/初始焦点锚点/多层栈文案三职；右栏内容顶部留白避让悬浮钮。
-  - 右栏（唯一滚动容器 layer-scroller）内容序：内容详情（标题/作者 + 关注/元信息/正文/标签/操作）→ 关联内容块（布局钉死：①二创关联的原创「原创」徽标行，点击浮窗内压栈 → ②同系列跳转，取第一个系列，系列名 + 第 X/Y 篇 + 上一章/下一章边界禁用 → ③衍生二创列表；无关联整块不渲染）→ 评论区（右栏末块）。
-  - 动效锚点不变量（R3 契约挂点）：`data-slot="detail-cover"` 锚点盒不含翻页控件；媒体几何单一比例源 = 当前项 intrinsic。
-- **移动单列（#89 权威）**：移动端全屏单列——媒体全宽 contain，信息在其下滚动；媒体集内翻页，最后一项继续上滑 = 沿触发上下文列表前进到下一篇；列表到底显示「已经到底」提示；不提供「上一篇」；查看器不参与内容级切换。
+- **桌面统一版式（D1 #858 权威，≥960px 唯一版式）**：桌面收敛为单一小红书式左媒体/右信息版式——旧「桌面双栏（#88，全横集 split-media）／竖屏集新版布局（#397 variant）／单列」三分支判定（媒体朝向 × 视口）退役，split 的 64px 常驻控件条（`SPLIT_MEDIA_CONTROLS_HEIGHT`）随之退役（MediaGallery 组件保留给移动/独立详情页）。
+  - **断点决定壳层，从 loading 首帧生效**：统一双栏壳（无 header 工具栏行、sr-only 标题、悬浮返回/关闭钮、滚动归属层内 `layer-scroller`）由视口断点 `matchMedia(min-width: 960px)` 决定——不等待媒体朝向/chainReady 才从单列切换；loading/404/403/429/error 各状态保持稳定双栏外壳，图片/探针失败不回退全宽单列。
+  - **面板断点对齐**：dialog 面板 `min-[960px]` 收居中面板（`min(92dvh,900px) × min(1120px, 100%-2rem)`、圆角/边框/阴影随壳层），960–1023px 不再出现「全屏面板但内部已双栏」的几何缺口。
+  - **媒体列几何**（承袭 #397 R2，推广到全类型）：左媒体列黑底直贴面板（宿主容器桌面零内边距，负 margin 抵消结构退役）；列宽 = 可用高 × 当前项真实宽高比（逐张自适应、240ms 过渡），上限 = 根区宽 − 380px（右栏保留宽），下限 280px；装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动。全类型媒体源链 = 真实媒体集 → 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）——article/prompt/other 等无媒体类 = 文字封面卡左列 + 右栏（全站形态统一）；媒体链为空（loading/错误态）媒体列保持稳定黑底占位。
+  - **翻页控件**：悬浮半透明圆形左右箭头（hover/键盘聚焦显现）+ 底部半透明指示点 + 右上「N / M」角标；单素材无控件；视频行为保持现状（无自动播放、点击主体进 MediaViewer，视频 controls 条 44px 内点击不进查看器；自动播放与翻页三件套推广归 D2）。
+  - **× 与返回悬浮、滚动条贯通**：× 悬浮面板右上（半透明圆钮覆盖内容，无 pt-14 整行避让空带；右栏首块右上局部避让 = header 块 `pr-14` 预留关闭钮命中区）；返回钮悬浮媒体列左上，hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；右滚动列（`layer-scroller`）滚动条贴面板右缘全高贯通。
+  - **右栏块序（钉死，全类型一致，各块单实例）**：创作者行（头像+昵称+关注，`ContentDetail` 的 `creatorFirst` 在 ≥960 视口将创作者行置于标题之前；移动 <960 保持「标题在上」既有契约）→ 标题 → 元信息行（fanwork 含「IP：名」）→ 来源归因（fanwork）→ 正文/附件语义区 → 关联块（⓪关联 IP 行 → ①关联的原创 → ②同系列跳转；无关联整块不渲染）→ 评论区 → 推荐区（衍生列表 + 相似推荐 = `RelatedContents`，复用层内 related-fanworks 合同；推荐区在 960–1099 同样可见——`minViewportPx=960` 下浮旧 1100 门，仅浮层路径，其余调用方缺省 1100 不变）。旧 variantTail 把衍生列表放在评论前的结构退役（`OverlayRelatedBlock` 不再含衍生列表）。
+  - **ContentSidebar 退出桌面统一右栏**：创作者行来自 `ContentDetail` 头部，相关列表并入评论后推荐区；移动 <960 侧栏照旧渲染（CSS 自隐藏于 <lg，DOM 契约保持）。
+  - 动效锚点不变量（R3 契约挂点）：`data-slot="detail-cover"` 锚点盒不含翻页控件、仅在媒体链非空时渲染（空链不产出转场锚点，错误态维持居中缩淡降级）；媒体几何单一比例源 = 当前项 intrinsic。
+- **移动单列（#89 权威，<960px 不回归）**：移动端全屏单列 + header 工具栏（返回/关闭/标题，与桌面 float 壳按断点切换）——媒体全宽 contain（行内画廊/CoverImage），信息在其下滚动；媒体集内翻页，最后一项继续上滑 = 沿触发上下文列表前进到下一篇；列表到底显示「已经到底」提示；不提供「上一篇」；查看器不参与内容级切换；长图折叠/就地展开与下载入口保持原契约。
 
 **唯一滚动模型**
-- 浮层打开时锁定背景 `html/body`（含滚动条宽度 padding 补偿）；`dialog` 与浮层外壳 `overflow: hidden`，只有内部内容主体滚动；顶部返回/关闭栏位于滚动主体外；每层只记忆这一滚动容器；不得以隐藏滚动条掩盖双滚动上下文。
-- 桌面双栏下信息区与媒体区各自滚动，但同一时刻只有一个键盘/滚动目标；焦点与滚动位置按层记忆。
+- 浮层打开时锁定背景 `html/body`（含滚动条宽度 padding 补偿）；`dialog` 与浮层外壳 `overflow: hidden`，只有内部内容主体滚动；每层只记忆这一滚动容器；不得以隐藏滚动条掩盖双滚动上下文。
+- 滚动容器归属由视口断点决定（D1 #858）：桌面 ≥960 = 顶层可见层的 `layer-scroller`（唯一滚动列）；移动 <960 = `overlay-scroller` 单列；焦点与滚动位置按层记忆。
 
 **状态变体**
-- loading：结构与真实详情一致的骨架屏（媒体加载态在封面几何内）。
+- loading：结构与真实详情一致的骨架屏；桌面保持稳定双栏外壳（媒体列黑底占位 + 右栏骨架），不以单列态闪现（D1 #858）。
 - default：完整公开内容详情。
-- forbidden/deleted/not-found：稳定本地化 EmptyState，不暴露原始后端错误。
+- forbidden/deleted/not-found/rate-limited：稳定本地化 EmptyState（桌面渲染于右栏、媒体列保持占位），不暴露原始后端错误。
 - closing：仅允许 opacity/transform 退场；reduced-motion 下立即或短淡出关闭。
 
 **响应式与可访问性**
-- PC：详情层不超过可用视口，内部滚动，关闭按钮始终可达；双栏下媒体与信息区均不出界。
+- PC：详情层不超过可用视口，内部滚动，关闭按钮（悬浮右上）始终可达；双栏下媒体与信息区均不出界。
 - 平板/移动：全屏层，顶部关闭区和底部关键操作满足安全区域与 44px 触控目标；媒体/操作控件保持在边框内（#64 决策 15 权威，桌面/平板/移动皆然）。
-- 使用对话框语义、焦点陷阱和背景 inert；打开聚焦标题，逐层弹出把焦点返回上层的触发链接，完全关闭后聚焦原触发卡片/引用卡片。
-- URL、浏览器历史和拦截路由的最终实现以 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md` 的已确认结论为准（URL 形态与错误历史语义仍 open）。
+- 使用对话框语义、焦点陷阱和背景 inert；打开聚焦标题（桌面 = sr-only 标题锚点），逐层弹出把焦点返回上层的触发链接，完全关闭后聚焦原触发卡片/引用卡片。
+- URL、浏览器历史和拦截路由的最终实现以 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md` 的已确认结论为准（URL 形态与错误历史语义仍 open，归 D3 收口）。
 
-**Playwright 截图检查点（#64 Testing Decision 17 权威，本轮新增）**
+**Playwright 截图检查点（#64 Testing Decision 17 权威；D1 #858 更新）**
 - `screenshots/overlay-shared-motion-open.png` / `overlay-shared-motion-close.png`：可测量 source 下开合几何。
 - `screenshots/overlay-fallback-open.png`：source 不可用时居中缩放淡化。
-- `screenshots/overlay-loading.png` / `overlay-cover-error.png`：加载态与封面失败占位。
-- `screenshots/overlay-two-panel-desktop.png`：桌面双栏（左媒体右信息）。
+- `screenshots/overlay-loading.png` / `overlay-cover-error.png`：加载态（桌面双栏稳定壳）与封面失败占位（不回退全宽单列）。
+- `screenshots/overlay-two-panel-desktop.png`：桌面统一版式（左媒体列 + 右信息列，含 960–1023 面板对齐）。
 - `screenshots/overlay-single-column-mobile.png`：移动单列 + 连续浏览上滑。
 
 ## Component: MediaGallery 媒体集画廊（#80/#85 权威）

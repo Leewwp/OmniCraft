@@ -8,15 +8,18 @@ import { api, ApiRequestError } from "@/lib/api";
 import { act, cleanup, fireEvent, installDom, render, waitFor } from "./runtime-test-helpers";
 
 /* ────────────────────────────────────────────────────────────────────────────
- * #397 R2 竖屏集新版布局（variant）测试：
- * - lib 纯函数：朝向判定 16:9 边界 / 超高图 / 媒体源链优先级；
- * - 组件层：portrait 集（≥1100px 视口）渲染 variant 版式（贴边媒体列 + 右栏
- *   layer-scroller + 壳层去 header 悬浮返回/关闭 + sr-only 标题三职）；
- * - 全横集 / 非 desktop 视口不进 variant；
- * - 关联内容块（布局钉死：原创 → 同系列 → 衍生二创；无关联不渲染）；
+ * #397 R2 → D1 #858 统一版式测试：
+ * - lib 纯函数：朝向判定 16:9 边界 / 长图 / 媒体源链优先级（isPortraitMediaSet
+ *   保留为纯工具；布局路由不再消费——D1 起桌面全类型同一统一版式）；
+ * - 组件层：portrait / 混合 / 全横集（≥960px 视口）渲染同一统一版式（贴边媒体
+ *   列 + 右栏 layer-scroller + 壳层去 header 悬浮返回/关闭 + sr-only 标题三职）；
+ * - 非 desktop 视口不进统一版式（移动单列 + header）；
+ * - 关联块钉死（关联 IP → 原创 → 系列；衍生列表拆至评论区后推荐区）；
  * - 点击媒体（pane 中心）打开 MediaViewer（H4 契约：原生 dialog 叠加在浮层上）。
  * jsdom 不加载图片资源：夹具全部自带尺寸走免探测路径；matchMedia stub 决定
  * desktop 判定（与 content-detail-split-layout.test.tsx 同一模式）。
+ * 注意：断言失败值避免直接传 jsdom DOM 节点（node:test 序列化 DOM 节点会令
+ * 子进程失去响应），统一用 Boolean()/compareDocumentPosition 数值。
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function installOverlayTestStubs({ splitViewport = false }: { splitViewport?: boolean } = {}) {
@@ -403,7 +406,7 @@ test("#397 portrait media set renders the variant layout on desktop viewport", a
   assert.ok(scroller?.textContent?.includes("Portrait body"));
 
   /* 壳层方案二 float：header 移除、标题 sr-only 三职保留、悬浮返回/关闭钮。 */
-  assert.equal(document.querySelector("header"), null, "variant top layer removes the header");
+  assert.ok(!document.querySelector("header"), "variant top layer removes the header");
   const dialog = view.getByRole("dialog") as HTMLElement;
   assert.ok(dialog.querySelector("h2.sr-only"), "sr-only title keeps aria-labelledby/focus duties");
   assert.ok(view.getByRole("button", { name: "Back to: the content list" }), "floating back button hover/aria text");
@@ -418,24 +421,26 @@ test("#397 mixed media set (any portrait item) goes variant", async () => {
   assert.ok(document.querySelector('[data-slot="variant-media-pane"]'), "mixed set must use variant");
 });
 
-test("#397 all-landscape media set keeps the split-media design", async () => {
+test("#858 all-landscape media set renders the same unified layout (split-media branch retired)", async () => {
   installApiMock();
   const landscape = renderOverlay(<OverlayHarness entryId={24} zone="original" />, true);
   await openOverlay(landscape, "Landscape Set Work");
-  assert.equal(document.querySelector('[data-slot="variant-media-pane"]'), null, "all-landscape set keeps current design");
-  assert.ok(document.querySelector("header"), "non-variant keeps the header");
-  assert.ok(document.querySelector('[data-slot="layer-scroller"]'), "split-media info column still present");
+  /* D1：全横集不再落 split-media（MediaGallery 64px 控件条 + 3fr/2fr 网格退役），
+     与竖屏集同一统一版式（左媒体列 + 右 layer-scroller + float 壳）。 */
+  assert.ok(document.querySelector('[data-slot="variant-media-pane"]'), "landscape set uses the unified media pane");
+  assert.ok(document.querySelector('[data-slot="layer-scroller"]'), "unified info column scroller present");
+  assert.ok(!document.querySelector("header"), "float shell removes the header");
 });
 
 test("#397 portrait set on non-desktop viewport stays on the legacy path", async () => {
   installApiMock();
   const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, false);
   await openOverlay(view, "Portrait Set Work");
-  assert.equal(document.querySelector('[data-slot="variant-media-pane"]'), null, "<960px keeps the single-column design");
+  assert.ok(!document.querySelector('[data-slot="variant-media-pane"]'), "<960px keeps the single-column design");
   assert.ok(document.querySelector("header"));
 });
 
-test("#397 related block pins order: source original → series → derivatives, before comments", async () => {
+test("#858 unified related block pins order: IP → source original → series, before comments", async () => {
   installApiMock();
   const view = renderOverlay(<OverlayHarness entryId={25} zone="fanwork" />, true);
   await openOverlay(view, "Fanwork With Relations");
@@ -453,7 +458,11 @@ test("#397 related block pins order: source original → series → derivatives,
   assert.ok(sourceBtn?.textContent?.includes("The Original Work"));
   assert.ok(block?.textContent?.includes("Original"), "original badge");
   assert.ok(block?.textContent?.includes("Color Studies"), "series row (first series)");
-  assert.ok(block?.textContent?.includes("Derivative One"), "derivative list row");
+  /* D1：衍生列表从关联块拆出（评论区之后随 RelatedContents 组成推荐区）。 */
+  assert.ok(
+    !block?.textContent?.includes("Derivative One"),
+    "derivatives no longer sit in the pre-comment related block",
+  );
 
   /* 系列边界：current_index=2/5 → 上一章可用；首章无更前章节的禁用由下条覆盖。 */
   const chapterButtons = Array.from(block?.querySelectorAll("button") ?? []);
@@ -462,17 +471,33 @@ test("#397 related block pins order: source original → series → derivatives,
   assert.ok(prevChapter && !prevChapter.disabled, "has previous chapter → enabled");
   assert.ok(nextChapter && !nextChapter.disabled, "has next chapter → enabled");
 
-  /* 评论区 = 右栏末块：关联块之后出现评论区标题（匿名无输入框，以标题定位）。 */
+  /* 块序：关联块 → 评论区 → 推荐区（衍生 + 相似，D1 推荐区进入统一右栏）。 */
   const scroller = document.querySelector('[data-slot="layer-scroller"]');
   const commentHeading = Array.from(scroller?.querySelectorAll("h3") ?? []).find((h) =>
     h.textContent?.includes("Comments"),
   );
-  assert.ok(commentHeading, "comment section is the last block of the right column");
+  assert.ok(commentHeading, "comment section renders after the related block");
   assert.equal(
     (block as Node).compareDocumentPosition(commentHeading as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
     Node.DOCUMENT_POSITION_FOLLOWING,
     "related block sits before the comments",
   );
+  const recommendations = await waitFor(() => {
+    const el = document.querySelector('[data-slot="related-contents"]');
+    assert.ok(el, "recommendation section renders after comments");
+    return el as Node;
+  });
+  assert.equal(
+    (commentHeading as Node).compareDocumentPosition(recommendations) & Node.DOCUMENT_POSITION_FOLLOWING,
+    Node.DOCUMENT_POSITION_FOLLOWING,
+    "recommendations sit after the comments",
+  );
+  await waitFor(() => {
+    assert.ok(
+      recommendations.textContent?.includes("Derivative One"),
+      "derivatives render in the post-comment recommendation section",
+    );
+  });
 });
 
 test("#846 variant related block renders the linked IP row with the signed cover when present", async () => {
@@ -526,7 +551,7 @@ test("#397 no relations → related block not rendered; comments still last", as
       "comments still render without relations",
     );
   });
-  assert.equal(document.querySelector('[data-slot="overlay-related-block"]'), null);
+  assert.ok(!document.querySelector('[data-slot="overlay-related-block"]'));
 });
 
 test("#397 clicking the media (pane center) opens MediaViewer above the overlay", async () => {

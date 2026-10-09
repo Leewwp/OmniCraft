@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { AlertCircle, FileQuestion, ShieldOff, Timer } from "lucide-react";
 import Link from "next/link";
@@ -12,7 +12,6 @@ import {
 } from "@/lib/content";
 import type { ContentCardData } from "@/components/content/ContentCard";
 import { ContentDetail } from "@/components/content/ContentDetail";
-import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
 import {
   ContentSidebar,
   type RelatedCardEntry,
@@ -24,8 +23,9 @@ import { FollowButton } from "@/components/social/FollowButton";
 import { CommentSection } from "@/components/social/CommentSection";
 import { OverlayVariantLayout } from "@/components/content/OverlayVariantLayout";
 import { OverlayRelatedBlock } from "@/components/content/OverlayRelatedBlock";
+import { RelatedContents } from "@/components/content/RelatedContents";
 import { DeferredMount } from "@/components/content/DeferredMount";
-import { isPortraitMediaSet, useOverlayMedia } from "@/lib/overlay-media";
+import { useOverlayMedia } from "@/lib/overlay-media";
 
 export type OverlaySource = "recommendation" | "zone-page" | "ip-page" | "agent-citation";
 
@@ -40,12 +40,6 @@ export interface OverlayEntry {
 
 interface ContentDetailOverlayLayerProps {
   entry: OverlayEntry;
-  /** 层在浮层导航栈中的下标（0 起），用于向浮层回报布局归属。 */
-  layerIndex: number;
-  /** #88/#397 布局回报：image/video 媒体集内容 = "split-media"（桌面双栏）；
-      竖屏集新版布局（含全类型封面链、混合集）= "variant"（≥1100px，滚动归属同
-      split-media、壳层去 header）；其余 "single"。 */
-  onLayoutChange: (index: number, layout: "single" | "split-media" | "variant") => void;
   onPush: (entry: OverlayEntry, trigger: HTMLElement | null) => void;
   /** #89 连续浏览：媒体集最后一项继续上滑时请求切换到上下文列表下一篇。 */
   onSwitchNext?: (entry: OverlayEntry) => void;
@@ -59,13 +53,6 @@ interface ContentDetailOverlayLayerProps {
 }
 
 type LayerStatus = "loading" | "default" | "forbidden" | "not-found" | "error" | "rate-limited";
-
-/** 双栏媒体列控件区（翻页/指示点行）近似高度（px）：min-h-11 按钮 + py-2 + border-t。
-    左栏 aspect 盒据此预留，保证媒体 contain 区不被控件裁切。 */
-const SPLIT_MEDIA_CONTROLS_HEIGHT = 64;
-
-/** 媒体集首项几何缺失时的防御性默认比例（与 MediaGallery DEFAULT_ASPECT_RATIO 一致）。 */
-const SPLIT_DEFAULT_RATIO = 3 / 4;
 
 /** #89 连续浏览视口判定：与 ui-spec 全局三档一致（PC > 1100px），桌面不出现连续浏览交互。 */
 function isMobileViewport(): boolean {
@@ -86,8 +73,6 @@ const TYPE_LABEL_KEYS: Record<string, string> = {
 
 export function ContentDetailOverlayLayer({
   entry,
-  layerIndex,
-  onLayoutChange,
   onPush,
   onSwitchNext,
   onTitleChange,
@@ -105,8 +90,8 @@ export function ContentDetailOverlayLayer({
   const [relatedLoaded, setRelatedLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [coverReady, setCoverReady] = useState<boolean | undefined>(undefined);
-  /* #753 图片布局门：variant 生效视口 1100 → 960（PC 图片语义起效；#90 关联行
-     移交仍按全局 1100 三档，不随本票替换）。 */
+  /* D1 #858 统一版式视口判定（≥960 与浮层壳层断点同源）：桌面全状态双栏，
+     移动 <960 单列。 */
   const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -127,11 +112,9 @@ export function ContentDetailOverlayLayer({
      ready=false（布局判定与入场转场等几何就绪，避免横竖误判/转场目标几何跳变）。 */
   const { media: chainMedia, ready: chainReady } = useOverlayMedia(status === "default" ? detail : null);
 
-  /* #409 F1 起跑前几何冻结（variant 路径）：竖屏集新版布局的媒体列宽度由
-     ResizeObserver 实测驱动（挂载期从百分比兜底到实测像素）；转场起跑须等
-     首次实测到达（几何稳定后测量），否则目标矩形在动画中段跳变。 */
-  const variantActive =
-    chainReady && chainMedia.length > 0 && isPortraitMediaSet(chainMedia) && isDesktop;
+  /* #409 F1 起跑前几何冻结（统一版式媒体列）：媒体列宽度由 ResizeObserver
+     实测驱动（挂载期从百分比兜底到实测像素）；转场起跑须等首次实测到达
+     （几何稳定后测量），否则目标矩形在动画中段跳变。 */
   const [paneMeasured, setPaneMeasured] = useState(false);
   const handlePaneMeasured = useCallback(() => setPaneMeasured(true), []);
 
@@ -140,21 +123,16 @@ export function ContentDetailOverlayLayer({
     onMotionReadyRef.current = onMotionReady;
   }, [onMotionReady]);
 
-  const onLayoutChangeRef = useRef(onLayoutChange);
-  useEffect(() => {
-    onLayoutChangeRef.current = onLayoutChange;
-  }, [onLayoutChange]);
-
   /* 状态离开 loading（default/forbidden/not-found/error）后触发一次入场转场；
      错误态没有封面几何，浮层会走居中缩淡降级。#397：default 态等媒体几何实测
-     就绪（chainReady）再触发；#409 F1：variant 布局再等媒体列首次实测
+     就绪（chainReady）再触发；#409 F1：统一版式再等媒体列首次实测
      （paneMeasured）。网络悬挂由浮层 2s 保险定时器兜底。 */
   const motionGate =
     status === "loading"
       ? false
       : status !== "default"
         ? true
-        : chainReady && (!variantActive || paneMeasured);
+        : chainReady && (!isDesktop || paneMeasured);
   const motionFiredRef = useRef(false);
   useEffect(() => {
     if (!motionGate || motionFiredRef.current) return;
@@ -226,29 +204,6 @@ export function ContentDetailOverlayLayer({
     };
   }, [entry.contentId, attempt]);
 
-  /* #88/#397 布局回报：数据落定后按内容类型、媒体集与朝向判定布局归属。
-     浮层据此切换唯一滚动容器（overlay-scroller ↔ 层内 layer-scroller）；
-     variant 生效条件 = ≥1100px + 媒体链几何就绪 + 任一素材 w/h < 16/9（混合集
-     一律新版；全部 ≥16:9 保留现设计；全部缺几何不判竖）。 */
-  useEffect(() => {
-    if (status !== "default" || !detail?.content) return;
-    const { media: mediaItems } = selectMediaItems(
-      detail.attachments ?? [],
-      detail.content.content_type,
-      detail.content.content_type === "video" ? detail.content.cover_image_url : undefined,
-    );
-    const legacySplit =
-      (detail.content.content_type === "image" || detail.content.content_type === "video") &&
-      mediaItems.length > 0;
-    const variantActive =
-      chainReady && chainMedia.length > 0 && isPortraitMediaSet(chainMedia) && isDesktop;
-    onLayoutChangeRef.current?.(
-      layerIndex,
-      variantActive ? "variant" : legacySplit ? "split-media" : "single",
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, detail, layerIndex, chainMedia, chainReady, isDesktop]);
-
   /* #89 连续浏览：媒体集最后一项继续上滑 → 切换上下文列表下一篇（仅移动端）；
      上下文列表到底时不再切换，显示「已经到底」提示。浮层内关联内容等无
      contextList 的入口不参与连续浏览。 */
@@ -284,40 +239,47 @@ export function ContentDetailOverlayLayer({
     [entry, onPush],
   );
 
+  /* 状态体（D1 #858）：loading 骨架 / 各错误态 EmptyState / default 完整详情。
+     桌面 ≥960 时所有状态由统一双栏外壳承载（本函数末尾 OverlayVariantLayout）；
+     移动 <960 直接渲染状态体（单列纵滚）。 */
+  let statusBody: ReactNode = null;
   if (status === "loading") {
-    return (
+    statusBody = (
       <div aria-busy="true" aria-label={t("contentDetailOverlay.title")}>
         <SkeletonDetail />
       </div>
     );
-  }
-
-  if (status === "not-found") {
-    return (
+  } else if (status === "not-found") {
+    statusBody = (
       <EmptyState
         icon={FileQuestion}
         title={t("contentDetailOverlay.notFoundTitle")}
         description={t("contentDetailOverlay.notFoundDescription")}
       />
     );
-  }
-
-  if (status === "forbidden") {
-    return (
+  } else if (status === "forbidden") {
+    statusBody = (
       <EmptyState
         icon={ShieldOff}
         title={t("contentDetailOverlay.forbiddenTitle")}
         description={t("contentDetailOverlay.forbiddenDescription")}
       />
     );
-  }
-
-  if (status === "rate-limited") {
-    return (
+  } else if (status === "rate-limited" || status === "error") {
+    /* #400：429 曾被误渲染成网络错误——限流有自己的语义（稍后重试即可）。 */
+    statusBody = (
       <EmptyState
-        icon={Timer}
-        title={t("contentDetailOverlay.rateLimitedTitle")}
-        description={t("contentDetailOverlay.rateLimitedDescription")}
+        icon={status === "error" ? AlertCircle : Timer}
+        title={t(
+          status === "error"
+            ? "contentDetailOverlay.loadFailedTitle"
+            : "contentDetailOverlay.rateLimitedTitle",
+        )}
+        description={t(
+          status === "error"
+            ? "contentDetailOverlay.loadFailedDescription"
+            : "contentDetailOverlay.rateLimitedDescription",
+        )}
         action={
           <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>
             {t("common.retry")}
@@ -325,144 +287,183 @@ export function ContentDetailOverlayLayer({
         }
       />
     );
-  }
+  } else if (detail?.content) {
+    const content = detail.content;
+    const isFanwork = content.zone === "fanwork";
+    const sourceOriginal = detail.sourceOriginal;
+    const relatedLabelKey = isFanwork ? "contentDetailOverlay.derivatives" : "content.relatedFanworks";
 
-  if (status === "error") {
-    return (
-      <EmptyState
-        icon={AlertCircle}
-        title={t("contentDetailOverlay.loadFailedTitle")}
-        description={t("contentDetailOverlay.loadFailedDescription")}
-        action={
-          <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>
-            {t("common.retry")}
-          </Button>
-        }
-      />
-    );
-  }
+    const relatedEntries: RelatedCardEntry[] = related.map((item) => {
+      const typeLabelKey = TYPE_LABEL_KEYS[item.content_type ?? "other"] ?? "home.other";
+      return {
+        id: item.id,
+        zone: item.zone === "original" ? "original" : "fanwork",
+        title: item.title,
+        meta: `${t(typeLabelKey)} · @${item.author?.username ?? t("common.userLabel", { id: item.author_id ?? "-" })}`,
+        coverUrl: item.cover_image_url,
+      };
+    });
 
-  if (!detail?.content) return null;
-
-  const content = detail.content;
-  const isFanwork = content.zone === "fanwork";
-  const sourceOriginal = detail.sourceOriginal;
-  const relatedLabelKey = isFanwork ? "contentDetailOverlay.derivatives" : "content.relatedFanworks";
-
-  /* #88 桌面双栏：仅 image/video 且媒体集非空（有 MediaGallery 可渲染）时生效；
-     历史 image/video 内容无媒体集（行内 CoverImage）维持单栏。 */
-  const { media: mediaItems } = selectMediaItems(
-    detail.attachments ?? [],
-    content.content_type,
-    content.content_type === "video" ? content.cover_image_url : undefined,
-  );
-  const isSplitMedia =
-    (content.content_type === "image" || content.content_type === "video") &&
-    mediaItems.length > 0;
-  const splitFirst = mediaItems[0];
-  const splitRatio =
-    splitFirst && splitFirst.width && splitFirst.height && splitFirst.width > 0 && splitFirst.height > 0
-      ? splitFirst.width / splitFirst.height
-      : SPLIT_DEFAULT_RATIO;
-  const splitHasControls = mediaItems.length > 1;
-
-  const relatedEntries: RelatedCardEntry[] = related.map((item) => {
-    const typeLabelKey = TYPE_LABEL_KEYS[item.content_type ?? "other"] ?? "home.other";
-    return {
-      id: item.id,
-      zone: item.zone === "original" ? "original" : "fanwork",
-      title: item.title,
-      meta: `${t(typeLabelKey)} · @${item.author?.username ?? t("common.userLabel", { id: item.author_id ?? "-" })}`,
-      coverUrl: item.cover_image_url,
+    /* #90 相关内容块卡片：浮层栈内打开（source=zone-page）；ContentCardData 的
+       zone 为可选字符串，此处统一归一化为 original/fanwork。 */
+    const handleOpenEntry = (
+      relatedEntry: { id: number; zone?: string },
+      trigger: HTMLElement,
+    ) => {
+      onPush(
+        {
+          contentId: relatedEntry.id,
+          zone: relatedEntry.zone === "original" ? "original" : "fanwork",
+          source: "zone-page",
+        },
+        trigger,
+      );
     };
-  });
 
-  /* #90 相关内容块卡片：浮层栈内打开（source=zone-page）；ContentCardData 的
-     zone 为可选字符串，此处统一归一化为 original/fanwork。 */
-  const handleOpenEntry = (
-    entry: { id: number; zone?: string },
-    trigger: HTMLElement,
-  ) => {
-    onPush(
-      {
-        contentId: entry.id,
-        zone: entry.zone === "original" ? "original" : "fanwork",
-        source: "zone-page",
-      },
-      trigger,
+    /* #90 相关内容块：关联行插槽（复用 RelatedFanworks 组件）+ 相似内容去重摘要
+       （layer 已为侧栏拉取 related-fanworks 合同，直接复用该数据源）。 */
+    const relatedFanworksSlot = {
+      sourceContentId: content.id,
+      sourceZone: isFanwork ? ("fanwork" as const) : ("original" as const),
+      titleKey: isFanwork ? "relatedFanworks.derivatives.title" : "relatedFanworks.original.title",
+      createHref: isFanwork
+        ? `/studio/publish/fanwork?source_fanwork_id=${content.id}`
+        : `/studio/publish/fanwork?source_original_id=${content.id}`,
+      viewAllHref: !isFanwork ? `/original/${content.id}/fanworks` : undefined,
+      initialData: relatedLoaded ? { items: related, total: relatedTotal } : undefined,
+    };
+    const relatedFanworksSummary = related.map((item) => ({
+      id: item.id,
+      title: item.title,
+      zone: item.zone === "original" ? ("original" as const) : ("fanwork" as const),
+    }));
+
+    /* 创作者栏/相关列表（ui-spec:2402 相关推荐 + :2438 创作者栏）：仅移动单列
+       渲染（CSS 自隐藏于 <lg 视口，DOM 契约保持）；桌面统一右栏由 ContentDetail
+       头部创作者行 + 推荐区承担，ContentSidebar 退出桌面路径（D1 #858）。 */
+    /* #430 挂载分帧：侧栏延后一拍（双 rAF + 低优先级），降低动画期主线程拥塞。 */
+    const sidebar = (
+      <DeferredMount>
+        <ContentSidebar
+        author={
+          content.author?.id
+            ? {
+                id: content.author.id,
+                username: content.author.username,
+                avatar_url: content.author.avatar_url,
+              }
+            : undefined
+        }
+        zone={isFanwork ? "fanwork" : "original"}
+        ip={isFanwork && content.ip?.id && content.ip.name ? content.ip : undefined}
+        sourceOriginal={isFanwork && sourceOriginal ? sourceOriginal : null}
+        originalId={!isFanwork ? content.id : undefined}
+        relatedFanworksCount={relatedTotal}
+        relatedItems={relatedEntries}
+        relatedItemsLabelKey={relatedLabelKey}
+        relatedFooterAction={
+          !isFanwork && relatedTotal > 8 ? (
+            <Link
+              href={`/original/${content.id}/fanworks`}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
+            >
+              {t("contentDetailOverlay.viewAll")}
+            </Link>
+          ) : undefined
+        }
+        onOpenRelated={handleOpenEntry}
+        onOpenRelatedItem={handleOpenEntry}
+        followAction={
+          content.author?.id ? (
+            <FollowButton
+              targetType="user"
+              targetId={content.author.id}
+              initialFollowing={content.author.is_following ?? false}
+            />
+          ) : undefined
+        }
+        />
+      </DeferredMount>
     );
-  };
 
-  /* #90 相关内容块：关联行插槽（复用 RelatedFanworks 组件）+ 相似内容去重摘要
-     （layer 已为侧栏拉取 related-fanworks 合同，直接复用该数据源）。 */
-  const relatedFanworksSlot = {
-    sourceContentId: content.id,
-    sourceZone: isFanwork ? ("fanwork" as const) : ("original" as const),
-    titleKey: isFanwork ? "relatedFanworks.derivatives.title" : "relatedFanworks.original.title",
-    createHref: isFanwork
-      ? `/studio/publish/fanwork?source_fanwork_id=${content.id}`
-      : `/studio/publish/fanwork?source_original_id=${content.id}`,
-    viewAllHref: !isFanwork ? `/original/${content.id}/fanworks` : undefined,
-    initialData: relatedLoaded ? { items: related, total: relatedTotal } : undefined,
-  };
-  const relatedFanworksSummary = related.map((item) => ({
-    id: item.id,
-    title: item.title,
-    zone: item.zone === "original" ? ("original" as const) : ("fanwork" as const),
-  }));
+    if (isDesktop) {
+      /* D1 #858 桌面统一右栏（全类型一致，钉死块序）：ContentDetail（creatorFirst
+         = 创作者行置顶 + mediaSlot="variant" 隐藏行内媒体）→ 关联块（⓪关联 IP →
+         ①关联的原创 → ②系列导航）→ 评论区 → 推荐区（衍生列表 + 相似推荐，
+         RelatedContents 复用层内 related 数据、视口门下浮到 960）。
+         SP-17/T4 契约保持：内联关注按钮 = 唯一直接入口（不传
+         inlineFollowClassName），ContentSidebar 不进右栏。 */
+      statusBody = (
+        <ContentDetail
+          data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
+          coverSync
+          mediaSlot="variant"
+          coverReady={coverReady}
+          coverHoldSrc={motionHoldSrc}
+          creatorFirst
+          sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
+          sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
+          variantTail={
+            /* #430 挂载分帧：关联块/评论区/推荐区延后一拍（双 rAF + 低优先级），
+               降低入场动画期主线程拥塞。 */
+            <DeferredMount>
+              <OverlayRelatedBlock
+                /* #846：统一右栏不挂 ContentSidebar，关联 IP 行补在关联块首位
+                   （与移动侧栏同一数据源/门槛）。 */
+                ip={isFanwork && content.ip?.id && content.ip.name ? content.ip : undefined}
+                sourceOriginal={isFanwork ? detail.sourceOriginal ?? null : null}
+                series={content.series_memberships ?? []}
+                onOpenRelated={handleOpenEntry}
+                onNavigateSeries={handleNavigateInOverlay}
+              />
+              <section className="rounded-md border border-border bg-card p-4">
+                <CommentSection contentId={content.id} />
+              </section>
+              <RelatedContents
+                contentId={content.id}
+                zone={isFanwork ? "fanwork" : "original"}
+                contentType={content.content_type ?? "other"}
+                category={content.category}
+                ipId={isFanwork ? content.ip?.id ?? content.ip_id : undefined}
+                relatedFanworks={relatedFanworksSummary}
+                relatedFanworksSlot={{ ...relatedFanworksSlot, titleKey: "media.related.relatedTitle" }}
+                onOpenDetail={handleOpenEntry}
+                /* D1 #858：浮层统一右栏推荐区 960 起可见（旧 1100 门只约束
+                   独立详情页等其余调用方）。 */
+                minViewportPx={960}
+              />
+            </DeferredMount>
+          }
+        />
+      );
+    } else {
+      /* 移动 <960 单列（既有契约不回归）：行内画廊/CoverImage + header 工具栏 +
+         ContentSidebar（CSS <lg 自隐藏）+ 连续浏览钩子与到底提示。 */
+      statusBody = (
+        <div className="mx-auto flex w-full max-w-[1280px] gap-6">
+          <div className="min-w-0 flex-1">
+            <ContentDetail
+              data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
+              coverSync
+              deferTail
+              coverHoldSrc={motionHoldSrc}
+              inlineFollowClassName="lg:hidden"
+              sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
+              sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
+              onGalleryReachEnd={handleReachEnd}
+              galleryEndHint={atContextEnd}
+              onOpenRelatedDetail={handleOpenEntry}
+              onNavigateInOverlay={handleNavigateInOverlay}
+            />
+          </div>
 
-  /* 创作者栏/相关列表（ui-spec:2402 相关推荐 + :2438 创作者栏）：单列时是右侧栏；
-     双栏时下置于信息列末尾，维持关联入口（≥1100 显示，<1100 依旧隐藏）。 */
-  /* #430 挂载分帧：侧栏延后一拍（双 rAF + 低优先级），降低动画期主线程拥塞。 */
-  const sidebar = (
-    <DeferredMount>
-      <ContentSidebar
-      author={
-        content.author?.id
-          ? {
-              id: content.author.id,
-              username: content.author.username,
-              avatar_url: content.author.avatar_url,
-            }
-          : undefined
-      }
-      zone={isFanwork ? "fanwork" : "original"}
-      ip={isFanwork && content.ip?.id && content.ip.name ? content.ip : undefined}
-      sourceOriginal={isFanwork && sourceOriginal ? sourceOriginal : null}
-      originalId={!isFanwork ? content.id : undefined}
-      relatedFanworksCount={relatedTotal}
-      relatedItems={relatedEntries}
-      relatedItemsLabelKey={relatedLabelKey}
-      relatedFooterAction={
-        !isFanwork && relatedTotal > 8 ? (
-          <Link
-            href={`/original/${content.id}/fanworks`}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-emphasis transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring "
-          >
-            {t("contentDetailOverlay.viewAll")}
-          </Link>
-        ) : undefined
-      }
-      onOpenRelated={handleOpenEntry}
-      onOpenRelatedItem={handleOpenEntry}
-      followAction={
-        content.author?.id ? (
-          <FollowButton
-            targetType="user"
-            targetId={content.author.id}
-            initialFollowing={content.author.is_following ?? false}
-          />
-        ) : undefined
-      }
-      />
-    </DeferredMount>
-  );
+          {sidebar}
+        </div>
+      );
+    }
+  }
 
-  /* #397 竖屏集新版布局（胜者记录 §7 = A 基底 + C 逐张自适应 + 方案二 float 壳层）：
-     生效条件 = ≥1100px + 媒体链几何就绪 + 任一素材竖图（含全类型封面链兜底）。
-     右栏 = ContentDetail（mediaSlot="variant" 隐藏行内媒体）+ 关联内容块（布局
-     钉死）+ 评论区末块；关注按钮随作者行渲染（creator 侧栏不进右栏）。 */
-  if (variantActive) {
+  if (isDesktop) {
     return (
       <OverlayVariantLayout
         media={chainMedia}
@@ -471,124 +472,9 @@ export function ContentDetailOverlayLayer({
         freezeGeometry={!motionSettled}
         onPaneMeasured={handlePaneMeasured}
       >
-        {/* SP-17/T4：竖屏作者行的关注由 T3 创作者区自带（含 is_following 初始
-            态），旧的 authorAction 透传会渲染第二个关注按钮，已移除。A-8（#780）：
-            变体分支 creator 侧栏不进右栏，内联关注按钮 = 唯一直接入口，不传
-            inlineFollowClassName（单挂 lg:hidden 会误杀本分支）。 */}
-        <ContentDetail
-          data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
-          coverSync
-          mediaSlot="variant"
-          coverReady={coverReady}
-          coverHoldSrc={motionHoldSrc}
-          sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
-          sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
-          variantTail={
-            /* #430 挂载分帧：关联内容块与评论区延后一拍（双 rAF + 低优先级），
-               降低入场动画期主线程拥塞。 */
-            <DeferredMount>
-              <>
-                <OverlayRelatedBlock
-                  /* #846：variant 版式不挂 ContentSidebar，关联 IP 行补在
-                     关联内容块首位（与 split 分支侧栏同一数据源/门槛）。 */
-                  ip={isFanwork && content.ip?.id && content.ip.name ? content.ip : undefined}
-                  sourceOriginal={isFanwork ? detail.sourceOriginal ?? null : null}
-                  series={content.series_memberships ?? []}
-                  related={relatedEntries}
-                  relatedLabelKey={relatedLabelKey}
-                  onOpenRelated={handleOpenEntry}
-                  onNavigateSeries={handleNavigateInOverlay}
-                />
-                <section className="rounded-md border border-border bg-card p-4">
-                  <CommentSection contentId={content.id} />
-                </section>
-              </>
-            </DeferredMount>
-          }
-        />
+        {statusBody}
       </OverlayVariantLayout>
     );
   }
-
-  if (isSplitMedia) {
-    return (
-      <div className="mx-auto w-full max-w-[1280px] min-[960px]:grid min-[960px]:h-full min-[960px]:min-h-0 min-[960px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] min-[960px]:items-stretch min-[960px]:gap-6">
-        {/* 左媒体列（#88）：仅 ≥1100px 显示；aspect 盒高度 = 视口可用高（留控件位），
-            宽度按首项媒体比例自适应（aspect-ratio 传递尺寸），列内居中不裁切。 */}
-        <div className="hidden min-[960px]:grid min-[960px]:h-full min-[960px]:min-h-0 min-[960px]:place-items-center min-[960px]:overflow-hidden">
-          <div
-            className="min-[960px]:h-full min-[960px]:max-w-full"
-            style={{
-              aspectRatio: String(splitRatio),
-              maxHeight: splitHasControls
-                ? `calc(100% - ${SPLIT_MEDIA_CONTROLS_HEIGHT}px)`
-                : "100%",
-            }}
-          >
-            <MediaGallery
-              items={mediaItems}
-              onFirstMediaSettled={(state) => setCoverReady(state === "ready")}
-              onReachEnd={handleReachEnd}
-            />
-          </div>
-        </div>
-
-        {/* 右信息列（#88）：≥1100px 时是浮层内唯一滚动容器（layer-scroller）；
-            <1100px 时回到 overlay-scroller 单列滚动，本列不滚动。 */}
-        <div
-          data-slot="layer-scroller"
-          className="min-w-0 min-[960px]:h-full min-[960px]:min-h-0 min-[960px]:overflow-y-auto min-[960px]:overscroll-contain"
-        >
-          <ContentDetail
-            data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
-            coverSync
-            mediaSlot="split"
-            deferTail
-            coverReady={coverReady}
-            coverHoldSrc={motionHoldSrc}
-            /* A-8（#780）：本分支右栏 ContentSidebar ≥lg 可见——内联关注
-               按钮让位（lg:hidden）；<lg 侧栏隐藏时内联按钮仍是唯一入口。 */
-            inlineFollowClassName="lg:hidden"
-            sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
-            sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
-            /* #89 移动单列：可见的媒体区是行内画廊（≥1100px 才隐藏），
-               连续浏览钩子与到底提示必须接在这条路径上。 */
-            onGalleryReachEnd={handleReachEnd}
-            galleryEndHint={atContextEnd}
-            relatedFanworks={isDesktop ? relatedFanworksSlot : undefined}
-            relatedFanworksSummary={isDesktop ? relatedFanworksSummary : undefined}
-            onOpenRelatedDetail={handleOpenEntry}
-            onNavigateInOverlay={handleNavigateInOverlay}
-          />
-          {sidebar}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto flex w-full max-w-[1280px] gap-6">
-      <div className="min-w-0 flex-1">
-        <ContentDetail
-          data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
-          coverSync
-          deferTail
-          coverHoldSrc={motionHoldSrc}
-          /* A-8（#780）：同 split 分支——右栏侧栏 ≥lg 可见，内联按钮让位；
-             <lg 侧栏隐藏时内联按钮仍是唯一入口。 */
-          inlineFollowClassName="lg:hidden"
-          sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
-          sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
-          onGalleryReachEnd={handleReachEnd}
-          galleryEndHint={atContextEnd}
-          relatedFanworks={isDesktop ? relatedFanworksSlot : undefined}
-          relatedFanworksSummary={isDesktop ? relatedFanworksSummary : undefined}
-          onOpenRelatedDetail={handleOpenEntry}
-          onNavigateInOverlay={handleNavigateInOverlay}
-        />
-      </div>
-
-      {sidebar}
-    </div>
-  );
+  return statusBody;
 }
