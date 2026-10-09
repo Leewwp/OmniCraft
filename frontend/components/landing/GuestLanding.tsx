@@ -8,6 +8,8 @@ import { DotNav } from "@/components/landing/DotNav";
 import { SurfaceStage } from "@/components/landing/SurfaceStage";
 import { MechanicsGrid } from "@/components/landing/MechanicsGrid";
 import { ShowcaseSection } from "@/components/landing/ShowcaseSection";
+import { agentEntryVisible } from "@/lib/agent-guest";
+import { usePublicConfig } from "@/lib/use-public-config";
 import { getBrowserApiBase } from "@/lib/server-api";
 
 // 访客落地页（票 #853，R5 视觉基准 + spec §九/§十/§十一/§十二）：
@@ -18,6 +20,15 @@ import { getBrowserApiBase } from "@/lib/server-api";
 export function GuestLanding() {
   const t = useTranslations("landing");
   const rootRef = useRef<HTMLDivElement | null>(null);
+
+  // #854 §12.3（搭车 #855 接线）：总闸覆盖落地页 Agent 入口。GuestLanding
+  // 仅在匿名面渲染（RootAuthGate 保证 user 恒空），走 agentEntryVisible
+  // 游客分支 = web_agent_enabled && guest_agent_enabled；配置未知（取数中/
+  // 失败）与关闸同样隐藏，与 Header agentEntry「未加载不出入口」同构。
+  // 隐藏范围只有 hero/尾章两枚「体验 AI 助手」入口；三大页面章的 AI 演示窗
+  // 保持展示——其目的地 /agent 关闸时即登录引导页（§五「转登录引导」分支）。
+  const config = usePublicConfig();
+  const showAgentEntry = config !== null && agentEntryVisible(false, false, config.features);
 
   // 整屏 scroll-snap 只在落地页挂载期间生效（html 类动态增删）。
   useEffect(() => {
@@ -76,9 +87,11 @@ export function GuestLanding() {
               <Link href="/recommend" className="cta" data-testid="hero-enter">
                 {t("hero.enter")}
               </Link>
-              <Link href="/agent" className="ghost" data-testid="hero-ai">
-                {t("hero.ai")}
-              </Link>
+              {showAgentEntry && (
+                <Link href="/agent" className="ghost" data-testid="hero-ai">
+                  {t("hero.ai")}
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -138,9 +151,11 @@ export function GuestLanding() {
               <Link href="/recommend" className="cta">
                 {t("cta.enter")}
               </Link>
-              <Link href="/agent" className="ghost">
-                {t("cta.ai")}
-              </Link>
+              {showAgentEntry && (
+                <Link href="/agent" className="ghost">
+                  {t("cta.ai")}
+                </Link>
+              )}
               <Link href="/register" className="ghost">
                 {t("cta.register")}
               </Link>

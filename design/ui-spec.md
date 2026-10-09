@@ -515,7 +515,7 @@ interface AgentFollowUpChipsProps {
 
 **状态变体**
 - 落地页本体无数据 loading 态；精选陈列取数中/失败时对应子区整段不渲染（不出骨架、不出空壳）。
-- `features.guest_agent_enabled` 总闸关闭（T2）：入口文案不变、`/agent` 降级为登录引导；落地页与顶栏一律不展示轮数（Q21，余量只出现在工作台输入框下沿）——游客能力口径见 `docs/adr/0006-guest-agent-limited-anonymous-surface.md` 与「Page: /agent」。
+- `features.guest_agent_enabled` 总闸（T2 立闸；#855 搭车接线落地页入口）：hero 与尾章「体验 AI 助手」按钮按 `agentEntryVisible` 渲染——总闸关闭或配置未知时**两处入口隐藏**（§五「入口消失」分支）；三大页面章 AI 演示窗不受开关影响，其目的地 `/agent` 关闸时即登录引导页（「转登录引导」分支）。落地页与顶栏一律不展示轮数（Q21，余量只出现在工作台输入框下沿）——游客能力口径见 `docs/adr/0006-guest-agent-limited-anonymous-surface.md` 与「Page: /agent」。
 
 **响应式规则**
 - 桌面：章节 100dvh + scroll-snap mandatory（`scroll-snap-stop: always`）。
