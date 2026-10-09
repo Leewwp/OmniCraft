@@ -1772,7 +1772,15 @@
       "label": "Thought process",
       "streamingLabel": "Thinking…"
     },
-    "rateLimited": "Too many AI assistant requests. Please try again later"
+    "rateLimited": "Too many AI assistant requests. Please try again later",
+    "guest": {
+      "caption": "Guest mode · {remaining} turns left",
+      "exhaustedTitle": "Guest turns are used up",
+      "exhaustedDescription": "Sign in to keep using the AI assistant with the full site Q&A experience.",
+      "loginCta": "Sign in",
+      "guideTitle": "Sign in to use the AI assistant",
+      "guideDescription": "The AI assistant is not available to guests right now. Sign in to start asking."
+    }
   },
   "search": {
     "saveSearch": "Save this search",

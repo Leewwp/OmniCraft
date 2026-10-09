@@ -44,6 +44,14 @@ image-looking URL outside these hosts (and the OS... |
 turns (persisted #538 steps + live turn); exceedin... |
 | `agent.guardrails.session_tool_turn_limit` | `int` | SessionToolTurnLimit caps how many turns of one conversation may run
 tools at all — the conversation-level hard roo... |
+| `agent.guest.conversation_ttl_days` | `int` | ConversationTTLDays bounds guest conversation retention. Reading and
+continuing an expired conversation is refused im... |
+| `agent.guest.cookie_max_age_hours` | `int` | CookieMaxAgeHours is the device cookie lifetime (factory 8760 = 1y). |
+| `agent.guest.cookie_secret` | `string` | CookieSecret signs the anonymous device cookie (HMAC-SHA256). Injected
+via AGENT_GUEST_COOKIE_SECRET; json:"-" keeps ... |
+| `agent.guest.max_concurrent_turns` | `int` | MaxConcurrentTurns caps one device's in-flight generations across tabs. |
+| `agent.guest.max_total_turns` | `int` | MaxTotalTurns is the cumulative per-device generation budget. The
+counter has no TTL; exhausting it is permanent for ... |
 | `agent.hmac_secret` | `string` | HMACSecret |
 | `agent.image.api_base` | `string` | APIBase |
 | `agent.image.api_key` | `string` | APIKey |
@@ -128,6 +136,8 @@ content_types (taxonomy) + upload_file_types (upload c... |
 | `features.archive_malware_scan_enabled` | `bool` | ArchiveMalwareScanEnabled |
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
+| `features.guest_agent_enabled` | `bool` | GuestAgentEnabled (#854) gates the anonymous 3-turn agent surface
+(signed device cookie + per-device turn budget + pe... |
 | `features.guest_rate_limit_enabled` | `bool` | GuestRateLimitEnabled (#729) gates the per-endpoint anonymous token
 bucket layer; off by default (gray-release via in... |
 | `features.payment_enabled` | `bool` | PaymentEnabled |

@@ -796,8 +796,22 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 		}
 	})
 
+	// #854: the guest conversation retention cleaner rides the same worker
+	// lifecycle (ticker goroutine, cancelled with the stop func). It only
+	// ever touches is_guest rows; the cumulative device budget lives in
+	// Redis and is never touched here.
+	guestCleanCtx, guestCleanCancel := context.WithCancel(ctx)
+	cleaner := service.NewGuestConversationCleaner(
+		c.DB,
+		time.Duration(c.Cfg.Agent.Guest.ConversationTTLDays)*24*time.Hour,
+	)
+	recovery.GoSafe(func() {
+		worker.RunGuestConversationCleanup(guestCleanCtx, cleaner, time.Hour)
+	})
+
 	return func() {
 		relayCancel()
+		guestCleanCancel()
 		mgr.Stop()
 	}
 }

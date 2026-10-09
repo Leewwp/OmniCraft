@@ -248,6 +248,16 @@
 - Desktop 发布后也只能执行 Ed25519 验签后的严格动作 schema；WebView/LLM 不得直接调用文件原语，敏感写/移动必须原生二次确认。
 - 详细设计：`docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md`。
 
+### 游客 Agent 匿名面（#854，2026-10-09；ADR 0006 为授权边界真源）
+
+- `/agent` 是双主体路由：登录用户走既有 auth+interaction 守卫的工作台（webAgent 门 + 邮箱验证照旧）；匿名访客在 `features.guest_agent_enabled=true`（出厂 false，且需 `agent.web_agent_enabled=true`）时进入游客工作台。任何携带 Authorization 凭证（含无效 Bearer）的请求在游客端点一律 403 拒绝，不降级为游客；无效凭证不得换取匿名预算。
+- 匿名能力 = 公开只读问答：每设备累计 3 轮（Redis 计数无 TTL、永不周期补充）、单设备并发上限 3、会话保留 7 天（自创建算，读写均即时拒绝过期，续问不延期）。余量只展示于工作台输入框下沿 caption；落地页与全站 Header 一律不露轮数。
+- 三层防刷：per-IP `agent_guest` 令牌桶（复用 #729 原子算法，独立于 `rate_limit.enabled`/`guest_rate_limit_enabled`——通用浏览限流关闭不能令成本桶失效，显式置零配置拒绝启动）→ per-device 轮数+并发预留（单次 Lua 原子）→ 总闸覆盖直调 API 与全部前端入口。生成路径 Redis 故障/计数键丢失一律 fail-closed，不继承公开 GET 令牌桶的 fail-open，不重建为满额。
+- 身份 = HMAC 签名随机设备 cookie（HttpOnly/SameSite=Lax/HTTPS Secure，release `__Host-` 前缀，密钥走 `AGENT_GUEST_COOKIE_SECRET` 环境注入不入库）；存储与 Redis 键只存 id 的 SHA-256。清 cookie 重得三轮是已接受的匿名软肋（ADR 0006）。
+- 会话归属显式化（迁移 089）：`agent_conversations.is_guest` + `guest_device_key`，`user_id` 可空，CHECK 约束两种形态互斥——禁止 `user_id=0` 哨兵与伪用户行；跨设备读写均为 owner-scoped 404，过期会话读侧 410。worker 按生命周期清理过期游客会话/消息，永不触碰累计计数。
+- 游客工具白名单（声明与执行双过滤）：仅 `search_content` / `search_ips` / `get_content_detail` / `get_usage_guide`，且执行强制匿名公开 viewer（可见性过滤复用既有 viewer-aware 机制，私有/未发布/封禁内容不可达）；发布辅助、图片生成、MCP 桥接、上传协助、下载/OSS 签名、PAT/MCP 身份路径保持原授权。伪造模型 tool call 在执行侧拒绝为未知工具。
+- 登录转化：配额在配置/schema/可见性/归属/输入审核全过后、第一笔 Provider 工作前预留；预留前拒绝不扣，预留后成功/失败/超时/停止/断线均扣，重新生成=新轮。用尽转化走 SP-17 登录浮窗只续做尚未执行的动作（草稿交接 consume-once）；登录不迁移游客历史、不重放已消费请求、取消在途游客流。
+
 ### Tauri 客户端文件操作白名单
 
 客户端（`tauri-client/`）仅允许以下 7 种文件操作，其他一切操作必须拒绝：

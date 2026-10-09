@@ -170,7 +170,10 @@ func (r *turnRunner) finalizeSuccess(ctx context.Context, in turnFinalizeInput) 
 			return emitAgentStreamError(r.handler, AgentErrorCodeStorage, err)
 		}
 		cancel()
-		if !r.hadAssistantBefore {
+		// #854: guest turns skip the auto-title side call — it would double
+		// the provider spend of every first guest turn for a label the
+		// anonymous surface never asked for.
+		if !r.hadAssistantBefore && r.turn.GuestDeviceKey == "" {
 			r.svc.scheduleAutoTitle(r.traceID, r.recorder, r.conv.ID, r.firstUserMsg)
 		}
 		// A-05: the persisted answer is audited asynchronously after the

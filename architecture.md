@@ -400,6 +400,10 @@ backend/
 | `GET` | `/api/v1/admin/users` | adminHandler.ListUsers |
 | `GET` | `/api/v1/agent/conversations` | agentHandler.ListConversations |
 | `GET` | `/api/v1/agent/conversations/:id` | agentHandler.GetConversationMessages |
+| `GET` | `/api/v1/agent/guest/conversations` | guestAgentHandler.ListConversations |
+| `GET` | `/api/v1/agent/guest/conversations/:id` | guestAgentHandler.GetConversationMessages |
+| `GET` | `/api/v1/agent/guest/models` | guestAgentHandler.ListModels |
+| `GET` | `/api/v1/agent/guest/quota` | guestAgentHandler.Quota |
 | `GET` | `/api/v1/agent/models` | agentHandler.ListModels |
 | `GET` | `/api/v1/agent/usage-guide/:id` | agentHandler.UsageGuide |
 | `GET` | `/api/v1/appeals/me` | appealHandler.GetMyAppeals |
@@ -517,6 +521,7 @@ backend/
 | `POST` | `/api/v1/admin/users/:id/unban` | adminHandler.UnbanUser |
 | `POST` | `/api/v1/agent/chat/stream` | agentHandler.ChatStream |
 | `POST` | `/api/v1/agent/compliance-check` | agentHandler.ComplianceCheck |
+| `POST` | `/api/v1/agent/guest/chat/stream` | guestAgentHandler.ChatStream |
 | `POST` | `/api/v1/agent/upload-assist` | agentHandler.UploadAssist |
 | `POST` | `/api/v1/appeals` | appealHandler.SubmitAppeal |
 | `POST` | `/api/v1/auth/forgot-password` | authHandler.ForgotPassword |

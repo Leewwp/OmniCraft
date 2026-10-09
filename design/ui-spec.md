@@ -324,7 +324,7 @@ interface HeaderProps {
 **关键交互**
 - Logo 点击: 桌面与移动均路由跳转 `/recommend`（不跳 `/`），导航选中态同步。
 - 导航链接点击: 路由跳转，选中项高亮。
-- AI Agent 跳转受保护路由 `/agent`；仓库默认功能关闭时可由 feature gate 暂时隐藏该导航项，启用后未登录用户交给受保护路由守卫跳转登录。
+- AI Agent 跳转 `/agent` 双主体工作台（#854）：入口可见性 = 登录用户沿用 webAgent 门（enabled+邮箱验证），游客看 `guest_agent_enabled` 总闸——总闸关闭或游客不可用时入口消失；入口一律不展示轮数（余量只出现在工作台输入框下沿）。
 - 搜索框聚焦: 展开建议下拉。
 - 发布按钮: 跳转 `/studio/publish/original`（已登录）或 `/login`（未登录）。
 - 用户菜单: 点击 Avatar 展开下拉，点击外部关闭。
@@ -3524,10 +3524,10 @@ interface ConfirmModalProps {
 - 遮罩点击: 关闭 Modal。
 - ESC: 关闭 Modal。
 
-## Page: /agent Agent 工作台（A-06 DeepSeek 化形态）
+## Page: /agent Agent 工作台（A-06 DeepSeek 化形态；#854 起双主体）
 
 **Key Constraints**
-- 受保护路由；只有 config 中 `agent.web_agent_enabled=true` 且用户已登录并满足现有邮箱验证要求时可进入。
+- 双主体路由（#854，2026-10-09）：登录用户需 `agent.web_agent_enabled=true` 且满足既有邮箱验证要求；匿名访客在 `features.guest_agent_enabled=true`（出厂 false）时进入游客工作台（同一组件 `variant="guest"`）。其余 (protected) 路由守卫不放宽；恢复中渲染中性壳，总闸关闭或游客不可用时降级为登录引导。任何携带凭证的请求不降级为游客。
 - Agent 是顶部导航进入的独立全页工作台。不得在 Root Layout 挂载全站右下角聊天入口；现有 `AgentChatWidget.tsx` 仅是待迁移的旧实现名。
 - 遵守全局 Indigo 三档层级规则：静置面板 `--elevation-1`，抽屉/搜索浮层 `--elevation-3`，阴影永远配合 1px border，不单独承担分隔；视觉 token 全部取自 SP-12 U-01/U-02 定稿（8px 矩形操作控件、高度三档、#f5f5f5 亮画布/#010409 暗画布、150ms 动效）。
 - **反冗余原则**：全局导航已有的跳转/功能不在工作台重复；引用卡片打开 ContentDetailOverlay 属内容导航，不违反反冗余。
@@ -3540,6 +3540,9 @@ interface ConfirmModalProps {
 interface AgentWorkspaceProps {
   initialConversationId?: number;
   onCitationOpen?: (citation: AgentCitation) => void;
+  /** #854：'user'（缺省，既有形态）| 'guest'（匿名设备身份：游客端点 +
+   *  输入框下沿余量 caption + 用尽转化卡 + 只读会话侧栏）。 */
+  variant?: 'user' | 'guest';
 }
 
 interface AgentCitation {

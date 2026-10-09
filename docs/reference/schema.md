@@ -40,13 +40,16 @@
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `user_id` | `BIGINT` | -> users.id | user_id |
 | `context_type` | `VARCHAR(50)` | NOT NULL DEFAULT '' | context_type |
 | `context_id` | `BIGINT` | - | context_id |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
 | `title` | `VARCHAR(200)` | - | title |
 | `pinned_at` | `TIMESTAMPTZ` | - | pinned_at |
+| `is_guest` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_guest |
+| `guest_device_key` | `VARCHAR(64)` | - | guest_device_key |
+| — | — | CHECK ((is_guest = FALSE AND user_id IS NOT NULL AND guest_device_key IS NULL) OR (is_guest = TRUE AND user_id IS NULL AND guest_device_key IS NOT NULL AND guest_device_key <> '')) | table constraint |
 
 ### agent_drafts
 
@@ -153,6 +156,9 @@
 | `resolved_by` | `BIGINT` | -> users.id | resolved_by |
 | `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | CHECK (target_type IN ('content','comment')) | table constraint |
+| — | — | CHECK (status IN ('pending','approved','rejected')) | table constraint |
+| — | — | CHECK (target_type IN ('content','comment','account')) | table constraint |
 
 ### archive_scan_attempts
 
@@ -505,6 +511,7 @@
 | `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
 | `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'frozen' | status |
 | `source_trace_id` | `VARCHAR(64)` | - | source_trace_id |
+| — | — | CHECK (status IN ('frozen', 'draft')) | table constraint |
 
 ### eval_runs
 
@@ -570,6 +577,7 @@
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
 | `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
+| — | — | CHECK (status IN ('open', 'in_progress', 'resolved', 'closed', 'reopened')) | table constraint |
 
 ### follows
 
@@ -581,6 +589,7 @@
 | `target_id` | `BIGINT` | NOT NULL | target_id |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | — | — | UNIQUE (`follower_id`, `target_type`, `target_id`) | table constraint |
+| — | — | CHECK (target_type IN ('user','ip')) | table constraint |
 
 ### inbox_consumers
 
@@ -823,6 +832,8 @@
 | `sender_id` | `BIGINT` | -> users.id | sender_id |
 | `is_read` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_read |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | CHECK (channel IN ('reply','like','system','pr','follow')) | table constraint |
+| — | — | CHECK (channel IN ('reply', 'like', 'system', 'pr', 'follow', 'broadcast')) | table constraint |
 
 ### oauth_accounts
 
@@ -948,7 +959,7 @@
 | `id` | `BIGSERIAL` | PK | id |
 | `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
 | `course_id` | `BIGINT` | NOT NULL -> rehab_courses.id | course_id |
-| `completed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | completed_at |
+| `completed_at` | `TIMESTAMPTZ` | DEFAULT NOW() | completed_at |
 | `started_at` | `TIMESTAMPTZ` | - | started_at |
 | — | — | UNIQUE (`user_id`, `course_id`) | table constraint |
 

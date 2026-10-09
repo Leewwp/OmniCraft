@@ -147,3 +147,65 @@ ALTER TABLE content_items
 		t.Fatalf("named constraint form not parsed: %#v", fks)
 	}
 }
+
+// 089 形态（#854）：ALTER COLUMN ... DROP NOT NULL 必须清掉 CREATE TABLE 里
+// 的 NOT NULL 标记——否则快照与真源 DDL 相悖（two-axis review MAJOR-1）。
+func TestParseAlterTableDropNotNullClearsFlag(t *testing.T) {
+	content := `
+CREATE TABLE IF NOT EXISTS agent_conversations (
+    id      BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE agent_conversations ALTER COLUMN user_id DROP NOT NULL; -- 089 起可空；guest 行 NULL
+`
+	tables, err := parseMigrationsFrom(content)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	td := findTable(tables, "agent_conversations")
+	if td == nil {
+		t.Fatal("agent_conversations missing")
+	}
+	for _, col := range td.Columns {
+		if col.Name == "user_id" && col.NotNull {
+			t.Fatal("user_id must lose NOT NULL after ALTER COLUMN DROP NOT NULL")
+		}
+	}
+}
+
+// 089 的表级 CHECK（DO $$ 守卫内的 ADD CONSTRAINT ... CHECK）必须渲染为
+// table constraint 行，与 UNIQUE 行同惯例。
+func TestParseAlterTableCheckConstraintRenders(t *testing.T) {
+	content := `
+CREATE TABLE IF NOT EXISTS agent_conversations (
+    id BIGSERIAL PRIMARY KEY
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'owner_check') THEN
+        ALTER TABLE agent_conversations ADD CONSTRAINT agent_conversations_owner_check CHECK (
+            (is_guest = FALSE AND user_id IS NOT NULL AND guest_device_key IS NULL)
+            OR (is_guest = TRUE AND user_id IS NULL AND guest_device_key IS NOT NULL)
+        );
+    END IF;
+END $$;
+`
+	tables, err := parseMigrationsFrom(content)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	td := findTable(tables, "agent_conversations")
+	if td == nil {
+		t.Fatal("agent_conversations missing")
+	}
+	generated := generateSchemaTable(tables)
+	if !strings.Contains(generated, "CHECK (") || !strings.Contains(generated, "table constraint |") {
+		t.Fatalf("generated = %s, want a CHECK table-constraint row", generated)
+	}
+	if !strings.Contains(generated, "is_guest = FALSE") || !strings.Contains(generated, "guest_device_key IS NOT NULL") {
+		t.Fatalf("CHECK body must survive paren-nested extraction, got: %s", generated)
+	}
+}

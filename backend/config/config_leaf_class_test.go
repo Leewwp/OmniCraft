@@ -47,6 +47,11 @@ var leafClassification = map[string]string{
 	"agent.guardrails.image_url_allow_hosts":       "conditional",
 	"agent.guardrails.session_tool_call_limit":     "conditional",
 	"agent.guardrails.session_tool_turn_limit":     "conditional",
+	"agent.guest.conversation_ttl_days":            "conditional",
+	"agent.guest.cookie_max_age_hours":             "conditional",
+	"agent.guest.cookie_secret":                    "conditional",
+	"agent.guest.max_concurrent_turns":             "conditional",
+	"agent.guest.max_total_turns":                  "conditional",
 	"agent.hmac_secret":                            "conditional",
 	"agent.image.api_base":                         "conditional",
 	"agent.image.api_key":                          "conditional",
@@ -152,6 +157,7 @@ var leafClassification = map[string]string{
 	"features.archive_malware_scan_enabled":                          "optional-zero",
 	"features.creator_support_enabled":                               "optional-zero",
 	"features.desktop_deploy_enabled":                                "optional-zero",
+	"features.guest_agent_enabled":                                   "conditional",
 	"features.guest_rate_limit_enabled":                              "optional-zero",
 	"features.payment_enabled":                                       "optional-zero",
 	"features.rag_hybrid_enabled":                                    "optional-zero",
@@ -469,7 +475,8 @@ func TestLeafClassificationMatchesCensusLedger(t *testing.T) {
 	// 162 + 1 FT-6 (#698) + 2 FT-7 (#630) follow-ups + 1 #787 projection gate
 	// + 2 #816 MCP identity binding leaves (identity_env / identity_session_max)
 	// + 1 #813 attachment display short-TTL channel.
-	require.Equal(t, 169, counts[classConditional])
+	// + 6 #854 guest agent leaves (flag + five agent.guest.* parameters).
+	require.Equal(t, 169+6, counts[classConditional])
 	// 122 shipped + 5 (#688) + 3 (#689) new.
 	require.Equal(t, 134, counts[classOptionalZero])
 	// 8 agent.models entries + 13 content_registry leaves (#687).

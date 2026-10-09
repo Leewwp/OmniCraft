@@ -147,10 +147,24 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		contextType = "content"
 	}
 
-	conv, history, hadAssistantBefore, err := s.resolveChatConversation(ctx, userID, turn, contextType, resolved.ContentID)
+	var conv *model.AgentConversation
+	var history []model.AgentMessage
+	var hadAssistantBefore bool
+	var err error
+	if turn.GuestDeviceKey != "" {
+		// #854: guest turns persist under the device identity (user_id NULL,
+		// guest_device_key) with the retention window enforced on every
+		// continuation.
+		conv, history, hadAssistantBefore, err = s.resolveGuestConversation(ctx, turn.GuestDeviceKey, turn, contextType, resolved.ContentID)
+	} else {
+		conv, history, hadAssistantBefore, err = s.resolveChatConversation(ctx, userID, turn, contextType, resolved.ContentID)
+	}
 	if err != nil {
 		if errors.Is(err, ErrAgentConversationNotFound) {
 			return emitAgentStreamError(handler, AgentErrorCodeConversationNotFound, err)
+		}
+		if errors.Is(err, ErrAgentConversationExpired) {
+			return emitAgentStreamError(handler, AgentErrorCodeConversationExpired, err)
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return emitAgentStreamError(handler, agentContextErrorCode(err), err)
@@ -170,15 +184,20 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	_, promptVersion := s.prompts.Resolve(ctx, promptregistry.SlotAgentSystem)
 	promptVer := promptVersion
 	convIDPtr := convID
-	userIDPtr := userID
-	turnRecorder.RecordRunStart(model.AgentTraceRun{
+	runStart := model.AgentTraceRun{
 		StartedAt:      turnStarted,
 		ConversationID: &convIDPtr,
-		UserID:         &userIDPtr,
 		Surface:        string(resolved.Surface),
 		PromptName:     promptregistry.SlotAgentSystem.Name,
 		PromptVersion:  &promptVer,
-	})
+	}
+	// Guest turns carry no user id: the anonymous surface must not lend its
+	// rows a (pseudo) ownership attribution.
+	if turn.GuestDeviceKey == "" {
+		userIDPtr := userID
+		runStart.UserID = &userIDPtr
+	}
+	turnRecorder.RecordRunStart(runStart)
 	if err := handler(AgentStreamEvent{
 		Type:           AgentEventStart,
 		TraceID:        traceID,
@@ -212,7 +231,10 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	// registry + MCP bridge dispatch in production, fake in unit tests).
 	// #816: the surface is enumerated for the requesting viewer — identity-
 	// aware MCP servers discover tools under the caller's own session.
-	tools := s.toolRuntimeOrFallback().ToolDefinitions(ctx, userID)
+	// #854: guest turns see only the public read-only allowlist, declared
+	// and executed through the same wrapper.
+	toolRuntime := s.turnToolRuntime(turn)
+	tools := toolRuntime.ToolDefinitions(ctx, userID)
 	req := llm.ChatRequest{
 		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
 		Tools:     tools,

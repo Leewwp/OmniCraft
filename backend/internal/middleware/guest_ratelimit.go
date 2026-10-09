@@ -163,11 +163,19 @@ func (g *GuestRateLimiter) Tier(tier string) gin.HandlerFunc {
 func (g *GuestRateLimiter) take(ctx context.Context, key string, spec GuestBucketSpec) (bool, int, error) {
 	callCtx, cancel := context.WithTimeout(ctx, guestRedisCallTimeout)
 	defer cancel()
+	return takeGuestBucket(callCtx, g.rdb, key, spec, g.now)
+}
+
+// takeGuestBucket is the shared atomic #729 bucket evaluation. Both layers
+// run under the same guestRedisCallTimeout bound — they differ only in the
+// failure posture on a bucket error: the browsing layer fails open
+// (availability-first), the #854 cost bucket fails closed.
+func takeGuestBucket(ctx context.Context, rdb *redis.Client, key string, spec GuestBucketSpec, now func() time.Time) (bool, int, error) {
 	refillPerMs := spec.RefillPerMinute / 60_000.0
-	res, err := guestBucketScript.Run(callCtx, g.rdb, []string{key},
+	res, err := guestBucketScript.Run(ctx, rdb, []string{key},
 		strconv.Itoa(spec.Capacity),
 		strconv.FormatFloat(refillPerMs, 'g', -1, 64),
-		strconv.FormatInt(g.now().UnixMilli(), 10),
+		strconv.FormatInt(now().UnixMilli(), 10),
 	).Result()
 	if err != nil {
 		return false, 0, err

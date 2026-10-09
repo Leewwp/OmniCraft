@@ -432,6 +432,21 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.DELETE("/conversations/:id", agentHandler.DeleteConversation)
 	}
 
+	// #854: the anonymous agent surface. One middleware chain owns the total
+	// gate + signed device identity (access), the generation route adds the
+	// per-IP fail-closed cost bucket and the SSE write deadline. The
+	// authenticated /agent group above is untouched: no guard loosens, no
+	// invalid credential can degrade into a guest identity.
+	guestAgentHandler := handler.NewAgentGuestHandler(db, cfg, ctr.AgentService, middleware.NewGuestQuotaReserver(rdb, cfg))
+	guestAgent := v1.Group("/agent/guest", middleware.GuestAgentAccess(cfg, rdb))
+	{
+		guestAgent.GET("/models", guestAgentHandler.ListModels)
+		guestAgent.GET("/quota", guestAgentHandler.Quota)
+		guestAgent.GET("/conversations", guestAgentHandler.ListConversations)
+		guestAgent.GET("/conversations/:id", guestAgentHandler.GetConversationMessages)
+		guestAgent.POST("/chat/stream", middleware.GuestAgentCostLimit(rdb, cfg, time.Now), streamWriteDeadline, guestAgentHandler.ChatStream)
+	}
+
 	rehabHandler := handler.NewRehabHandler(ctr.RehabService)
 	rehab := v1.Group("/rehab", authReq)
 	{

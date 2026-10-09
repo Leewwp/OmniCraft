@@ -2,6 +2,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export interface PublicFeatures {
   web_agent_enabled: boolean;
+  /** #854 匿名 Agent 面总闸（服务端已做 web_agent_enabled 联动投影）。 */
+  guest_agent_enabled: boolean;
   payment_enabled: boolean;
   creator_support_enabled: boolean;
   desktop_deploy_enabled: boolean;

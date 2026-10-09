@@ -14,6 +14,11 @@ type TableDef struct {
 	Name              string
 	Columns           []ColumnDef
 	UniqueConstraints [][]string
+	// TableChecks carries table-level CHECK constraints added by
+	// ALTER TABLE ... ADD CONSTRAINT (e.g. 089 owner-shape mutual exclusion);
+	// the snapshot has no per-index convention, so CHECK constraints are the
+	// only non-column table facts rendered.
+	TableChecks []string
 }
 
 // ColumnDef represents a single column in a table.
@@ -53,53 +58,8 @@ func parseMigrations() ([]TableDef, error) {
 			return nil, fmt.Errorf("read %s: %w", path, err)
 		}
 
-		content := string(data)
-		matches := createTableRe.FindAllStringSubmatchIndex(content, -1)
-		for _, match := range matches {
-			tableName := content[match[2]:match[3]]
-			if seen[tableName] {
-				continue
-			}
-			seen[tableName] = true
-
-			body, err := extractParenthesizedBlock(content, match[1]-1)
-			if err != nil {
-				continue
-			}
-			tableDef := parseTableBody(tableName, body)
-			allTables = append(allTables, tableDef)
-		}
-
-		// Merge columns added by ALTER TABLE ... ADD COLUMN (e.g. 063 media
-		// metadata) into their base table so the generated schema reflects the
-		// migrations as the source of truth.
-		alterColumns := parseAlterTableColumns(content)
-		for tableName, cols := range alterColumns {
-			td := findTable(allTables, tableName)
-			if td == nil {
-				continue
-			}
-			for _, col := range cols {
-				if td.hasColumn(col.Name) {
-					continue
-				}
-				td.Columns = append(td.Columns, col)
-			}
-		}
-
-		// Merge foreign keys added by ALTER TABLE ... ADD CONSTRAINT (e.g.
-		// 088 backfill) into existing columns; an inline REFERENCES on the
-		// column itself always wins over a later backfill.
-		for tableName, fks := range parseAlterTableForeignKeys(content) {
-			td := findTable(allTables, tableName)
-			if td == nil {
-				continue
-			}
-			for i := range td.Columns {
-				if ref, ok := fks[td.Columns[i].Name]; ok && td.Columns[i].References == "" {
-					td.Columns[i].References = ref
-				}
-			}
+		if err := parseMigrationContent(string(data), &allTables, seen, createTableRe); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
 		}
 	}
 
@@ -107,6 +67,115 @@ func parseMigrations() ([]TableDef, error) {
 		return allTables[i].Name < allTables[j].Name
 	})
 	return allTables, nil
+}
+
+// parseMigrationsFrom parses one in-memory SQL corpus (test seam over the
+// same per-file pipeline parseMigrations runs).
+func parseMigrationsFrom(content string) ([]TableDef, error) {
+	var allTables []TableDef
+	seen := map[string]bool{}
+	createTableRe := regexp.MustCompile(`(?is)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(`)
+	if err := parseMigrationContent(content, &allTables, seen, createTableRe); err != nil {
+		return nil, err
+	}
+	sort.Slice(allTables, func(i, j int) bool {
+		return allTables[i].Name < allTables[j].Name
+	})
+	return allTables, nil
+}
+
+// parseMigrationContent merges one migration file's tables, added columns,
+// backfilled foreign keys, DROP NOT NULL fixes and table-level CHECK
+// constraints into the accumulating table set.
+func parseMigrationContent(content string, allTables *[]TableDef, seen map[string]bool, createTableRe *regexp.Regexp) error {
+	matches := createTableRe.FindAllStringSubmatchIndex(content, -1)
+	for _, match := range matches {
+		tableName := content[match[2]:match[3]]
+		if seen[tableName] {
+			continue
+		}
+		seen[tableName] = true
+
+		body, err := extractParenthesizedBlock(content, match[1]-1)
+		if err != nil {
+			continue
+		}
+		tableDef := parseTableBody(tableName, body)
+		*allTables = append(*allTables, tableDef)
+	}
+
+	// Merge columns added by ALTER TABLE ... ADD COLUMN (e.g. 063 media
+	// metadata) into their base table so the generated schema reflects the
+	// migrations as the source of truth.
+	alterColumns := parseAlterTableColumns(content)
+	for tableName, cols := range alterColumns {
+		td := findTable(*allTables, tableName)
+		if td == nil {
+			continue
+		}
+		for _, col := range cols {
+			if td.hasColumn(col.Name) {
+				continue
+			}
+			td.Columns = append(td.Columns, col)
+		}
+	}
+
+	// Merge foreign keys added by ALTER TABLE ... ADD CONSTRAINT (e.g.
+	// 088 backfill) into existing columns; an inline REFERENCES on the
+	// column itself always wins over a later backfill.
+	for tableName, fks := range parseAlterTableForeignKeys(content) {
+		td := findTable(*allTables, tableName)
+		if td == nil {
+			continue
+		}
+		for i := range td.Columns {
+			if ref, ok := fks[td.Columns[i].Name]; ok && td.Columns[i].References == "" {
+				td.Columns[i].References = ref
+			}
+		}
+	}
+
+	// 089 form: ALTER COLUMN ... DROP NOT NULL relaxes a CREATE TABLE
+	// NOT NULL (guest conversations share the table with user rows
+	// through a CHECK instead of a shared NOT NULL).
+	for _, m := range alterDropNotNullRe.FindAllStringSubmatchIndex(content, -1) {
+		td := findTable(*allTables, content[m[2]:m[3]])
+		if td == nil {
+			continue
+		}
+		column := content[m[4]:m[5]]
+		for i := range td.Columns {
+			if td.Columns[i].Name != column {
+				continue
+			}
+			td.Columns[i].NotNull = false
+			if cm := commentRe.FindStringSubmatch(content[m[0]:]); cm != nil && td.Columns[i].Comment == "" {
+				td.Columns[i].Comment = strings.TrimSpace(cm[1])
+			}
+		}
+	}
+
+	// Table-level CHECK constraints backfilled by ADD CONSTRAINT
+	// (possibly inside a DO $$ idempotency guard) render like the UNIQUE
+	// rows: migrations are the snapshot's source of truth.
+	for _, m := range alterCheckRe.FindAllStringSubmatchIndex(content, -1) {
+		td := findTable(*allTables, content[m[2]:m[3]])
+		if td == nil {
+			continue
+		}
+		openParen := strings.Index(content[m[0]:m[1]], "(")
+		if openParen < 0 {
+			continue
+		}
+		body, err := extractParenthesizedBlock(content, m[0]+openParen)
+		if err != nil {
+			continue
+		}
+		cond := strings.Join(strings.Fields(body), " ")
+		td.TableChecks = append(td.TableChecks, cond)
+	}
+	return nil
 }
 
 // extractParenthesizedBlock returns text between matching parentheses starting at start.
@@ -146,6 +215,16 @@ func (td *TableDef) hasColumn(name string) bool {
 	}
 	return false
 }
+
+// alterDropNotNullRe matches ALTER TABLE t ALTER COLUMN c DROP NOT NULL.
+var alterDropNotNullRe = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(\w+)\s+ALTER\s+COLUMN\s+(\w+)\s+DROP\s+NOT\s+NULL`)
+
+// alterCheckRe matches ALTER TABLE t ADD CONSTRAINT name CHECK (...) — the
+// constraint body itself is extracted paren-aware afterwards.
+var alterCheckRe = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(\w+)\s+ADD\s+CONSTRAINT\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+CHECK\s*\(`)
+
+// commentRe extracts a trailing SQL line comment.
+var commentRe = regexp.MustCompile(`--\s*(.+)`)
 
 // alterColumnRe matches one "ADD COLUMN [IF NOT EXISTS] name TYPE ..." inside
 // an ALTER TABLE statement, possibly spanning lines and multiple columns.
@@ -372,6 +451,10 @@ func generateSchemaTable(tables []TableDef) string {
 				quoted = append(quoted, "`"+column+"`")
 			}
 			b.WriteString(fmt.Sprintf("| — | — | UNIQUE (%s) | table constraint |\n", strings.Join(quoted, ", ")))
+		}
+		for _, check := range td.TableChecks {
+			check = strings.ReplaceAll(check, "|", "\\|")
+			b.WriteString(fmt.Sprintf("| — | — | CHECK (%s) | table constraint |\n", check))
 		}
 		b.WriteString("\n")
 	}

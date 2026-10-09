@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 
 const disabledFeatures: PublicFeatures = {
   web_agent_enabled: false,
+  guest_agent_enabled: false,
   payment_enabled: false,
   creator_support_enabled: false,
   desktop_deploy_enabled: false,
@@ -17,7 +18,9 @@ export function AgentFeatureGate({
   children,
   fallback,
 }: {
-  capability: "webAgent" | "desktopDeploy";
+  /** webAgent = 登录工作台能力；agentEntry = #854 /agent 入口可见性
+   *  （登录看 webAgent 门，游客看 guest 总闸）；desktopDeploy 照旧。 */
+  capability: "webAgent" | "agentEntry" | "desktopDeploy";
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
@@ -68,10 +71,18 @@ export function AgentFeatureGate({
     );
   }
 
+  const hasVerifiedUser = !!user && !!user.email_verified_at;
   let allowed = false;
 
   if (capability === "webAgent") {
     allowed = features.web_agent_enabled && !!user && !!user.email_verified_at;
+  }
+
+  if (capability === "agentEntry") {
+    /* #854（Q21）：入口可见性——登录用户沿用 verified webAgent 门；游客由
+       guest_agent_enabled 决定（服务端投影已含 web_agent_enabled 联动）。
+       入口只决定 /agent 可达，不在入口展示任何轮数。 */
+    allowed = features.web_agent_enabled && (hasVerifiedUser || features.guest_agent_enabled);
   }
 
   if (capability === "desktopDeploy") {

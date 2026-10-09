@@ -99,7 +99,7 @@ func TestPublicConfigAllowlist(t *testing.T) {
 	if !ok {
 		t.Fatal("response must contain 'features' object")
 	}
-	for _, key := range []string{"web_agent_enabled", "payment_enabled", "creator_support_enabled", "desktop_deploy_enabled"} {
+	for _, key := range []string{"web_agent_enabled", "guest_agent_enabled", "payment_enabled", "creator_support_enabled", "desktop_deploy_enabled"} {
 		if _, has := features[key]; !has {
 			t.Errorf("features must contain '%s'", key)
 		}

@@ -1758,17 +1758,21 @@ test("stop aborts the stream, keeps partial content and shows the stopped notice
 
 /* ---------- 页面接线契约（源码） ---------- */
 
-test("protected /agent page wires feature gate and workspace; header comes from (headered) layout", async () => {
-  const page = await read("app/(protected)/(headered)/agent/page.tsx");
-  /* SP-19 G1-1：顶栏由 (headered) 布局统一渲染，页面自身不得再挂 Header（防双渲染）。 */
+test("dual-body /agent page wires the gate shell; header comes from (workspace) layout (#854)", async () => {
+  const page = await read("app/(workspace)/agent/page.tsx");
+  /* SP-19 G1-1 形态保持：顶栏由布局统一渲染，页面自身不得再挂 Header（防双渲染）。 */
   assert.doesNotMatch(page, /import \{ Header \}/);
   assert.doesNotMatch(page, /<Header \/>/);
-  assert.match(page, /AgentFeatureGate/);
-  assert.match(page, /capability="webAgent"/);
-  /* A-07：工作台经 AgentWorkspacePanel 接线并携带 initialQuery（/agent?q= 预填）。 */
-  assert.match(page, /<AgentWorkspace initialQuery=/);
-  const layout = await read("app/(protected)/(headered)/layout.tsx");
+  /* #854：页面经双态壳接线（登录/游客/登录引导在壳内判定）。 */
+  assert.match(page, /AgentWorkspaceGate/);
+  assert.match(page, /initialQuery=/);
+  const layout = await read("app/(workspace)/layout.tsx");
   assert.match(layout, /<Header \/>/);
+  const gate = await read("components/agent/AgentWorkspaceGate.tsx");
+  assert.match(gate, /AgentFeatureGate/);
+  assert.match(gate, /capability="webAgent"/);
+  assert.match(gate, /variant="guest"/);
+  assert.match(gate, /resolveAgentSurface/);
 });
 
 test("workspace wires citations to the shared overlay with agent source", async () => {
@@ -2927,6 +2931,6 @@ test("FT-3 conversation routing contract: URL carries conversation identity", as
   // 流中离开补卸载 abort
   assert.ok(source.includes("useEffect(() => () => controllerRef.current?.abort(), [])"), "unmount aborts the in-flight stream");
   // 会话路由页存在且 key 强制重挂载
-  const page = await read("app/(protected)/(headered)/agent/c/[conversationId]/page.tsx");
-  assert.ok(page.includes("key={id}") && page.includes("initialConversationId={id}"), "conversation page remounts per id and seeds the workspace");
+  const page = await read("app/(workspace)/agent/c/[conversationId]/page.tsx");
+  assert.ok(page.includes("key={id}") && page.includes("initialConversationId={id}"), "conversation page remounts per id and seeds the gate shell");
 });

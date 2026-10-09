@@ -51,6 +51,12 @@ type ChatTurnInput struct {
 	// into tool scope so in-chat usage-guide generation follows the
 	// requester. Empty keeps the historic zh default.
 	Locale string
+	// GuestDeviceKey (#854) marks an anonymous turn owned by the signed
+	// device identity. Non-empty switches conversation persistence to the
+	// guest shape (is_guest + guest_device_key, user_id NULL), scopes every
+	// tool execution to the public viewer and restricts the tool surface to
+	// the public read-only allowlist. userID must be 0 on guest turns.
+	GuestDeviceKey string
 }
 
 const (
