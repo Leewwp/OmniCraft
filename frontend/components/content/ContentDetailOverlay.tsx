@@ -25,10 +25,20 @@ import {
   type OverlayEntry,
   type OverlaySource,
 } from "./ContentDetailOverlayLayer";
+import {
+  MAX_OVERLAY_STACK_DEPTH,
+  abortOverlayHistorySession,
+  beginOverlayHistorySession,
+  endOverlayHistorySession,
+  pushOverlayHistoryLayer,
+  replaceOverlayHistoryTop,
+  requestOverlayHistoryBack,
+  requestOverlayHistoryExit,
+  subscribeOverlayHistory,
+  type OverlayHistoryRecord,
+} from "@/lib/overlay-history";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
 
-const MAX_STACK_DEPTH = 5;
-const HISTORY_KEY = "contentOverlayDepth";
 const OVERLAY_EASING = "cubic-bezier(0.22,0.61,0.36,1)";
 /** 入场转场等待层数据的保险时限：超时按降级路径淡入，避免不可见卡死。 */
 const ENTRANCE_SAFETY_MS = 2000;
@@ -45,6 +55,17 @@ const VT_CLOSE_ATTR = "data-vt-close";
 function matchesDesktopViewport(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(min-width: 960px)").matches;
+}
+
+/** D3 #860：history 记录 → 浮层条目（forward 重建层/换篇对齐用）。 */
+function entryFromRecord(record: OverlayHistoryRecord): OverlayEntry {
+  return {
+    contentId: record.contentId,
+    zone: record.zone,
+    source: record.source,
+    contextList: record.contextList,
+    contextIndex: record.contextIndex,
+  };
 }
 
 export interface ContentDetailOverlayProps {
@@ -111,6 +132,8 @@ export function ContentDetailOverlay({
   const topKeyRef = useRef<string | null>(null);
   const onOpenChangeRef = useRef(onOpenChange);
   const isDesktopViewportRef = useRef(isDesktopViewport);
+  /* D3 #860：当前浮层 history 会话 id（卸载兜底 abort 用）。 */
+  const historySessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     stackRef.current = stack;
@@ -159,18 +182,21 @@ export function ContentDetailOverlay({
     return scroller;
   }, []);
 
-  function pushHistoryState(depth: number) {
-    window.history.pushState({ ...(window.history.state ?? {}), [HISTORY_KEY]: depth }, "");
-  }
-
   /* 打开/关闭契约：open 翻转时初始化首层（保存触发元素、页面滚动与 source 几何），
      关闭时走 finalizeClose（幂等）。source 测量必须先于任何布局变更（滚动锁、
      overlay 插入），见原型 §4.3。
      #398 C3：打开瞬间锁定触发卡片的 hover 缩放（globals.css 以
      [data-overlay-motion-lock] 归位），VT 旧快照捕获时 <img> 处于未变换位姿；
-     finalizeClose 移除锁。 */
+     finalizeClose 移除锁。
+     D3 #860：打开 = 开启 history 会话并 pushState 到首层规范路径
+     （fanwork=/content/<id>、original=/original/<id>，spec §9.4 转移表）；
+     StrictMode dev 双跑由模块的复活窗口吸收（不双写记录）。 */
   useEffect(() => {
-    if (open && !lastOpenRef.current) {
+    /* D3 #860：`!lastOpenRef.current` = 正常打开；`historySessionRef.current === null`
+       = StrictMode dev 卸载→重挂（挂载清理 abort 掉了 history 会话）——复用模块
+       的复活窗口重新 begin（同签名 + 当前记录仍是本会话 depth-1 时复活同一
+       会话，不双写历史记录）。 */
+    if (open && (!lastOpenRef.current || historySessionRef.current === null)) {
       const trigger =
         returnFocusRef?.current ??
         (document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -190,7 +216,13 @@ export function ContentDetailOverlay({
       setStack([
         { entry: { contentId, zone, source, contextList, contextIndex }, trigger, scrollTop: 0, title: null },
       ]);
-      pushHistoryState(1);
+      historySessionRef.current = beginOverlayHistorySession({
+        contentId,
+        zone,
+        source,
+        contextList,
+        contextIndex,
+      });
     }
     lastOpenRef.current = open;
     if (!open) finalizeClose();
@@ -253,6 +285,12 @@ export function ContentDetailOverlay({
       document.body.style.paddingRight = "";
       const dialog = dialogRef.current;
       if (dialog?.open && typeof dialog.close === "function") dialog.close();
+      /* D3 #860：未经关闭动效的卸载（宿主页真实跳转）也要终结 history 会话，
+         死记录交给模块的规范宿主页接管；finalizeClose 已终结时为幂等 no-op。 */
+      if (historySessionRef.current) {
+        abortOverlayHistorySession(historySessionRef.current);
+        historySessionRef.current = null;
+      }
     };
   }, []);
 
@@ -283,10 +321,12 @@ export function ContentDetailOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topKey]);
 
-  /* 压栈（浮层内关联内容）。 */
+  /* 压栈（浮层内关联内容）。D3 #860：React 栈与 history 记录同进同退——
+     五层封顶时模块拒绝写第六条记录，React 栈同样不再压入。 */
   const pushLayer = useCallback((entry: OverlayEntry, trigger: HTMLElement | null) => {
     if (closingRef.current || stackRef.current.length === 0) return;
-    if (stackRef.current.length >= MAX_STACK_DEPTH) return;
+    if (stackRef.current.length >= MAX_OVERLAY_STACK_DEPTH) return;
+    if (!pushOverlayHistoryLayer(entry)) return;
     const current = stackRef.current;
     const activeScroller = resolveActiveScroller();
     const next = current.map((layer, index) =>
@@ -295,14 +335,13 @@ export function ContentDetailOverlay({
     next.push({ entry, trigger, scrollTop: 0, title: null });
     setStackMove("push");
     setStack(next);
-    pushHistoryState(next.length);
   }, [resolveActiveScroller]);
 
-  /* #89 连续浏览：原地替换顶层为上下文列表下一篇（不压栈、不写历史）。
-     新 entry 驱动层 remount（key 含 contentId），媒体区/信息区状态与滚动
-     位置全部重置为新内容的初始态。 */
+  /* #89 连续浏览：原地替换顶层为上下文列表下一篇（不压栈）。D3 #860：换篇
+     同步 replaceState——顶层记录与 URL 原地改写为新内容规范路径，不新增历史。 */
   const switchTopLayer = useCallback((nextEntry: OverlayEntry) => {
     if (closingRef.current || stackRef.current.length === 0) return;
+    replaceOverlayHistoryTop(nextEntry);
     setStack((prev) =>
       prev.map((layer, index) =>
         index === prev.length - 1
@@ -310,17 +349,6 @@ export function ContentDetailOverlay({
           : layer,
       ),
     );
-  }, []);
-
-  /* 弹出一层（返回按钮 / Esc / 浏览器后退）。 */
-  const popLayer = useCallback(() => {
-    if (closingRef.current) return;
-    const current = stackRef.current;
-    if (current.length < 2) return;
-    const popped = current[current.length - 1];
-    setPopFocus(popped.trigger);
-    setStackMove("pop");
-    setStack(current.slice(0, -1));
   }, []);
 
   /* ---------- 共享元素转场（#67 原型 §5 契约 / #64 决策 7-12） ---------- */
@@ -612,8 +640,13 @@ export function ContentDetailOverlay({
     runEntranceMotion();
   }, [runEntranceMotion]);
 
-  /* 完全退出后的恢复契约：还原触发入口、页面滚动位置与焦点。 */
+  /* 完全退出后的恢复契约：还原触发入口、页面滚动位置与焦点。
+     D3 #860：终结 history 会话（× 途径 popstate 已终结时幂等）。 */
   const finalizeClose = useCallback(() => {
+    if (historySessionRef.current) {
+      endOverlayHistorySession();
+      historySessionRef.current = null;
+    }
     if (closeTimerRef.current !== null) {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -802,7 +835,9 @@ export function ContentDetailOverlay({
   }, []);
 
   /* 退出整个浮层（X / 背板）：按路径执行退场动效（FLIP 反向 / 居中缩淡 /
-     reduced-motion 纯淡化），随后 finalizeClose 收尾。 */
+     reduced-motion 纯淡化），随后 finalizeClose 收尾。
+     D3 #860：× 一次 history.go 退回会话来源记录（back 在途时先记全退意图，
+     由模块在 popstate 补齐剩余步数，Esc→× 连击不越过来源）。 */
   const beginExit = useCallback(() => {
     if (closingRef.current || stackRef.current.length === 0) return;
     closingRef.current = true;
@@ -813,36 +848,65 @@ export function ContentDetailOverlay({
 
   const handleExit = useCallback(() => {
     if (closingRef.current || stackRef.current.length === 0) return;
-    const depth = stackRef.current.length;
     beginExit();
-    if (window.history.state?.[HISTORY_KEY]) window.history.go(-depth);
+    requestOverlayHistoryExit();
   }, [beginExit]);
 
+  /* 返回按钮 / Esc（D3 #860）：统一经 history.back 与浏览器返回归并到同一个
+     popstate——栈中退一层、栈底退回来源记录并关闭，路径全部由模块的
+     popstate 对齐逻辑裁决（支持 go(-n)、快速连按、动画重入）。 */
   const handleBack = useCallback(() => {
     if (closingRef.current || stackRef.current.length === 0) return;
-    if (stackRef.current.length > 1) {
-      popLayer();
-    } else {
-      beginExit();
-    }
-  }, [beginExit, popLayer]);
+    requestOverlayHistoryBack();
+  }, []);
 
-  /* 浏览器后退：每个压栈动作对应一条 history 记录，popstate 逐层弹出；
-     栈底（depth 1）时的后退视为全退。 */
+  /* D3 #860：popstate 唯一归并点（lib/overlay-history 控制器分发）。
+     sync = 按目标记录深度绝对对齐 React 栈（返回逐层/多步、forward 重建层、
+     换篇后的内容一致性）；exit = 落回来源记录，执行关闭动效收尾。 */
   useEffect(() => {
-    const handlePopState = () => {
-      if (closingRef.current) return;
-      const current = stackRef.current;
-      if (current.length === 0) return;
-      if (current.length > 1) {
-        popLayer();
-      } else {
+    return subscribeOverlayHistory((event) => {
+      if (event.type === "exit") {
+        if (closingRef.current || stackRef.current.length === 0) return;
         beginExit();
+        return;
       }
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [beginExit, popLayer]);
+      if (closingRef.current || stackRef.current.length === 0) return;
+      const current = stackRef.current;
+      const records = event.records;
+      const targetDepth = records.length;
+      if (targetDepth === current.length) {
+        /* 深度不变但顶层记录换过内容（连续换篇后 forward/back 命中）：对齐。 */
+        const topRecord = records[targetDepth - 1];
+        if (topRecord && topRecord.contentId !== current[current.length - 1].entry.contentId) {
+          setStack((prev) =>
+            prev.map((layer, index) =>
+              index === prev.length - 1
+                ? { ...layer, entry: entryFromRecord(topRecord), scrollTop: 0, title: null }
+                : layer,
+            ),
+          );
+        }
+        return;
+      }
+      if (targetDepth < current.length) {
+        const popped = current[current.length - 1];
+        setPopFocus(popped.trigger);
+        setStackMove("pop");
+        setStack(current.slice(0, targetDepth));
+        return;
+      }
+      /* forward 落在更深的会话记录：下层仍存活时按记录重建缺失层（组件重挂
+         后自行拉数据，地址与可见内容一致）。 */
+      const rebuilt = records.slice(current.length).map((record) => ({
+        entry: entryFromRecord(record),
+        trigger: null,
+        scrollTop: 0,
+        title: null,
+      }));
+      setStackMove("push");
+      setStack([...current, ...rebuilt]);
+    });
+  }, [beginExit]);
 
   const handleTitleChange = useCallback((index: number) => {
     return (title: string) => {

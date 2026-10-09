@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { IntlProvider } from "use-intl";
 import enMessages from "@/messages/en.json";
 import { api, ApiRequestError } from "@/lib/api";
+import { OVERLAY_HISTORY_STATE_KEY, __resetOverlayHistoryForTests } from "@/lib/overlay-history";
 import { act, cleanup, fireEvent, installDom, render, waitFor } from "./runtime-test-helpers";
 
 const root = path.resolve(process.cwd());
@@ -297,6 +298,9 @@ test.afterEach(() => {
   cleanup();
   restoreApiMocks();
   routerPushes.length = 0;
+  /* D3 #860：history 会话是模块级单例——卸载 abort 的复活窗口（StrictMode）
+     会跨测试泄漏，显式复位。 */
+  __resetOverlayHistoryForTests();
 });
 
 test("opens a modal dialog, locks background scroll, and focuses the accessible title", async () => {
@@ -486,18 +490,99 @@ test("browser back pops layers and exits at the root with focus restored", async
 
   await pushRelatedLayer(view, 101);
 
+  /* D3 #860：back/Esc 与浏览器返回归并——真实 history.back 触发 popstate，
+     sync 按目标记录深度绝对对齐 React 栈。 */
   await act(async () => {
-    window.dispatchEvent(new window.PopStateEvent("popstate"));
-    await Promise.resolve();
+    window.history.back();
+    await new Promise<void>((resolve) => {
+      window.addEventListener("popstate", () => resolve(), { once: true });
+    });
   });
   await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
+  assert.equal(window.location.pathname, "/original/1");
 
   await act(async () => {
-    window.dispatchEvent(new window.PopStateEvent("popstate"));
-    await Promise.resolve();
+    window.history.back();
+    await new Promise<void>((resolve) => {
+      window.addEventListener("popstate", () => resolve(), { once: true });
+    });
   });
   await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
   await waitFor(() => assert.ok(document.activeElement === trigger));
+  assert.equal(window.location.pathname, "/", "栈底后退回到来源记录");
+});
+
+test("opening the overlay rewrites the URL to the canonical path with a depth-1 record", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={1} zone="original" />);
+  await openOverlay(view);
+  const lengthAtOpen = window.history.length;
+
+  assert.equal(window.location.pathname, "/original/1", "打开浮层 pushState 到规范路径");
+  const record = (window.history.state as Record<string, Record<string, unknown>>)[
+    OVERLAY_HISTORY_STATE_KEY
+  ];
+  assert.ok(record, "depth-1 浮层记录写入 history state");
+  assert.equal(record.depth, 1);
+  assert.equal(record.contentId, 1);
+  assert.equal(record.zone, "original");
+  assert.equal(record.originHref, "http://localhost/", "来源完整 URL 记入记录");
+
+  /* depth-1 恰一条：连续换篇类路径不影响；这里再开一层验证线性 +1。 */
+  await pushRelatedLayer(view, 101);
+  assert.equal(window.history.length, lengthAtOpen + 1, "打开 = pushState 恰一条记录");
+});
+
+test("pushing a related layer rewrites the URL per layer", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={1} zone="original" />);
+  await openOverlay(view);
+
+  await pushRelatedLayer(view, 101);
+
+  assert.equal(window.location.pathname, "/content/101", "逐层跳转逐层改写（fanwork 规范路径）");
+  const record = (window.history.state as Record<string, Record<string, unknown>>)[
+    OVERLAY_HISTORY_STATE_KEY
+  ];
+  assert.equal(record?.depth, 2);
+  assert.equal(record?.contentId, 101);
+});
+
+test("close button unwinds history back to the origin URL", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={1} zone="original" />);
+  await openOverlay(view);
+  await pushRelatedLayer(view, 101);
+
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Close content detail" }));
+    await new Promise<void>((resolve) => {
+      window.addEventListener("popstate", () => resolve(), { once: true });
+    });
+  });
+  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
+  assert.equal(window.location.pathname, "/", "× 全退到会话来源记录");
+});
+
+test("error layers keep the canonical URL and retries write no extra history", async () => {
+  installApiMock({ failAll: true });
+  const view = renderOverlay(<OverlayHarness entryId={999} zone="original" />);
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Open overlay" }));
+    await Promise.resolve();
+  });
+  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => assert.ok(view.getByText("Content detail failed to load")));
+  assert.equal(window.location.pathname, "/original/999", "错误态保持当前内容规范 URL");
+
+  const lengthBeforeRetry = window.history.length;
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Retry" }));
+    await Promise.resolve();
+  });
+  await waitFor(() => assert.ok(view.getByText("Content detail failed to load")));
+  assert.equal(window.history.length, lengthBeforeRetry, "重试不制造额外历史");
+  assert.equal(window.location.pathname, "/original/999");
 });
 
 test("sidebar related-content entry opens the overlay without leaving the page", async () => {

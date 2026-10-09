@@ -4,6 +4,7 @@ import { getLocale, getMessages, getTranslations } from 'next-intl/server';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AuthGateProvider } from '@/components/auth/AuthGateProvider';
+import { OverlayHistoryBridge } from '@/components/content/OverlayHistoryBridge';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
@@ -47,6 +48,7 @@ export default async function RootLayout({
             <ToastProvider>
               <AuthProvider>
                 <AuthGateProvider>
+                  <OverlayHistoryBridge />
                   <main id="main-content" className="flex-1">
                     {children}
                   </main>
