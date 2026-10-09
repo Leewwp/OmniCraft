@@ -1069,6 +1069,9 @@ export function ContentDetailOverlay({
                    入场转场的层；后续 push/pop 走水平滑动动画）。 */
                 motionHoldSrc={index === 0 ? motionHoldSrc : null}
                 motionSettled={entranceSettled}
+                /* D2 #859：键盘翻页/媒体挂起矩阵只作用于顶层活动层
+                   （关闭中的层即将卸载，同样不算活动）。 */
+                active={index === depth - 1 && !closing}
               />
             </div>
           ))}
