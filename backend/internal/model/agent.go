@@ -3,8 +3,11 @@ package model
 import "time"
 
 type AgentConversation struct {
-	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      int64      `gorm:"not null;index" json:"user_id"`
+	ID int64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	// 089 起可空（guest 行 user_id 为 NULL，归属见 is_guest+guest_device_key
+	// 与 agent_conversations_owner_check）；DDL 真源是迁移文件，此标签仅供
+	// 测试 AutoMigrate 对齐形状。
+	UserID      int64      `gorm:"index" json:"user_id"`
 	ContextType string     `gorm:"size:50;not null;default:''" json:"context_type"`
 	ContextID   *int64     `json:"context_id,omitempty"`
 	Title       *string    `gorm:"size:200" json:"title,omitempty"`

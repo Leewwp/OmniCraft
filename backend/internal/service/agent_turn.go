@@ -29,9 +29,14 @@ import (
 
 // turnRunner is per-turn state; one instance per ChatStream call.
 type turnRunner struct {
-	svc     *AgentService
-	userID  int64
-	turn    ChatTurnInput
+	svc    *AgentService
+	userID int64
+	turn   ChatTurnInput
+	// toolRT is the per-turn tool seam (#854): the production dispatch
+	// runtime for logged-in turns, the guest whitelist wrapper for guest
+	// turns — resolved once from the turn so definitions and execution can
+	// never disagree.
+	toolRT  ToolRuntime
 	conv    *model.AgentConversation
 	traceID string
 	started time.Time
@@ -87,6 +92,7 @@ func (s *AgentService) newTurnRunner(userID int64, turn ChatTurnInput, conv *mod
 		svc:                s,
 		userID:             userID,
 		turn:               turn,
+		toolRT:             s.turnToolRuntime(turn),
 		conv:               conv,
 		traceID:            traceID,
 		started:            started,
@@ -229,7 +235,7 @@ func (r *turnRunner) run(ctx context.Context, req *llm.ChatRequest) {
 				toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: `{"ok":false,"error":"session_budget_exceeded","detail":` + strconv.Quote(exceeded) + `}`})
 				continue
 			}
-			outcome, toolErr := r.svc.toolRuntimeOrFallback().ExecuteTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), ToolScope{
+			outcome, toolErr := r.toolRT.ExecuteTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), ToolScope{
 				ViewerID:       r.userID,
 				ConversationID: convIDForTools(r.conv),
 				TurnImages:     turnImages,

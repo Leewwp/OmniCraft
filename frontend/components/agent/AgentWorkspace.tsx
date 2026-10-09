@@ -11,6 +11,8 @@ import { Select } from "@/components/ui/select";
 import { Composer } from "@/components/ui/composer";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
+import { useAuthGate } from "@/components/auth/AuthGateProvider";
+import { AgentGuestExhaustedCard } from "@/components/agent/AgentGuestExhaustedCard";
 import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
@@ -38,6 +40,16 @@ import {
   invalidateFirstRoundHandover,
   takeOverFirstRoundHandover,
 } from "@/lib/agent-first-round-handover";
+import {
+  fetchGuestJson,
+  fetchGuestQuota,
+  isGuestQuotaTerminal,
+  saveGuestHandover,
+  stripAuthorizationFetch,
+  takeGuestHandover,
+  GUEST_AGENT_ENDPOINTS,
+  GuestRequestError,
+} from "@/lib/agent-guest";
 import { AgentCitationsSidebar } from "@/components/agent/AgentCitationsSidebar";
 import { isProviderDegradation } from "@/lib/agent";
 import { useDelayedUnmount } from "@/lib/use-delayed-unmount";
@@ -67,6 +79,9 @@ export interface AgentWorkspaceProps {
   /** A-07：外部入口（搜索页「问 AI 助手」/agent?q=）带来的首轮预填问题，仅首挂载生效。 */
   initialQuery?: string;
   onCitationOpen?: (citation: AgentCitation) => void;
+  /** #854：工作台表面。guest = 匿名设备身份（游客端点 + 余量 caption +
+   *  用尽转化卡）；缺省 user = 既有受保护形态，行为零变化。 */
+  variant?: "user" | "guest";
 }
 
 /** 本地轮 id：crypto UUID（无模块级计数器——跨会话重挂载不漂移）。 */
@@ -115,7 +130,13 @@ const SUGGESTION_KEYS = [
    层映射住 AgentTurnBlocks（transcript 渲染域，toCitationBadgeInfo 在用
    副本）；工作台侧 2026-09-12 复制副本已随 #795 核实删除。 */
 
-export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
+export function AgentWorkspace({
+  initialConversationId,
+  initialQuery,
+  onCitationOpen,
+  variant = "user",
+}: AgentWorkspaceProps) {
+  const isGuest = variant === "guest";
   const t = useTranslations();
   // #723：请求者语言（zh/en），随每轮请求携带。
   const siteLocale = useLocale();
@@ -123,8 +144,14 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.role === "admin";
   const { toast } = useToast();
+  /* #854：SP-17 登录浮窗——只续做尚未执行的动作（登录后由新会话执行）。 */
+  const { requireAuth } = useAuthGate();
   const apiBase = getBrowserApiBase();
 
+  /* #854：游客余量（服务端权威）。null = 引导查询未返回；exhausted 后
+     工作台以转化卡替换输入区，不再向游客端点发起生成。 */
+  const [guestRemaining, setGuestRemaining] = useState<number | null>(null);
+  const [guestExhausted, setGuestExhausted] = useState(false);
   const [conversations, setConversations] = useState<AgentConversationSummary[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(true);
   const [conversationsLoadError, setConversationsLoadError] = useState(false);
@@ -151,6 +178,18 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     },
     [commitLiveTurn],
   );
+  /* #854：终局后向服务端回读余量（caption 递减以服务端权威为准）。 */
+  const refreshGuestQuota = useCallback(async () => {
+    if (!isGuest) return;
+    try {
+      const state = await fetchGuestQuota();
+      setGuestRemaining(state.remaining);
+      setGuestExhausted(state.exhausted || state.remaining <= 0);
+    } catch {
+      /* 回读失败保持当前值；下一次终局再刷新 */
+    }
+  }, [isGuest]);
+
   const streaming = activeTurn?.streaming ?? false;
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = usePersistentState<boolean>({
@@ -199,9 +238,13 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setConversationsLoading(true);
     setConversationsLoadError(false);
     try {
-      const data = await api.get<{ conversations?: AgentConversationSummary[] }>(
-        "/api/v1/agent/conversations",
-      );
+      const data = isGuest
+        ? await fetchGuestJson<{ conversations?: AgentConversationSummary[] }>(
+            GUEST_AGENT_ENDPOINTS.conversations,
+          )
+        : await api.get<{ conversations?: AgentConversationSummary[] }>(
+            "/api/v1/agent/conversations",
+          );
       setConversations(data.conversations ?? []);
     } catch (error) {
       setConversationsLoadError(true);
@@ -209,14 +252,47 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     } finally {
       setConversationsLoading(false);
     }
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
 
-  /* FT-3：流中离开（路由切走/组件卸载）补 abort——SSE 连接不再残留。 */
+  /* #854：游客引导（余量查询兼设备身份发放）。失败（含 401 设备无效）
+     一律按用尽降级到转化卡——服务端 fail-closed 时客户端绝不重试生成。 */
+  useEffect(() => {
+    if (!isGuest) return;
+    let cancelled = false;
+    fetchGuestQuota()
+      .then((state) => {
+        if (cancelled) return;
+        setGuestRemaining(state.remaining);
+        setGuestExhausted(state.exhausted || state.remaining <= 0);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGuestRemaining(0);
+        setGuestExhausted(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGuest]);
+
+  /* FT-3：流中离开（路由切走/组件卸载）补 abort——SSE 连接不再残留。
+     #854：登录成功切面即卸载本实例，同一 effect 兜底取消在途游客流。 */
   useEffect(() => () => controllerRef.current?.abort(), []);
+
+  /* #854：登录续做——账号工作台挂载时消费游客交接（consume-once），
+     在账号新会话里自动执行尚未执行的草稿；不迁移任何游客历史。 */
+  useEffect(() => {
+    if (isGuest) return;
+    const pending = takeGuestHandover();
+    if (pending !== null) {
+      startTurn(pending);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* #539：深度思考开关——默认关（快、省 token），开启后请求带 deep_think，
      由后端映射到 provider 的思考控制（MiniMax M3 thinking.type）。
@@ -233,8 +309,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const [modelOptions, setModelOptions] = useState<{ id: string; display_name: string }[]>([]);
   const [modelPref, setModelPref] = useState("");
   useEffect(() => {
-    api
-      .get<{ models?: { id: string; display_name: string }[] }>("/api/v1/agent/models")
+    const modelsPromise = isGuest
+      ? fetchGuestJson<{ models?: { id: string; display_name: string }[] }>(GUEST_AGENT_ENDPOINTS.models)
+      : api.get<{ models?: { id: string; display_name: string }[] }>("/api/v1/agent/models");
+    modelsPromise
       .then((data) => {
         const options = data.models ?? [];
         setModelOptions(options);
@@ -242,7 +320,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         if (saved && options.some((option) => option.id === saved)) setModelPref(saved);
       })
       .catch(() => {});
-  }, []);
+  }, [isGuest]);
   function toggleDeepThink() {
     setDeepThink(!deepThink);
   }
@@ -300,8 +378,14 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     let cancelled = false;
     setMessagesLoading(true);
     setMessagesLoadError(false);
-    api
-      .get<{ messages?: AgentHistoryMessageDTO[] }>(`/api/v1/agent/conversations/${activeId}`)
+    const messagesPromise = isGuest
+      ? fetchGuestJson<{ messages?: AgentHistoryMessageDTO[] }>(
+          GUEST_AGENT_ENDPOINTS.conversation(activeId),
+        )
+      : api.get<{ messages?: AgentHistoryMessageDTO[] }>(
+          `/api/v1/agent/conversations/${activeId}`,
+        );
+    messagesPromise
       .then((data) => {
         if (cancelled) return;
         const mapped = mapAgentHistoryToTurns(
@@ -329,8 +413,11 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           setMessagesLoadError(true);
           silentError(error, { component: "AgentWorkspace", action: "load conversation" });
           /* FT-3：深链他人/已删会话 404 → 落回空态入口（错误横幅随重挂载消失）。
-             #795：目标会话已不存在 = 交接记录明确失效，先清理再回退。 */
-          if (error instanceof ApiRequestError && error.status === 404) {
+             #795：目标会话已不存在 = 交接记录明确失效，先清理再回退。
+             #854：游客 410（7 天过期）同路径回退，不读作存在性探测。 */
+          const notFound = error instanceof ApiRequestError && error.status === 404;
+          const guestGone = error instanceof GuestRequestError && error.status === 410;
+          if (notFound || guestGone) {
             invalidateFirstRoundHandover(activeId);
             router.replace("/agent");
           }
@@ -590,6 +677,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         if (event.conversation_id) {
           setActiveId(event.conversation_id);
           void loadConversations();
+          if (isGuest) void refreshGuestQuota();
           /* FT-3 + #795：首轮会话 id 到 done 才产生——先把终态交接记录写入
              module（跨 key 重挂载存活的唯一载体），再 replace 写入会话 URL
              （push 会让「发完首条按返回」退回空页）。保存必须先于导航：
@@ -622,7 +710,9 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         }
       }
     },
-    [commitLiveTurn, loadConversations, loadKeywordFallback],
+    // refreshGuestQuota 恒等性是 isGuest 的纯函数（useCallback([isGuest])），
+    // 补进 deps 只满足 exhaustive-deps，重建时机零变化。
+    [commitLiveTurn, loadConversations, loadKeywordFallback, isGuest, refreshGuestQuota],
   );
 
   /* 发起一轮对话（A-01 续写契约）：上下文由服务端组装，客户端只带
@@ -647,10 +737,21 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
 
     const controller = new AbortController();
     controllerRef.current = controller;
-    void startAgentStream(fetch, `${apiBase}/agent/chat/stream`, body, {
+    /* #854：游客流走专用 fetch 包装——剥离一切 Authorization（游客面只认
+       匿名设备身份，凭证会被 403 拒绝而非降级）。 */
+    const fetchImpl = isGuest ? stripAuthorizationFetch : fetch;
+    /* GUEST_AGENT_ENDPOINTS.* 是含 /api/v1 的完整 API 路径（供 guestFetch）；
+       startAgentStream 的调用方负责 apiBase（已含 /api/v1）+ 相对路径。 */
+    const streamPath = isGuest ? "/agent/guest/chat/stream" : "/agent/chat/stream";
+    void startAgentStream(fetchImpl, `${apiBase}${streamPath}`, body, {
       onEvent: (event) => handleStreamEvent(event, query),
       onError: (error) => {
         const code = error instanceof AgentStreamError ? error.code : undefined;
+        if (isGuest && isGuestQuotaTerminal(code)) {
+          /* 服务端权威用尽（并发抢占/计数丢失）：终局后以转化卡替换输入区。 */
+          setGuestRemaining(0);
+          setGuestExhausted(true);
+        }
         updateLiveTurn((previous) =>
           previous ? reduceAgentTurn(previous, { type: "error", error_code: code }) : previous,
         );
@@ -664,8 +765,24 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   function handleSend(overrideMessage?: string) {
     const trimmed = (overrideMessage ?? input).trim();
     if (!trimmed || streaming) return;
+    if (isGuest && guestExhausted) {
+      /* 用尽后的输入动作尚未执行：挂到登录浮窗的续做上，账号新会话首
+         轮执行；禁止重放任何已消费的游客请求。 */
+      openLoginContinuation(trimmed);
+      return;
+    }
     if (overrideMessage === undefined) setInput("");
     startTurn(trimmed);
+  }
+
+  /* #854：登录墙转化——requireAuth 的 pendingAction 只保存「尚未执行的
+     草稿」；登录成功后双态壳切到账号工作台，由其挂载时 take 消费并
+     自动发送（consume-once，刷新不重放）。 */
+  function openLoginContinuation(draft: string) {
+    requireAuth(() => {
+      if (draft.trim() !== "") saveGuestHandover(draft);
+      setInput("");
+    });
   }
 
   function handleStop() {
@@ -770,8 +887,12 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
      isComposing 防护随组件内建；URL 预填与流式停止行为保持。 */
   /* FT-2（#694）两态同形：空态与会话态 rows=1、max-w-3xl(768px) 居中、
      默认宽度/高度不随形态切换变化（autoresize 208 上限机制不变）。 */
+  const guestComposerLocked = isGuest && guestExhausted;
   const composerNode = (
     <>
+      {guestComposerLocked ? (
+        <AgentGuestExhaustedCard onLogin={() => openLoginContinuation(input)} />
+      ) : null}
       <Composer
         ref={composerRef}
         value={input}
@@ -785,8 +906,8 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         ariaLabel={t("agent.workspace.composerLabel")}
         placeholder={t("agent.workspace.inputPlaceholder")}
         submitLabel={t("agent.workspace.sendMessage")}
-        submitDisabled={!input.trim() || streaming}
-        disabled={streaming}
+        submitDisabled={!input.trim() || streaming || guestComposerLocked}
+        disabled={streaming || guestComposerLocked}
         stopLabel={streaming ? t("agent.workspace.stopGenerating") : undefined}
         onStop={streaming ? handleStop : undefined}
         leading={modelSelector ? (
@@ -798,7 +919,19 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           deepThinkToggle
         )}
       />
-      <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
+      {/* #854（Q21）：游客余量只在输入框下沿出现；Header/落地页一律不露轮数。 */}
+      {isGuest ? (
+        !guestComposerLocked && guestRemaining !== null ? (
+          <p
+            className="mt-1.5 px-1 text-xs text-fg-muted"
+            data-testid="guest-quota-caption"
+          >
+            {t("agent.guest.caption", { remaining: guestRemaining })}
+          </p>
+        ) : null
+      ) : (
+        <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
+      )}
     </>
   );
   const renderComposer = (emptyVariant: boolean) =>
@@ -823,6 +956,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           collapsed={collapsed}
           loading={conversationsLoading}
           disabled={streaming}
+          readOnly={isGuest}
           onToggleCollapse={() => {
             setCollapsed(!collapsed);
           }}
@@ -871,6 +1005,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               collapsed={false}
               loading={conversationsLoading}
               disabled={streaming}
+              readOnly={isGuest}
               onToggleCollapse={closeHistoryDrawer}
               onSelect={handleSelectConversation}
               onNewConversation={handleNewConversation}

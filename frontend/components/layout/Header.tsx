@@ -132,7 +132,7 @@ export function Header() {
           >
             {t("nav.originalZone")}
           </Link>
-          <AgentFeatureGate capability="webAgent" fallback={null}>
+          <AgentFeatureGate capability="agentEntry" fallback={null}>
             <Link
               href="/agent"
               aria-current={pathname.startsWith("/agent") ? "page" : undefined}
@@ -395,7 +395,7 @@ export function Header() {
               >
                 {t("nav.originalZone")}
               </Link>
-              <AgentFeatureGate capability="webAgent" fallback={null}>
+              <AgentFeatureGate capability="agentEntry" fallback={null}>
                 <Link
                   href="/agent"
                   aria-current={pathname.startsWith("/agent") ? "page" : undefined}

@@ -101,6 +101,10 @@ features:
   # #729 匿名公开端点细档限流层（默认关，实例 override 灰度开启）；
   # 同时受 rate_limit.enabled 总开关联动关闭。
   guest_rate_limit_enabled: false
+  # #854 游客 Agent 三轮体验总闸（默认关；开启还须 agent.web_agent_enabled，
+  # 并在实例侧注入 agent.guest.cookie_secret——真实签名密钥只走环境变量
+  # AGENT_GUEST_COOKIE_SECRET，不入库）。
+  guest_agent_enabled: false
 
 rag:
   chunking:
@@ -481,6 +485,16 @@ upload:
     
 agent:
   web_agent_enabled: true
+  # #854 游客 Agent 匿名面参数：每设备累计 3 轮（永不周期补充）、会话保留
+  # 7 天、单设备并发上限 3。cookie_max_age_hours 为设备 cookie 寿命（8760=1 年）。
+  # cookie_secret 出厂留空：开启 guest 的实例必须经 AGENT_GUEST_COOKIE_SECRET
+  # 注入 ≥32 字符非占位密钥，否则启动校验拒绝（fail-closed）。
+  guest:
+    max_total_turns: 3
+    conversation_ttl_days: 7
+    max_concurrent_turns: 3
+    cookie_secret: ""
+    cookie_max_age_hours: 8760
   # Canonical profile (docs/reference/agent-runtime-matrix.md): MiniMax-M3
   # chat through the minimax adapter (tool calls + <think> splitting), with
   # DashScope text-embedding-v4 through a separate openai_compat embedding
