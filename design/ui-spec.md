@@ -2540,7 +2540,15 @@ interface ContentDetailOverlayProps {
 - PC：详情层不超过可用视口，内部滚动，关闭按钮（悬浮右上）始终可达；双栏下媒体与信息区均不出界。
 - 平板/移动：全屏层，顶部关闭区和底部关键操作满足安全区域与 44px 触控目标；媒体/操作控件保持在边框内（#64 决策 15 权威，桌面/平板/移动皆然）。
 - 使用对话框语义、焦点陷阱和背景 inert；打开聚焦标题（桌面 = sr-only 标题锚点），逐层弹出把焦点返回上层的触发链接，完全关闭后聚焦原触发卡片/引用卡片。
-- URL、浏览器历史和拦截路由的最终实现以 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md` 的已确认结论为准（URL 形态与错误历史语义仍 open，归 D3 收口）。
+- URL、浏览器历史和拦截路由（D3 #860 权威收口，终态）：
+  - **打开/压层 = `history.pushState` 到规范路径**（fanwork=`/content/<id>`、original=`/original/<id>`，不加任何签名参数）；浮层内逐层跳转逐层改写地址。
+  - **连续换篇（#89 移动端上滑切下一篇）= `history.replaceState`** 原地改写顶层记录与 URL，不新增历史。
+  - **「深度+URL」单套语义**：≤5 层导航栈与浏览器历史一一对应（每层一条记录，写自有命名空间 state：会话 id/深度/contentId/zone/来源完整 URL；达五层不得写第六条记录）；Next App Router 对 `pushState/replaceState` 的包装层负责补齐其内部字段与 router canonicalUrl，浮层不手工伪造其私有字段。
+  - **返回（按钮/Esc）与浏览器返回归并**：统一经 `history.back()` 触发同一个 popstate，按目标记录深度绝对对齐（支持 `history.go(-n)` 多步回退、快速连按、动画重入）；栈底后退 = 关浮窗回来源原位。
+  - **×/背板 = 全退**：一次 `history.go(-depth)` 退回会话来源记录；来源页 query/hash、滚动位置与焦点原样恢复；背景列表不卸载。
+  - **错误历史语义**：loading/403/404/429/error 各态保持当前内容规范 URL，重试不制造额外历史；关闭一律回来源记录。
+  - **刷新/新标签/分享/forward 到旧详情记录** = 规范路径宿主页直开（`/content/<id>`、`/original/<id>` 两条路由承载；forward 落在已关闭浮层的历史记录上时由全局接管者 replace 导航到该记录规范宿主页，地址与可见内容一致，不恢复已销毁组件的媒体状态）。
+  - **不引入拦截路由（Intercepting Routes）重构**：浮层继续作为宿主页之上的共享组件，宿主直开与浮层深链共用同一规范 URL 空间。
 
 **Playwright 截图检查点（#64 Testing Decision 17 权威；D1 #858 更新）**
 - `screenshots/overlay-shared-motion-open.png` / `overlay-shared-motion-close.png`：可测量 source 下开合几何。
