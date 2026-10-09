@@ -126,7 +126,8 @@ test("anonymous home shows deduped and capped local recent visits", async ({ pag
     { id: 7, name: "云端花园" },
   ]);
 
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，最近访问侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
 
   const links = recentLinks(page);
   await expect(links).toHaveCount(6);
@@ -165,7 +166,8 @@ test("signed-in recent list reads account history and the merge clears acknowled
     { id: 3, name: "已下架作品" },
   ]);
 
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，最近访问侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
 
   await expect(page.getByText("最近访问 IP")).toBeVisible();
   await expect.poll(() => mergeCalls.length).toBeGreaterThanOrEqual(1);
@@ -193,7 +195,8 @@ test("merge failure retains local records until a retry succeeds", async ({ page
   await page.setViewportSize({ width: 1280, height: 800 });
   await seedRecentIps(page, [{ id: 1, name: "星尘" }]);
 
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，最近访问侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
   await expect.poll(async () => localRecentIps(page)).toBe(JSON.stringify([{ id: 1, name: "星尘" }]));
 
   mergeMode = "ok";
@@ -210,7 +213,8 @@ test("signed-in recent list stays visible on mobile", async ({ page }) => {
     { id: 2, name: "觉醒者" },
   ]);
 
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，最近访问侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
 
   await expect(recentLinks(page)).toHaveCount(2);
   await expect(recentLinks(page).first()).toBeVisible();

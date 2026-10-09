@@ -3074,5 +3074,186 @@
     "imageUploading": "Uploading image…",
     "imageUploadFailed": "Image upload failed, please retry",
     "imageDisabled": "Images are not supported here"
+  },
+  "landing": {
+    "metaTitle": "OmniCraft · A creative-sharing platform for everyone",
+    "metaDescription": "Fan fiction, illustration, mods, music, worldbuilding — publish any kind of work and meet people who love it too.",
+    "nav": {
+      "surfaces": "Pages",
+      "mechanics": "Features",
+      "showcase": "Showcase",
+      "login": "Log in / Sign up",
+      "enter": "Enter community"
+    },
+    "hero": {
+      "kicker": "OMNICRAFT · A CREATIVE-SHARING PLATFORM FOR EVERYONE",
+      "titleA": "For the IPs you grew up with, share",
+      "titleEm": "every kind of love",
+      "titleB": ".",
+      "sub": "Fan fiction, illustration, mods, music, worldbuilding — publish any kind of work and meet people who love it too.",
+      "enter": "Enter the community",
+      "ai": "Try the AI assistant"
+    },
+    "surfaces": {
+      "kicker": "SURFACES · 02",
+      "title": "Three places for your whole creative life",
+      "hint": "Hover to preview · Click to enter · Tap to enlarge"
+    },
+    "panes": {
+      "enter": "Enter →",
+      "original": {
+        "name": "Originals",
+        "desc": "Browse original works by category — art, writing, music, worldbuilding — and follow creators' series.",
+        "go": "Browse originals →"
+      },
+      "fanworks": {
+        "name": "Fan works",
+        "desc": "Follow the IPs you love — comics, fanfic, mods and sheet music, all in one feed.",
+        "go": "Browse fan works →"
+      },
+      "agent": {
+        "name": "AI assistant",
+        "desc": "Ask it anything on the site — every answer cites its sources. No account needed.",
+        "go": "Try it now →",
+        "chathead": "AI assistant · Site Q&A",
+        "input": "Ask anything about the site…",
+        "send": "Send"
+      }
+    },
+    "mechanics": {
+      "kicker": "MECHANICS · 03",
+      "title": "Beyond creating, four more ways in",
+      "pr": {
+        "tag": "PULL REQUEST",
+        "title": "Fan-work submissions",
+        "sub": "Great fan works can be merged into the original"
+      },
+      "judge": {
+        "tag": "CYBER JUDGE",
+        "title": "Cyber judges",
+        "sub": "Disputed content? The community votes"
+      },
+      "collections": {
+        "tag": "COLLECTIONS",
+        "title": "Collections & series",
+        "sub": "Save favorites into collections and follow along"
+      },
+      "allMedia": {
+        "tag": "ALL MEDIA",
+        "title": "All media types",
+        "sub": "Not just images and text — mods, sheet music, 3D too"
+      }
+    },
+    "showcase": {
+      "kicker": "SHOWCASE · 04",
+      "title": "Featured works",
+      "lead": "Real content from the community, live right now.",
+      "zoneFanwork": "Fan work",
+      "zoneOriginal": "Original",
+      "moreIps": "Browse all IP hubs →"
+    },
+    "cta": {
+      "kicker": "START · 05",
+      "title": "The workshop is open",
+      "sub": "Browse everything without an account — start with the AI assistant anytime.",
+      "enter": "Enter community",
+      "ai": "Try the AI assistant",
+      "register": "Sign up / Log in"
+    },
+    "dots": {
+      "hero": "Home",
+      "surfaces": "Pages",
+      "mechanics": "Features",
+      "showcase": "Showcase",
+      "cta": "Start"
+    },
+    "demo": {
+      "surfaces": {
+        "catAll": "All",
+        "catIllust": "Illustration",
+        "catText": "Writing",
+        "catMusic": "Music",
+        "catSetting": "Worldbuilding",
+        "o1t": "Mountain Marks · Print Series No.7",
+        "o1m": "Illustration · ♥ 412",
+        "o2t": "City Lights Field Notes",
+        "o2m": "Writing · ♥ 268",
+        "o3t": "Untitled Suite: Before the Rain",
+        "o3m": "Music · ♥ 190",
+        "o4t": "Indie Worldbuilding Compendium Vol.2",
+        "o4m": "Worldbuilding · ♥ 833",
+        "o5t": "Flora Atlas: Ode to Arabidopsis",
+        "o5m": "Illustration · ♥ 355",
+        "o6t": "Scavenger's Night OST",
+        "o6m": "Music · ♥ 659",
+        "ipAll": "All",
+        "ip1": "Star Rail",
+        "ip2": "Mo Dao Zu Shi",
+        "ip3": "Genshin",
+        "ip4": "Lord of Mysteries",
+        "f1t": "Sharingan Pixel Icon Pack",
+        "f1m": "♥ 659",
+        "f2t": "Three Days in Gusu · Fanfic",
+        "f2m": "♥ 3.1k",
+        "f3t": "Hero Lines Remix",
+        "f3m": "♥ 512",
+        "f4t": "Sash Diary · Comic #14",
+        "f4m": "♥ 2.4k",
+        "f5t": "Sheet Music: WangXian",
+        "f5m": "♥ 1.7k",
+        "f6t": "Little Western Paradise Redraw",
+        "f6m": "♥ 1.9k",
+        "f7t": "Village Survival Mod v2.3",
+        "f7m": "↓ 4.5k",
+        "f8t": "Canyon Seasons · Illustrations Vol.3",
+        "f8m": "♥ 1.2k",
+        "f9t": "Skill Data Visualized",
+        "f9m": "♥ 756",
+        "chatQ": "Who are the members of the Tarot Club in Lord of Mysteries?",
+        "chatA": "The Tarot Club was founded by The Fool, Klein — early members include Justice Audrey and The Hanged Man Alger…",
+        "cite1": "[1] IP entry · Lord of Mysteries",
+        "cite2": "[2] Entry · Tarot Club"
+      },
+      "mechanics": {
+        "prStep1t": "Submit changes",
+        "prStep1s": "Fan-work author",
+        "prStep2t": "Original author reviews",
+        "prStep2s": "Line-by-line diff",
+        "prStep3t": "Merged into the original",
+        "prStep3s": "Work updated",
+        "prFile": "Mist Mountain Gospel Ch.4 · fan submission received",
+        "prLine1": "  Lanterns lit up one by one in the night.",
+        "prLine2": "+ Snow fell on Mist Mountain all night; no one saw it.",
+        "prLine3": "+ He said: “When the snow stops, I'll go home.”",
+        "prMerged": "✓ Merged · readers can see it now",
+        "jjTitle": "Fan comic Sash Diary #14",
+        "jjReport": "Reported · pending community verdict",
+        "jjVoting": "Judge vote in progress",
+        "jjNo": "Violation",
+        "jjYes": "No violation",
+        "jjVerdict": "Verdict: no violation · content stays",
+        "clPool": "Works you just found",
+        "clChip1": "Comic Sash Diary",
+        "clChip2": "Sheet Music: WangXian",
+        "clChip3": "Village Survival Mod",
+        "clBox": "Collection “Naruto Fan Picks”",
+        "clCount1": "1 item",
+        "clCount2": "2 items",
+        "clCount3": "3 items",
+        "meTab1": "Comics",
+        "meTab2": "Mods",
+        "meTab3": "Sheet music",
+        "meTab4": "3D models",
+        "meCard1t": "Comic Sash Diary",
+        "meCard1m": "Comics · ♥ 2.4k",
+        "meCard2t": "Village Survival Mod v2.3",
+        "meCard2m": "Mod · ↓ 4.5k",
+        "meCard3t": "Sheet Music: WangXian",
+        "meCard3m": "Sheet music · ♥ 1.7k",
+        "meCard4t": "Sharingan 3D Figure",
+        "meCard4m": "3D · ♥ 659"
+      }
+    },
+    "foot": "© 2026 OmniCraft"
   }
 }

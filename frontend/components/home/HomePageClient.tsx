@@ -33,6 +33,9 @@ interface HomePageClientProps {
   initialContents: ContentCardData[];
   /** SSR 首屏 total（判尽用；与 initialContents 同签名 = 默认筛选态）。 */
   initialContentTotal: number | null;
+  /** T1 #853：SSR 首屏是否真的可用（false = 客户端加载，与筛选重挂同路径；
+   *  缺省 true 保持既有调用语义）。 */
+  ssrFirstPage?: boolean;
 }
 
 interface IPResponse { ips: IPItem[] }
@@ -56,7 +59,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   other: <Tag className="h-4 w-4" />,
 };
 
-export function HomePageClient({ apiBase, initialIPs, initialContents, initialContentTotal }: HomePageClientProps) {
+export function HomePageClient({ apiBase, initialIPs, initialContents, initialContentTotal, ssrFirstPage = true }: HomePageClientProps) {
   const t = useTranslations();
   const { user, ipHistoryVersion } = useAuth();
   const [recentIPs, setRecentIPs] = useState<RecentIPItem[]>([]);
@@ -279,7 +282,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents, initialCo
             contentType={contentType}
             contentSort={contentSort}
             initialPage={
-              contentType === "" && contentSort === "hot"
+              ssrFirstPage && contentType === "" && contentSort === "hot"
                 ? { items: initialContents, total: initialContentTotal }
                 : null
             }
