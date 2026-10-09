@@ -3074,5 +3074,186 @@
     "imageUploading": "图片上传中…",
     "imageUploadFailed": "图片上传失败，请重试",
     "imageDisabled": "当前场景不支持插入图片"
+  },
+  "landing": {
+    "metaTitle": "万象工坊 · 全民创意分享平台",
+    "metaDescription": "写同人、画插画、做 Mod、谱曲、写设定——全品类创作发布，遇见同好。",
+    "nav": {
+      "surfaces": "三大页面",
+      "mechanics": "玩法",
+      "showcase": "陈列",
+      "login": "登录 / 注册",
+      "enter": "进入社区"
+    },
+    "hero": {
+      "kicker": "OMNICRAFT · 全民创意分享平台",
+      "titleA": "在这里，分享你对 IP 的",
+      "titleEm": "每一种热爱",
+      "titleB": "。",
+      "sub": "写同人、画插画、做 Mod、谱曲、写设定——全品类创作发布，遇见同好。",
+      "enter": "进入社区",
+      "ai": "体验 AI 助手"
+    },
+    "surfaces": {
+      "kicker": "SURFACES · 02",
+      "title": "三个地方，装下全部创作生活",
+      "hint": "悬停预览 · 点击进入 · 触屏轻点放大"
+    },
+    "panes": {
+      "enter": "进入 →",
+      "original": {
+        "name": "原创区",
+        "desc": "插画、文字、音乐、设定——按分类逛原创作品，还能追作者的连载。",
+        "go": "逛原创区 →"
+      },
+      "fanworks": {
+        "name": "二创区",
+        "desc": "围绕你喜欢的 IP 追更——条漫、同人文、Mod、琴谱，全在一个瀑布流里。",
+        "go": "逛二创区 →"
+      },
+      "agent": {
+        "name": "AI 助手",
+        "desc": "问它站内任何事，回答都带可点开的出处；不用登录，进来就能聊。",
+        "go": "体验 AI 助手 →",
+        "chathead": "AI 助手 · 站内问答",
+        "input": "问它任何站内的问题…",
+        "send": "发送"
+      }
+    },
+    "mechanics": {
+      "kicker": "MECHANICS · 03",
+      "title": "创作之外，还有四种打开方式",
+      "pr": {
+        "tag": "PULL REQUEST",
+        "title": "二创投稿",
+        "sub": "二创做得好，原作者可直接合入"
+      },
+      "judge": {
+        "tag": "CYBER JUDGE",
+        "title": "赛博判官",
+        "sub": "内容有争议？社区投票来裁决"
+      },
+      "collections": {
+        "tag": "COLLECTIONS",
+        "title": "收藏集与系列",
+        "sub": "把喜欢的作品收进合集追更"
+      },
+      "allMedia": {
+        "tag": "ALL MEDIA",
+        "title": "全品类创作",
+        "sub": "不止图文，Mod、乐谱、3D 也能发"
+      }
+    },
+    "showcase": {
+      "kicker": "SHOWCASE · 04",
+      "title": "精选陈列",
+      "lead": "站内此刻的真实内容，来自社区创作者。",
+      "zoneFanwork": "二创",
+      "zoneOriginal": "原创",
+      "moreIps": "浏览全部 IP 库 →"
+    },
+    "cta": {
+      "kicker": "START · 05",
+      "title": "工坊已经开门了",
+      "sub": "不用注册就能逛全部内容；想用 AI 助手，随时开始。",
+      "enter": "进入社区",
+      "ai": "体验 AI 助手",
+      "register": "注册 / 登录"
+    },
+    "dots": {
+      "hero": "首页",
+      "surfaces": "三大页面",
+      "mechanics": "特色玩法",
+      "showcase": "精选陈列",
+      "cta": "开始"
+    },
+    "demo": {
+      "surfaces": {
+        "catAll": "全部",
+        "catIllust": "插画",
+        "catText": "文字",
+        "catMusic": "音乐",
+        "catSetting": "设定",
+        "o1t": "山痕 · 版画系列 No.7",
+        "o1m": "插画 · ♥ 412",
+        "o2t": "城市夜灯 观察手记",
+        "o2m": "文字 · ♥ 268",
+        "o3t": "无题组曲：雨前",
+        "o3m": "音乐 · ♥ 190",
+        "o4t": "独立世界观设定集 Vol.2",
+        "o4m": "设定 · ♥ 833",
+        "o5t": "植物图鉴：拟南芥之诗",
+        "o5m": "插画 · ♥ 355",
+        "o6t": "拾荒者之夜 OST",
+        "o6m": "音乐 · ♥ 659",
+        "ipAll": "全部",
+        "ip1": "星穹铁道",
+        "ip2": "魔道祖师",
+        "ip3": "原神",
+        "ip4": "诡秘之主",
+        "f1t": "写轮眼像素图标包",
+        "f1m": "♥ 659",
+        "f2t": "姑苏三日 · 同人长文",
+        "f2m": "♥ 3.1k",
+        "f3t": "英雄台词混音 REMIX",
+        "f3m": "♥ 512",
+        "f4t": "混天绫日记 · 条漫#14",
+        "f4m": "♥ 2.4k",
+        "f5t": "琴谱《忘羡》附指法",
+        "f5m": "♥ 1.7k",
+        "f6t": "小西天 · 概念重绘",
+        "f6m": "♥ 1.9k",
+        "f7t": "忍者村生存 Mod v2.3",
+        "f7m": "↓ 4.5k",
+        "f8t": "峡谷四季 · 插画 Vol.3",
+        "f8m": "♥ 1.2k",
+        "f9t": "「荣耀」技能可视化",
+        "f9m": "♥ 756",
+        "chatQ": "「诡秘之主」里塔罗会的成员都有谁？",
+        "chatA": "塔罗会由「愚者」克莱恩创立，初期成员包括「正义」奥黛丽、「倒吊人」阿尔杰……",
+        "cite1": "[1] IP 条目 · 诡秘之主",
+        "cite2": "[2] 词条 · 塔罗会"
+      },
+      "mechanics": {
+        "prStep1t": "提交改动",
+        "prStep1s": "同人作者",
+        "prStep2t": "原作者审阅",
+        "prStep2s": "逐行看 diff",
+        "prStep3t": "合入正传",
+        "prStep3s": "作品更新",
+        "prFile": "《雾山福音》第 4 章 · 收到同人提交",
+        "prLine1": "　夜色里，灯笼次第亮起。",
+        "prLine2": "+ 雾山的雪落了整夜，没人看见。",
+        "prLine3": "+ 他说：「等雪停，就回家。」",
+        "prMerged": "✓ 已合入 · 读者现在就能看到",
+        "jjTitle": "同人条漫《混天绫日记》#14",
+        "jjReport": "收到举报 · 待社区裁决",
+        "jjVoting": "判官投票进行中",
+        "jjNo": "违规",
+        "jjYes": "无违规",
+        "jjVerdict": "判定：无违规 · 内容保留",
+        "clPool": "刚看到的好作品",
+        "clChip1": "条漫《混天绫日记》",
+        "clChip2": "琴谱《忘羡》",
+        "clChip3": "忍者村生存 Mod",
+        "clBox": "收藏集「火影同人精选」",
+        "clCount1": "1 件",
+        "clCount2": "2 件",
+        "clCount3": "3 件",
+        "meTab1": "图文",
+        "meTab2": "Mod",
+        "meTab3": "乐谱",
+        "meTab4": "3D 模型",
+        "meCard1t": "条漫《混天绫日记》",
+        "meCard1m": "图文 · ♥ 2.4k",
+        "meCard2t": "忍者村生存 Mod v2.3",
+        "meCard2m": "Mod · ↓ 4.5k",
+        "meCard3t": "琴谱《忘羡》附指法",
+        "meCard3m": "乐谱 · ♥ 1.7k",
+        "meCard4t": "写轮眼 3D 手办模型",
+        "meCard4m": "3D · ♥ 659"
+      }
+    },
+    "foot": "© 2026 OmniCraft 万象工坊"
   }
 }

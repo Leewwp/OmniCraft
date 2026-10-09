@@ -22,7 +22,8 @@ test.describe("shared sort control across zones (#72)", () => {
     await mockPublicApis(page);
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    for (const route of ["/", "/original", "/ips"]) {
+    /* T1 #853：匿名 `/` 已是访客落地页，二创区断言面改指公开 /fanworks。 */
+    for (const route of ["/fanworks", "/original", "/ips"]) {
       await page.goto(route);
       const trigger = page.getByRole("combobox", { name: "排序方式" });
       await expect(trigger).toBeVisible();
@@ -86,7 +87,8 @@ test.describe("shared sort control across zones (#72)", () => {
       route.fallback();
     });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/");
+    /* T1 #853：匿名 `/` 已是访客落地页，二创区请求断言改在 /fanworks 观察。 */
+    await page.goto("/fanworks");
     const trigger = page.getByRole("combobox", { name: "排序方式" });
     await expect(trigger).toHaveText(/最热门/);
 

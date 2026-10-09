@@ -112,11 +112,12 @@ export function Header() {
             {t("nav.recommend")}
           </Link>
           <Link
-            href="/"
-            aria-current={pathname === "/" ? "page" : undefined}
+            href={user ? "/" : "/fanworks"}
+            aria-current={pathname === "/" || pathname === "/fanworks" ? "page" : undefined}
+            data-testid="header-fanworks-entry"
             className={cn(
               "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
-              pathname === "/" && "font-semibold text-foreground after:opacity-100",
+              (pathname === "/" || pathname === "/fanworks") && "font-semibold text-foreground after:opacity-100",
             )}
           >
             {t("nav.fanworkZone")}
@@ -373,12 +374,12 @@ export function Header() {
                 {t("nav.recommend")}
               </Link>
               <Link
-                href="/"
-                aria-current={pathname === "/" ? "page" : undefined}
+                href={user ? "/" : "/fanworks"}
+                aria-current={pathname === "/" || pathname === "/fanworks" ? "page" : undefined}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
                   "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring",
-                  pathname === "/" && "bg-accent-subtle font-semibold text-accent-emphasis",
+                  (pathname === "/" || pathname === "/fanworks") && "bg-accent-subtle font-semibold text-accent-emphasis",
                 )}
               >
                 {t("nav.fanworkZone")}

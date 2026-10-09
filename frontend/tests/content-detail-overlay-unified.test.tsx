@@ -468,10 +468,14 @@ test("derivatives list leaves the related block and joins the recommendation sec
     false,
     "derivatives no longer sit in the pre-comment related block",
   );
-  assert.ok(
-    recommendations.textContent?.includes("Derivative One"),
-    "derivatives render in the post-comment recommendation section",
-  );
+  /* 衍生列表由层内 related 数据经 DeferredMount + RelatedContents 两级异步落定，
+     与下方 Similar One 同 idiom：等落定再断言（CI 负载下同步断言实测竞态）。 */
+  await waitFor(() => {
+    assert.ok(
+      recommendations.textContent?.includes("Derivative One"),
+      "derivatives render in the post-comment recommendation section",
+    );
+  });
   /* 相似行为异步拉取（RelatedContents 挂载后请求 list 合同），等落定再断言。 */
   await waitFor(() => {
     assert.ok(
@@ -538,7 +542,11 @@ test("mobile (<960) keeps the single-column contract: header, inline media, side
   const dialog = view.getByRole("dialog") as HTMLElement;
   assert.ok(dialog.querySelector("header"), "mobile keeps the header toolbar (back/close/title)");
   assert.ok(!document.querySelector('[data-slot="variant-media-pane"]'), "no media pane on mobile");
-  assert.ok(document.querySelector("aside"), "ContentSidebar stays in the mobile tree");
+  /* 移动侧栏经 DeferredMount 延后一拍（双 rAF + startTransition，挂载前渲染
+     null）——同步断言在 CI 负载下实测竞态，等落定再断言。 */
+  await waitFor(() => {
+    assert.ok(document.querySelector("aside"), "ContentSidebar stays in the mobile tree");
+  });
   assert.ok(document.querySelector('[data-slot="overlay-scroller"]'), "single column scrolls in overlay-scroller");
   /* 行内画廊（detail-cover 行内锚点）存在于单列流。 */
   const inlineCover = document.querySelector('[data-slot="overlay-scroller"] [data-slot="detail-cover"]');

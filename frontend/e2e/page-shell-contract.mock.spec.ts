@@ -74,12 +74,13 @@ test.describe("unified page shell (#66)", () => {
     }
   });
 
-  test("filter selected states use the colored pill contract with aria-pressed on /, /original and /ips", async ({ page }) => {
+  test("filter selected states use the colored pill contract with aria-pressed on /fanworks, /original and /ips", async ({ page }) => {
     await mockPublicApis(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.evaluate(() => document.documentElement.classList.remove("dark"));
 
-    await page.goto("/");
+    /* T1 #853：匿名 `/` 已是访客落地页，筛选 pill 断言面改指 /fanworks。 */
+    await page.goto("/fanworks");
     let active = page.getByRole("button", { name: /全部/, pressed: true }).first();
     await expect(active).toBeVisible();
     await expect(active).toHaveCSS("border-radius", "9999px");
@@ -119,7 +120,8 @@ test.describe("unified page shell (#66)", () => {
     await mockPublicApis(page);
     await page.setViewportSize({ width: 375, height: 844 });
 
-    for (const route of ["/", "/original", "/ips", "/recommend"]) {
+    /* T1 #853：匿名 `/` 已是访客落地页，壳面溢出断言路由表改指 /fanworks。 */
+    for (const route of ["/fanworks", "/original", "/ips", "/recommend"]) {
       await page.goto(route);
       const hasOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
