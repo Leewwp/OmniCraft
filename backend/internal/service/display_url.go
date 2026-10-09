@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -19,29 +20,48 @@ import (
 const defaultDisplayURLTTLSec = 3600
 
 // defaultDisplayAttachmentTTLSec is the #813 independent minute-level budget
-// for content-attachment display signing (decision ①): preview families
-// (image / video / sheet_music) are signed on a channel separate from the
-// generic display budget above, so an AllowCopy=false exposure window stays
-// minute-level. Anonymous detail responses cache for at most 60s, so the
-// cache never outlives the signature. Configurable via
-// oss.display_attachment_ttl_sec (1..3600).
+// for content-attachment display signing (decision ①): preview-eligible
+// attachments are signed on a channel separate from the generic display
+// budget above, so an AllowCopy=false exposure window stays minute-level.
+// Anonymous detail responses cache for at most 60s, so the cache never
+// outlives the signature. Configurable via oss.display_attachment_ttl_sec
+// (1..3600).
 const defaultDisplayAttachmentTTLSec = 300
 
-// displayAttachmentFamilies is the #813 attachment-family whitelist (audit
-// #5): only preview-consumed families get signed display URLs. File-delivery
-// families (mod / text / document / audio / model3d) are delivered
-// exclusively through the download gate (AllowCopy + malicious-archive scan
-// + PAT download scope) — their oss_url stays empty everywhere.
-var displayAttachmentFamilies = map[string]bool{
-	"image":       true,
-	"video":       true,
-	"sheet_music": true, // SheetMusicViewer in-page preview (musicxml/midi/pdf)
-}
-
-// isDisplayAttachmentFamily reports whether an attachment family belongs to
-// the display/preview whitelist (#813 audit #5 + decision ①).
-func isDisplayAttachmentFamily(fileType string) bool {
-	return displayAttachmentFamilies[strings.TrimSpace(fileType)]
+// attachmentDisplayEligible is the unified attachment-level admission test for
+// the signed display channel (#861, spec §9.5). It deliberately widens the
+// #813 family whitelist (audit #5 + decision ①), which had narrowed signing
+// to image/video/sheet_music: back then mod/text/document/audio/model3d had
+// no preview consumer, so signing them was pure exposure surface. The unified
+// detail media column makes preview an actual consumer for those families,
+// which is what justifies re-admitting them to the same short-TTL channel
+// under the unchanged scan gate:
+//
+//   - whole families admitted: image / video / sheet_music (unchanged) +
+//     audio / model3d / document (new);
+//   - the text family is admitted ONLY for PDF, decided by the PERSISTED MIME
+//     alone — the normalized media type must equal application/pdf (case and
+//     parameter tolerant). An empty MIME, text/plain, or a ".pdf" file name
+//     without a pdf MIME never qualifies: request-supplied names, extensions
+//     and MIME are never trusted, and legacy rows without persisted metadata
+//     keep the download entry (no gate bypass);
+//   - mod never joins: it has no preview semantics (download gate only);
+//     plain-text stays on the download row the same way.
+//
+// allowCopy semantics (Q12, accepted): a signed preview URL can fetch the
+// original bytes — the same treatment sheet_music already had. The formal
+// download API's auth, allow_copy, PAT scope, scanning and counting are
+// unchanged.
+func attachmentDisplayEligible(fileType, mimeType string) bool {
+	switch strings.TrimSpace(fileType) {
+	case "image", "video", "sheet_music", "audio", "model3d", "document":
+		return true
+	case "text":
+		mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(mimeType))
+		return err == nil && mediaType == "application/pdf"
+	default:
+		return false
+	}
 }
 
 // isQuarantineObjectKey reports whether an OSS key lives under the quarantine
@@ -153,21 +173,23 @@ func (s *DisplayURLSigner) SignURL(rawURL string) string {
 	return signed
 }
 
-// AttachmentURL derives the signed display URL for an attachment object key
-// on the #813 independent short-TTL channel (decision ①). Only the
-// display/preview families (image / video / sheet_music) are signed — file
-// delivery families and quarantine keys return "" so the transient oss_url
-// field stays absent and delivery stays exclusive to the download gate.
-// Without a delivery domain there is no canonical display URL to present, so
-// it also returns "" instead of leaking a bare oss_key into an img src.
-func (s *DisplayURLSigner) AttachmentURL(ossKey, fileType string) string {
+// AttachmentURL derives the signed display URL for an attachment on the #813
+// independent short-TTL channel (decision ①). Admission is the unified
+// attachment-level eligibility (#861): the persisted family plus the
+// persisted MIME (for the conditional text family) decide — never metadata
+// supplied by the current request. Ineligible attachments and quarantine
+// keys return "" so the transient oss_url field stays absent and delivery
+// stays exclusive to the download gate. Without a delivery domain there is
+// no canonical display URL to present, so it also returns "" instead of
+// leaking a bare oss_key into an img src.
+func (s *DisplayURLSigner) AttachmentURL(att model.ContentAttachment) string {
 	if s == nil {
 		return ""
 	}
-	if !isDisplayAttachmentFamily(fileType) {
+	if !attachmentDisplayEligible(att.FileType, att.MimeType) {
 		return ""
 	}
-	return s.signAttachmentURL(ossKey, int(s.attachmentTTL.Seconds()))
+	return s.signAttachmentURL(att.OSSKey, int(s.attachmentTTL.Seconds()))
 }
 
 // DecorateIP signs the IP cover and the nested creator avatar in place. The
@@ -222,16 +244,20 @@ func (s *DisplayURLSigner) DecorateContents(items []model.ContentItem) {
 }
 
 // DecorateAttachments fills the transient OSSURL field with a signed display
-// URL derived from the canonical OSSKey, which stays unchanged. #813 audit
-// #5: only the display/preview families are signed — file-delivery families
-// keep an empty OSSURL (the client renders the scan-state card and delivers
-// them through the download endpoint) and quarantine keys are never signed.
+// URL derived from the canonical OSSKey, which stays unchanged. Admission is
+// the unified attachment-level eligibility (#861): preview-eligible families
+// (image / video / sheet_music / audio / model3d / document, plus text rows
+// whose persisted MIME is application/pdf) get signed; everything else keeps
+// an empty OSSURL — the client renders the scan-state card and delivers the
+// file through the download endpoint — and quarantine keys are never signed.
+// The unconditional assignment also clears any stale OSSURL a caller may
+// have carried in on the struct.
 func (s *DisplayURLSigner) DecorateAttachments(attachments []model.ContentAttachment) {
 	if s == nil {
 		return
 	}
 	for i := range attachments {
-		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey, attachments[i].FileType)
+		attachments[i].OSSURL = s.AttachmentURL(attachments[i])
 	}
 }
 
@@ -242,8 +268,10 @@ func (s *DisplayURLSigner) DecorateAttachments(attachments []model.ContentAttach
 // download gate):
 //
 //   - gate == nil → legacy unconditional decorate (wirings without a gate);
-//   - #813 audit #5: the family whitelist runs FIRST — file-delivery
-//     families (mod / text / document / audio / model3d) and quarantine keys
+//   - #813 audit #5, widened by #861: the attachment-level eligibility runs
+//     FIRST — preview-eligible families (image / video / sheet_music / audio
+//     / model3d / document, plus text rows whose persisted MIME is
+//     application/pdf) may proceed; mod, plain text and metadata-less rows
 //     never receive a signed URL on any branch;
 //   - every surviving attachment passes RequireAttachmentClean (disabled
 //     flag → only the eternal quarantine-prefix rejection applies);
@@ -252,7 +280,7 @@ func (s *DisplayURLSigner) DecorateAttachments(attachments []model.ContentAttach
 //   - admitted scannable-family attachments sign with the scan-aware short
 //     TTL (cap 300s) and NO bucket alignment, so a re-scan that turns an
 //     attachment blocked leaves at most the scan TTL of exposure (v2.2 #1);
-//   - non-scannable display families sign on the #813 independent
+//   - non-scannable eligible attachments sign on the #813 independent
 //     minute-level attachment channel (decision ①).
 func (s *DisplayURLSigner) ScanAwareDecorateAttachments(ctx context.Context, attachments []model.ContentAttachment, gate *ArchiveScanGate, scanTTLSec int) {
 	if s == nil {
@@ -263,7 +291,7 @@ func (s *DisplayURLSigner) ScanAwareDecorateAttachments(ctx context.Context, att
 		return
 	}
 	for i := range attachments {
-		if !isDisplayAttachmentFamily(attachments[i].FileType) {
+		if !attachmentDisplayEligible(attachments[i].FileType, attachments[i].MimeType) {
 			attachments[i].OSSURL = ""
 			continue
 		}
@@ -275,7 +303,7 @@ func (s *DisplayURLSigner) ScanAwareDecorateAttachments(ctx context.Context, att
 			attachments[i].OSSURL = s.signAttachmentURL(attachments[i].OSSKey, gate.ScannablePreviewTTLSec(scanTTLSec))
 			continue
 		}
-		attachments[i].OSSURL = s.AttachmentURL(attachments[i].OSSKey, attachments[i].FileType)
+		attachments[i].OSSURL = s.AttachmentURL(attachments[i])
 	}
 }
 
