@@ -163,9 +163,10 @@ export function HomePageClient({ apiBase, initialIPs, initialContents, initialCo
   ], [t, ipCategory, user, categoryCounts]);
 
   // Trending IPs (from top IPs)
+  /* #843：删两字文字头像块（原 ip.name.slice(0,2) 恒显字、从不读封面），
+   * 列表项只留排名+名称+简介；Sidebar avatar 槽为可选渲染（OriginalSidebar 先例）。 */
   const trendingEntries: TrendingEntry[] = ips.slice(0, 6).map((ip, i) => ({
     rank: i + 1,
-    avatar: <span>{ip.name.slice(0, 2)}</span>,
     name: ip.name,
     stat: `${ip.description || ""}`,
     href: `/ip/${ip.id}`,

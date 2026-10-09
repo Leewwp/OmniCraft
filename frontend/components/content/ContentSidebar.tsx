@@ -29,7 +29,8 @@ export interface RelatedCardEntry extends RelatedContentEntry {
 
 interface ContentSidebarProps {
   author?: AuthorInfo;
-  ip?: { id?: number; name?: string; slug?: string };
+  /** #846：cover_url = 后端挂载的 IP 摘要封面（签名 URL）；有图显图、无图显名称首两字。 */
+  ip?: { id?: number; name?: string; slug?: string; cover_url?: string };
   ipContentCount?: number;
   sourceOriginal?: { id: number; title: string } | null;
   relatedFanworksCount?: number;
@@ -167,8 +168,14 @@ export function ContentSidebar({
               {t('publish.linkIp')}
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-muted text-base font-bold text-muted-foreground">
-                {ip.name.slice(0, 2)}
+              {/* #846：有封面显签名图、无封面显名称首两字（IPCard 同款 fallback）。 */}
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-base font-bold text-muted-foreground">
+                {ip.cover_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={ip.cover_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                ) : (
+                  ip.name.slice(0, 2)
+                )}
               </div>
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-foreground">{ip.name}</div>

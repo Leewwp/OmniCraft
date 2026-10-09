@@ -8,6 +8,7 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Check, X, Loader2 } from "lucide-react";
 
 interface TagSuggestion {
@@ -21,13 +22,44 @@ interface TagSuggestion {
   created_at: string;
 }
 
+/* #844：我的内容下拉项（GET /users/me/contents，按标题选择，替手输数字 ID）。 */
+interface MyContentOption {
+  id: number;
+  title: string;
+}
+
 export default function TagSuggestionsPage() {
   const t = useTranslations();
   const { user } = useAuth();
   const [contentId, setContentId] = useState("");
+  const [myContents, setMyContents] = useState<MyContentOption[]>([]);
+  const [contentsLoading, setContentsLoading] = useState(true);
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<{ contents?: Array<{ id: number; title?: string }> }>(
+          "/api/v1/users/me/contents?page=1&page_size=100",
+        );
+        if (cancelled) return;
+        setMyContents(
+          (res.contents ?? []).map((c) => ({ id: c.id, title: c.title ?? `#${c.id}` })),
+        );
+      } catch (e) {
+        silentError(e, { component: "TagSuggestionsPage", action: "loadMyContents" });
+      } finally {
+        if (!cancelled) setContentsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const loadSuggestions = useCallback(async () => {
     const cid = parseInt(contentId, 10);
@@ -75,16 +107,34 @@ export default function TagSuggestionsPage() {
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">
-          {t("tagSuggestions.contentIdLabel")}
+          {t("tagSuggestions.myContentLabel")}
         </label>
-        <input
-          type="number"
-          value={contentId}
-          onChange={(e) => setContentId(e.target.value)}
-          placeholder={t("tagSuggestions.contentIdPlaceholder")}
-          className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus:ring-ring"
-        />
-        <Button size="sm" variant="outline" className="mt-2" onClick={loadSuggestions}>
+        {contentsLoading ? (
+          <p className="text-sm text-muted-foreground">{t("tagSuggestions.myContentLoading")}</p>
+        ) : myContents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("tagSuggestions.myContentEmpty")}</p>
+        ) : (
+          <div className="max-w-xs">
+            <Select
+              value={contentId}
+              onChange={(e) => setContentId(e.target.value)}
+            >
+              <option value="">{t("tagSuggestions.selectContentPlaceholder")}</option>
+              {myContents.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  #{c.id} {c.title}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          disabled={!contentId}
+          onClick={loadSuggestions}
+        >
           {t("tagSuggestions.refresh")}
         </Button>
       </div>
