@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { AlertCircle, FileQuestion, ShieldOff, Timer } from "lucide-react";
 import Link from "next/link";
@@ -50,6 +50,8 @@ interface ContentDetailOverlayLayerProps {
   motionHoldSrc?: string | null;
   /** #409 F1 入场落定标记：true 表示首帧保持与几何冻结可以解除。 */
   motionSettled?: boolean;
+  /** D2 #859：本层是否为顶层活动层（键盘翻页/媒体挂起矩阵只作用于顶层）。 */
+  active?: boolean;
 }
 
 type LayerStatus = "loading" | "default" | "forbidden" | "not-found" | "error" | "rate-limited";
@@ -79,6 +81,7 @@ export function ContentDetailOverlayLayer({
   onMotionReady,
   motionHoldSrc,
   motionSettled,
+  active = true,
 }: ContentDetailOverlayLayerProps) {
   const t = useTranslations();
   const [status, setStatus] = useState<LayerStatus>("loading");
@@ -107,10 +110,31 @@ export function ContentDetailOverlayLayer({
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
 
-  /* #397 全类型媒体链（真实媒体集 → 内容封面 → 自动文字封面）：cover_width/height
-     全库为 0，封面项须 Image 预加载实测 intrinsic 尺寸后再判朝向；实测完成前
-     ready=false（布局判定与入场转场等几何就绪，避免横竖误判/转场目标几何跳变）。 */
-  const { media: chainMedia, ready: chainReady } = useOverlayMedia(status === "default" ? detail : null);
+  /* #397 全类型媒体链（真实媒体集 → 内容封面 → 自动文字封面）：D2 #859 类型
+     分流——图片缺尺寸走 Image 规范变体探针、视频走 loadedmetadata 实测（失败
+     保留视频 URL）；实测在共享有界预算内结清（先于浮层 2s 入场保险），超时按
+     稳定 fallback 放行，迟到元数据由冻结窗口挡在入场动画外。 */
+  const { media: probedMedia, ready: chainReady } = useOverlayMedia(
+    status === "default" ? detail : null,
+  );
+
+  /* D2 #859：挂载视频 loadedmetadata 回填（探针失败/超时后的迟到修正）——
+     按附件 id 覆盖尺寸，入场落定后随 240ms 过渡平滑应用；换内容复位。 */
+  const [dimOverrides, setDimOverrides] = useState<Record<number, { width: number; height: number }>>({});
+  const chainMedia = useMemo(() => {
+    if (Object.keys(dimOverrides).length === 0) return probedMedia;
+    return probedMedia.map((item) => {
+      const override = dimOverrides[item.id];
+      return override ? { ...item, width: override.width, height: override.height } : item;
+    });
+  }, [probedMedia, dimOverrides]);
+  const handleMediaDimensions = useCallback((id: number, width: number, height: number) => {
+    setDimOverrides((prev) =>
+      prev[id]?.width === width && prev[id]?.height === height
+        ? prev
+        : { ...prev, [id]: { width, height } },
+    );
+  }, []);
 
   /* #409 F1 起跑前几何冻结（统一版式媒体列）：媒体列宽度由 ResizeObserver
      实测驱动（挂载期从百分比兜底到实测像素）；转场起跑须等首次实测到达
@@ -126,7 +150,10 @@ export function ContentDetailOverlayLayer({
   /* 状态离开 loading（default/forbidden/not-found/error）后触发一次入场转场；
      错误态没有封面几何，浮层会走居中缩淡降级。#397：default 态等媒体几何实测
      就绪（chainReady）再触发；#409 F1：统一版式再等媒体列首次实测
-     （paneMeasured）。网络悬挂由浮层 2s 保险定时器兜底。 */
+     （paneMeasured）。网络悬挂由浮层 2s 保险定时器兜底。
+     D2：motionStarted 标记入场转场起跑——冻结窗口 = 起跑→落定，起跑前壳层
+     opacity 0，媒体比例修正即时生效不可见；窗口内锁存起跑比例（零跳宽）。 */
+  const [motionStarted, setMotionStarted] = useState(false);
   const motionGate =
     status === "loading"
       ? false
@@ -137,6 +164,7 @@ export function ContentDetailOverlayLayer({
   useEffect(() => {
     if (!motionGate || motionFiredRef.current) return;
     motionFiredRef.current = true;
+    setMotionStarted(true);
     onMotionReadyRef.current?.();
   }, [motionGate]);
 
@@ -148,6 +176,7 @@ export function ContentDetailOverlayLayer({
     setRelatedTotal(0);
     setRelatedLoaded(false);
     setCoverReady(undefined);
+    setDimOverrides({});
 
     api
       .get(`/api/v1/contents/${entry.contentId}`)
@@ -469,8 +498,13 @@ export function ContentDetailOverlayLayer({
         media={chainMedia}
         onFirstMediaSettled={(state) => setCoverReady(state === "ready")}
         holdSrc={motionHoldSrc}
-        freezeGeometry={!motionSettled}
+        /* D2 #859 冻结窗口 = 入场转场起跑（motionStarted）→落定（motionSettled）：
+           起跑前比例修正即时生效（壳层 opacity 0 不可见），窗口内锁存起跑比例
+           零跳宽，落定后恢复 240ms 逐张过渡。 */
+        freezeGeometry={motionStarted && !motionSettled}
         onPaneMeasured={handlePaneMeasured}
+        active={active}
+        onMediaDimensions={handleMediaDimensions}
       >
         {statusBody}
       </OverlayVariantLayout>

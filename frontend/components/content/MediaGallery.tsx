@@ -50,12 +50,84 @@ const FOLDED_LONG_IMAGE_HEIGHT = "133.333cqw";
 const MOBILE_MEDIA_QUERY = "(max-width: 959px)";
 /** 滑动翻页/连续浏览位移阈值（px）。 */
 const SWIPE_THRESHOLD = 40;
-/** 视频 controls 条近似高度：点击该区域内不进入查看器。 */
+/** 视频 controls 条近似高度：点击该区域内不进入查看器/不切播（原生控件语义）。 */
 const VIDEO_CONTROLS_STRIP = 44;
 
 function clampIndex(value: number, length: number): number {
   if (!Number.isFinite(value) || length <= 0) return 0;
   return Math.min(Math.max(Math.floor(value), 0), length - 1);
+}
+
+function hasPositiveDimensions(item: MediaGalleryItem): boolean {
+  return Boolean(item.width && item.height && item.width > 0 && item.height > 0);
+}
+
+/** 浏览器策略可能拒绝 play()（jsdom 返回 undefined 同样防御）：失败静默，
+    controls 手动播放入口保留。 */
+function attemptPlay(video: HTMLVideoElement): void {
+  const attempt = video.play() as unknown as Promise<void> | undefined;
+  if (attempt && typeof attempt.catch === "function") {
+    attempt.catch(() => {
+      /* 自动播放被拒：用户可用 controls 手动播放。 */
+    });
+  }
+}
+
+/**
+ * 画廊视频位（D2 #859 移动路径同步修复，宿主详情页与浮层移动路径共用契约）：
+ * 活跃项 muted+playsInline 自动播放（浏览器策略内），非活跃项停播——任何时刻
+ * 至多一段声音；容器已按真实比例定型（附件正数尺寸）时 absolute 填满 contain
+ * （元数据到达前后容器几何不变，根除两段式），缺尺寸维持自然流（既有防御）。
+ */
+function GalleryVideo({
+  item,
+  active,
+  fillContainer,
+  mobileLayout,
+  onSettle,
+  videoRefCallback,
+}: {
+  item: MediaGalleryItem;
+  active: boolean;
+  fillContainer: boolean;
+  mobileLayout: boolean;
+  onSettle?: (state: "ready" | "error") => void;
+  videoRefCallback?: (element: HTMLVideoElement | null) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const setRefs = (element: HTMLVideoElement | null) => {
+    videoRef.current = element;
+    videoRefCallback?.(element);
+  };
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!active) {
+      video.pause();
+      return;
+    }
+    attemptPlay(video);
+  }, [active]);
+  return (
+    <video
+      ref={setRefs}
+      src={item.url}
+      controls
+      autoPlay={active}
+      muted
+      playsInline
+      preload="metadata"
+      poster={item.posterUrl}
+      className={cn(
+        "object-contain",
+        fillContainer
+          ? "absolute inset-0 h-full w-full"
+          : cn("w-full", mobileLayout ? "h-auto" : "h-full"),
+      )}
+      onLoadedMetadata={() => onSettle?.("ready")}
+      onError={() => onSettle?.("error")}
+    />
+  );
 }
 
 function itemAspectRatio(item: MediaGalleryItem): number {
@@ -135,6 +207,10 @@ export function selectMediaItems(
  * 最低占位 0.75×W；长图（h/w ≥ 16/9）初始顶部 3:4 折叠 + 「查看长图」就地
  * 展开（交页面/浮层主体滚动，不保留 70vh 内部滚动）；指示点 + 滑动/按钮翻页；
  * 展开状态按内容/图片身份隔离（换内容复位，同集内切回同图保持）。
+ * D2 #859 视频契约同步（移动路径与宿主详情页共用）：视频项有正数尺寸时容器
+ * 按真实比例定型（元数据前后几何不变，根除两段式）；活跃项 muted 自动播放、
+ * 非活跃停播（至多一段声音）；主体点击单次切播（controls 条除外），视频不进
+ * MediaViewer（全屏用控制条原生按钮），图片点击查看器契约不变。
  */
 export function MediaGallery({
   className,
@@ -157,6 +233,8 @@ export function MediaGallery({
   const firstSettledRef = useRef(false);
   const viewerTriggerRef = useRef<HTMLElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
+  /* D2 #859：视频位引用表（主体点击切播使用），随挂载/卸载维护。 */
+  const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
   /* #753 分端：matchMedia 缺失（测试环境）按移动语义渲染。 */
   const [mobileLayout, setMobileLayout] = useState(true);
   useEffect(() => {
@@ -196,24 +274,43 @@ export function MediaGallery({
 
   /* #753 几何：当前项决定。图片 = 自然比例 contain + 0.75W 最低占位；
      长图折叠态 = 顶部 3:4（高 4W/3）裁切 + 渐隐 + 展开按钮；展开态 = 高度
-     auto 交主体滚动。视频维持 w-full 自然比例（折叠规则不作用于视频）。 */
+     auto 交主体滚动。视频（D2 #859）：有正数尺寸时容器同按真实比例定型
+     （元数据到达前后几何不变，根除两段式）；缺尺寸维持自然流（既有防御）。 */
   const currentIsLongImage = isLongImage(current);
   const currentExpanded = Boolean(expandedIds[current.id]);
   const longImageCollapsed = mobileLayout && currentIsLongImage && !currentExpanded;
+  const currentHasDims = hasPositiveDimensions(current);
+  const currentRatio = itemAspectRatio(current);
+  const ratioStabilizesContainer = current.type === "image" || currentHasDims;
 
   function expandCurrent() {
     setExpandedIds((prev) => ({ ...prev, [current.id]: true }));
   }
 
+  /* D2 #859：视频主体点击 = 单次切换播放/暂停（controls 条 44px 内点击属原生
+     控件语义，不切播）；视频不再打开 MediaViewer（全屏用控制条原生按钮）；
+     图片点击进查看器契约不变。 */
   function handleMediaClick(event: React.MouseEvent<HTMLElement>) {
     if (current.type === "video") {
       const rect = event.currentTarget.getBoundingClientRect();
       if (rect.height > 0 && event.clientY > rect.bottom - VIDEO_CONTROLS_STRIP) return;
+      /* 同 OverlayVariantLayout（审查 N1）：全屏交还原生控件，主体点击
+         preventDefault 抑制 WebKit 默认 togglePlayState 双触发。 */
+      if (document.fullscreenElement) return;
+      event.preventDefault();
+      const video = videoRefs.current.get(current.id);
+      if (!video) return;
+      if (video.paused) {
+        attemptPlay(video);
+      } else {
+        video.pause();
+      }
+      return;
     }
     const targetIndex = clampIndex(index, items.length);
     viewerTriggerRef.current = event.currentTarget;
     // onOpenViewer 已由上层消费时交给上层（#88/#89 预留给双栏/连续浏览的入口），
-    // 未消费则内部自持状态渲染 MediaViewer（当前唯一消费方）。
+    // 未消费则内部自持状态渲染 MediaViewer（图片路径唯一入口）。
     if (onOpenViewer) {
       onOpenViewer(targetIndex);
       return;
@@ -284,8 +381,11 @@ export function MediaGallery({
   const containerStyle: React.CSSProperties = longImageCollapsed
     ? { height: FOLDED_LONG_IMAGE_HEIGHT }
     : mobileLayout && current.type === "image" && !currentExpanded
-      ? { aspectRatio: String(itemAspectRatio(current)), minHeight: MIN_CONTAINER_HEIGHT }
-      : { aspectRatio: current.type === "image" ? String(itemAspectRatio(current)) : undefined, maxHeight: "100%" };
+      ? { aspectRatio: String(currentRatio), minHeight: MIN_CONTAINER_HEIGHT }
+      : {
+          aspectRatio: ratioStabilizesContainer ? String(currentRatio) : undefined,
+          maxHeight: "100%",
+        };
   const firstIsLongImage = isLongImage(first);
 
   return (
@@ -405,18 +505,17 @@ export function MediaGallery({
                   )}
                 </>
               ) : (
-                <video
-                  src={item.url}
-                  controls
-                  preload="metadata"
-                  poster={item.posterUrl}
-                  className={cn("w-full object-contain", mobileLayout ? "h-auto" : "h-full")}
-                  onLoadedMetadata={() => {
-                    if (itemIndex === 0) settleFirstMedia("ready");
+                <GalleryVideo
+                  item={item}
+                  active={active}
+                  fillContainer={active && hasPositiveDimensions(item)}
+                  mobileLayout={mobileLayout}
+                  videoRefCallback={(element) => {
+                    if (element) videoRefs.current.set(item.id, element);
+                    else videoRefs.current.delete(item.id);
                   }}
-                  onError={() => {
-                    setFailed((prev) => ({ ...prev, [item.id]: true }));
-                    if (itemIndex === 0) settleFirstMedia("error");
+                  onSettle={(state) => {
+                    if (itemIndex === 0) settleFirstMedia(state);
                   }}
                 />
               )}

@@ -4,7 +4,7 @@ import React from "react";
 
 import { MediaGallery, selectMediaItems, type MediaGalleryItem } from "@/components/content/MediaGallery";
 import { normalizeAttachment, type AttachmentData } from "@/lib/content";
-import { act, cleanup, fireEvent, installDom, renderWithIntl } from "./runtime-test-helpers";
+import { act, cleanup, fireEvent, installDom, renderWithIntl, waitFor } from "./runtime-test-helpers";
 
 function makeItem(id: number, overrides: Partial<MediaGalleryItem> = {}): MediaGalleryItem {
   return {
@@ -60,9 +60,40 @@ function installDialogStubs() {
   };
 }
 
+/* D2 #859：画廊视频现在会发起真实 play()/pause() 调用——jsdom 原生未实现，
+   统一替换为同步翻转型桩（记录调用、翻转 paused），既消 notImplemented 噪声
+   又让切播断言可观测。 */
+interface MediaCall {
+  op: "play" | "pause";
+  src: string;
+}
+
+function installMediaElementStubs() {
+  const calls: MediaCall[] = [];
+  const proto = window.HTMLMediaElement.prototype as unknown as {
+    play: () => Promise<void>;
+    pause: () => void;
+  };
+  const setPaused = (el: HTMLMediaElement, value: boolean) => {
+    /* jsdom 的 paused 是只读 getter：用实例 defineProperty 影子覆写。 */
+    Object.defineProperty(el, "paused", { value, configurable: true, writable: true });
+  };
+  proto.play = function playStub(this: HTMLMediaElement) {
+    calls.push({ op: "play", src: this.getAttribute("src") ?? "" });
+    setPaused(this, false);
+    return Promise.resolve();
+  };
+  proto.pause = function pauseStub(this: HTMLMediaElement) {
+    calls.push({ op: "pause", src: this.getAttribute("src") ?? "" });
+    setPaused(this, true);
+  };
+  return calls;
+}
+
 test.beforeEach(() => {
   installDom();
   installDialogStubs();
+  installMediaElementStubs();
 });
 test.afterEach(() => cleanup());
 
@@ -354,17 +385,30 @@ test("MediaGallery invokes onOpenViewer on image click with the current index", 
   assert.deepEqual(opened, [0, 1]);
 });
 
-test("MediaGallery opens the viewer for video clicks outside the controls strip and self-opens without handler", () => {
+test("#859 video body click toggles playback and never opens the viewer (images keep the viewer entry)", async () => {
+  /* D2 视频行为：主体点击切播（jsdom rect=0 即在 controls 条区之外），
+     不再打开查看器（全屏用控制条原生按钮）。 */
+  const mediaCalls = installMediaElementStubs();
   const opened: number[] = [];
   const { container } = renderGallery({
     items: [makeItem(1, { type: "video" })],
     onOpenViewer: (index) => opened.push(index),
   });
-  fireEvent.click(container.querySelector("video") as Element);
-  assert.deepEqual(opened, [0], "jsdom rect is 0 so the click lands above the controls strip");
+  const video = container.querySelector("video");
+  assert.ok(video, "video element rendered");
+  await waitFor(() => assert.ok(mediaCalls.some((call) => call.op === "play")));
+  await act(async () => {
+    fireEvent.click(video);
+  });
+  assert.deepEqual(opened, [], "video body click must not open the viewer");
+  assert.equal(
+    mediaCalls[mediaCalls.length - 1]?.op,
+    "pause",
+    "body click toggled playback exactly once",
+  );
   cleanup();
 
-  // 无上层消费时（当前唯一路径）内部自持状态渲染 MediaViewer（#86）。
+  // 图片路径不回归：无上层消费时（当前唯一路径）内部自持状态渲染 MediaViewer（#86）。
   const noHandler = renderGallery({ items: [makeItem(1)] });
   fireEvent.click(noHandler.container.querySelector("img") as Element);
   assert.ok(
