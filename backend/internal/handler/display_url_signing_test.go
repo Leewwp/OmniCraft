@@ -308,3 +308,109 @@ func TestAdminPendingIPListSignsPlatformCoverURLs(t *testing.T) {
 	require.Len(t, payload.IPs, 1)
 	requireSignedDisplayURL(t, payload.IPs[0].CoverURL, pendingKey, "admin pending ip cover")
 }
+
+// signedAttachmentExpires parses the Expires query parameter off a signed
+// attachment display URL (unix seconds).
+func signedAttachmentExpires(t *testing.T, raw string) int64 {
+	t.Helper()
+	parsed, err := url.Parse(raw)
+	require.NoError(t, err)
+	expires, err := strconv.ParseInt(parsed.Query().Get("Expires"), 10, 64)
+	require.NoError(t, err, "Expires must be a unix timestamp")
+	return expires
+}
+
+// #861（D4 spec §9.5）：REST 详情装饰入口的新白名单 + 扫描门——audio/
+// model3d/document clean 附件拿到签名 oss_url（scannable 族走 scan-aware
+// TTL 通道），text-PDF 走 attachment TTL 通道；text/plain 与 pending 的
+// document 不签。两通道 TTL 差异化断言证明没有串道。
+func TestGetContentSignsExtendedPreviewFamiliesWithScanGate(t *testing.T) {
+	cfg := displaySigningConfig()
+	cfg.Features.ArchiveMalwareScanEnabled = true
+	cfg.ArchiveScan.URLTTLSec = 120
+	db := openDisplaySigningDB(t,
+		&model.User{}, &model.IP{}, &model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{},
+		&model.BrowseHistory{}, &model.ContentSeries{}, &model.ContentSeriesItem{},
+		&model.Collection{}, &model.CollectionItem{},
+	)
+	seedDisplaySigningUser(t, db, 51, "")
+	content := model.ContentItem{
+		ID:          61,
+		Title:       "extended preview families",
+		AuthorID:    51,
+		Zone:        "original",
+		Category:    "gaming",
+		ContentType: "document",
+		Status:      "published",
+		IsPublic:    true,
+		AllowCopy:   true,
+	}
+	require.NoError(t, db.Create(&content).Error)
+
+	seeds := []model.ContentAttachment{
+		{ContentItemID: 61, FileType: "document", OSSKey: "uploads/51/document/spec.docx",
+			MimeType:   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{ContentItemID: 61, FileType: "audio", OSSKey: "uploads/51/audio/theme.mp3",
+			MimeType: "audio/mpeg", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{ContentItemID: 61, FileType: "model3d", OSSKey: "uploads/51/model3d/part.stl",
+			MimeType: "application/octet-stream", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{ContentItemID: 61, FileType: "text", OSSKey: "uploads/51/text/spec.pdf",
+			MimeType: "application/pdf", ScanStatus: model.ScanStatusNotRequired},
+		{ContentItemID: 61, FileType: "text", OSSKey: "uploads/51/text/notes.txt",
+			MimeType: "text/plain", ScanStatus: model.ScanStatusNotRequired},
+		{ContentItemID: 61, FileType: "document", OSSKey: "uploads/51/document/pending.docx",
+			ScanStatus: model.ScanStatusPending, ScanRequired: true},
+	}
+	for i := range seeds {
+		require.NoError(t, db.Create(&seeds[i]).Error)
+	}
+
+	handler, _ := newContentHandlerForTest(db, cfg, nil)
+	router := gin.New()
+	router.GET("/api/v1/contents/:id", middleware.OptionalAuth(cfg, nil, db), handler.GetContent)
+
+	before := time.Now().Unix()
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/contents/61", nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var payload struct {
+		Attachments []struct {
+			FileType string `json:"file_type"`
+			MimeType string `json:"mime_type"`
+			OSSKey   string `json:"oss_key"`
+			OSSURL   string `json:"oss_url"`
+		} `json:"attachments"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	byKey := map[string]struct {
+		FileType string
+		MimeType string
+		OSSURL   string
+	}{}
+	for _, att := range payload.Attachments {
+		byKey[att.OSSKey] = struct {
+			FileType string
+			MimeType string
+			OSSURL   string
+		}{att.FileType, att.MimeType, att.OSSURL}
+	}
+
+	// scannable 新族：clean → scan-aware TTL 通道（此处配置 120s、无桶对齐）。
+	for _, key := range []string{"uploads/51/document/spec.docx", "uploads/51/audio/theme.mp3", "uploads/51/model3d/part.stl"} {
+		att, ok := byKey[key]
+		require.True(t, ok, "attachment %s missing from detail payload", key)
+		requireSignedDisplayURL(t, att.OSSURL, key, key)
+		require.InDelta(t, float64(before+120), float64(signedAttachmentExpires(t, att.OSSURL)), 2,
+			"scannable family %s must ride the scan-aware TTL channel", key)
+	}
+	// text-PDF：attachment TTL 通道（出厂 300s）。
+	textPdf := byKey["uploads/51/text/spec.pdf"]
+	requireSignedDisplayURL(t, textPdf.OSSURL, "uploads/51/text/spec.pdf", "text-pdf attachment")
+	require.InDelta(t, float64(before+300), float64(signedAttachmentExpires(t, textPdf.OSSURL)), 2,
+		"text-pdf must ride the attachment TTL channel (factory 300s)")
+	// 拒签行：text/plain 与 pending document 的 oss_url 缺席。
+	require.Empty(t, byKey["uploads/51/text/notes.txt"].OSSURL, "plain text must not receive a signed display URL")
+	require.Empty(t, byKey["uploads/51/document/pending.docx"].OSSURL, "pending scannable attachment must not be signed")
+}

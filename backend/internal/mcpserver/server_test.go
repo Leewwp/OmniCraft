@@ -217,9 +217,10 @@ func TestMCPServerFourReadOnlyTools(t *testing.T) {
 	})
 }
 
-// #813（审计 #5 + 决策①）：get_content 附件投影与 REST 展示策略对齐——
-// 展示/预览族（image / video / sheet_music）暴露分钟级短时效 oss_url；
-// 文件交付族（mod / text 等）仅元数据（无 oss_url 字段），一律经下载闸
+// #813（审计 #5 + 决策①）→ #861（D4 spec §9.5 有意放宽）：get_content 附件
+// 投影与 REST 展示策略对齐——预览资格附件（image/video/sheet_music + audio/
+// model3d/document 整族 + text 族持久化 MIME 为 application/pdf 者）暴露分钟
+// 级短时效 oss_url；mod 与纯文本仅元数据（无 oss_url 字段），一律经下载闸
 // （omnicraft_request_download）交付；工具描述如实描述该边界。
 func TestGetContentAttachmentProjectionDisplayFamiliesOnly(t *testing.T) {
 	session, testDB := newTestMCPStack(t)
@@ -229,17 +230,22 @@ func TestGetContentAttachmentProjectionDisplayFamiliesOnly(t *testing.T) {
 	seeds := []struct {
 		id     int64
 		family string
+		mime   string
 		ossKey string
 		scan   string
 	}{
-		{9501, "image", "uploads/301/image/a.png", "not_required"},
-		{9502, "sheet_music", "uploads/301/sheet_music/a.musicxml", "not_required"},
-		{9503, "mod", "uploads/301/mod/a.zip", "clean"},
-		{9504, "text", "uploads/301/text/a.txt", "not_required"},
+		{9501, "image", "image/png", "uploads/301/image/a.png", "not_required"},
+		{9502, "sheet_music", "application/pdf", "uploads/301/sheet_music/a.musicxml", "not_required"},
+		{9503, "mod", "application/zip", "uploads/301/mod/a.zip", "clean"},
+		{9504, "text", "text/plain", "uploads/301/text/a.txt", "not_required"},
+		{9511, "audio", "audio/mpeg", "uploads/301/audio/a.mp3", "clean"},
+		{9512, "model3d", "application/octet-stream", "uploads/301/model3d/a.stl", "clean"},
+		{9513, "document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "uploads/301/document/a.docx", "clean"},
+		{9514, "text", "application/pdf", "uploads/301/text/a.pdf", "not_required"},
 	}
 	for _, s := range seeds {
 		require.NoError(t, testDB.Create(&model.ContentAttachment{
-			ID: s.id, ContentItemID: 401, FileType: s.family, OSSKey: s.ossKey, ScanStatus: s.scan,
+			ID: s.id, ContentItemID: 401, FileType: s.family, MimeType: s.mime, OSSKey: s.ossKey, ScanStatus: s.scan,
 		}).Error)
 	}
 
@@ -255,17 +261,26 @@ func TestGetContentAttachmentProjectionDisplayFamiliesOnly(t *testing.T) {
 	}
 	got := map[string]map[string]any{}
 	for _, att := range payload.Attachments {
-		got[att["file_type"].(string)] = att
+		family, _ := att["file_type"].(string)
+		mime, _ := att["mime_type"].(string)
+		got[family+"/"+mime] = att
 	}
-	for _, family := range []string{"image", "sheet_music"} {
-		ossURL, _ := got[family]["oss_url"].(string)
+	for _, key := range []string{
+		"image/image/png",
+		"sheet_music/application/pdf",
+		"audio/audio/mpeg",
+		"model3d/application/octet-stream",
+		"document/application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"text/application/pdf",
+	} {
+		ossURL, _ := got[key]["oss_url"].(string)
 		if ossURL == "" {
-			t.Errorf("%s attachment must expose a signed oss_url; got %+v", family, got[family])
+			t.Errorf("%s attachment must expose a signed oss_url; got %+v", key, got[key])
 		}
 	}
-	for _, family := range []string{"mod", "text"} {
-		if _, has := got[family]["oss_url"]; has {
-			t.Errorf("%s attachment must be metadata-only (no oss_url key); got %+v", family, got[family])
+	for _, key := range []string{"mod/application/zip", "text/text/plain"} {
+		if _, has := got[key]["oss_url"]; has {
+			t.Errorf("%s attachment must be metadata-only (no oss_url key); got %+v", key, got[key])
 		}
 	}
 
@@ -279,6 +294,92 @@ func TestGetContentAttachmentProjectionDisplayFamiliesOnly(t *testing.T) {
 			if !strings.Contains(tl.Description, "metadata only") || !strings.Contains(tl.Description, "download") {
 				t.Errorf("get_content description must state the family boundary honestly: %s", tl.Description)
 			}
+		}
+	}
+}
+
+// mcpTestOSSConfig mirrors the #813 fake-credential OSS domain from
+// newTestMCPStack: signing is pure local computation, no network calls.
+func mcpTestOSSConfig() *config.Config {
+	return &config.Config{
+		OSS: config.OSSConfig{
+			Endpoint:        "http://127.0.0.1:9201",
+			AccessKeyID:     "test-access-key",
+			AccessKeySecret: "test-access-secret",
+			BucketName:      "test-bucket",
+			Domain:          "http://127.0.0.1:9201/test-bucket",
+		},
+	}
+}
+
+// #861：MCP read 的生产接线（container.go 给 PreviewGate 注入与下载闸同源的
+// ArchiveScanGate）走 scan-aware 分支——clean 的 document/audio 与 text-PDF
+// 暴露签名 oss_url，pending 的 document 与 text/plain 不暴露。
+func TestGetContentAttachmentScanGateProjection(t *testing.T) {
+	_, testDB := newTestMCPStack(t)
+
+	require.NoError(t, testDB.Where("content_item_id = ?", 401).Delete(&model.ContentAttachment{}).Error)
+	seeds := []model.ContentAttachment{
+		{ID: 9601, ContentItemID: 401, FileType: "document", OSSKey: "uploads/301/document/clean.docx",
+			MimeType:   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{ID: 9602, ContentItemID: 401, FileType: "document", OSSKey: "uploads/301/document/pending.docx",
+			ScanStatus: model.ScanStatusPending, ScanRequired: true},
+		{ID: 9603, ContentItemID: 401, FileType: "audio", OSSKey: "uploads/301/audio/clean.mp3",
+			MimeType: "audio/mpeg", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{ID: 9604, ContentItemID: 401, FileType: "text", OSSKey: "uploads/301/text/doc.pdf",
+			MimeType: "application/pdf", ScanStatus: model.ScanStatusNotRequired},
+		{ID: 9605, ContentItemID: 401, FileType: "text", OSSKey: "uploads/301/text/notes.txt",
+			MimeType: "text/plain", ScanStatus: model.ScanStatusNotRequired},
+	}
+	for i := range seeds {
+		require.NoError(t, testDB.Create(&seeds[i]).Error)
+	}
+
+	handler := NewHandler(Deps{
+		DB:            testDB,
+		ContentRepo:   repository.NewContentRepository(testDB),
+		DisplaySigner: service.NewDisplayURLSigner(mcpTestOSSConfig()),
+		PreviewGate:   service.NewArchiveScanGate(testDB, true, nil),
+	})
+	httpSrv := httptest.NewServer(handler)
+	t.Cleanup(httpSrv.Close)
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "mcp-scan-gate-client", Version: "v0"}, nil)
+	gatedSession, err := client.Connect(context.Background(), &sdkmcp.StreamableClientTransport{Endpoint: httpSrv.URL}, nil)
+	if err != nil {
+		t.Fatalf("connect streamable http: %v", err)
+	}
+	t.Cleanup(func() { _ = gatedSession.Close() })
+
+	text, ok := callToolText(t, gatedSession, "omnicraft_get_content", map[string]any{"content_id": 401})
+	if !ok {
+		t.Fatal("get_content errored on public content")
+	}
+	var payload struct {
+		Attachments []map[string]any `json:"attachments"`
+	}
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		t.Fatalf("get_content payload is not JSON: %v; %.200s", err, text)
+	}
+	got := map[string]map[string]any{}
+	for _, att := range payload.Attachments {
+		family, _ := att["file_type"].(string)
+		mime, _ := att["mime_type"].(string)
+		got[family+"/"+mime] = att
+	}
+	for _, key := range []string{
+		"document/application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"audio/audio/mpeg",
+		"text/application/pdf",
+	} {
+		ossURL, _ := got[key]["oss_url"].(string)
+		if !strings.Contains(ossURL, "Signature=") {
+			t.Errorf("%s clean attachment must expose a signed oss_url; got %+v", key, got[key])
+		}
+	}
+	for _, key := range []string{"document/", "text/text/plain"} {
+		if _, has := got[key]["oss_url"]; has {
+			t.Errorf("%s attachment must stay unsigned through the scan gate; got %+v", key, got[key])
 		}
 	}
 }

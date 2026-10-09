@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
@@ -252,40 +254,114 @@ func requireSignedShape(t *testing.T, raw, wantKey string) {
 	require.Equal(t, "/"+displayTestBucket+"/"+wantKey, parsed.Path, "object key drifted")
 }
 
-// #813（审计 #5 + 决策①）：附件展示签名的家族白名单——只有展示/预览族
-// （image / video / sheet_music，SheetMusicViewer 页内消费）获得签名 URL；
-// 文件交付族（mod / text / document / audio / model3d）一律 OSSURL=""，仅
-// 经下载闸交付；quarantine/ 前缀在任何路径永不签名。
+// #861（D4，spec §9.5）对 #813 白名单的有意放宽：audio/model3d/document 整族
+// 进入短 TTL 签名通道（#813 收窄时三者没有预览消费方、是纯暴露面；统一媒体
+// 列使预览成为真实消费方）；text 族仅持久化 MIME 规范化后为 application/pdf
+// 才准入——空 MIME、text/plain、仅文件名后缀像 .pdf 而 MIME 非 pdf 一律不新
+// 签名，且拒签清掉旧 OSSURL；mod 恒不签名（无预览语义）、纯文本走下载行；
+// quarantine/ 前缀在任何路径永不签名。
 func TestAttachmentDisplayFamilyWhitelistAndQuarantine(t *testing.T) {
 	signer := NewDisplayURLSigner(displayTestConfig(0))
+	before := time.Now().Unix()
 
-	previewable := []string{"image", "video", "sheet_music"}
+	previewable := []string{"image", "video", "sheet_music", "audio", "model3d", "document"}
 	for _, family := range previewable {
 		attachments := []model.ContentAttachment{{FileType: family, OSSKey: "uploads/3/" + family + "/a.bin"}}
 		signer.DecorateAttachments(attachments)
 		requireSignedShape(t, attachments[0].OSSURL, "uploads/3/"+family+"/a.bin")
 		require.Equal(t, "uploads/3/"+family+"/a.bin", attachments[0].OSSKey, "oss_key must stay canonical")
+		require.InDelta(t, float64(before+300), float64(signedExpires(t, attachments[0].OSSURL)), 2,
+			"family %q rides the 300s attachment channel without bucket alignment", family)
 	}
 
-	for _, family := range []string{"mod", "text", "document", "audio", "model3d", ""} {
+	// text 族：持久化 MIME 决定一切——规范化后为 application/pdf 才放行
+	//（大小写与参数容错）。
+	for _, mime := range []string{"application/pdf", "APPLICATION/PDF", "application/pdf; charset=utf-8"} {
+		attachments := []model.ContentAttachment{{FileType: "text", MimeType: mime, OSSKey: "uploads/3/text/doc.pdf"}}
+		signer.DecorateAttachments(attachments)
+		requireSignedShape(t, attachments[0].OSSURL, "uploads/3/text/doc.pdf")
+	}
+
+	// 反例：text/plain、空 MIME、仅文件名像 .pdf 而 MIME 非 pdf——不新签名，
+	// 且拒签必须清掉调用方可能带入的旧 OSSURL。
+	staleTxt := []model.ContentAttachment{{
+		FileType: "text", MimeType: "text/plain", OSSKey: "uploads/3/text/a.txt",
+		OSSURL: "https://stale.example/previous-signature",
+	}}
+	signer.DecorateAttachments(staleTxt)
+	require.Equal(t, "", staleTxt[0].OSSURL, "text/plain must stay unsigned and drop any stale oss_url")
+
+	nameOnly := []model.ContentAttachment{{
+		FileType: "text", OriginalFileName: &pdfLikeName, OSSKey: "uploads/3/text/looks-like.pdf",
+		OSSURL: "https://stale.example/previous-signature",
+	}}
+	signer.DecorateAttachments(nameOnly)
+	require.Equal(t, "", nameOnly[0].OSSURL, "a .pdf file name without a persisted pdf MIME never qualifies")
+
+	emptyMime := []model.ContentAttachment{{FileType: "text", OSSKey: "uploads/3/text/no-mime.txt"}}
+	signer.DecorateAttachments(emptyMime)
+	require.Equal(t, "", emptyMime[0].OSSURL, "text without persisted MIME never qualifies")
+
+	for _, family := range []string{"mod", ""} {
 		attachments := []model.ContentAttachment{{FileType: family, OSSKey: "uploads/3/" + family + "/a.bin"}}
 		signer.DecorateAttachments(attachments)
 		require.Equal(t, "", attachments[0].OSSURL, "file-delivery family %q must not receive a signed display URL", family)
 	}
 
-	// quarantine 键在任何家族（含展示族）都不签。
+	// quarantine 键在任何家族（含展示族与新预览族）都不签。
 	attachments := []model.ContentAttachment{
 		{FileType: "image", OSSKey: "quarantine/archive-scan/9/2/job11"},
 		{FileType: "mod", OSSKey: "quarantine/archive-scan/9/2/job12"},
+		{FileType: "document", OSSKey: "quarantine/archive-scan/9/2/job13"},
+		{FileType: "audio", OSSKey: "quarantine/archive-scan/9/2/job14"},
 	}
 	signer.DecorateAttachments(attachments)
-	require.Equal(t, "", attachments[0].OSSURL, "quarantine key must never be signed")
-	require.Equal(t, "", attachments[1].OSSURL, "quarantine key must never be signed")
+	for i := range attachments {
+		require.Equal(t, "", attachments[i].OSSURL, "quarantine key must never be signed")
+	}
+}
 
-	// AttachmentURL 单点契约与 DecorateAttachments 一致。
-	require.NotEmpty(t, signer.AttachmentURL("uploads/3/image/a.png", "image"))
-	require.Empty(t, signer.AttachmentURL("uploads/3/mod/a.zip", "mod"))
-	require.Empty(t, signer.AttachmentURL("quarantine/x", "image"))
+// pdfLikeName backs the "pdf file name without pdf MIME" negative fixture.
+var pdfLikeName = "looks-like.pdf"
+
+// #861：attachmentDisplayEligible 的判定矩阵——族 × 持久化 MIME 的纯函数
+// 契约。只消费持久化元数据；text 族仅规范化 media type == application/pdf
+// 准入（大小写/参数容错），mod/未知族恒拒。
+func TestAttachmentDisplayEligibilityMatrix(t *testing.T) {
+	cases := []struct {
+		name     string
+		fileType string
+		mimeType string
+		want     bool
+	}{
+		{"image", "image", "image/png", true},
+		{"video", "video", "video/mp4", true},
+		{"sheet_music pdf", "sheet_music", "application/pdf", true},
+		{"sheet_music mscz", "sheet_music", "application/octet-stream", true},
+		{"audio", "audio", "audio/mpeg", true},
+		{"audio octet-stream", "audio", "application/octet-stream", true},
+		{"model3d", "model3d", "model/stl", true},
+		{"document docx", "document", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true},
+		{"document octet-stream", "document", "application/octet-stream", true},
+		{"text pdf", "text", "application/pdf", true},
+		{"text pdf upper", "text", "APPLICATION/PDF", true},
+		{"text pdf params", "text", "application/pdf; charset=utf-8", true},
+		{"text pdf padded", "text", "  application/pdf  ", true},
+		{"text plain", "text", "text/plain", false},
+		{"text markdown", "text", "text/markdown", false},
+		{"text empty mime", "text", "", false},
+		{"text octet-stream", "text", "application/octet-stream", false},
+		{"text malformed mime", "text", "not a media type", false},
+		{"text family case kept strict", "Text", "application/pdf", false},
+		{"mod", "mod", "application/zip", false},
+		{"mod any mime", "mod", "application/pdf", false},
+		{"unknown family", "file", "application/pdf", false},
+		{"empty family", "", "application/pdf", false},
+	}
+	for _, tc := range cases {
+		require.Equal(t, tc.want, attachmentDisplayEligible(tc.fileType, tc.mimeType),
+			"eligibility(%q, %q)", tc.fileType, tc.mimeType)
+	}
 }
 
 // #813 决策①：附件展示签名走独立短 TTL 通道（oss.display_attachment_ttl_sec，
@@ -297,13 +373,26 @@ func TestAttachmentDisplayTTLIndependentChannel(t *testing.T) {
 	cfg := displayTestConfig(0)
 	cfg.OSS.DisplayAttachmentTTLSec = 90
 	signer := NewDisplayURLSigner(cfg)
-	signed := signer.AttachmentURL("uploads/3/image/ttl.png", "image")
+	signed := signer.AttachmentURL(model.ContentAttachment{FileType: "image", OSSKey: "uploads/3/image/ttl.png"})
 	requireSignedShape(t, signed, "uploads/3/image/ttl.png")
 	require.InDelta(t, float64(before+90), float64(signedExpires(t, signed)), 2,
 		"attachment display TTL must come from oss.display_attachment_ttl_sec, without bucket alignment")
 
+	// #861：新预览族（audio）与 text-PDF 同走该独立通道——配置值优先、无桶对齐。
+	audioSigned := signer.AttachmentURL(model.ContentAttachment{FileType: "audio", OSSKey: "uploads/3/audio/ttl.mp3"})
+	requireSignedShape(t, audioSigned, "uploads/3/audio/ttl.mp3")
+	require.InDelta(t, float64(before+90), float64(signedExpires(t, audioSigned)), 2,
+		"new preview families ride the configured attachment TTL channel")
+
+	textPdf := []model.ContentAttachment{{FileType: "text", MimeType: "application/pdf", OSSKey: "uploads/3/text/ttl.pdf"}}
+	signer.DecorateAttachments(textPdf)
+	requireSignedShape(t, textPdf[0].OSSURL, "uploads/3/text/ttl.pdf")
+	require.InDelta(t, float64(before+90), float64(signedExpires(t, textPdf[0].OSSURL)), 2,
+		"text-pdf rides the configured attachment TTL channel")
+
 	// 未设置（0）回退 300s 工厂默认。
-	defaulted := NewDisplayURLSigner(displayTestConfig(0)).AttachmentURL("uploads/3/image/ttl-default.png", "image")
+	defaulted := NewDisplayURLSigner(displayTestConfig(0)).
+		AttachmentURL(model.ContentAttachment{FileType: "image", OSSKey: "uploads/3/image/ttl-default.png"})
 	require.InDelta(t, float64(before+300), float64(signedExpires(t, defaulted)), 2,
 		"unset display_attachment_ttl_sec falls back to the 300s factory default")
 
@@ -323,8 +412,10 @@ func TestSignURLNeverSignsQuarantineKeys(t *testing.T) {
 	require.Equal(t, quarantine, signer.SignURL(quarantine), "quarantine platform URL must pass through unsigned")
 }
 
-// ScanAware 路径与白名单一致：gate=nil（委派 DecorateAttachments）时文件
-// 族仍不得拿到签名 URL，展示族照常签名——家族白名单先于一切签名路径。
+// ScanAware 路径与白名单一致：gate=nil（委派 DecorateAttachments）时新白名单
+// 同样生效——audio/model3d/document/text-pdf 拿到签名 URL，mod/纯文本仍被拒；
+// 非 nil gate 时 mod 在触达扫描门之前即被资格判断拒签（家族/MIME 资格判断仍
+// 是第一道分支，先于任何 DB 访问）。
 func TestScanAwareDecorateRespectsFamilyWhitelist(t *testing.T) {
 	signer := NewDisplayURLSigner(displayTestConfig(0))
 
@@ -332,16 +423,77 @@ func TestScanAwareDecorateRespectsFamilyWhitelist(t *testing.T) {
 		{ID: 1, FileType: "image", OSSKey: "uploads/3/image/a.png"},
 		{ID: 2, FileType: "mod", OSSKey: "uploads/3/mod/a.zip"},
 		{ID: 3, FileType: "document", OSSKey: "uploads/3/document/a.docx"},
+		{ID: 4, FileType: "text", MimeType: "application/pdf", OSSKey: "uploads/3/text/a.pdf"},
+		{ID: 5, FileType: "text", MimeType: "text/plain", OSSKey: "uploads/3/text/a.txt"},
 	}
 	signer.ScanAwareDecorateAttachments(context.Background(), attachments, nil, 0)
 	requireSignedShape(t, attachments[0].OSSURL, "uploads/3/image/a.png")
 	require.Equal(t, "", attachments[1].OSSURL, "mod must stay unsigned through the scan-aware path")
-	require.Equal(t, "", attachments[2].OSSURL, "document must stay unsigned through the scan-aware path")
+	requireSignedShape(t, attachments[2].OSSURL, "uploads/3/document/a.docx")
+	requireSignedShape(t, attachments[3].OSSURL, "uploads/3/text/a.pdf")
+	require.Equal(t, "", attachments[4].OSSURL, "plain text must stay unsigned through the scan-aware path")
 
-	// 非 nil gate：家族白名单先于扫描门——文件族在触达 RequireAttachmentClean
+	// 非 nil gate：资格判断先于扫描门——mod 在触达 RequireAttachmentClean
 	//（无 DB 会 panic）之前即被拒签，证明白名单是第一道分支。
 	gate := NewArchiveScanGate(nil, true, nil)
 	fileOnly := []model.ContentAttachment{{ID: 11, FileType: "mod", OSSKey: "uploads/3/mod/b.zip"}}
 	signer.ScanAwareDecorateAttachments(context.Background(), fileOnly, gate, 0)
 	require.Equal(t, "", fileOnly[0].OSSURL, "file family must be rejected before the scan gate")
+}
+
+// #861：新族过扫描门的完整矩阵（DB-backed gate，与下载闸同判）——audio/
+// model3d/document 是 scannable 族：clean 放行（scan TTL，cap 300s、无桶对
+// 齐），pending/blocked/failed 拒签，not_required 视为接线异常 fail-closed
+// （mod 先例）；非扫描族（image / text-pdf）not_required 正常放行（attachment
+// TTL 通道）；quarantine 恒拒；扫描开关关闭时除 quarantine 前缀外不做扫描
+// 状态拦截（现有语义）；拒签清空旧 OSSURL。
+func TestScanAwareDecorateNewFamiliesScanGateMatrix(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ContentItem{}, &model.ContentAttachment{}))
+
+	signer := NewDisplayURLSigner(displayTestConfig(0))
+	before := time.Now().Unix()
+	gate := NewArchiveScanGate(db, true, nil)
+
+	rows := []model.ContentAttachment{
+		{FileType: "audio", OSSKey: "uploads/3/audio/clean.mp3", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{FileType: "model3d", OSSKey: "uploads/3/model3d/clean.stl", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{FileType: "document", OSSKey: "uploads/3/document/clean.docx", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+		{FileType: "audio", OSSKey: "uploads/3/audio/pending.mp3", ScanStatus: model.ScanStatusPending, ScanRequired: true},
+		{FileType: "model3d", OSSKey: "uploads/3/model3d/blocked.stl", ScanStatus: model.ScanStatusBlocked, ScanRequired: true},
+		{FileType: "document", OSSKey: "uploads/3/document/failed.docx", ScanStatus: model.ScanStatusFailed, ScanRequired: true},
+		{FileType: "audio", OSSKey: "uploads/3/audio/not-required.mp3", ScanStatus: model.ScanStatusNotRequired},
+		{FileType: "image", OSSKey: "uploads/3/image/not-required.png", ScanStatus: model.ScanStatusNotRequired},
+		{FileType: "text", MimeType: "application/pdf", OSSKey: "uploads/3/text/not-required.pdf", ScanStatus: model.ScanStatusNotRequired},
+		{FileType: "document", OSSKey: "quarantine/archive-scan/3/1/job9", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+	}
+	require.NoError(t, db.Create(&rows).Error)
+
+	signer.ScanAwareDecorateAttachments(context.Background(), rows, gate, 0)
+
+	for _, i := range []int{0, 1, 2} {
+		requireSignedShape(t, rows[i].OSSURL, rows[i].OSSKey)
+		require.InDelta(t, float64(before+300), float64(signedExpires(t, rows[i].OSSURL)), 2,
+			"scannable clean rows ride the scan-aware TTL (cap 300s, no bucket alignment)")
+	}
+	for _, i := range []int{3, 4, 5, 6, 9} {
+		require.Equal(t, "", rows[i].OSSURL, "row %d (%s/%s) must stay unsigned", i, rows[i].FileType, rows[i].ScanStatus)
+	}
+	requireSignedShape(t, rows[7].OSSURL, rows[7].OSSKey)
+	requireSignedShape(t, rows[8].OSSURL, rows[8].OSSKey)
+	require.InDelta(t, float64(before+300), float64(signedExpires(t, rows[8].OSSURL)), 2,
+		"text-pdf rides the attachment TTL channel")
+
+	// scanTTL 配置值低于 cap 时 scannable 族按配置值签（archive_scan.url_ttl_sec）。
+	rows[0].OSSURL = ""
+	signer.ScanAwareDecorateAttachments(context.Background(), rows[0:1], gate, 120)
+	require.InDelta(t, float64(before+120), float64(signedExpires(t, rows[0].OSSURL)), 2,
+		"scan TTL below the cap comes from the configured archive_scan.url_ttl_sec")
+
+	// 扫描开关关闭：除 quarantine 前缀外不做扫描状态拦截（现有语义）。
+	disabled := NewArchiveScanGate(db, false, nil)
+	pending := rows[3:4]
+	signer.ScanAwareDecorateAttachments(context.Background(), pending, disabled, 0)
+	requireSignedShape(t, pending[0].OSSURL, "uploads/3/audio/pending.mp3")
 }

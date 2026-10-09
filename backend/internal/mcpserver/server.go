@@ -206,15 +206,16 @@ type ContentIDInput struct {
 func addGetContentTool(server *sdkmcp.Server, deps Deps) {
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name: "omnicraft_get_content",
-		// #813（审计 #5 + 决策①）：投影与 REST 展示策略对齐并如实描述——
-		// 展示/预览族（image/video/sheet_music）返回分钟级短时效签名
-		// oss_url；文件交付族（mod/text 等）仅返回元数据（无 oss_url），
-		// 一律经认证下载流（omnicraft_request_download，AllowCopy + 恶意
-		// 压缩包扫描 + download scope 三闸）交付。
-		Description: "Fetch one public content item with attachment metadata. Preview families " +
-			"(image/video/sheet_music) carry short-lived signed display URLs; file-delivery families " +
-			"(mod/text and other files) are metadata only — their bytes are delivered exclusively " +
-			"through the authenticated download flow (omnicraft_request_download).",
+		// #813（审计 #5 + 决策①）→ #861（D4 spec §9.5 有意放宽）：预览族
+		// 白名单扩为 image/video/sheet_music + audio/model3d/document + text
+		// 族持久化 MIME 为 application/pdf 者——统一媒体列使预览成为消费方；
+		// mod 与纯文本仍仅元数据，一律经认证下载流（omnicraft_request_
+		// download，AllowCopy + 恶意压缩包扫描 + download scope 三闸）交付。
+		Description: "Fetch one public content item with attachment metadata. Previewable families " +
+			"(image/video/sheet_music/audio/model3d/document, plus text attachments whose persisted MIME is " +
+			"application/pdf) carry short-lived signed display URLs subject to the scan gate; mod and plain-text " +
+			"files are metadata only — their bytes are delivered exclusively through the authenticated download " +
+			"flow (omnicraft_request_download).",
 	}, func(ctx context.Context, req *sdkmcp.CallToolRequest, in ContentIDInput) (*sdkmcp.CallToolResult, any, error) {
 		if in.ContentID <= 0 {
 			return nil, nil, errors.New("content_id must be positive")
@@ -251,8 +252,9 @@ func addGetContentTool(server *sdkmcp.Server, deps Deps) {
 				"width":     a.Width,
 				"height":    a.Height,
 			}
-			// #813：展示族才暴露 oss_url（分钟级短时效签名）；文件族
-			// 仅元数据——oss_url 字段整体缺席，不承诺空字符串语义。
+			// #813 → #861：预览资格附件（家族/MIME 资格判断 + 扫描门）才
+			// 暴露 oss_url（分钟级短时效签名）；mod/纯文本仅元数据——
+			// oss_url 字段整体缺席，不承诺空字符串语义。
 			if a.OSSURL != "" {
 				view["oss_url"] = a.OSSURL
 			}
