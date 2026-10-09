@@ -317,6 +317,12 @@ type FeaturesConfig struct {
 	// bucket layer; off by default (gray-release via instance override) and
 	// additionally subordinate to rate_limit.enabled.
 	GuestRateLimitEnabled bool `mapstructure:"guest_rate_limit_enabled" json:"guest_rate_limit_enabled"`
+	// GuestAgentEnabled (#854) gates the anonymous 3-turn agent surface
+	// (signed device cookie + per-device turn budget + per-IP cost bucket).
+	// Factory default stays off; enabling it additionally requires
+	// agent.web_agent_enabled (validated) and a per-instance
+	// agent.guest.cookie_secret (env AGENT_GUEST_COOKIE_SECRET).
+	GuestAgentEnabled bool `mapstructure:"guest_agent_enabled" json:"guest_agent_enabled"`
 }
 
 type RAGConfig struct {
@@ -664,13 +670,39 @@ type PublishConfig struct {
 	TypeOrderFanwork  []string `mapstructure:"type_order_fanwork" json:"type_order_fanwork"`
 }
 
+// AgentGuestConfig is the #854 anonymous agent surface: the per-device turn
+// budget (never periodically replenished), the guest conversation retention
+// window, the per-device in-flight cap, and the device-cookie signing
+// material. Every field is validated when features.guest_agent_enabled is on.
+type AgentGuestConfig struct {
+	// MaxTotalTurns is the cumulative per-device generation budget. The
+	// counter has no TTL; exhausting it is permanent for the device identity.
+	MaxTotalTurns int `mapstructure:"max_total_turns" json:"max_total_turns"`
+	// ConversationTTLDays bounds guest conversation retention. Reading and
+	// continuing an expired conversation is refused immediately; the cleanup
+	// worker deletes the rows while the turn counter is untouched.
+	ConversationTTLDays int `mapstructure:"conversation_ttl_days" json:"conversation_ttl_days"`
+	// MaxConcurrentTurns caps one device's in-flight generations across tabs.
+	MaxConcurrentTurns int `mapstructure:"max_concurrent_turns" json:"max_concurrent_turns"`
+	// CookieSecret signs the anonymous device cookie (HMAC-SHA256). Injected
+	// via AGENT_GUEST_COOKIE_SECRET; json:"-" keeps it out of every API
+	// surface, and a real value never enters the committed config.yaml.
+	CookieSecret string `mapstructure:"cookie_secret" json:"-"`
+	// CookieMaxAgeHours is the device cookie lifetime (factory 8760 = 1y).
+	CookieMaxAgeHours int `mapstructure:"cookie_max_age_hours" json:"cookie_max_age_hours"`
+}
+
 type AgentConfig struct {
-	WebAgentEnabled bool   `mapstructure:"web_agent_enabled" json:"web_agent_enabled"`
-	LLMProvider     string `mapstructure:"llm_provider" json:"llm_provider"`
-	LLMModel        string `mapstructure:"llm_model" json:"llm_model"`
-	LLMAPIBase      string `mapstructure:"llm_api_base" json:"llm_api_base"`
-	LLMAPIKey       string `mapstructure:"llm_api_key" json:"-"`
-	EmbeddingModel  string `mapstructure:"embedding_model" json:"embedding_model"`
+	WebAgentEnabled bool `mapstructure:"web_agent_enabled" json:"web_agent_enabled"`
+	// Guest carries the #854 anonymous surface parameters. The signing
+	// secret is injected per instance (env AGENT_GUEST_COOKIE_SECRET); a
+	// real secret never ships in config.yaml.
+	Guest          AgentGuestConfig `mapstructure:"guest" json:"guest"`
+	LLMProvider    string           `mapstructure:"llm_provider" json:"llm_provider"`
+	LLMModel       string           `mapstructure:"llm_model" json:"llm_model"`
+	LLMAPIBase     string           `mapstructure:"llm_api_base" json:"llm_api_base"`
+	LLMAPIKey      string           `mapstructure:"llm_api_key" json:"-"`
+	EmbeddingModel string           `mapstructure:"embedding_model" json:"embedding_model"`
 	// EmbeddingProvider routes embeddings to a different adapter than chat
 	// (canonical profile: minimax chat + openai_compat DashScope embeddings).
 	// Empty means "follow llm_provider" (single-provider wiring).
@@ -987,6 +1019,13 @@ var DefaultGuestBuckets = map[string]GuestBucketConfig{
 	"stats_summary":     {Capacity: 20, RefillPerMinute: 10},
 	"categories_list":   {Capacity: 40, RefillPerMinute: 20},
 	"tags_faceted":      {Capacity: 20, RefillPerMinute: 10},
+	// #854: the guest agent generation surface's own per-IP cost bucket.
+	// Unlike the browsing tiers above it is enforced whenever the guest agent
+	// is enabled, independent of rate_limit.enabled /
+	// features.guest_rate_limit_enabled, and its Redis faults fail closed —
+	// a cost-bearing surface may never inherit the availability-first
+	// fail-open posture of the public read buckets.
+	"agent_guest": {Capacity: 6, RefillPerMinute: 6},
 }
 
 // GuestBucketFor resolves a tier spec: a valid config override wins, else the
@@ -1299,6 +1338,12 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_LLM_API_KEY"); v != "" {
 		cfg.Agent.LLMAPIKey = v
+	}
+	// #854: the guest device-cookie signing secret is a per-instance
+	// deployment secret; the committed config.yaml only ever carries the
+	// empty factory value.
+	if v := os.Getenv("AGENT_GUEST_COOKIE_SECRET"); v != "" {
+		cfg.Agent.Guest.CookieSecret = v
 	}
 	// SP-20 (#545): per-entry model credentials follow the
 	// AGENT_MODEL_<ID>_API_KEY convention (id upper-cased, non-alnum → _).
@@ -1880,6 +1925,37 @@ func (c *Config) validateStructure(errs *[]string) {
 		requirePositiveInt(errs, "rate_limit.agent_minute_window_sec", c.RateLimit.AgentMinuteWindowSec)
 		if c.Agent.ProviderMaxRetries < 0 {
 			*errs = append(*errs, "agent.provider_max_retries must not be negative when web agent is enabled")
+		}
+	}
+	// #854 guest agent structural gate: an enabled anonymous surface must be
+	// complete (web agent on, positive limits, real signing secret) and carry
+	// an effective per-IP cost bucket. Failing startup here is the chosen
+	// semantics for "configuration does not satisfy admission": the gate can
+	// never silently degrade into a no-op cost surface.
+	if c.Features.GuestAgentEnabled {
+		if !c.Agent.WebAgentEnabled {
+			*errs = append(*errs, "features.guest_agent_enabled requires agent.web_agent_enabled to be enabled")
+		}
+		requirePositiveInt(errs, "agent.guest.max_total_turns", c.Agent.Guest.MaxTotalTurns)
+		requirePositiveInt(errs, "agent.guest.conversation_ttl_days", c.Agent.Guest.ConversationTTLDays)
+		requirePositiveInt(errs, "agent.guest.max_concurrent_turns", c.Agent.Guest.MaxConcurrentTurns)
+		requirePositiveInt(errs, "agent.guest.cookie_max_age_hours", c.Agent.Guest.CookieMaxAgeHours)
+		if secret := strings.TrimSpace(c.Agent.Guest.CookieSecret); secret == "" {
+			*errs = append(*errs, "agent.guest.cookie_secret is required when the guest agent is enabled (inject via AGENT_GUEST_COOKIE_SECRET)")
+		} else if len(secret) < 32 {
+			*errs = append(*errs, "agent.guest.cookie_secret must be at least 32 characters")
+		} else if isPlaceholderValue(secret) {
+			*errs = append(*errs, "agent.guest.cookie_secret must not contain placeholders")
+		}
+		// A zeroed explicit override must fail startup rather than silently
+		// fall back to the code default: GuestBucketFor's fallback protects
+		// browsing tiers against typos, but on a cost-bearing tier it would
+		// mask a disable attempt. Refuse it loudly instead.
+		if spec, ok := c.RateLimit.GuestBuckets["agent_guest"]; ok && (spec.Capacity <= 0 || spec.RefillPerMinute <= 0) {
+			*errs = append(*errs, "rate_limit.guest_buckets.agent_guest must have positive capacity and refill_per_minute when the guest agent is enabled")
+		}
+		if _, ok := c.RateLimit.GuestBucketFor("agent_guest"); !ok {
+			*errs = append(*errs, "rate_limit.guest_buckets.agent_guest must resolve to an effective cost bucket when the guest agent is enabled")
 		}
 	}
 	// MCP bridge (SP-23 M3): an enabled bridge needs usable limits and, per

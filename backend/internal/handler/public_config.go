@@ -11,6 +11,7 @@ import (
 
 type PublicFeaturesDTO struct {
 	WebAgentEnabled       bool `json:"web_agent_enabled"`
+	GuestAgentEnabled     bool `json:"guest_agent_enabled"`
 	PaymentEnabled        bool `json:"payment_enabled"`
 	CreatorSupportEnabled bool `json:"creator_support_enabled"`
 	DesktopDeployEnabled  bool `json:"desktop_deploy_enabled"`
@@ -164,6 +165,7 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 	resp := PublicConfigResponse{
 		Features: PublicFeaturesDTO{
 			WebAgentEnabled:       h.cfg.Agent.WebAgentEnabled,
+			GuestAgentEnabled:     h.cfg.Features.GuestAgentEnabled && h.cfg.Agent.WebAgentEnabled,
 			PaymentEnabled:        h.cfg.Features.PaymentEnabled,
 			CreatorSupportEnabled: h.cfg.Features.CreatorSupportEnabled,
 			DesktopDeployEnabled:  h.cfg.Features.DesktopDeployEnabled,

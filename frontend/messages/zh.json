@@ -1772,7 +1772,15 @@
       "label": "已深度思考",
       "streamingLabel": "思考中…"
     },
-    "rateLimited": "AI 助手请求过于频繁，请稍后再试"
+    "rateLimited": "AI 助手请求过于频繁，请稍后再试",
+    "guest": {
+      "caption": "游客模式 · 剩余 {remaining} 次",
+      "exhaustedTitle": "游客体验次数已用完",
+      "exhaustedDescription": "注册登录后可继续使用 AI 助手，并获得完整的站内问答体验。",
+      "loginCta": "登录 / 注册",
+      "guideTitle": "登录后体验 AI 助手",
+      "guideDescription": "AI 助手暂未对游客开放，登录后即可开始提问。"
+    }
   },
   "search": {
     "saveSearch": "保存此搜索",

@@ -34,6 +34,8 @@ interface AgentConversationSidebarProps {
   onDelete?: (id: number) => void;
   onRequestClose?: () => void;
   disabled?: boolean;
+  /** #854：游客面只读（不渲染重命名/置顶/删除菜单）。 */
+  readOnly?: boolean;
 }
 
 /** PATCH 契约同款长度上限（service.ConversationTitleMaxRunes = 50）。 */
@@ -76,6 +78,7 @@ export function AgentConversationSidebar({
   onDelete,
   onRequestClose,
   disabled,
+  readOnly = false,
 }: AgentConversationSidebarProps) {
   const t = useTranslations();
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -246,6 +249,9 @@ export function AgentConversationSidebar({
                                 {formatTime(conversation.updated_at)}
                               </time>
                             </button>
+                            {/* #854：游客面只读——重命名/置顶/删除是账号会话能力，
+                                游客端点不开放对应路径，控制整体不渲染。 */}
+                            {!readOnly && (
                             <DropdownMenu>
                               <DropdownMenuTrigger
                                 aria-label={t("agent.workspace.menuLabel", { id: conversation.id })}
@@ -273,6 +279,7 @@ export function AgentConversationSidebar({
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                            )}
                           </div>
                         )}
                       </li>
