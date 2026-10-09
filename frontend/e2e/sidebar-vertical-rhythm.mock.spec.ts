@@ -108,7 +108,8 @@ async function settle(page: Page) {
 
 test("expand/collapse keeps every shared anchor's rect.top identical (machine acceptance)", async ({ page }) => {
   await setup(page);
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
   await expect(page.locator("aside")).toBeVisible({ timeout: 15_000 });
 
   const expanded = await snapshotAnchors(page);
@@ -151,7 +152,8 @@ test("expand/collapse keeps every shared anchor's rect.top identical (machine ac
 
 test("section header keeps equal height in both states; divider token color validates per theme", async ({ page }) => {
   await setup(page);
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
   await expect(page.locator("aside")).toBeVisible({ timeout: 15_000 });
 
   const heights = "[data-sidebar-anchor='section-header']";
@@ -178,7 +180,8 @@ test("section header keeps equal height in both states; divider token color vali
 test("collapsed rail shows instant tooltips on hover and hides trending entirely", async ({ page }) => {
   await setup(page);
   await page.addInitScript(() => window.localStorage.setItem("sidebarCollapsed", "true"));
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
   const aside = page.locator("aside");
   await expect(aside).toBeVisible({ timeout: 15_000 });
   await expect(aside).toHaveClass(/w-12/);
@@ -213,7 +216,8 @@ test("collapsed rail shows instant tooltips on hover and hides trending entirely
 test("expanded list scrolls independently while the toggle stays fixed", async ({ page }) => {
   await setup(page);
   await page.setViewportSize({ width: 1440, height: 500 });
-  await page.goto("/");
+  /* T1 #853：匿名 `/` 已是访客落地页，侧栏断言面改指 /fanworks。 */
+  await page.goto("/fanworks");
   const aside = page.locator("aside");
   await expect(aside).toBeVisible({ timeout: 15_000 });
 
