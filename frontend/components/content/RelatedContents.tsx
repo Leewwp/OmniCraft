@@ -33,6 +33,9 @@ export interface RelatedContentsProps {
   relatedFanworksSlot?: RelatedContentsFanworksSlot;
   /** 浮层栈内打开卡片（source=zone-page 压栈）；不传保持整卡 Link 跳转。 */
   onOpenDetail?: (data: ContentCardData, trigger: HTMLElement) => void;
+  /** 桌面可见性视口门下限（px，缺省 1100 与全局三档一致）。D1 #858：浮层统一
+      右栏传 960——推荐区在 960–1099 同样可见；其余调用方不传保持不变。 */
+  minViewportPx?: number;
 }
 
 type SimilarStatus = "loading" | "ready" | "error";
@@ -56,8 +59,11 @@ export function RelatedContents({
   relatedFanworks,
   relatedFanworksSlot,
   onOpenDetail,
+  minViewportPx,
 }: RelatedContentsProps) {
   const t = useTranslations();
+  /* D1 #858：可见性视口门可下浮（浮层统一右栏 960），缺省 1100 不影响既有调用方。 */
+  const desktopMinViewport = minViewportPx ?? 1100;
   const [isDesktop, setIsDesktop] = useState(false);
   const [similarItems, setSimilarItems] = useState<ContentCardData[]>([]);
   const [similarStatus, setSimilarStatus] = useState<SimilarStatus>("loading");
@@ -68,16 +74,16 @@ export function RelatedContents({
   /** 关联行请求是否已落定（成功回调 onData 触发；错误态保持 false，走 RF 行内错误 UI）。 */
   const [relatedSettled, setRelatedSettled] = useState(false);
 
-  /* 桌面/web 视口判定（与 #88/#89 的 min-width: 1100px 全局三档一致）；
-     SSR/移动端不渲染、不发起任何请求。 */
+  /* 桌面/web 视口判定（缺省与 #88/#89 的 min-width: 1100px 全局三档一致；
+     浮层统一右栏传 960）；SSR/移动端不渲染、不发起任何请求。 */
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 1100px)");
+    const mediaQuery = window.matchMedia(`(min-width: ${desktopMinViewport}px)`);
     const update = () => setIsDesktop(mediaQuery.matches);
     update();
     mediaQuery.addEventListener("change", update);
     return () => mediaQuery.removeEventListener("change", update);
-  }, []);
+  }, [desktopMinViewport]);
 
   /* 相似内容：固定复用列表 API（同 zone、同 content_type、同 category，fanwork
      有 IP 时再带 ip_id，sort=hot&page_size=12）。 */

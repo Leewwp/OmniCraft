@@ -38,13 +38,11 @@ const COVER_READY_CAP_MS = 150;
     见 globals.css :root[data-vt-close] 规则）。 */
 const VT_CLOSE_ATTR = "data-vt-close";
 
-/** 层布局：single = 单列（overlay-scroller 滚动）；split-media = 桌面双栏
-    （≥1100px 时唯一滚动容器为层内 layer-scroller）；variant = #397 竖屏集新版
-    布局（滚动归属同 split-media；壳层去 header，返回/关闭改悬浮半透明圆钮）。 */
-type LayerLayout = "single" | "split-media" | "variant";
-
-/** #88 桌面双栏视口判定（#753 起 960：PC 图片语义起效断点）。 */
-function isSplitViewport(): boolean {
+/** D1 #858 统一版式壳层判定：桌面 ≥960 = 统一双栏壳（无 header 工具栏、
+    返回/关闭悬浮半透明圆钮、滚动归属层内 layer-scroller），由视口断点决定、
+    从 loading 首帧生效——不再等待媒体朝向/chainReady 才从单列切换；
+    <960 保持移动单列 + header 工具栏。 */
+function matchesDesktopViewport(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(min-width: 960px)").matches;
 }
@@ -96,7 +94,9 @@ export function ContentDetailOverlay({
   const [closing, setClosing] = useState(false);
   const [stackMove, setStackMove] = useState<"push" | "pop" | null>(null);
   const [popFocus, setPopFocus] = useState<HTMLElement | null>(null);
-  const [layerLayouts, setLayerLayouts] = useState<Record<number, LayerLayout>>({});
+  /* D1 #858：统一版式壳层由 ≥960 视口断点决定（matchMedia 状态，SSR/测试
+     环境缺 matchMedia 时按移动壳层处理）。 */
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => matchesDesktopViewport());
   /* #409 F1 单一时间轴配套：入场转场落定标记（驱动首帧保持解除与媒体列
      几何解冻）+ 首帧保持 src（打开瞬间卡片封面实际渲染的地址）。 */
   const [entranceSettled, setEntranceSettled] = useState(false);
@@ -110,16 +110,7 @@ export function ContentDetailOverlay({
   const lastOpenRef = useRef(false);
   const topKeyRef = useRef<string | null>(null);
   const onOpenChangeRef = useRef(onOpenChange);
-  const layerLayoutsRef = useRef(layerLayouts);
-
-  /* 转场状态（#67 原型 §5 契约）：run token 拦截过期回调；入场只跑一次。 */
-  const motionRunRef = useRef(0);
-  const motionTimerRef = useRef<number | null>(null);
-  const safetyTimerRef = useRef<number | null>(null);
-  const entranceDoneRef = useRef(false);
-  const sourceRectRef = useRef<OverlayRect | null>(null);
-  const sourceAnchorRef = useRef<HTMLElement | null>(null);
-  const transitionRef = useRef<ViewTransition | null>(null);
+  const isDesktopViewportRef = useRef(isDesktopViewport);
 
   useEffect(() => {
     stackRef.current = stack;
@@ -134,22 +125,33 @@ export function ContentDetailOverlay({
   }, [onOpenChange]);
 
   useEffect(() => {
-    layerLayoutsRef.current = layerLayouts;
-  }, [layerLayouts]);
+    isDesktopViewportRef.current = isDesktopViewport;
+  }, [isDesktopViewport]);
 
-  const handleLayoutChange = useCallback((index: number, layout: LayerLayout) => {
-    setLayerLayouts((prev) => (prev[index] === layout ? prev : { ...prev, [index]: layout }));
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia("(min-width: 960px)");
+    const update = () => setIsDesktopViewport(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
   }, []);
 
-  /* 当前唯一滚动容器：#88 桌面双栏（split-media/variant 且 ≥1100px）时取顶层
-     可见层的 layer-scroller（跳过 display:none 的底层），否则回到 overlay-scroller。 */
+  /* 转场状态（#67 原型 §5 契约）：run token 拦截过期回调；入场只跑一次。 */
+  const motionRunRef = useRef(0);
+  const motionTimerRef = useRef<number | null>(null);
+  const safetyTimerRef = useRef<number | null>(null);
+  const entranceDoneRef = useRef(false);
+  const sourceRectRef = useRef<OverlayRect | null>(null);
+  const sourceAnchorRef = useRef<HTMLElement | null>(null);
+  const transitionRef = useRef<ViewTransition | null>(null);
+
+  /* 当前唯一滚动容器：D1 #858 统一版式（桌面 ≥960 全状态双栏）时取顶层可见层
+     的 layer-scroller（跳过 display:none 的底层），移动回到 overlay-scroller。 */
   const resolveActiveScroller = useCallback((): HTMLElement | null => {
     const scroller = scrollerRef.current;
     if (!scroller) return null;
-    const mode = layerLayoutsRef.current[stackRef.current.length - 1];
-    if ((mode !== "split-media" && mode !== "variant") || !isSplitViewport()) {
-      return scroller;
-    }
+    if (!isDesktopViewportRef.current) return scroller;
     const candidates = scroller.querySelectorAll<HTMLElement>('[data-slot="layer-scroller"]');
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
       if (candidates[i].offsetParent !== null) return candidates[i];
@@ -632,7 +634,6 @@ export function ContentDetailOverlay({
     setStack([]);
     setStackMove(null);
     setPopFocus(null);
-    setLayerLayouts({});
     const restore = restoreRef.current;
     restoreRef.current = null;
     /* #398 C3：解除触发卡片的 hover 缩放锁定（打开时设置）。 */
@@ -860,11 +861,6 @@ export function ContentDetailOverlay({
   const depth = stack.length;
   const top = depth > 0 ? stack[depth - 1] : null;
   const previous = depth > 1 ? stack[depth - 2] : null;
-  const topLayout: LayerLayout = (layerLayouts[depth - 1] ?? "single") as LayerLayout;
-  /* #397 方案二 float 壳层：顶层为 variant 时整个移除 header（grid 单行），
-     返回/关闭改悬浮半透明圆钮；sr-only 标题保留（无障碍名称/初始焦点/多层栈
-     返回文案三职迁移不可遗漏）。 */
-  const topIsVariant = topLayout === "variant";
 
   function sourceReturnLabel(entrySource: OverlaySource): string {
     switch (entrySource) {
@@ -928,9 +924,11 @@ export function ContentDetailOverlay({
       className={cn(
         /* 2026-09-09 遮罩同钟配套：dialog 保留桌面居中面板的定位与尺寸，但
            视觉（底色/边框/圆角/阴影）全部随壳层走——入场前壳层 opacity 0 时
-           旧快照里不残留白板面板。 */
+           旧快照里不残留白板面板。
+           D1 #858：面板断点与内部统一双栏断点对齐（960–1023 也收居中面板，
+           修「全屏面板 + 内部已双栏」的几何缺口）。 */
         "content-detail-overlay fixed inset-0 m-0 h-dvh w-full max-h-none max-w-none overflow-hidden border-0 bg-transparent p-0 text-foreground",
-        "lg:m-auto lg:h-[min(92dvh,900px)] lg:w-[min(1120px,calc(100%-2rem))]",
+        "min-[960px]:m-auto min-[960px]:h-[min(92dvh,900px)] min-[960px]:w-[min(1120px,calc(100%-2rem))]",
       )}
       aria-labelledby={titleId}
       onCancel={(event) => {
@@ -949,15 +947,16 @@ export function ContentDetailOverlay({
       <div
         ref={shellRef}
         className={cn(
-          "relative grid h-full w-full overflow-hidden bg-card lg:rounded-lg lg:border lg:border-border lg:shadow-[var(--elevation-3)]",
-          topIsVariant ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]",
+          "relative grid h-full w-full overflow-hidden bg-card min-[960px]:rounded-lg min-[960px]:border min-[960px]:border-border min-[960px]:shadow-[var(--elevation-3)]",
+          isDesktopViewport ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]",
           closing && "pointer-events-none",
         )}
       >
-        {/* #397 方案二 float：variant 顶层整个不渲染 header，返回/关闭由壳层悬浮
-            圆钮承担（返回钮 hover 显示「返回到：XXX」）；sr-only 标题保留 dialog
-            无障碍名称（aria-labelledby）、初始焦点锚点与多层栈返回文案三职。 */}
-        {!topIsVariant && (
+        {/* D1 #858 统一版式壳层：桌面 ≥960 整个不渲染 header（grid 单行），
+            返回/关闭由壳层悬浮圆钮承担（返回钮 hover 显示「返回到：XXX」）；
+            sr-only 标题保留 dialog 无障碍名称（aria-labelledby）、初始焦点锚点
+            与多层栈返回文案三职。移动 <960 保持 header 工具栏。 */}
+        {!isDesktopViewport && (
           <header className="flex items-center gap-2 border-b border-border bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:px-4 lg:pb-2.5">
             <button
               type="button"
@@ -988,7 +987,7 @@ export function ContentDetailOverlay({
             </button>
           </header>
         )}
-        {topIsVariant && (
+        {isDesktopViewport && (
           <>
             <h2
               id={titleId}
@@ -1030,10 +1029,12 @@ export function ContentDetailOverlay({
           ref={scrollerRef}
           data-slot="overlay-scroller"
           className={cn(
-            "min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 min-[960px]:px-6",
-            /* #88/#397 桌面双栏与竖屏集新版布局：滚动改由层内信息列承担。 */
-            (topLayout === "split-media" || topLayout === "variant") &&
-              "min-[960px]:h-full min-[960px]:overflow-hidden",
+            "min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4",
+            /* D1 #858 统一版式：桌面全状态滚动归属层内 layer-scroller，外壳容器
+               零内边距、不滚动——统一版式直贴面板，无需负 margin 抵消（旧的
+               overlay-scroller px/pt/pb 与 variant root -mx/-mb/-mt 相互抵消的
+               结构退役）。 */
+            isDesktopViewport && "h-full overflow-hidden p-0",
           )}
         >
           {stack.map((layer, index) => (
@@ -1060,8 +1061,6 @@ export function ContentDetailOverlay({
             >
               <ContentDetailOverlayLayer
                 entry={layer.entry}
-                layerIndex={index}
-                onLayoutChange={handleLayoutChange}
                 onPush={pushLayer}
                 onSwitchNext={switchTopLayer}
                 onTitleChange={handleTitleChange(index)}

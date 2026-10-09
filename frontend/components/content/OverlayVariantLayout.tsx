@@ -8,17 +8,22 @@ import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import type { MediaGalleryItem } from "@/components/content/MediaGallery";
-import { isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
+import { OVERLAY_DEFAULT_RATIO, isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
 
 /**
- * 内容详情浮窗「竖屏集新版布局」（#397 R2，胜者记录 §7 = A 基底 + C 逐张自适应几何
- * + 方案二 float 壳层）。生产重写（原型分支 prototype/overlay-rework 仅作参照）：
- * 左媒体列贴边满幅、列宽 = 可用高 × 当前图真实比例（240ms 过渡；#753 长图缩窄
- * 居中完整显示、无内部滚动）；控件 = 悬浮半透明箭头 + 底部指示点 + 右上角标，
- * 图片主体点击进查看器（#753 移除左右 1/3 隐形翻页热区）；右栏独立滚动
- * （data-slot="layer-scroller"）。
+ * 内容详情浮窗「统一版式」（D1 #858，桌面 ≥960 全类型唯一版式；几何承袭 #397
+ * R2 竖屏集新版布局）：左媒体列贴边满幅、列宽 = 可用高 × 当前项真实比例
+ * （240ms 过渡；长图缩窄居中完整显示、无内部滚动）；控件 = 悬浮半透明箭头 +
+ * 底部指示点 + 右上角标，图片主体点击进查看器；右栏独立滚动
+ * （data-slot="layer-scroller"，滚动条贴面板右缘全高贯通）。
  *
- * 布局不变量（R3 动效契约挂点）：data-slot="detail-cover" 锚点盒不含翻页控件；
+ * 媒体列直贴面板（宿主容器桌面零内边距，不再用负 margin 抵消 overlay-scroller
+ * 的 px/pt/pb）；loading/错误态媒体链为空时媒体列保持稳定黑底占位（双栏外壳
+ * 不塌缩、不回退全宽单列）。视频行为（无自动播放、点击进 MediaViewer）本组件
+ * 保持现状（D2 改造）。
+ *
+ * 布局不变量（R3 动效契约挂点）：data-slot="detail-cover" 锚点盒不含翻页控件，
+ * 且仅在媒体链非空时渲染（空链不产出转场锚点，错误态维持居中缩淡降级）；
  * 媒体几何单一比例源 = 当前项 intrinsic（itemAspectRatio）。
  */
 
@@ -55,8 +60,10 @@ function useMediaArea() {
   return { ref, area };
 }
 
-/** 当前图列宽（#753）：可用高 × 当前图真实比例（长图缩窄居中完整显示，不再按
-    3:4 名义宽拉大 + 内滚），上限 = 根区宽 − 右栏最小宽（横图自然收窄 letterbox）。 */
+/** 当前项列宽（#753）：可用高 × 当前项真实比例（长图缩窄居中完整显示，不再按
+    3:4 名义宽拉大 + 内滚），上限 = 根区宽 − 右栏最小宽（横图自然收窄 letterbox）。
+    D1 #858：全类型统一（文字封面链 3:4 / 媒体集真实比例同一公式）；媒体链为空
+    （loading/错误态）按防御比例 3:4 占位。 */
 function paneWidth(area: { w: number; h: number } | null, ratio: number): string {
   if (!area) return `${Math.round(PANE_FALLBACK_RATIO * 100)}%`;
   const byHeight = area.h * ratio;
@@ -189,7 +196,7 @@ export interface OverlayVariantLayoutProps {
   /** #409 F1 几何稳定门：根区完成首次实测（ResizeObserver 回报）后回调一次，
       浮层据此放行入场转场（测量在几何稳定后进行）。 */
   onPaneMeasured?: () => void;
-  /** 右栏内容（标题/作者/正文/关联内容块/评论区 = 末块）。 */
+  /** 右栏内容（创作者行/标题/正文/关联块/评论区/推荐区 = 统一钉死序）。 */
   children: ReactNode;
 }
 
@@ -219,7 +226,8 @@ export function OverlayVariantLayout({
   const current = media[at];
   const showControls = media.length > 1;
   const isVideo = current?.type === "video";
-  const ratio = itemAspectRatio(current);
+  /* 媒体链为空（loading/错误态）按防御比例 3:4 占位，双栏外壳几何稳定。 */
+  const ratio = current ? itemAspectRatio(current) : OVERLAY_DEFAULT_RATIO;
   const tall = isLongImageItem(current);
 
   const settleFirstMedia = (state: "ready" | "error") => {
@@ -231,6 +239,7 @@ export function OverlayVariantLayout({
   /* 点击媒体（视频 controls 条除外）进入 MediaViewer 看大图；查看器关闭后
      焦点还给触发媒体区（AC4 恢复触发点焦点）。 */
   function handleCoverClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (!current) return;
     if (isVideo) {
       const rect = event.currentTarget.getBoundingClientRect();
       if (rect.height > 0 && event.clientY > rect.bottom - VIDEO_CONTROLS_STRIP) return;
@@ -247,17 +256,16 @@ export function OverlayVariantLayout({
     if (trigger) requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
   }
 
-  if (media.length === 0) return null;
-
   return (
-    /* 贴边根容器：负 margin 抵消 overlay-scroller 的 px-6/pt-4/pb-6（≥1100px），
-       满幅铺满浮窗（壳层 float：媒体列直贴窗顶）。 */
+    /* 贴边根容器：宿主（overlay-scroller）桌面零内边距，媒体列直贴面板——旧的
+       负 margin（负 mx/mb/mt）抵消结构退役（D1 #858）。 */
     <div
       ref={rootRef}
       data-slot="variant-root"
-      className="relative flex h-full min-h-0 w-full min-[960px]:-mx-6 min-[960px]:-mb-6 min-[960px]:-mt-4 min-[960px]:h-[calc(100%+2.5rem)]"
+      className="relative flex h-full min-h-0 w-full"
     >
-      {/* 媒体列：宽 = 可用高 × 当前图比例（逐张自适应过渡），黑底满幅贴边。
+      {/* 媒体列：宽 = 可用高 × 当前项比例（逐张自适应过渡），黑底满幅贴边。
+          媒体链为空（loading/错误态）保持稳定黑底占位——双栏外壳不塌缩。
           #409 F1：入场未落定（freezeGeometry）时 width 过渡关闭——挂载期从
           百分比兜底到实测像素的过渡不得与共享元素转场同窗发生。 */}
       <div
@@ -268,54 +276,63 @@ export function OverlayVariantLayout({
           transition: freezeGeometry ? "none" : PANE_TRANSITION,
         }}
       >
-        {/* 锚点盒（R3 契约）：不含翻页控件；#753 取消内部竖向滚动（长图随列宽
-            缩窄居中完整显示）。data-ultra-tall：长图当前项标记——浮层转场据此
-            退化居中缩淡（C2，卡片两档裁切 vs 面板 contain 取景无法统一）。 */}
-        <div
-          data-slot="detail-cover"
-          data-ultra-tall={tall ? "true" : undefined}
-          className="h-full w-full overflow-hidden"
-          onClick={handleCoverClick}
-        >
-          <MediaSlide
-            item={current}
-            index={at}
-            total={media.length}
-            onSettle={settleFirstMedia}
-            holdSrc={holdSrc}
-          />
-        </div>
-        {showControls && (
+        {current && (
           <>
-            {/* #753：翻页由悬停/键盘聚焦可见的显式箭头承担；旧左右 1/3 隐形
-                点击热区与「点击放大进查看器」冲突，已移除。 */}
-            <HoverArrow side="left" disabled={at === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))} />
-            <HoverArrow
-              side="right"
-              disabled={at === media.length - 1}
-              onClick={() => setIndex((value) => Math.min(media.length - 1, value + 1))}
-            />
-            <CountBadge current={at + 1} total={media.length} />
-            <BottomDots media={media} index={at} />
+            {/* 锚点盒（R3 契约）：不含翻页控件；#753 取消内部竖向滚动（长图随列宽
+                缩窄居中完整显示）。data-ultra-tall：长图当前项标记——浮层转场据此
+                退化居中缩淡（C2，卡片两档裁切 vs 面板 contain 取景无法统一）。
+                空链（错误态）不渲染锚点：浮层转场维持居中缩淡降级。 */}
+            <div
+              data-slot="detail-cover"
+              data-ultra-tall={tall ? "true" : undefined}
+              className="h-full w-full overflow-hidden"
+              onClick={handleCoverClick}
+            >
+              <MediaSlide
+                item={current}
+                index={at}
+                total={media.length}
+                onSettle={settleFirstMedia}
+                holdSrc={holdSrc}
+              />
+            </div>
+            {showControls && (
+              <>
+                {/* #753：翻页由悬停/键盘聚焦可见的显式箭头承担；旧左右 1/3 隐形
+                    点击热区与「点击放大进查看器」冲突，已移除。 */}
+                <HoverArrow side="left" disabled={at === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))} />
+                <HoverArrow
+                  side="right"
+                  disabled={at === media.length - 1}
+                  onClick={() => setIndex((value) => Math.min(media.length - 1, value + 1))}
+                />
+                <CountBadge current={at + 1} total={media.length} />
+                <BottomDots media={media} index={at} />
+              </>
+            )}
           </>
         )}
       </div>
 
-      {/* 右文字列：浮层内唯一滚动容器（≥1100px）；pt-14 避让悬浮关闭钮（方案二 float）。 */}
+      {/* 右文字列：浮层内唯一滚动容器（滚动条贴面板右缘全高贯通）；× 悬浮面板
+          右上覆盖内容，不留整行避让空带（首块右上局部避让由 ContentDetail
+          creatorFirst 头部承担）。 */}
       <div
         data-slot="layer-scroller"
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-card px-5 pb-4 pt-4 min-[960px]:pt-14"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-card px-5 pb-4 pt-4"
       >
         {children}
       </div>
 
-      <MediaViewer
-        items={media}
-        index={viewerIndex ?? 0}
-        open={viewerIndex !== null}
-        onOpenChange={handleViewerOpenChange}
-        onIndexChange={setViewerIndex}
-      />
+      {media.length > 0 && (
+        <MediaViewer
+          items={media}
+          index={viewerIndex ?? 0}
+          open={viewerIndex !== null}
+          onOpenChange={handleViewerOpenChange}
+          onIndexChange={setViewerIndex}
+        />
+      )}
     </div>
   );
 }
