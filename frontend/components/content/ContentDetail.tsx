@@ -86,6 +86,11 @@ interface ContentDetailProps {
   onNavigateInOverlay?: (contentId: number, trigger?: HTMLElement | null) => void;
   /** #397 竖屏集新版布局：作者元信息行右缘的扩展动作（如关注按钮）。 */
   authorAction?: React.ReactNode;
+  /** D1 #858 浮层桌面统一右栏：创作者行（头像+昵称+关注）置于标题之前（钉死
+      块序第一位；仅 ≥960 视口生效，移动 <960 保持既有「标题在上」契约）。
+      同 prop 兼做统一右栏首块右上局部避让——× 悬浮面板右上覆盖内容，首块
+      右缘预留关闭钮命中区，不再整行预留空带。 */
+  creatorFirst?: boolean;
   /** #397 竖屏集新版布局：替换默认尾部（系列导航/相关行/评论/相关内容）。
       胜者记录 §7 布局钉死 = 内容详情 → 关联内容块 → 评论区（右栏末块）。 */
   variantTail?: React.ReactNode;
@@ -211,6 +216,7 @@ export function ContentDetail({
   relatedFanworksSummary,
   onNavigateInOverlay,
   authorAction,
+  creatorFirst,
   variantTail,
   coverHoldSrc,
   deferTail,
@@ -247,6 +253,19 @@ export function ContentDetail({
     mediaQuery.addEventListener("change", update);
     return () => mediaQuery.removeEventListener("change", update);
   }, []);
+
+  /* D1 #858 creatorFirst 生效判定（≥960 与浮层统一版式断点同源）：桌面创作者行
+     置顶 + 首块右上局部避让；移动 <960 保持「标题在上」既有契约。 */
+  const [unifiedViewport, setUnifiedViewport] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia("(min-width: 960px)");
+    const update = () => setUnifiedViewport(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+  const creatorRowFirst = Boolean(creatorFirst && unifiedViewport);
 
   const { media: mediaItems, downloads: downloadItems } = selectMediaItems(
     data.attachments ?? [],
@@ -286,71 +305,91 @@ export function ContentDetail({
 
   const collectionZone = data.zone === "fanwork" ? "fanwork" : "original";
 
-  return (
-    <div className={cn("space-y-6", className)}>
-      {/* Header（浮层封面同步：随正文一起在封面落定后 reveal） */}
-      <div className={cn("space-y-4", bodyVisible ? undefined : "invisible")}>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          {data.title}
-        </h1>
-
-        {/* SP-17/T3 布局A（知乎/小红书式，2026-09-12 Q1 裁决）：头像+昵称+关注
-            同排，元信息行（类型·浏览·日期）在昵称下方；头像/昵称 = 悬浮卡触发器，
-            关注按钮接 T1 的 author.is_following（修恒「未关注」缺口）。 */}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <UserHoverCard
-            userId={data.author?.id ?? data.author_id}
-            username={
-              data.author?.username ?? t('common.userLabel', { id: data.author_id ?? "-" })
-            }
-            avatarUrl={data.author?.avatar_url}
-            size={40}
-            placement="detail-creator"
-          />
-          <div className="flex items-center gap-2">
-            {authorAction}
-            {!isSelf && authorId != null && (
-              <FollowButton
-                targetType="user"
-                targetId={authorId}
-                initialFollowing={data.author?.is_following ?? false}
-                className={inlineFollowClassName}
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-xs text-muted-foreground">
-          {data.zone === "fanwork" && data.ip?.name && (
-            <span>
-              {t('content.ipLabel', { name: data.ip.name })}
-            </span>
-          )}
-          <span>{t('content.type', { type: typeLabel })}</span>
-          {data.view_count != null && (
-            <span>{t('content.views', { count: data.view_count })}</span>
-          )}
-          {data.created_at && (
-            <span>
-              {new Date(data.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-              })}
-            </span>
-          )}
-        </div>
-
-        {/* 来源归因（ui-spec:2635）：标题/作者元信息之后、正文之前；仅 fanwork 且存在内容级来源时渲染。 */}
-        {data.zone === "fanwork" && (
-          <SourceAttribution
-            zone="fanwork"
-            sourceOriginalId={sourceOriginal?.id ?? data.source_original_id}
-            sourceOriginal={sourceOriginal}
-            sourceFanworkId={sourceFanwork?.id ?? data.source_fanwork_id}
-            sourceFanwork={sourceFanwork}
+  /* Header 各块（D1 #858 creatorFirst 时统一右栏按「创作者行 → 标题 → 元信息 →
+     来源归因」钉死序渲染；其余调用方保持「标题在上」既有 DOM 序）。 */
+  const titleHeading = (
+    <h1 key="detail-title" className="text-2xl font-bold tracking-tight text-foreground">
+      {data.title}
+    </h1>
+  );
+  const creatorRow = (
+    <div
+      key="detail-creator-row"
+      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+    >
+      <UserHoverCard
+        userId={data.author?.id ?? data.author_id}
+        username={
+          data.author?.username ?? t('common.userLabel', { id: data.author_id ?? "-" })
+        }
+        avatarUrl={data.author?.avatar_url}
+        size={40}
+        placement="detail-creator"
+      />
+      <div className="flex items-center gap-2">
+        {authorAction}
+        {!isSelf && authorId != null && (
+          <FollowButton
+            targetType="user"
+            targetId={authorId}
+            initialFollowing={data.author?.is_following ?? false}
+            className={inlineFollowClassName}
           />
         )}
+      </div>
+    </div>
+  );
+  const metaRow = (
+    <div
+      key="detail-meta-row"
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-xs text-muted-foreground"
+    >
+      {data.zone === "fanwork" && data.ip?.name && (
+        <span>
+          {t('content.ipLabel', { name: data.ip.name })}
+        </span>
+      )}
+      <span>{t('content.type', { type: typeLabel })}</span>
+      {data.view_count != null && (
+        <span>{t('content.views', { count: data.view_count })}</span>
+      )}
+      {data.created_at && (
+        <span>
+          {new Date(data.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          })}
+        </span>
+      )}
+    </div>
+  );
+  const sourceAttribution = data.zone === "fanwork" ? (
+    <SourceAttribution
+      key="detail-source-attribution"
+      zone="fanwork"
+      sourceOriginalId={sourceOriginal?.id ?? data.source_original_id}
+      sourceOriginal={sourceOriginal}
+      sourceFanworkId={sourceFanwork?.id ?? data.source_fanwork_id}
+      sourceFanwork={sourceFanwork}
+    />
+  ) : null;
+
+  return (
+    <div className={cn("space-y-6", className)}>
+      {/* Header（浮层封面同步：随正文一起在封面落定后 reveal）。
+          D1 #858 统一右栏（creatorFirst && ≥960）：创作者行 → 标题 → 元信息 →
+          来源归因，首块右缘预留悬浮 × 命中区（pr-14 局部避让，无整行空带）。 */}
+      <div
+        className={cn(
+          "space-y-4",
+          bodyVisible ? undefined : "invisible",
+          creatorRowFirst && "min-[960px]:pr-14",
+        )}
+      >
+        {creatorRowFirst
+          ? [creatorRow, titleHeading, metaRow, sourceAttribution]
+          : [titleHeading, creatorRow, metaRow, sourceAttribution]}
       </div>
 
       {/* Media area: image/video content renders the stable MediaGallery; other

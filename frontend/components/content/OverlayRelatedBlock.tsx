@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { RelatedCardEntry } from "@/components/content/ContentSidebar";
 import type { SeriesMembership, SourceSummary } from "@/lib/content";
 
 interface OverlayRelatedBlockProps {
@@ -14,11 +13,8 @@ interface OverlayRelatedBlockProps {
   sourceOriginal?: SourceSummary | null;
   /** ② 同系列跳转：取第一个系列（系列名 + 第 X/Y 篇 + 上一章/下一章，边界禁用）。 */
   series?: SeriesMembership[];
-  /** ③ 衍生二创/相关二创列表（浮层层已拉取的 related-fanworks 合同）。 */
-  related: RelatedCardEntry[];
-  relatedLabelKey: string;
-  onOpenRelated: (entry: { id: number; zone?: string }, trigger: HTMLElement) => void;
   /** trigger 透传给浮层压栈（弹层时焦点还给触发钮，与关联列表行同一契约）。 */
+  onOpenRelated: (entry: { id: number; zone?: string }, trigger: HTMLElement) => void;
   onNavigateSeries: (contentId: number, trigger?: HTMLElement | null) => void;
 }
 
@@ -40,17 +36,16 @@ function isValidTarget(value: SeriesMembership["previous"] | undefined): boolean
 }
 
 /**
- * 竖屏集新版布局右栏的关联内容块（#397 胜者记录 §7 布局钉死 + #846 IP 行）：
- * 位置 = 内容详情之后、评论之前；内部顺序 = ⓪关联 IP（#846，仅 fanwork）
- * → ①关联的原创 → ②同系列跳转（第一个系列）→ ③衍生二创列表；无任何关联时
- * 整块不渲染（①~③ 相对顺序保持 §7 钉死不变）。
+ * 统一版式右栏的关联块（D1 #858 块序钉死 + #846 IP 行；承袭 #397 胜者记录 §7）：
+ * 位置 = 内容详情之后、评论区之前；内部顺序 = ⓪关联 IP → ①关联的原创 → ②同系列
+ * 跳转（第一个系列）。衍生二创列表（旧 ③）已从本块拆出——随评论区之后的推荐区
+ * （RelatedContents 关联行 + 相似推荐）渲染，避免推荐内容出现在创作者信息之前
+ * （全横集 split 版式的历史缺陷）。无任何关联时整块不渲染。
  */
 export function OverlayRelatedBlock({
   ip,
   sourceOriginal,
   series,
-  related,
-  relatedLabelKey,
   onOpenRelated,
   onNavigateSeries,
 }: OverlayRelatedBlockProps) {
@@ -63,7 +58,7 @@ export function OverlayRelatedBlock({
   const ipName = ip?.name?.trim() ?? "";
   const ipRow = ip?.id && ipName ? ip : undefined;
 
-  if (!ipRow && !hasSourceOriginal && !seriesValid && related.length === 0) return null;
+  if (!ipRow && !hasSourceOriginal && !seriesValid) return null;
 
   const previous =
     seriesValid && firstSeries.current_index > 1 && isValidTarget(firstSeries.previous)
@@ -165,38 +160,6 @@ export function OverlayRelatedBlock({
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
-        )}
-
-        {related.length > 0 && (
-          <ul data-slot="related-list" aria-label={t(relatedLabelKey)} className="space-y-1">
-            {related.map((entry) => (
-              <li key={entry.id}>
-                <button
-                  type="button"
-                  onClick={(event) => onOpenRelated({ id: entry.id, zone: entry.zone }, event.currentTarget)}
-                  aria-label={t("contentDetailOverlay.openRelated", { title: entry.title })}
-                  className="flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-                    {entry.coverUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={entry.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
-                        {entry.title.slice(0, 1)}
-                      </span>
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-foreground">{entry.title}</span>
-                    {entry.meta && (
-                      <span className="block truncate text-xs text-muted-foreground">{entry.meta}</span>
-                    )}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
         )}
       </div>
     </section>
