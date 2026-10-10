@@ -51,12 +51,14 @@ func NewArchiveScanGate(db *gorm.DB, enabled bool, scannableTypes []string) *Arc
 }
 
 // IsScannableFamily reports whether a family is enforcement-relevant for
-// this gate.
+// this gate. The lookup trims whitespace so a dirty family value resolves
+// the same way the display-eligibility check already does — an eligible
+// family must never silently miss the scan-aware channel (#874).
 func (g *ArchiveScanGate) IsScannableFamily(family string) bool {
 	if g == nil {
 		return false
 	}
-	return g.scannable[family]
+	return g.scannable[strings.TrimSpace(family)]
 }
 
 // ScannablePreviewTTLSec returns the scan-aware short signing budget for
@@ -74,6 +76,12 @@ func (g *ArchiveScanGate) ScannablePreviewTTLSec(fallbackTTLSec int) int {
 func (g *ArchiveScanGate) RequireAttachmentClean(ctx context.Context, attachmentID int64) error {
 	if g == nil {
 		return nil
+	}
+	// A constructed gate without a DB cannot verify anything; fail closed
+	// instead of dereferencing nil (#874). Unreachable in production (every
+	// constructor passes the real db and container init exits on failure).
+	if g.db == nil {
+		return ErrArchiveNotClean
 	}
 	var attachment model.ContentAttachment
 	if err := g.db.WithContext(ctx).Where("id = ?", attachmentID).First(&attachment).Error; err != nil {

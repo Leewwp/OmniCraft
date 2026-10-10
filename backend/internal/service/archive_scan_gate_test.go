@@ -332,3 +332,33 @@ func attachmentIDOrFail(t *testing.T, db *gorm.DB, id int64) int64 {
 	}
 	return attachment.ID
 }
+
+// #874（D4 审查 P3-1）：g 非 nil 而 db 为 nil 时（生产不可达——三条构造全传
+// 真实 db、container 校验强制非空、Init 失败即 exit），RequireAttachmentClean
+// 不得对 nil *gorm.DB 解引用 panic，fail-closed 拒签；nil gate 本身的直通
+// 语义（无 gate = 不限制）保持原状。
+func TestRequireAttachmentCleanFailsClosedWithoutDB(t *testing.T) {
+	gate := NewArchiveScanGate(nil, true, nil)
+	err := gate.RequireAttachmentClean(context.Background(), 1)
+	if !errors.Is(err, ErrArchiveNotClean) {
+		t.Fatalf("nil-db gate must fail closed with ErrArchiveNotClean, got %v", err)
+	}
+}
+
+// #874（D4 审查 P3-4）：IsScannableFamily 与资格函数（attachmentDisplayEligible
+// 已 TrimSpace）对称——带空白的脏 family 值不得因规范化不对称而漏出 scan-aware
+// 通道判定；数据库注册表值由规范化写入，这里只覆盖脏数据防御。
+func TestIsScannableFamilyTrimsWhitespace(t *testing.T) {
+	gate := NewArchiveScanGate(nil, true, nil)
+	for _, dirty := range []string{" document", "document ", "\tdocument\n"} {
+		if !gate.IsScannableFamily(dirty) {
+			t.Fatalf("IsScannableFamily(%q) = false, want true (symmetric with eligibility trimming)", dirty)
+		}
+	}
+	if gate.IsScannableFamily(" image ") && !gate.IsScannableFamily("image") {
+		t.Fatalf("trim must not flip a non-scannable family into scannable")
+	}
+	if gate.IsScannableFamily("") {
+		t.Fatalf("empty family is never scannable")
+	}
+}
