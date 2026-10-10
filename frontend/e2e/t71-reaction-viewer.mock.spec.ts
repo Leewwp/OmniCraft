@@ -156,7 +156,9 @@ async function mockDetailRemainder(page: Page) {
 }
 
 function reactionButtons(page: Page) {
-  return page.locator('button[aria-pressed]');
+  /* D1 统一版式后详情页并存关注按钮（FollowButton 同样用 aria-pressed 双态语义），
+     裸 button[aria-pressed] 不再唯一定位反应对；锚定 ReactionBar 容器（data-slot）。 */
+  return page.locator('[data-slot="reaction-bar"] button[aria-pressed]');
 }
 
 function likeButton(page: Page) {

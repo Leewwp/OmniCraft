@@ -211,13 +211,15 @@ test.describe("Ticket 10: 相关内容块与到底提示（桌面/web）(#90)", 
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("heading", { level: 2, name: "相似 612" })).toBeVisible();
 
-    /* 浮层内继续下钻：variant 关联块的衍生行（612 → 613）压栈（栈深 ≤5 沿用
-       既有机制）。 */
-    const innerBlock = dialog.locator('[data-slot="overlay-related-block"]');
-    await innerBlock.scrollIntoViewIfNeeded();
-    await expect(innerBlock).toBeVisible();
-    await expect(innerBlock.locator('[data-slot="related-list"] button')).toHaveCount(1);
-    await innerBlock.locator('[data-slot="related-list"] button').filter({ hasText: "相似 613" }).click();
+    /* 浮层内继续下钻：variant 层推荐区的衍生行（612 → 613）压栈（栈深 ≤5 沿用
+       既有机制）。D1 #858 起衍生二创列表从 OverlayRelatedBlock 拆出，随评论区
+       之后的 RelatedContents 推荐区（related-fanworks 关联行，ContentCard 渲染）
+       呈现；关联块本体只保留 ⓪IP/①原创/②系列。 */
+    const innerRelated = dialog.locator('[data-slot="related-fanworks"]');
+    await innerRelated.scrollIntoViewIfNeeded();
+    await expect(innerRelated).toBeVisible();
+    await expect(innerRelated.locator('[data-slot="card-cover"]')).toHaveCount(1);
+    await innerRelated.locator('[data-slot="card-cover"]').click();
     await expect(dialog.getByRole("heading", { level: 2, name: "相似 613" })).toBeVisible();
     /* variant 悬浮返回钮 aria-label = 「返回到：XXX」（#397 用户裁决格式）。 */
     await expect(dialog.getByRole("button", { name: /返回到：相似 612/ })).toBeVisible();
