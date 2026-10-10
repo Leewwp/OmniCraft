@@ -115,8 +115,10 @@ OmniCraft 是一个以 **IP 二创内容聚合** 为核心流量底座、**Agent
 
 ```
 app/
+├── (landing)/                       # 根页独立壳
+│   └── page.tsx                     # /：匿名访客落地页；登录用户二创分区页
 ├── (public)/                        # 无需登录
-│   ├── page.tsx                     # 首页（二创区内容流）
+│   ├── fanworks/page.tsx            # 二创分区页，匿名与登录用户均可访问
 │   ├── ip/[ipId]/page.tsx           # IP 详情页
 │   ├── ip/[ipId]/[category]/page.tsx # IP 下某类目内容列表
 │   ├── content/[contentId]/page.tsx # 内容详情页
@@ -138,6 +140,9 @@ app/
 │   ├── help/page.tsx                # 帮助中心
 │   ├── client/page.tsx              # 桌面客户端下载
 │   └── home/page.tsx                # 旧首页（重定向）
+├── (workspace)/                     # Agent 双主体壳，按身份与功能开关准入
+│   ├── agent/page.tsx               # 登录用户工作台 / 受限游客工作台 / 登录引导
+│   └── agent/c/[conversationId]/page.tsx # 按账号或签名设备归属回看会话
 ├── (protected)/                     # 需要登录
 │   ├── settings/page.tsx            # 账号设置
 │   │   └── tag-groups/page.tsx      # 标签组管理
@@ -169,7 +174,6 @@ app/
 │   ├── history/page.tsx             # 浏览历史
 │   ├── appeals/page.tsx             # 我的申诉
 │   ├── messages/page.tsx            # 消息中心（通知 + 私信）
-│   ├── agent/page.tsx               # 独立全页 Agent 工作台（feature gate + 登录保护）
 │   ├── rehab/page.tsx               # 素质建设课程
 │   └── feedback/page.tsx            # 用户反馈
 └── admin/                           # 管理员后台

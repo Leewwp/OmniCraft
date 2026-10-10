@@ -14,9 +14,11 @@
 
 这是一个**Web-only、本地可运行、本地可测试的工程化开源项目**：在模块化单体后端（Go/Gin）上实现了带权限过滤、服务端引用复核、可降级检索和可靠异步处理的单 Agent RAG 工作台。技术栈：Next.js + Go/Gin + PostgreSQL(pgvector) + Redis + 阿里云 OSS/Green。
 
-**线上演示**：[app.leeppp.online](https://app.leeppp.online) —— 游客态即可浏览（生产为单机精简档部署，无公开运营与真实用户数据）。
+**访问站点**：[app.leeppp.online](https://app.leeppp.online)。
 
-![OmniCraft 首页（游客态，2026-09-19）](docs/screenshots/live-home-2026-09-19.png)
+根路径 `/` 对匿名访客展示访客落地页，对登录用户展示二创分区页；`/fanworks` 为双身份均可访问的同一二创分区页，内容深链直接可达。启用 `features.guest_agent_enabled` 与 `agent.web_agent_enabled` 后，`/agent` 提供每设备累计三轮、会话保留七天的受限匿名体验。游客功能出厂关闭，授权边界见 [ADR 0006](docs/adr/0006-guest-agent-limited-anonymous-surface.md)。
+
+![OmniCraft 二创内容流](docs/screenshots/live-home-2026-09-19.png)
 
 ---
 
