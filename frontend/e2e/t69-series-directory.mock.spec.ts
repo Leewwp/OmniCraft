@@ -234,10 +234,11 @@ test.describe("Ticket 69: 浮窗内系列目录与章节导航 (#69)", () => {
     await expect(seriesRow.getByRole("link")).toHaveCount(0, { timeout: 3_000 });
     await expect(seriesRow.getByRole("listbox")).toHaveCount(0);
 
-    /* 下一章压栈：标题切换且 URL 不变。 */
+    /* 下一章压栈：标题切换，URL 逐层改写深链到当前章（D3 #860 history 状态机
+       取代「浮层内导航 URL 不变」旧契约；返回仍归并回宿主页）。 */
     await seriesRow.getByRole("button", { name: "下一章：第四章：星轨" }).click();
     await expect(overlayTitle(dialog, "第四章：星轨")).toBeVisible();
-    expect(page.url()).toMatch(/\/original$/);
+    expect(page.url()).toMatch(/\/original\/604$/);
 
     /* 返回逐层恢复上一章（variant 悬浮返回钮 aria-label = 「返回到：XXX」）。 */
     await dialog.getByRole("button", { name: /返回到：第三章：迷雾/ }).click();
@@ -274,12 +275,13 @@ test.describe("Ticket 69: 浮窗内系列目录与章节导航 (#69)", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     const dialog = await openOverlayFromFeed(page, "第三章：迷雾");
 
-    /* 键盘推进：聚焦关联块下一章按钮后 Enter 压栈，标题切换且无整页跳转。 */
+    /* 键盘推进：聚焦关联块下一章按钮后 Enter 压栈，标题切换且无整页跳转
+       （URL 按 D3 深链逐层改写到当前章，非独立路由导航）。 */
     const nextButton = overlayRelatedBlock(dialog).getByRole("button", { name: "下一章：第四章：星轨" });
     await nextButton.focus();
     await page.keyboard.press("Enter");
     await expect(overlayTitle(dialog, "第四章：星轨")).toBeVisible();
-    expect(page.url()).toMatch(/\/original$/);
+    expect(page.url()).toMatch(/\/original\/604$/);
 
     /* Escape 逐层返回：弹层后焦点还给压栈触发钮（AC4 焦点恢复契约）。 */
     await page.keyboard.press("Escape");
