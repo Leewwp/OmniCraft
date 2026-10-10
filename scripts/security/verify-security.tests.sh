@@ -343,6 +343,75 @@ printf '{"api_key": "%s"}\n' "$SECRET_PLANT" > "$SECRET_ROOT/sub/credentials.txt
 expect_exit 0 "secret fixture passes policy gate (isolation)" "$SECRET_ROOT" "policy"
 expect_exit 1 "fake secret fails the gitleaks gate" "$SECRET_ROOT" "secrets"
 
+# The negative case must be evidence of a REAL detection, not of a tool
+# failure that also exits non-zero (the L-batch Security gate false-green:
+# Docker Hub rate-limiting killed the gitleaks container and "expected 1,
+# got 1" passed). The gate summary must classify the secrets gate as rc=1
+# (scan completed) and the structured report must attribute the hit to the
+# planted temp file via the expected secret rule.
+python3 - "$TEMP_ROOT/report-fake secret fails the gitleaks gate/security-summary.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+secrets_rcs = [g for g in d["gates"] if g.startswith("secrets:")]
+assert secrets_rcs == ["secrets:1"], (secrets_rcs, d["gates"])
+PY
+python3 - "$TEMP_ROOT/report-fake secret fails the gitleaks gate/gitleaks-tree.json" <<'PY'
+import json, sys
+findings = json.load(open(sys.argv[1], encoding="utf-8"))
+assert isinstance(findings, list) and findings, "tree report has no findings"
+# gitleaks reports container-absolute paths (/repo/...); match the planted
+# relative path so the hit is attributed to the fixture file, not the repo.
+hits = [f for f in findings if str(f.get("File", "")).endswith("/sub/credentials.txt")]
+assert hits, sorted(f.get("File") for f in findings)
+assert all(f.get("RuleID") == "generic-api-key" for f in hits), sorted(f.get("RuleID") for f in hits)
+PY
+
+# ------------------------------------- scanner-failure classification
+# A scanner that cannot run (image pull failure, container start failure)
+# must be classified as a gate TOOL error, never as a detection: the fake
+# docker stub below always exits 1 and produces no reports. The verifier
+# must still fail overall, but the summary must record the secrets gate as
+# rc=2 (tool failure) — with the historical implementation it recorded
+# rc=1, indistinguishable from a real detection, which is the false-green
+# this contract pins down.
+TOOLFAIL_BIN="$TEMP_ROOT/toolfail-bin"
+mkdir -p "$TOOLFAIL_BIN"
+cat > "$TOOLFAIL_BIN/docker" <<'STUB'
+#!/usr/bin/env bash
+echo "toolfail-stub: simulated pull/start failure" >&2
+exit 1
+STUB
+chmod +x "$TOOLFAIL_BIN/docker"
+TOOLFAIL_ROOT="$TEMP_ROOT/toolfail"
+mkdir -p "$TOOLFAIL_ROOT/security"
+cp "$SECURITY_DIR"/*.json "$TOOLFAIL_ROOT/security/"
+_saved_path="$PATH"
+export PATH="$TOOLFAIL_BIN:$PATH"
+expect_exit 1 "scanner tool failure still fails the overall gate" "$TOOLFAIL_ROOT" "secrets"
+export PATH="$_saved_path"
+python3 - "$TEMP_ROOT/report-scanner tool failure still fails the overall gate/security-summary.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+secrets_rcs = [g for g in d["gates"] if g.startswith("secrets:")]
+assert secrets_rcs == ["secrets:2"], (secrets_rcs, d["gates"])
+PY
+
+# ------------------------------------- empty and corrupt report verdicts
+# Verdict-only mode over pre-existing reports: an EMPTY findings array is a
+# clean scan (verdict passes) while a CORRUPT report must fail the verdict
+# (fail-closed, never silently treated as zero findings).
+VERDICT_ROOT="$TEMP_ROOT/verdict-reports"
+mkdir -p "$VERDICT_ROOT/security"
+cp "$SECURITY_DIR"/*.json "$VERDICT_ROOT/security/"
+echo '[]' > "$VERDICT_ROOT/gitleaks-tree.json"
+echo '[]' > "$VERDICT_ROOT/gitleaks-history.json"
+expect_verdict 0 "empty gitleaks reports verdict clean" "$VERDICT_ROOT" "secrets" "$VERDICT_ROOT"
+printf '{"File": "sub/credentials.txt", "RuleID": "generic-api-key", "Secret": "sk-' > "$VERDICT_ROOT/gitleaks-tree.json"
+expect_verdict 1 "corrupt gitleaks report fails the verdict" "$VERDICT_ROOT" "secrets" "$VERDICT_ROOT"
+echo '[]' > "$VERDICT_ROOT/gitleaks-tree.json"
+rm -f "$VERDICT_ROOT/gitleaks-history.json"
+expect_verdict 1 "missing gitleaks report fails the verdict" "$VERDICT_ROOT" "secrets" "$VERDICT_ROOT"
+
 # ------------------------------------ gitleaks scope counter-experiments (F-06)
 # The content exemptions in the repo .gitleaks.toml must be conditioned on
 # BOTH path and content, evaluated per finding. Three planted roots replay
