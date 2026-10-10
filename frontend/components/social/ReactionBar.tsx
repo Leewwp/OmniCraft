@@ -142,6 +142,7 @@ export function ReactionBar({
 
   return (
     <div
+      data-slot="reaction-bar"
       className={cn(
         "flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 ",
         className,
