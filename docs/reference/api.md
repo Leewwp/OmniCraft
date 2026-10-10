@@ -23,6 +23,20 @@ Content-Type: application/json
 
 ### 5.2 关键接口示例
 
+#### 游客 Agent（/api/v1/agent/guest）
+
+游客端点使用服务端签名设备 cookie，与账号 JWT 通道分离；携带 Authorization 的请求返回 403 `AUTH_CHANNEL_CONFLICT`，不降级为游客。`features.guest_agent_enabled` 与 `agent.web_agent_enabled` 必须同时开启，否则返回 403 `GUEST_AGENT_DISABLED`。设备 cookie 的创建、验证和配额状态遵循 [ADR 0006](../adr/0006-guest-agent-limited-anonymous-surface.md)。
+
+| 方法 | 路径 | 行为 |
+|------|------|------|
+| GET | `/api/v1/agent/guest/models` | 可用问答模型 |
+| GET | `/api/v1/agent/guest/quota` | `remaining`、`max_turns`、`exhausted`、`conversation_ttl_days` |
+| GET | `/api/v1/agent/guest/conversations` | 当前设备的未过期会话 |
+| GET | `/api/v1/agent/guest/conversations/:id` | 当前设备的未过期会话消息 |
+| POST | `/api/v1/agent/guest/chat/stream` | SSE 问答；请求字段为 `message`、可选 `conversation_id`、`model`、`surface`（仅 `global`） |
+
+生成请求受全局 CSRF/Origin、per-IP 成本桶和设备累计配额约束；第一笔 Provider 工作前预留一轮，预留后的失败、停止和断线仍消费。第四轮返回 429 `GUEST_QUOTA_EXHAUSTED`；Redis 不可用或额度状态丢失均拒绝生成，不重建额度。跨设备会话返回 404；过期会话返回 410 `AGENT_CONVERSATION_EXPIRED`。具体可用轮数、并发上限和保留时间读取配置，出厂值为 3、3、7 天。
+
 #### 内容详情（GET /api/v1/contents/:id）
 
 ```json

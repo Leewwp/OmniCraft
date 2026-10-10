@@ -14,9 +14,11 @@ A community platform for original and fan creations — IP fan-work aggregation 
 
 This is an **engineering-first, web-only open-source project that runs and tests locally**: a modular-monolith backend (Go/Gin) hosting a single-agent RAG workbench with permission filtering, server-side citation re-checking, degradable retrieval, and reliable async processing. Stack: Next.js + Go/Gin + PostgreSQL(pgvector) + Redis + Aliyun OSS/Green.
 
-**Live demo**: [app.leeppp.online](https://app.leeppp.online) — browsable as a guest (single-server lean profile; no public operation, no real-user data).
+**Website**: [app.leeppp.online](https://app.leeppp.online).
 
-![OmniCraft home page (guest view, 2026-09-19)](docs/screenshots/live-home-2026-09-19.png)
+The root `/` shows a guest landing page to anonymous visitors and the fan-work feed to signed-in users. `/fanworks` opens the same feed for either identity; content links open directly. When `features.guest_agent_enabled` and `agent.web_agent_enabled` are enabled, `/agent` offers a limited anonymous experience: three cumulative turns per device and seven-day conversation retention. The guest feature defaults to disabled; see [ADR 0006](docs/adr/0006-guest-agent-limited-anonymous-surface.md).
+
+![OmniCraft fan-work feed](docs/screenshots/live-home-2026-09-19.png)
 
 ---
 

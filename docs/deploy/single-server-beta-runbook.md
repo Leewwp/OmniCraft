@@ -291,7 +291,30 @@ init scripts only apply to a brand-new empty data volume and silently ignore
 later migration files. `docker compose logs migrate` shows the applied
 migration set and `migration-summary.json` in the container.
 
-### 6.1 PostgreSQL credential flow (rotation + git-archive deploys)
+### 6.3 Optional guest Agent activation
+
+The anonymous Agent surface defaults to disabled. To enable it, apply
+`089_agent_conversations_guest_owner.sql` through the normal migration gate,
+inject `AGENT_GUEST_COOKIE_SECRET` with at least 32 characters, and enable
+both `features.guest_agent_enabled` and `agent.web_agent_enabled` in the
+effective configuration. Keep `rate_limit.guest_buckets.agent_guest`
+capacity and refill rate positive. The cost bucket remains enforced even
+when ordinary browsing rate limits are disabled.
+
+Rebuild the `migrate` image whenever a source build includes new migrations;
+rebuilding only backend, worker and frontend leaves the migration runner's
+embedded files stale. With incremental source delivery, derive both added
+and deleted paths with `git diff --no-renames` so moved route files do not
+leave their old copies on the host.
+
+After deployment, verify `/api/v1/config/public`, anonymous `/`, `/fanworks`
+and `/agent` in Chromium. Check that a fresh device can consume three turns,
+the fourth request is refused, and signing in keeps account history separate.
+When the guest flag is disabled, the landing hero and closing section hide
+their Agent entry buttons and `/agent` shows the sign-in fallback. Deployment
+of the code and activation of the feature are separate release checks.
+
+### 6.4 PostgreSQL credential flow (rotation + git-archive deploys)
 
 `DB_DSN` values in `docker-compose.yml` interpolate `POSTGRES_PASSWORD` from
 the project `.env` (fallback `omnicraft` for a bare dev checkout), so the
