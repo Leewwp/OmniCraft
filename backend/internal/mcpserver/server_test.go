@@ -80,15 +80,8 @@ func newTestMCPStack(t *testing.T) (*sdkmcp.ClientSession, *gorm.DB) {
 	contentRepo := repository.NewContentRepository(db)
 	// #813: 假凭证 OSS 域让附件展示签名在测试中真实可算（签名是纯本地
 	// 计算，无网络调用）——get_content 附件投影按家族断言签名有无。
-	cfg := &config.Config{
-		OSS: config.OSSConfig{
-			Endpoint:        "http://127.0.0.1:9201",
-			AccessKeyID:     "test-access-key",
-			AccessKeySecret: "test-access-secret",
-			BucketName:      "test-bucket",
-			Domain:          "http://127.0.0.1:9201/test-bucket",
-		},
-	}
+	// OSS 值与 mcpTestOSSConfig 同源（#874 去重：单一 fixture，两处不再漂移）。
+	cfg := &config.Config{OSS: mcpTestOSSConfig().OSS}
 	guideSvc := service.NewUsageGuideService(repository.NewUsageGuideRepository(db), contentRepo)
 	handler := NewHandler(Deps{
 		DB:            db,

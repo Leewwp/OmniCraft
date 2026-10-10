@@ -497,3 +497,56 @@ func TestScanAwareDecorateNewFamiliesScanGateMatrix(t *testing.T) {
 	signer.ScanAwareDecorateAttachments(context.Background(), pending, disabled, 0)
 	requireSignedShape(t, pending[0].OSSURL, "uploads/3/audio/pending.mp3")
 }
+
+// #874（D4 审查 P3-2）：scan-aware 路径的 gate 拒签分支显式证明清掉调用方
+// 带入的 stale OSSURL——plain 路径已有同款断言，gate 路径此前 fixture 不带旧
+// 值、断言恒真；不应交付的附件不得残留任何先前签名。
+func TestScanAwareDecorateGateRejectionClearsStaleOSSURL(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ContentItem{}, &model.ContentAttachment{}))
+
+	signer := NewDisplayURLSigner(displayTestConfig(0))
+	gate := NewArchiveScanGate(db, true, nil)
+
+	rows := []model.ContentAttachment{
+		{FileType: "audio", OSSKey: "uploads/3/audio/pending.mp3", ScanStatus: model.ScanStatusPending, ScanRequired: true},
+		{FileType: "document", OSSKey: "uploads/3/document/blocked.docx", ScanStatus: model.ScanStatusBlocked, ScanRequired: true},
+		{FileType: "audio", OSSKey: "quarantine/archive-scan/5/1/job1", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+	}
+	require.NoError(t, db.Create(&rows).Error)
+	for i := range rows {
+		rows[i].OSSURL = "https://stale.example/previous-signature"
+	}
+
+	signer.ScanAwareDecorateAttachments(context.Background(), rows, gate, 0)
+	for i := range rows {
+		require.Equal(t, "", rows[i].OSSURL, "row %d (%s) gate rejection must clear the stale oss_url", i, rows[i].ScanStatus)
+	}
+}
+
+// #874（D4 审查 P3-4）：带空白 family 的脏数据在通过资格判断后必须落
+// scan-aware 通道（短 TTL、无桶对齐），不得因 IsScannableFamily 不规范化而
+// 错走 attachment 分钟级通道；正常规范化数据库值行为不变。
+func TestScanAwareDecorateWhitespaceFamilyDispatchesScanChannel(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ContentItem{}, &model.ContentAttachment{}))
+
+	// attachment 通道 TTL 抬到 900s 制造区分度：scan-aware 通道恒 cap 300s。
+	cfg := displayTestConfig(0)
+	cfg.OSS.DisplayAttachmentTTLSec = 900
+	signer := NewDisplayURLSigner(cfg)
+	gate := NewArchiveScanGate(db, true, nil)
+	before := time.Now().Unix()
+
+	rows := []model.ContentAttachment{
+		{FileType: " document ", OSSKey: "uploads/3/document/dirty.docx", ScanStatus: model.ScanStatusClean, ScanRequired: true},
+	}
+	require.NoError(t, db.Create(&rows).Error)
+
+	signer.ScanAwareDecorateAttachments(context.Background(), rows, gate, 0)
+	requireSignedShape(t, rows[0].OSSURL, rows[0].OSSKey)
+	require.InDelta(t, float64(before+300), float64(signedExpires(t, rows[0].OSSURL)), 2,
+		"a whitespace-padded scannable family must ride the scan-aware TTL (cap 300s), not the 900s attachment channel")
+}
