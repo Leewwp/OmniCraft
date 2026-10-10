@@ -308,6 +308,19 @@ PY
 }
 
 # ------------------------------------------------------------- secrets gate
+# True if $1 is readable JSON and a list (a completed gitleaks report, even
+# an empty one). Together with the docker exit code this separates "scan ran
+# and may have findings" from "tool errored": gitleaks exits 1 BOTH on
+# detections and on failures, and a docker pull/start failure produces exit 1
+# with no report at all — contract tests tell the two apart via the recorded
+# gate rc (1 = scan completed, 2 = tool failure).
+gitleaks_report_valid() {
+  python3 - "$1" <<'PY' >/dev/null 2>&1
+import json, sys
+assert isinstance(json.load(open(sys.argv[1], encoding="utf-8")), list)
+PY
+}
+
 run_secrets_gate() {
   need_docker
   local rc=0
@@ -322,6 +335,21 @@ run_secrets_gate() {
       --report-format json --report-path /out/gitleaks-history.json >/dev/null 2>&1 || rc=1
   else
     echo '[]' > "$REPORT_DIR/gitleaks-history.json"
+  fi
+  if [ $rc -ne 0 ]; then
+    # A non-zero exit with BOTH reports valid means the scans completed and
+    # gitleaks found findings (or the verdict layer will judge them): keep
+    # rc=1. Missing or malformed reports mean the tool itself failed (image
+    # pull, container start, crash mid-write): classify as rc=2 so "expected
+    # non-zero" negative tests can never mistake a tool outage for a
+    # detection (the L-batch Security gate false-green).
+    if gitleaks_report_valid "$REPORT_DIR/gitleaks-tree.json" && \
+       gitleaks_report_valid "$REPORT_DIR/gitleaks-history.json"; then
+      rc=1
+    else
+      echo "secrets gate: gitleaks tool failure (no valid reports produced)" >&2
+      return 2
+    fi
   fi
   [ -f "$REPORT_DIR/gitleaks-tree.json" ] || rc=1
   return $rc
@@ -526,10 +554,21 @@ def add(f):
 
 if "secrets" in active_gates:
     for rep in ("gitleaks-tree.json", "gitleaks-history.json"):
-        for f in load(os.path.join(report_dir, rep)) or []:
-            add({"id": "gitleaks:%s" % f.get("RuleID"), "component": f.get("File"),
-                 "version": "N/A", "severity": "secret", "source": "gitleaks-%s" % rep,
-                 "detail": f.get("Secret", "")[:24]})
+        loaded = load(os.path.join(report_dir, rep))
+        if loaded is None or not isinstance(loaded, list):
+            # A missing or unparseable report means the scanner failed.
+            # Treating it as zero findings green-lights a broken scanner —
+            # the same audit F-05 lesson already applied to trivy-fs below.
+            # Non-waivable severity, so the verdict fails. (An empty list is
+            # a completed clean scan and passes.)
+            add({"id": "scanner-failure:gitleaks", "component": rep,
+                 "version": "N/A", "severity": "critical", "source": "gitleaks-%s" % rep,
+                 "detail": "report missing or invalid (scanner failure is not zero findings)"})
+        else:
+            for f in loaded:
+                add({"id": "gitleaks:%s" % f.get("RuleID"), "component": f.get("File"),
+                     "version": "N/A", "severity": "secret", "source": "gitleaks-%s" % rep,
+                     "detail": f.get("Secret", "")[:24]})
 
 def iter_json_stream(path):
     """Yield each JSON document in a multi-document stream. govulncheck
