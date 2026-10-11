@@ -1,15 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
-import type { MediaGalleryItem } from "@/components/content/MediaGallery";
+import { AudioPlayer } from "@/components/content/AudioPlayer";
+import { MIDIPlayer, OSMDRenderer } from "@/components/content/SheetMusicViewer";
+import type { MediaGalleryItem, MediaSlideType } from "@/components/content/MediaGallery";
 import { OVERLAY_DEFAULT_RATIO, isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
+import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
+import { usePublicConfig } from "@/lib/use-public-config";
+
+/** D5 #862 查看器族懒分块：重依赖（mammoth/exceljs/three.js）不进主包，
+ * 当前位才挂载（React.lazy + Suspense；轮播位仅在客户端浮层打开后渲染，
+ * 无 SSR 直出路径）。 */
+const DocumentViewer = lazy(() =>
+  import("@/components/content/DocumentViewer").then((m) => ({ default: m.DocumentViewer })),
+);
+const ModelViewer = lazy(() =>
+  import("@/components/content/ModelViewer").then((m) => ({ default: m.ModelViewer })),
+);
 
 /**
  * 内容详情浮窗「统一版式」（D1 #858，桌面 ≥960 全类型唯一版式；几何承袭 #397
@@ -36,6 +50,20 @@ import { OVERLAY_DEFAULT_RATIO, isLongImageItem, itemAspectRatio } from "@/lib/o
  * - 三件套可用性：仅多项显示；边界 clamp 不循环；hover 与 focus-within 均可见；
  *   触控目标 44px；键盘 ←/→ 只作用于顶层活动媒体区，不劫持输入框/评论编辑器/
  *   播放器控件/上层查看器/登录浮窗；切位按钮点击不触发放大。
+ *
+ * D5 #862 可预览媒体链与逐类型轮播位（spec §9.6/§3.2）：
+ * - 媒体链 = 逐附件 slide 序列（overlay-media selectOverlaySlides）：audio/
+ *   model3d/document/text-pdf/sheet_music（musicxml/midi/pdf）逐附件进链，
+ *   image/video 既有契约不变；无可预览项回退封面→文字封面。
+ * - 逐类型位：audio = 占位图为底 + 底部 AudioPlayer 条；model3d/document =
+ *   对应查看器（懒分块 + 预算/消毒语义不变）；pdf = 原生 embed；乐谱 =
+ *   OSMD 横滚 / midi 回放条（箭头悬浮层不拦截谱内滚动）。audio/midi 播放条
+ *   位挂起暂停（恢复不自动续播）、切位卸载停播；当前位为播放条形态时底部
+ *   圆点/类型角标上移让位。当前位才挂载重型查看器，首屏不抓全部附件正文；
+ *   查看器族名义几何 300×400（3:4），首项挂载即 settle。
+ * - MediaViewer 只收 image slides（放大态多类型化归 D6）；混排链显示逐 slide
+ *   类型角标；>9 项隐藏圆点只留 N/M 徽标 + 箭头；查看器位提供「刷新预览」
+ *   有限重试（重取详情刷新签名 URL，按附件 id 锚定保持当前位）。
  *
  * 布局不变量（R3 动效契约挂点）：data-slot="detail-cover" 锚点盒不含翻页控件，
  * 且仅在媒体链非空时渲染（空链不产出转场锚点，错误态维持居中缩淡降级）；
@@ -97,6 +125,160 @@ function attemptPlay(video: HTMLVideoElement): void {
   }
 }
 
+/** 圆点指示器渲染上限（D5 #862）：>9 项隐藏圆点，只留 N/M 徽标 + 箭头
+ * （非媒体类型 slide 无数量上限）。 */
+const MAX_DOT_ITEMS = 9;
+
+/** D5 #862 播放条形态位（audio/midi）的底部控件让位高度：播放条贴底占位
+ * （AudioPlayer/MIDIPlayer 条 + 12px 贴底内边距 ≈ 110px），圆点/类型角标
+ * 上移到其上方。 */
+const PLAYER_BAR_YIELD_CLASS = "bottom-32";
+
+interface SlideViewerContext {
+  item: MediaGalleryItem;
+  contentId?: number;
+  allowCopy?: boolean;
+  suspended: boolean;
+}
+
+/** D5 #862 audio 位：audio 专属占位图为底 + 底部悬浮紧凑 AudioPlayer 条。
+ * 起播权在用户；切位卸载停播释放、挂起暂停；右下角预留刷新钮命中区。 */
+function AudioSlide({ item, contentId, allowCopy, suspended }: SlideViewerContext) {
+  return (
+    <div className="relative h-full w-full" data-slot="slide-audio">
+      {/* eslint-disable-next-line @next/next/no-img-element -- data: SVG 占位图直通（不走图片优化器） */}
+      <img
+        src={getCoverPlaceholder("audio", "")}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-contain"
+      />
+      <div className="absolute inset-x-0 bottom-0 pb-3 pl-3 pr-14">
+        <AudioPlayer
+          url={item.url}
+          fileName={item.fileName ?? ""}
+          fileSize={item.fileSize}
+          contentId={contentId ?? 0}
+          attachmentId={item.id}
+          allowCopy={Boolean(allowCopy)}
+          suspended={suspended}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** D5 #862 model3d 位：ModelViewer 画布（拖转/滚轮缩放/四机位已有；画布
+ * 点击不绑定——轮播切页依显式箭头）。 */
+function Model3dSlide({ item, contentId, allowCopy }: SlideViewerContext) {
+  const config = usePublicConfig();
+  return (
+    <div className="h-full w-full overflow-y-auto p-3" data-slot="slide-model3d">
+      <Suspense fallback={null}>
+        <ModelViewer
+          url={item.url}
+          fileName={item.fileName ?? ""}
+          fileSize={item.fileSize}
+          maxPreviewMB={config?.upload?.model3d_max_preview_mb}
+          maxTriangles={config?.upload?.model3d_max_triangles}
+          gcodeMaxLines={config?.upload?.gcode_max_lines}
+          contentId={contentId ?? 0}
+          attachmentId={item.id}
+          allowCopy={Boolean(allowCopy)}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+/** D5 #862 document 位：DocumentViewer 全高容器（docx 消毒 HTML / xlsx·csv
+ * 网格 / 超预算降级卡由查看器内部维持）。 */
+function DocumentSlide({ item, contentId, allowCopy }: SlideViewerContext) {
+  const config = usePublicConfig();
+  return (
+    <div className="h-full w-full overflow-y-auto p-3" data-slot="slide-document">
+      <Suspense fallback={null}>
+        <DocumentViewer
+          url={item.url}
+          fileName={item.fileName ?? ""}
+          fileSize={item.fileSize}
+          maxPreviewMB={config?.upload?.document_preview_max_mb}
+          contentId={contentId ?? 0}
+          attachmentId={item.id}
+          allowCopy={Boolean(allowCopy)}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+/** D5 #862 乐谱位（musicxml）：OSMD 横滚容器——轮播箭头为悬浮小钮，
+ * 不拦截谱内横向滚动。 */
+function SheetMusicXmlSlide({ item }: SlideViewerContext) {
+  return (
+    <div className="h-full w-full overflow-y-auto bg-canvas-default p-3" data-slot="slide-sheet-music">
+      <OSMDRenderer ossUrl={item.url} />
+    </div>
+  );
+}
+
+/** D5 #862 乐谱位（midi）：乐谱占位图为底 + 底部回放条贴底（挂起暂停、切位
+ * 卸载即停，AudioContext 随组件清理关闭）。 */
+function SheetMusicMidiSlide({ item, suspended }: SlideViewerContext) {
+  return (
+    <div className="relative h-full w-full" data-slot="slide-sheet-music">
+      {/* eslint-disable-next-line @next/next/no-img-element -- data: SVG 占位图直通 */}
+      <img
+        src={getCoverPlaceholder("sheet_music", "")}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-contain"
+      />
+      <div className="absolute inset-x-0 bottom-0 pb-3 pl-3 pr-14">
+        <MIDIPlayer ossUrl={item.url} suspended={suspended} />
+      </div>
+    </div>
+  );
+}
+
+/** D5 #862 pdf 位（text 族 pdf / sheet_music 族 pdf）：原生 embed 全高容器
+ * （放大语义归 D6，本票不绑定 embed 内容点击）。 */
+function PdfSlide({ item }: SlideViewerContext) {
+  return (
+    <div className="h-full w-full bg-canvas-default" data-slot="slide-pdf">
+      <embed src={item.url} type="application/pdf" title={item.fileName ?? ""} className="h-full w-full" />
+    </div>
+  );
+}
+
+/** 混排链逐 slide 类型角标的 family 键（content.attachmentPreview.familyLabel.*）。
+    default = 编译期穷尽检查：新增 MediaSlideType 而漏配 family 时，never 赋值
+    在此编译红，不再静默回落。 */
+function slideFamilyKey(type: MediaSlideType): string {
+  switch (type) {
+    case "image":
+      return "image";
+    case "video":
+      return "video";
+    case "audio":
+      return "audio";
+    case "model3d":
+      return "model3d";
+    case "document":
+      return "document";
+    case "text_pdf":
+      return "pdf";
+    case "sheet_music_xml":
+    case "sheet_music_midi":
+    case "sheet_music_pdf":
+      return "sheetMusic";
+    default: {
+      const _exhaustive: never = type;
+      return _exhaustive;
+    }
+  }
+}
+
 interface MediaSlideProps {
   item: MediaGalleryItem;
   index: number;
@@ -113,6 +295,10 @@ interface MediaSlideProps {
   userPausedRef: RefObject<boolean>;
   /** D2：挂载视频元数据回填（探针失败/超时后的迟到修正）。 */
   onVideoMetadata?: (id: number, width: number, height: number) => void;
+  /** D5 #862：查看器族 slide 的内容上下文（查看器下载/错误卡所需）。 */
+  contentId?: number;
+  /** D5 #862：查看器族 slide 的下载许可（与右栏下载行同源语义）。 */
+  allowCopy?: boolean;
 }
 
 /** 媒体项渲染（#753）：contain 不裁切、填满锚点盒（允许黑边）；长图随列宽
@@ -130,6 +316,8 @@ function MediaSlide({
   suspended,
   userPausedRef,
   onVideoMetadata,
+  contentId,
+  allowCopy,
 }: MediaSlideProps) {
   const t = useTranslations();
   const settleIfFirst = (state: "ready" | "error") => {
@@ -154,6 +342,14 @@ function MediaSlide({
       video.pause();
     };
   }, [item.type, item.id, item.url, suspended, userPausedRef, videoRef]);
+
+  /* D5 #862 查看器族位无加载探针：挂载即视为落定（首项驱动正文 reveal，
+     不等浮层 2s 入场保险；onSettle 在布局侧有一次性守卫，重复触发无害）。 */
+  useEffect(() => {
+    if (item.type === "image" || item.type === "video") return;
+    if (index === 0) onSettle("ready");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.type, item.id]);
 
   if (item.type === "video") {
     return (
@@ -181,17 +377,41 @@ function MediaSlide({
     );
   }
 
-  return (
-    <div className="relative h-full">
-      <HoldCrossfadeImage
-        canonicalSrc={coverRenderSrc(item.url) || item.url}
-        holdSrc={index === 0 ? holdSrc : null}
-        alt={alt}
-        imgClassName="cursor-zoom-in object-contain"
-        onSettle={settleIfFirst}
-      />
-    </div>
-  );
+  /* D5 #862 逐类型位分发：查看器族复用既有组件（预算/消毒/动态加载语义
+     不变）；image 走既有图片分支（video 已于上方早返回）。default = 编译期
+     穷尽检查：新增 MediaSlideType 而漏配渲染位时，never 赋值在此编译红。 */
+  const viewerContext: SlideViewerContext = { item, contentId, allowCopy, suspended };
+  switch (item.type) {
+    case "image":
+      return (
+        <div className="relative h-full">
+          <HoldCrossfadeImage
+            canonicalSrc={coverRenderSrc(item.url) || item.url}
+            holdSrc={index === 0 ? holdSrc : null}
+            alt={alt}
+            imgClassName="cursor-zoom-in object-contain"
+            onSettle={settleIfFirst}
+          />
+        </div>
+      );
+    case "audio":
+      return <AudioSlide {...viewerContext} />;
+    case "model3d":
+      return <Model3dSlide {...viewerContext} />;
+    case "document":
+      return <DocumentSlide {...viewerContext} />;
+    case "sheet_music_xml":
+      return <SheetMusicXmlSlide {...viewerContext} />;
+    case "sheet_music_midi":
+      return <SheetMusicMidiSlide {...viewerContext} />;
+    case "sheet_music_pdf":
+    case "text_pdf":
+      return <PdfSlide {...viewerContext} />;
+    default: {
+      const _exhaustive: never = item.type;
+      return _exhaustive;
+    }
+  }
 }
 
 /** 悬浮半透明圆形翻页箭头（D2：hover 与 focus-within 显现；触屏（hover:none）
@@ -243,12 +463,16 @@ function CountBadge({ current, total }: { current: number; total: number }) {
   );
 }
 
-/** 底部半透明指示点（D2：默认唯一常显件 = 触屏可发现入口）。 */
-function BottomDots({ media, index }: { media: MediaGalleryItem[]; index: number }) {
+/** 底部半透明指示点（D2：默认唯一常显件 = 触屏可发现入口）。D5 #862：当前位为
+    播放条形态（audio/midi）时上移让位（PLAYER_BAR_YIELD_CLASS），不遮播放条。 */
+function BottomDots({ media, index, raised }: { media: MediaGalleryItem[]; index: number; raised?: boolean }) {
   return (
     <div
       data-slot="media-paging-dots"
-      className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/25 px-2 py-1 backdrop-blur"
+      className={cn(
+        "absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/25 px-2 py-1 backdrop-blur transition-[bottom] duration-150",
+        raised ? PLAYER_BAR_YIELD_CLASS : "bottom-3",
+      )}
     >
       {media.map((item, itemIndex) => (
         <span
@@ -261,6 +485,44 @@ function BottomDots({ media, index }: { media: MediaGalleryItem[]; index: number
         />
       ))}
     </div>
+  );
+}
+
+/** D5 #862 混排链逐 slide 类型小角标（i18n familyLabel；仅混排链显示）。
+    当前位为播放条形态（audio/midi）时同样上移让位。 */
+function TypeBadge({ labelKey, raised }: { labelKey: string; raised?: boolean }) {
+  const t = useTranslations();
+  return (
+    <span
+      data-slot="media-type-badge"
+      className={cn(
+        "absolute left-3 z-10 rounded-full bg-black/45 px-2.5 py-0.5 text-xs text-white backdrop-blur transition-[bottom] duration-150",
+        raised ? PLAYER_BAR_YIELD_CLASS : "bottom-3",
+      )}
+    >
+      {t(labelKey)}
+    </span>
+  );
+}
+
+/** D5 #862 查看器位「刷新预览」：签名 URL（300s）过期等加载失败的有限用户
+ * 重试——重取详情刷新签名（上层回调），不做定时轮询。 */
+function RefreshPreviewButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations();
+  return (
+    <button
+      type="button"
+      data-slot="media-refresh-preview"
+      aria-label={t("media.gallery.refreshPreview")}
+      title={t("media.gallery.refreshPreview")}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className="absolute bottom-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition-colors hover:bg-black/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      <RefreshCw className="h-4 w-4" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -281,6 +543,13 @@ export interface OverlayVariantLayoutProps {
   active?: boolean;
   /** D2：挂载视频元数据回填（探针失败/超时后的迟到修正，落定后平滑应用）。 */
   onMediaDimensions?: (id: number, width: number, height: number) => void;
+  /** D5 #862：查看器族 slide 的内容上下文（查看器下载/错误卡所需）。 */
+  contentId?: number;
+  /** D5 #862：查看器族 slide 的下载许可（与右栏下载行同源语义）。 */
+  allowCopy?: boolean;
+  /** D5 #862：签名过期等加载失败的有限重试（重取详情刷新签名 URL；重取后
+   * 媒体链按附件 id 锚定保持当前位）。 */
+  onMediaRefresh?: () => void;
   /** 右栏内容（创作者行/标题/正文/关联块/评论区/推荐区 = 统一钉死序）。 */
   children: ReactNode;
 }
@@ -293,6 +562,9 @@ export function OverlayVariantLayout({
   onPaneMeasured,
   active = true,
   onMediaDimensions,
+  contentId,
+  allowCopy,
+  onMediaRefresh,
   children,
 }: OverlayVariantLayoutProps) {
   const { isGateOpen } = useAuthGate();
@@ -313,10 +585,47 @@ export function OverlayVariantLayout({
     onPaneMeasured?.();
   }, [area, onPaneMeasured]);
 
+  /* D5 #862 重取详情（签名刷新）后媒体链重建：按附件 id 锚定保持当前位
+     （顺序由后端稳定排序保证，锚定为防御性双保险）。恢复位同步写回
+     anchorIndexRef：下方记录 effect 在同一提交内仍以旧 index 运行，锚定值
+     不依赖 effect 执行顺序/状态落地时序。 */
+  const anchorIdRef = useRef<number | null>(null);
+  const anchorIndexRef = useRef(0);
+  const prevMediaRef = useRef(media);
+  useEffect(() => {
+    if (prevMediaRef.current === media) return;
+    prevMediaRef.current = media;
+    const anchorId = anchorIdRef.current;
+    if (anchorId != null) {
+      const found = media.findIndex((item) => item.id === anchorId);
+      const next = found >= 0 ? found : clampIndex(anchorIndexRef.current, media.length);
+      anchorIndexRef.current = next;
+      setIndex(next);
+    }
+  }, [media]);
+  useEffect(() => {
+    /* 记录当前位锚点：id 与 index 成对写同一 clamped 位（渲染侧 at 同源），
+       避免链缩短时把越界裸 index 写进锚定兜底。 */
+    const at = clampIndex(index, media.length);
+    const item = media[at];
+    if (item) {
+      anchorIdRef.current = item.id;
+      anchorIndexRef.current = at;
+    }
+  }, [media, index]);
+
   const at = clampIndex(index, media.length);
   const current = media[at];
   const showControls = media.length > 1;
   const isVideo = current?.type === "video";
+  /* D5 #862：MediaViewer 只收 image slides（放大态多类型化归 D6）；混排链
+     显示逐 slide 类型角标；>9 项隐藏圆点。 */
+  const viewerItems = media.filter((item) => item.type === "image");
+  const mixedFamilies = new Set(media.map((item) => slideFamilyKey(item.type))).size > 1;
+  const showDots = media.length > 1 && media.length <= MAX_DOT_ITEMS;
+  const isViewerSlide = current ? current.type !== "image" && current.type !== "video" : false;
+  /* D5 #862：当前位为播放条形态（audio/midi）——底部圆点/类型角标上移让位。 */
+  const playerBarSlide = current?.type === "audio" || current?.type === "sheet_music_midi";
   /* 媒体链为空（loading/错误态）按防御比例 3:4 占位，双栏外壳几何稳定。 */
   const liveRatio = current ? itemAspectRatio(current) : OVERLAY_DEFAULT_RATIO;
 
@@ -373,8 +682,13 @@ export function OverlayVariantLayout({
       }
       return;
     }
+    /* D5 #862：仅图片主体点击进查看器（查看器族位点击不绑定——3D 拖转、
+       PDF/文档原生输入不被抢）；查看器序 = image slides 内的位置。 */
+    if (current.type !== "image") return;
+    const viewerAt = viewerItems.findIndex((item) => item.id === current.id);
+    if (viewerAt < 0) return;
     viewerTriggerRef.current = event.currentTarget;
-    setViewerIndex(at);
+    setViewerIndex(viewerAt);
   }
 
   function handleViewerOpenChange(open: boolean) {
@@ -465,6 +779,8 @@ export function OverlayVariantLayout({
                 suspended={suspended}
                 userPausedRef={userPausedRef}
                 onVideoMetadata={onMediaDimensions}
+                contentId={contentId}
+                allowCopy={allowCopy}
               />
             </div>
             {showControls && (
@@ -480,8 +796,17 @@ export function OverlayVariantLayout({
                   onClick={() => changeSlide((value) => Math.min(media.length - 1, clampIndex(value, media.length) + 1))}
                 />
                 <CountBadge current={at + 1} total={media.length} />
-                <BottomDots media={media} index={at} />
+                {showDots && <BottomDots media={media} index={at} raised={playerBarSlide} />}
               </>
+            )}
+            {current && mixedFamilies && (
+              <TypeBadge
+                labelKey={`content.attachmentPreview.familyLabel.${slideFamilyKey(current.type)}`}
+                raised={playerBarSlide}
+              />
+            )}
+            {current && isViewerSlide && onMediaRefresh && (
+              <RefreshPreviewButton onClick={onMediaRefresh} />
             )}
           </>
         )}
@@ -497,9 +822,9 @@ export function OverlayVariantLayout({
         {children}
       </div>
 
-      {media.length > 0 && (
+      {viewerItems.length > 0 && (
         <MediaViewer
-          items={media}
+          items={viewerItems}
           index={viewerIndex ?? 0}
           open={viewerIndex !== null}
           onOpenChange={handleViewerOpenChange}

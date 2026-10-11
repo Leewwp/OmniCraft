@@ -10,13 +10,30 @@ import { MediaViewer } from "@/components/content/MediaViewer";
 import type { AttachmentData } from "@/lib/content";
 import { LONG_IMAGE_RATIO } from "@/lib/overlay-media";
 
+/** 统一 slide 类型（D5 #862）：image/video = 既有媒体集位（selectMediaItems
+ * 产出，独立详情页契约不变）；其余 = 浮层侧可预览媒体链的逐附件位
+ * （overlay-media selectOverlaySlides 产出，仅进 OverlayVariantLayout）。 */
+export type MediaSlideType =
+  | "image"
+  | "video"
+  | "audio"
+  | "model3d"
+  | "document"
+  | "text_pdf"
+  | "sheet_music_xml"
+  | "sheet_music_midi"
+  | "sheet_music_pdf";
+
 export interface MediaGalleryItem {
   id: number;
   url: string;
-  type: "image" | "video";
+  type: MediaSlideType;
   width?: number;
   height?: number;
   posterUrl?: string;
+  /** D5 逐类型位：查看器/下载语义所需的附件元数据（image/video 既有位不使用）。 */
+  fileName?: string;
+  fileSize?: number;
 }
 
 interface MediaGalleryProps {
@@ -504,7 +521,7 @@ export function MediaGallery({
                     </>
                   )}
                 </>
-              ) : (
+              ) : item.type === "video" ? (
                 <GalleryVideo
                   item={item}
                   active={active}
@@ -518,7 +535,7 @@ export function MediaGallery({
                     if (itemIndex === 0) settleFirstMedia(state);
                   }}
                 />
-              )}
+              ) : null}
             </div>
           );
         })}

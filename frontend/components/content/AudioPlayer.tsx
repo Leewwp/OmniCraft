@@ -23,6 +23,9 @@ export interface AudioPlayerProps {
   contentId: number;
   attachmentId: number;
   allowCopy: boolean;
+  /** D5 #862 轮播位挂起信号（非顶层/上层弹窗）：true 时暂停播放；
+   * 播放本身仍由用户起播（与视频 slide 的自动播放语义不同）。 */
+  suspended?: boolean;
 }
 
 /** 秒 → m:ss（导出供单测）；不可有限时长（流式/未加载）显示占位。 */
@@ -41,6 +44,7 @@ export function AudioPlayer({
   contentId,
   attachmentId,
   allowCopy,
+  suspended = false,
 }: AudioPlayerProps) {
   const t = useTranslations();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -66,6 +70,12 @@ export function AudioPlayer({
       audio.load();
     };
   }, [url]);
+
+  /* D5 #862 挂起矩阵：浮层压层/上层弹窗时暂停（恢复不自动续播——音频位
+     起播权在用户）。 */
+  useEffect(() => {
+    if (suspended) audioRef.current?.pause();
+  }, [suspended]);
 
   const seekable = duration != null && Number.isFinite(duration) && duration > 0;
   const progress = seekable ? Math.min(current / (duration as number), 1) : 0;

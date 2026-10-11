@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { selectMediaItems, type MediaGalleryItem } from "@/components/content/MediaGallery";
+import { type MediaGalleryItem, type MediaSlideType } from "@/components/content/MediaGallery";
+import { isPreviewBlockedByScan } from "@/components/content/AttachmentPreview";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
 import { coverRenderSrc, prefetchCoverVariant } from "@/lib/overlay-motion";
-import type { NormalizedContentDetailResponse } from "@/lib/content";
+import type { AttachmentData, NormalizedContentDetailResponse } from "@/lib/content";
 
 /**
- * 详情浮层统一版式的全类型媒体几何库（D2 #859 起）：媒体链构建、图片/视频
- * 类型分流尺寸探测与共享有界就绪预算。
- * 设计输入：docs/superpowers/specs/2026-10-09-omnicraft-detail-overlay-unification-design.md §9.3；
+ * 详情浮层统一版式的全类型媒体几何库（D2 #859 起；D5 #862 扩为可预览媒体链）：
+ * 媒体链构建、逐附件 slide 分发、图片/视频类型分流尺寸探测与共享有界就绪预算。
+ * 设计输入：docs/superpowers/specs/2026-10-09-omnicraft-detail-overlay-unification-design.md §9.3/§9.6；
  * 历史：docs/working/2026-09-06-overlay-rework-prototype-handoff.md §2/§7（#397 R2 胜者记录）。
  */
 
@@ -30,6 +31,9 @@ export const MEDIA_READY_BUDGET_MS = 1500;
 /** 自动文字封面名义几何（getCoverPlaceholder 3:4 渐变字牌）。 */
 const PLACEHOLDER_WIDTH = 300;
 const PLACEHOLDER_HEIGHT = 400;
+/** D5 #862 查看器族 slide 名义几何（无 intrinsic 宽高）：与占位图一致（3:4）。 */
+export const SLIDE_NOMINAL_WIDTH = 300;
+export const SLIDE_NOMINAL_HEIGHT = 400;
 
 export function itemAspectRatio(item: MediaGalleryItem | undefined): number {
   if (item?.width && item.height && item.width > 0 && item.height > 0) {
@@ -39,8 +43,8 @@ export function itemAspectRatio(item: MediaGalleryItem | undefined): number {
 }
 
 export function isLongImageItem(item: MediaGalleryItem | undefined): boolean {
-  if (item?.type === "video") return false;
-  if (!item?.width || !item?.height || item.width <= 0 || item.height <= 0) return false;
+  if (item?.type !== "image") return false;
+  if (!item?.width || !item.height || item.width <= 0 || item.height <= 0) return false;
   return item.height / item.width >= LONG_IMAGE_RATIO;
 }
 
@@ -55,22 +59,108 @@ export function isPortraitMediaSet(items: MediaGalleryItem[]): boolean {
   return dimmed.some((item) => item.width! / item.height! < PORTRAIT_BOUNDARY_RATIO);
 }
 
+/** sheet_music 族逐附件分派（D5 #862）：file_type 优先、持久化 MIME 兜底；
+ * mscz/mscx 与未知格式不产出 slide（只留右栏下载行）。 */
+function sheetMusicSlideType(attachment: AttachmentData): MediaSlideType | null {
+  const fileType = attachment.file_type ?? "";
+  const mime = attachment.mime_type ?? "";
+  if (fileType === "sheet_music_xml" || mime.includes("musicxml")) return "sheet_music_xml";
+  if (fileType === "sheet_music_midi" || mime === "audio/midi") return "sheet_music_midi";
+  if (fileType === "sheet_music_pdf" || mime === "application/pdf") return "sheet_music_pdf";
+  return null;
+}
+
+/** text 族 pdf 判定与后端签名白名单（display_url.go）同口径：仅持久化 MIME
+ * 精确为 application/pdf（正规化 media type，文件名不算数）；txt 留右栏下载行。 */
+function persistedPdfMime(mimeType: string | undefined): boolean {
+  return (mimeType ?? "").split(";")[0].trim().toLowerCase() === "application/pdf";
+}
+
 /**
- * 全类型媒体源链（胜者记录 §7）：真实媒体集 → 内容封面 → 自动文字封面
- * （getCoverPlaceholder 3:4 渐变字牌）。cover_width/cover_height 全库为 0，
- * 封面项由 useOverlayMedia 预加载实测 intrinsic 尺寸后再判朝向（横封面 ≥16:9
- * 维持现设计）。
+ * 可预览媒体链逐附件分发（D5 #862，spec §9.6）——overlay 侧扩展点，
+ * 不触碰 selectMediaItems 对独立详情页的既有契约：
+ * - image/video 族沿用既有规则（oss_key 兜底、无前端扫描门），但不再限定
+ *   内容类型（template/3d_print 等附件族的图/视附件同样进链参与混排）；
+ * - audio/model3d/document 族：必须有签名 oss_url 且过扫描门（clean/
+ *   not_required，沿用 isPreviewBlockedByScan 语义）；.mtl 不进；
+ * - text 族仅持久化 MIME=application/pdf；mod 永不进（固定包裹占位）。
+ */
+export function overlaySlideFromAttachment(
+  attachment: AttachmentData,
+  videoPosterUrl?: string,
+): MediaGalleryItem | null {
+  const fileType = attachment.file_type ?? "";
+  if (fileType === "image" || fileType === "video") {
+    const url = attachment.oss_url || attachment.oss_key;
+    if (!url) return null;
+    return {
+      id: attachment.id,
+      url,
+      type: fileType,
+      width: attachment.width,
+      height: attachment.height,
+      posterUrl: fileType === "video" ? videoPosterUrl : undefined,
+    };
+  }
+  if (!attachment.oss_url || isPreviewBlockedByScan(attachment.scan_status)) return null;
+  const fileName = attachment.original_file_name || attachment.oss_key || "";
+  const base = {
+    id: attachment.id,
+    url: attachment.oss_url,
+    fileName,
+    fileSize: attachment.file_size,
+    width: SLIDE_NOMINAL_WIDTH,
+    height: SLIDE_NOMINAL_HEIGHT,
+  };
+  switch (fileType) {
+    case "audio":
+      return { ...base, type: "audio" };
+    case "model3d":
+      if (fileName.toLowerCase().endsWith(".mtl")) return null;
+      return { ...base, type: "model3d" };
+    case "document":
+      return { ...base, type: "document" };
+    case "text":
+      if (!persistedPdfMime(attachment.mime_type)) return null;
+      return { ...base, type: "text_pdf" };
+    default: {
+      const sheetType = sheetMusicSlideType(attachment);
+      return sheetType ? { ...base, type: sheetType } : null;
+    }
+  }
+}
+
+/**
+ * 可预览媒体链（slide 序列）：按附件稳定顺序（后端 sort_order ASC NULLS LAST,
+ * id ASC，0 有效）逐附件分派；前端不重排。顺序即轮播顺序。
+ */
+export function selectOverlaySlides(
+  attachments: AttachmentData[],
+  videoPosterUrl?: string,
+): MediaGalleryItem[] {
+  const slides: MediaGalleryItem[] = [];
+  for (const attachment of attachments) {
+    const slide = overlaySlideFromAttachment(attachment, videoPosterUrl);
+    if (slide) slides.push(slide);
+  }
+  return slides;
+}
+
+/**
+ * 全类型媒体源链（胜者记录 §7；D5 #862 首级扩为可预览媒体链）：可预览
+ * slide 序列 → 内容封面 → 自动文字封面（getCoverPlaceholder 3:4 渐变字牌）。
+ * cover_width/cover_height 全库为 0，封面项由 useOverlayMedia 预加载实测
+ * intrinsic 尺寸后再判朝向（横封面 ≥16:9 维持现设计）。
  */
 export function buildOverlayMedia(detail: NormalizedContentDetailResponse): MediaGalleryItem[] {
   const content = detail.content;
   if (!content) return [];
   const contentType = content.content_type;
-  const { media } = selectMediaItems(
+  const slides = selectOverlaySlides(
     detail.attachments ?? [],
-    contentType,
     contentType === "video" ? content.cover_image_url : undefined,
   );
-  if (media.length > 0) return media;
+  if (slides.length > 0) return slides;
   if (content.cover_image_url) {
     return [
       {
