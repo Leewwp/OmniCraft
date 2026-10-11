@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ImageOff, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaGalleryItem } from "@/components/content/MediaGallery";
+import { usePublicConfig } from "@/lib/use-public-config";
+
+/** D6 #863 全屏 3D 位懒分块：three.js 重依赖不进主包（React.lazy + Suspense，
+ * 与统一版式左列同一挂载模式；查看器仅在客户端浮层打开后渲染）。 */
+const ModelViewer = lazy(() =>
+  import("@/components/content/ModelViewer").then((m) => ({ default: m.ModelViewer })),
+);
 
 interface MediaViewerProps {
   className?: string;
@@ -15,6 +22,10 @@ interface MediaViewerProps {
   onOpenChange: (open: boolean) => void;
   /** 媒体集内翻页（上一张/下一张/滑动）时同步索引，不参与内容级切换。 */
   onIndexChange?: (index: number) => void;
+  /** D6 #863 model3d 全屏位的查看器上下文（下载入口语义，与左列 slide 同源）。 */
+  contentId?: number;
+  /** D6 #863 model3d 全屏位的下载许可（与右栏下载行同源语义）。 */
+  allowCopy?: boolean;
 }
 
 /** 缩放范围与步进（按钮 ×1.5 / 滚轮 ×1.2，双击与重置按钮归位）。 */
@@ -49,12 +60,51 @@ function clampPanToStage(
   };
 }
 
+/** D6 #863 model3d 全屏位：与统一版式左列 Model3dSlide 同一装配（预算取
+ * 公开配置、缺省走组件内置兜底）；画布输入交 OrbitControls 原生交互。 */
+function ViewerModel3dPane({
+  item,
+  contentId,
+  allowCopy,
+}: {
+  item: MediaGalleryItem;
+  contentId?: number;
+  allowCopy?: boolean;
+}) {
+  const config = usePublicConfig();
+  return (
+    <div className="h-full w-full overflow-y-auto p-3" data-slot="viewer-model3d">
+      <Suspense fallback={null}>
+        <ModelViewer
+          url={item.url}
+          fileName={item.fileName ?? ""}
+          fileSize={item.fileSize}
+          maxPreviewMB={config?.upload?.model3d_max_preview_mb}
+          maxTriangles={config?.upload?.model3d_max_triangles}
+          gcodeMaxLines={config?.upload?.gcode_max_lines}
+          contentId={contentId ?? 0}
+          attachmentId={item.id}
+          allowCopy={Boolean(allowCopy)}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
 /**
- * 全屏媒体查看器（#86）：规范化既有「图片预览」语义，可叠加在内容详情
- * 浮层最上层。经 createPortal 挂到 document.body 以脱离浮层 FLIP transform
- * 祖先的约束；再以原生 <dialog> + showModal() 进入浏览器 top layer，保证
- * 真正渲染在详情浮层（同为原生 dialog）之上——普通 z-index 无法压过
- * top layer（ui-spec：fixed inset-0 z-[60] 高于 Overlay）。
+ * 全屏媒体查看器（#86；D6 #863 多类型化）：规范化既有「图片预览」语义，
+ * 可叠加在内容详情浮层最上层。经 createPortal 挂到 document.body 以脱离
+ * 浮层 FLIP transform 祖先的约束；再以原生 <dialog> + showModal() 进入
+ * 浏览器 top layer，保证真正渲染在详情浮层（同为原生 dialog）之上——
+ * 普通 z-index 无法压过 top layer（ui-spec：fixed inset-0 z-[60] 高于
+ * Overlay）。
+ *
+ * slide 类型契约（D6）：image = 1–5x 缩放平移现状；model3d = 全屏
+ * ModelViewer 复用；text_pdf = 全屏原生 embed；video = 既有调用方
+ * （MediaGallery 等）兼容渲染保留，不丢项。序号 = 传入序列内的位置——
+ * 详情浮层传过滤后的可放大序列（image/model3d/text_pdf，overlay-media
+ * isEnlargeableSlide）实现独立计数；3D/PDF 位不绑定翻页手势（画布/embed
+ * 原生输入优先，翻页只走显式箭头）。
  */
 export function MediaViewer({
   className,
@@ -63,6 +113,8 @@ export function MediaViewer({
   open,
   onOpenChange,
   onIndexChange,
+  contentId,
+  allowCopy,
 }: MediaViewerProps) {
   const t = useTranslations();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -78,6 +130,9 @@ export function MediaViewer({
   const currentIndex = clampIndex(index, items.length);
   const current = items[currentIndex];
   const isImage = current?.type === "image";
+  /* D6：3D/PDF 全屏位输入优先——画布/embed 原生交互优先于翻页手势，
+     stage 不绑 pointer 手势（无滑动翻页/背板拖拽；关闭走 ×/Esc）。 */
+  const nativeInputSlide = current?.type === "model3d" || current?.type === "text_pdf";
   const showPaging = items.length > 1;
 
   const updateZoom = useCallback((next: number) => {
@@ -274,13 +329,16 @@ export function MediaViewer({
       <div
         ref={stageRef}
         data-slot="viewer-stage"
-        className="absolute inset-0 flex select-none items-center justify-center overflow-hidden"
-        style={{ touchAction: "none" }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
-        onDoubleClick={handleDoubleClick}
+        className={cn(
+          "absolute inset-0 flex items-center justify-center overflow-hidden",
+          nativeInputSlide ? undefined : "select-none",
+        )}
+        style={{ touchAction: nativeInputSlide ? "auto" : "none" }}
+        onPointerDown={nativeInputSlide ? undefined : handlePointerDown}
+        onPointerMove={nativeInputSlide ? undefined : handlePointerMove}
+        onPointerUp={nativeInputSlide ? undefined : handlePointerUp}
+        onPointerCancel={nativeInputSlide ? undefined : handlePointerCancel}
+        onDoubleClick={nativeInputSlide ? undefined : handleDoubleClick}
       >
         {current?.type === "image" ? (
           currentFailed ? (
@@ -309,6 +367,18 @@ export function MediaViewer({
               onError={() => setFailed((prev) => ({ ...prev, [current.id]: true }))}
             />
           )
+        ) : current?.type === "model3d" ? (
+          /* D6：全屏 3D 位——复用 ModelViewer（预算/降级/下载语义与左列同源），
+             画布点击交 OrbitControls 拖转，不绑定任何查看器手势。 */
+          <ViewerModel3dPane item={current} contentId={contentId} allowCopy={allowCopy} />
+        ) : current?.type === "text_pdf" ? (
+          /* D6：全屏 pdf 位——原生 embed，内容点击/滚动交插件原生交互。 */
+          <embed
+            src={current.url}
+            type="application/pdf"
+            title={current.fileName ?? t("media.viewer.title")}
+            className="h-full w-full"
+          />
         ) : current ? (
           <video
             src={current.url}
@@ -321,7 +391,7 @@ export function MediaViewer({
       </div>
 
       <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 px-3 pt-[max(0.5rem,env(safe-area-inset-top))] lg:px-4">
-        <span className="text-sm text-white/80">{positionLabel}</span>
+        <span data-slot="viewer-position" className="text-sm text-white/80">{positionLabel}</span>
         <button
           type="button"
           onClick={() => onOpenChange(false)}

@@ -2590,10 +2590,12 @@ interface ContentDetailOverlayProps {
     | audio | audio 专属音符占位图（300×400）为底 + 底部悬浮 AudioPlayer 条 | 起播权在用户；挂起暂停、切位卸载停播释放 |
     | model3d | ModelViewer 画布（懒分块 + 预算降级） | 拖转/滚轮缩放原生输入不被轮播抢；画布点击不绑定 |
     | document | DocumentViewer 全高容器（消毒 HTML/网格/降级卡） | 文档网格原生滚动不抢；懒分块 |
-    | text_pdf / sheet_music_pdf | 原生 `<embed type="application/pdf">` 全高 | embed 原生能力；内容点击不绑定（放大归 D6） |
+    | text_pdf | 原生 `<embed type="application/pdf">` 全高 | embed 原生能力；内容点击不绑定，右上放大钮进入放大态（D6 #863） |
+    | sheet_music_pdf | 原生 `<embed type="application/pdf">` 全高 | embed 原生能力；内容点击不绑定，无放大入口（仍属乐谱位） |
     | sheet_music_xml | OSMD 横滚容器 | 谱内横向滚动不被箭头拦截（箭头为悬浮小钮） |
     | sheet_music_midi | 乐谱占位图为底 + 底部 MIDI 回放条 | 起播权在用户；挂起暂停（midi 调度停走 + AudioContext 挂起，恢复不自动续播）、切位卸载即停（AudioContext 随组件清理） |
-    查看器族 slide 名义几何 300×400（3:4，无 intrinsic 宽高）；首项挂载即 settle（不等 2s 入场保险）；当前位才挂载重型查看器（切位/隐藏层停播并释放资源，首屏不抓全部附件正文）。**播放条让位**：当前位为 audio/midi 播放条形态时，底部圆点与混排类型角标上移到播放条上方（`bottom-32`），非播放条位保持默认贴底（`bottom-3`）。**指示器溢出**：slide 数 >9 隐藏底部圆点、只留 N/M 徽标 + 箭头（各类型无数量上限）；**混排角标**：slide 链含 ≥2 个 family 时逐 slide 左下角显示类型小角标（`content.attachmentPreview.familyLabel.*`，i18n 双语），同质链不显示；**查看器过滤**：MediaViewer 只收 image slides（放大态多类型化归 D6），非图片主体点击不绑任何查看语义；**右栏去重**：浮层语境（`ContentDetail mediaSlot="variant"`）下已迁入左列的族（document/model3d/audio 查看器、sheet_music 乐谱查看器）不再在右栏内联挂重复查看器，只保留文件名/大小/下载/扫描状态语义；独立详情页与移动布局渲染不变；**签名过期重试**：查看器位右下角「刷新预览」按钮 = 有限用户重试（重取详情刷新 300s 签名 URL，按附件 id 锚定保持当前位；禁止定时轮询/重复下载计数）。
+    查看器族 slide 名义几何 300×400（3:4，无 intrinsic 宽高）；首项挂载即 settle（不等 2s 入场保险）；当前位才挂载重型查看器（切位/隐藏层停播并释放资源，首屏不抓全部附件正文）。**播放条让位**：当前位为 audio/midi 播放条形态时，底部圆点与混排类型角标上移到播放条上方（`bottom-32`），非播放条位保持默认贴底（`bottom-3`）。**指示器溢出**：slide 数 >9 隐藏底部圆点、只留 N/M 徽标 + 箭头（各类型无数量上限）；**混排角标**：slide 链含 ≥2 个 family 时逐 slide 左下角显示类型小角标（`content.attachmentPreview.familyLabel.*`，i18n 双语），同质链不显示；**右栏去重**：浮层语境（`ContentDetail mediaSlot="variant"`）下已迁入左列的族（document/model3d/audio 查看器、sheet_music 乐谱查看器）不再在右栏内联挂重复查看器，只保留文件名/大小/下载/扫描状态语义；独立详情页与移动布局渲染不变；**签名过期重试**：查看器位右下角「刷新预览」按钮 = 有限用户重试（重取详情刷新 300s 签名 URL，按附件 id 锚定保持当前位；禁止定时轮询/重复下载计数）。
+  - **放大态（D6 #863，多类型化）**：可放大序列仅三类 = 真实图片（image）/ model3d / text 族 pdf（`overlay-media isEnlargeableSlide` 谓词；乐谱族 pdf 仍属乐谱位不放大，自动文字封面/音频背景封面/video poster 不算独立图片附件）。**自动文字封面不可放大**：article/prompt/other 无可预览项时合成文字封面会作为唯一 fallback image slide 进左列（`autoCover` 标记），无放大钮且主体点击无副作用不开查看器；真内容封面（`cover_image_url`）属真实图片，保持可放大。**入口**：image = 主体点击或右上放大钮（`data-slot="media-enlarge-button"`，与三件套同显隐语义：hover/focus-within 显现、触屏恒显、44px 触控目标；多项链中位于 N/M 徽标正下方）；model3d/text_pdf = 仅右上放大钮（画布/embed 点击交原生交互，不绑定）；audio/document/乐谱族/video 位无放大入口（视频全屏用控制条原生按钮）。**放大态内**：统一左右箭头 + 序号（序号独立于左列轮播，仅在可放大项间切换、边界 clamp）；左列 slide 序列与可放大序列以稳定附件 id 映射——在 3D/pdf 位打开即定位该项（不是首图）；关闭（×/Esc）返回最后所看项（左列轮播定位到该项）并恢复触发焦点；Esc 只关最上层；背景滚动锁与焦点可恢复语义照旧；查看器打开期间左列挂起（既有挂起矩阵）且浮层键盘 ←/→ 不劫持。MediaViewer 其他调用方（MediaGallery 等）传参不改，video 兼容渲染保留（详见 Component: MediaViewer）。
   - **× 与返回悬浮、滚动条贯通**：× 悬浮面板右上（半透明圆钮覆盖内容，无 pt-14 整行避让空带；右栏首块右上局部避让 = header 块 `pr-14` 预留关闭钮命中区）；返回钮悬浮媒体列左上，hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；右滚动列（`layer-scroller`）滚动条贴面板右缘全高贯通。
   - **右栏块序（钉死，全类型一致，各块单实例）**：创作者行（头像+昵称+关注，`ContentDetail` 的 `creatorFirst` 在 ≥960 视口将创作者行置于标题之前；移动 <960 保持「标题在上」既有契约）→ 标题 → 元信息行（fanwork 含「IP：名」）→ 来源归因（fanwork）→ 正文/附件语义区 → 关联块（⓪关联 IP 行 → ①关联的原创 → ②同系列跳转；无关联整块不渲染）→ 评论区 → 推荐区（衍生列表 + 相似推荐 = `RelatedContents`，复用层内 related-fanworks 合同；推荐区在 960–1099 同样可见——`minViewportPx=960` 下浮旧 1100 门，仅浮层路径，其余调用方缺省 1100 不变）。旧 variantTail 把衍生列表放在评论前的结构退役（`OverlayRelatedBlock` 不再含衍生列表）。
   - **ContentSidebar 退出桌面统一右栏**：创作者行来自 `ContentDetail` 头部，相关列表并入评论后推荐区；移动 <960 侧栏照旧渲染（CSS 自隐藏于 <lg，DOM 契约保持）。
@@ -2676,48 +2678,52 @@ interface MediaGalleryProps {
 **i18n key namespace**
 - 建议 namespace：`media.gallery.*`（位置、上一张/下一张、错误、a11y）。
 
-## Component: MediaViewer 全屏媒体查看器（#80/#86 权威）
+## Component: MediaViewer 全屏媒体查看器（#80/#86 权威；D6 #863 多类型化）
 
 **Key Constraints**
 - 规范化既有「图片预览」语义：全站媒体细节浏览统一入口，可叠加在内容详情浮层最上层（层级高于 ContentDetailOverlay）。
 - 支持缩放（pinch / 滚轮 / 按钮）、媒体集内翻页、外部点击 / 关闭按钮 / Esc 三种退出。
 - Esc/背板只关闭最上层，关闭后恢复下层滚动与焦点（与私信浮层叠加语义一致）。
 - 只做媒体浏览，不参与内容级切换（连续浏览由 Overlay 承担）。
+- **多类型 slide（D6 #863）**：image = 1–5x 缩放平移（现状）；model3d = 全屏复用 ModelViewer（预算/降级/下载语义同左列）；text_pdf = 全屏原生 embed；video = 既有调用方（MediaGallery 等）兼容渲染保留，不崩溃、不悄然丢项。序号 = 传入序列内的位置——**独立计数由调用方实现**：详情浮层统一版式传过滤后的可放大序列（image/model3d/text_pdf，`overlay-media isEnlargeableSlide` 谓词；乐谱族 pdf 仍属乐谱位不放大，自动文字封面经 `autoCover` 标记排除、音频背景封面/video poster 不算独立图片附件），查看器内左右箭头 + 序号仅在该序列内切换、边界 clamp；左列与放大序列以稳定附件 id 映射（在 3D/pdf 位打开 → 当前项 = 该 3D/pdf），关闭返回最后所看项并恢复触发焦点（见 Component: ContentDetailOverlay 放大态条款）。
+- **输入优先（D6）**：model3d/text_pdf 位不绑定任何翻页手势与背板拖拽（stage 解绑 pointer 手势、`touch-action: auto`）——OrbitControls 拖转/滚轮与 embed 原生滚动优先，翻页只走显式箭头；关闭走 ×/Esc。
 
 **Props 接口**
 ```ts
 interface MediaViewerProps {
   className?: string;
-  items: Array<{ id: number; url: string; type: 'image' | 'video'; width?: number; height?: number; posterUrl?: string }>;
+  items: Array<{ id: number; url: string; type: 'image' | 'video' | 'model3d' | 'text_pdf'; width?: number; height?: number; posterUrl?: string; fileName?: string; fileSize?: number }>;
   index: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onIndexChange?: (index: number) => void;
+  contentId?: number;   // D6：model3d 全屏位的下载入口上下文
+  allowCopy?: boolean;  // D6：model3d 全屏位的下载许可
 }
 ```
 
 **视觉结构**
 - 全屏固定层（`fixed inset-0 z-[60]`，高于 Overlay）：深色背景（设计系统 token，遮罩层级按 Overlay 语义）。
-- 当前媒体: 居中 contain，缩放时允许平移（`touch-action: none` + 滚轮/捏合缩放）。
-- 顶部: 位置指示（`第 X 张 / 共 N 张`）+ 关闭按钮（右上，44px 触控目标）。
-- 底部/两侧: 上一张/下一张按钮（媒体集 >1 时显示，首末 disabled）。
-- 缩放控制: 放大/缩小/重置按钮（或手势 + 滚轮等价操作）。
+- 当前媒体: 居中 contain，缩放时允许平移（`touch-action: none` + 滚轮/捏合缩放；3D/PDF 位 `touch-action: auto` 交原生交互）。
+- 顶部: 位置指示（`第 X 张 / 共 N 张`，序号独立于左列轮播）+ 关闭按钮（右上，44px 触控目标）。
+- 底部/两侧: 上一张/下一张按钮（序列 >1 时显示，首末 disabled，边界 clamp 不循环）。
+- 缩放控制: 放大/缩小/重置按钮（或手势 + 滚轮等价操作；仅 image 位显示）。
 
 **状态变体**
-- default: 显示当前媒体，可缩放可翻页。
-- zoomed: 缩放态下平移可用；Esc/背板关闭后恢复原缩放。
-- error: 媒体加载失败显示稳定占位符 + 重试。
-- 视频项（D2 #859 收口）：内容详情浮层统一版式的视频不再进入查看器（弹窗内直接自动静音播放、全屏用控制条原生按钮）；查看器对视频的兼容渲染保留给既有调用方（波 2 D6 收口为过滤后的可放大序列），缩放不适用于视频播放器区域。
+- default: 显示当前媒体，可缩放可翻页（按类型：image 缩放平移 / model3d 拖转 / pdf 原生滚动）。
+- zoomed: 缩放态下平移可用；Esc/背板关闭后恢复原缩放（仅 image）。
+- error: 图片加载失败显示稳定占位符 + 重试；model3d 预算/加载失败走 ModelViewer 内置降级卡（超预算提示 + 下载入口）。
+- 视频项（D2 #859 收口；D6 兼容语义）：内容详情浮层统一版式的视频不进查看器（弹窗内直接自动静音播放、全屏用控制条原生按钮）；详情浮层已改为传过滤后的可放大序列，既有调用方（MediaGallery 图片/视频混排集）继续传全集——查看器对视频的兼容渲染保留，不丢项，缩放不适用于视频播放器区域。
 
 **关键交互**
-- 进入：点击 MediaGallery 媒体区。
-- 退出三通道：背板点击、关闭按钮、Esc；`reduced-motion` 下短淡出。
-- 翻页：左右按钮 + 触摸滑动；缩放态下滑动优先平移（`gesture` 优先级缩放 > 平移 > 翻页）。
-- 焦点：进入聚焦关闭按钮；关闭后焦点返回触发媒体区（或 Overlay 当前层）。
-- 与 Overlay 叠加：Esc/背板只关查看器；再按 Esc 才关 Overlay 层。
+- 进入：点击 MediaGallery 媒体区；详情浮层 = 图片主体点击或右上放大钮、model3d/text_pdf 仅右上放大钮（见 Component: ContentDetailOverlay）。
+- 退出三通道：背板点击（image/video 位）、关闭按钮、Esc；`reduced-motion` 下短淡出；3D/PDF 位无背板点击（内容铺满，交互归原生）。
+- 翻页：左右按钮（全部类型）+ 触摸滑动（image/video 位；3D/PDF 位解绑）；缩放态下滑动优先平移（`gesture` 优先级缩放 > 平移 > 翻页）。
+- 焦点：进入聚焦关闭按钮；关闭后焦点返回触发媒体区/放大钮（或 Overlay 当前层）。
+- 与 Overlay 叠加：Esc/背板只关查看器；再按 Esc 才关 Overlay 层；查看器打开期间浮层键盘 ←/→ 不劫持。
 
 **i18n key namespace**
-- 建议 namespace：`media.viewer.*`（位置、关闭、上一张/下一张、缩放、错误、a11y）。
+- 建议 namespace：`media.viewer.*`（位置、关闭、上一张/下一张、缩放、错误、a11y）；放大钮入口文案在 `media.gallery.enlarge`（左列/画廊表面）。
 
 ## Component: SeriesNav 内容系列导航
 

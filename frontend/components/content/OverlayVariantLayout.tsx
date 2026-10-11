@@ -2,7 +2,7 @@
 
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
@@ -11,7 +11,7 @@ import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { AudioPlayer } from "@/components/content/AudioPlayer";
 import { MIDIPlayer, OSMDRenderer } from "@/components/content/SheetMusicViewer";
 import type { MediaGalleryItem, MediaSlideType } from "@/components/content/MediaGallery";
-import { OVERLAY_DEFAULT_RATIO, isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
+import { OVERLAY_DEFAULT_RATIO, isEnlargeableSlide, isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
 import { usePublicConfig } from "@/lib/use-public-config";
 
@@ -61,9 +61,12 @@ const ModelViewer = lazy(() =>
  *   位挂起暂停（恢复不自动续播）、切位卸载停播；当前位为播放条形态时底部
  *   圆点/类型角标上移让位。当前位才挂载重型查看器，首屏不抓全部附件正文；
  *   查看器族名义几何 300×400（3:4），首项挂载即 settle。
- * - MediaViewer 只收 image slides（放大态多类型化归 D6）；混排链显示逐 slide
- *   类型角标；>9 项隐藏圆点只留 N/M 徽标 + 箭头；查看器位提供「刷新预览」
- *   有限重试（重取详情刷新签名 URL，按附件 id 锚定保持当前位）。
+ * - MediaViewer 收可放大序列（D6 #863：image/model3d/text_pdf，
+ *   isEnlargeableSlide 谓词）——放大态内独立计数、边界 clamp；入口 =
+ *   image 主体点击或右上放大钮、model3d/text_pdf 仅右上放大钮、其余位无
+ *   入口；关闭返回最后所看项并恢复触发焦点。混排链显示逐 slide 类型角标；
+ *   >9 项隐藏圆点只留 N/M 徽标 + 箭头；查看器位提供「刷新预览」有限重试
+ *   （重取详情刷新签名 URL，按附件 id 锚定保持当前位）。
  *
  * 布局不变量（R3 动效契约挂点）：data-slot="detail-cover" 锚点盒不含翻页控件，
  * 且仅在媒体链非空时渲染（空链不产出转场锚点，错误态维持居中缩淡降级）；
@@ -389,7 +392,9 @@ function MediaSlide({
             canonicalSrc={coverRenderSrc(item.url) || item.url}
             holdSrc={index === 0 ? holdSrc : null}
             alt={alt}
-            imgClassName="cursor-zoom-in object-contain"
+            /* cursor-zoom-in 只给真实图片（主体点击开查看器）；合成自动文字封面
+               被 isEnlargeableSlide 排除、主体点击无副作用，保持默认光标。 */
+            imgClassName={item.autoCover ? "object-contain" : "cursor-zoom-in object-contain"}
             onSettle={settleIfFirst}
           />
         </div>
@@ -526,6 +531,34 @@ function RefreshPreviewButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+/** D6 #863 右上放大钮（可放大位入口）：image = 主体点击或本钮；model3d/
+ * text_pdf = 仅本钮（画布/embed 点击交原生交互）。与三件套同一显隐语义
+ * （hover 与 focus-within 显现、触屏恒显保证可发现入口、44px 触控目标）；
+ * 多项链中位于 N/M 徽标正下方（单项链无徽标，直接贴角）。
+ * 点击 stopPropagation = 防御性兜底：按钮渲染在 detail-cover 的兄弟位，
+ * 点击本就到不了主体点击语义（该路径当前不可达）；与 RefreshPreviewButton
+ * 同款惯例。 */
+function EnlargeButton({ belowBadge, onClick }: { belowBadge: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void }) {
+  const t = useTranslations();
+  return (
+    <button
+      type="button"
+      data-slot="media-enlarge-button"
+      aria-label={t("media.gallery.enlarge")}
+      title={t("media.gallery.enlarge")}
+      onClick={onClick}
+      className={cn(
+        "absolute right-3 z-10 flex h-11 w-11 min-h-11 min-w-11 items-center justify-center rounded-full bg-black/35 text-white opacity-0 backdrop-blur transition-opacity duration-150",
+        "group-hover/media:opacity-100 group-focus-within/media:opacity-100 [@media(hover:none)]:opacity-100",
+        "hover:bg-black/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        belowBadge ? "top-14" : "top-3",
+      )}
+    >
+      <Maximize2 className="h-5 w-5" aria-hidden="true" />
+    </button>
+  );
+}
+
 export interface OverlayVariantLayoutProps {
   media: MediaGalleryItem[];
   /** 首项媒体加载落定信号（驱动正文 reveal，同 split 路径 coverReady 契约）。 */
@@ -618,9 +651,12 @@ export function OverlayVariantLayout({
   const current = media[at];
   const showControls = media.length > 1;
   const isVideo = current?.type === "video";
-  /* D5 #862：MediaViewer 只收 image slides（放大态多类型化归 D6）；混排链
-     显示逐 slide 类型角标；>9 项隐藏圆点。 */
-  const viewerItems = media.filter((item) => item.type === "image");
+  /* D6 #863：可放大序列 = image / model3d / text_pdf（overlay-media
+     isEnlargeableSlide 谓词，spec §3.2 放大态行）；video/audio/document/
+     乐谱族（含乐谱族 pdf）不进。稳定附件 id 映射左列序列，放大态内独立
+     计数、边界 clamp（MediaViewer 只在传入序列内翻页）。混排链显示逐
+     slide 类型角标；>9 项隐藏圆点。 */
+  const viewerItems = media.filter(isEnlargeableSlide);
   const mixedFamilies = new Set(media.map((item) => slideFamilyKey(item.type))).size > 1;
   const showDots = media.length > 1 && media.length <= MAX_DOT_ITEMS;
   const isViewerSlide = current ? current.type !== "image" && current.type !== "video" : false;
@@ -682,18 +718,48 @@ export function OverlayVariantLayout({
       }
       return;
     }
-    /* D5 #862：仅图片主体点击进查看器（查看器族位点击不绑定——3D 拖转、
-       PDF/文档原生输入不被抢）；查看器序 = image slides 内的位置。 */
-    if (current.type !== "image") return;
-    const viewerAt = viewerItems.findIndex((item) => item.id === current.id);
+    /* D6 #863：主体点击仅可放大的 image 位开查看器（真图/真封面双入口之一；
+       合成自动文字封面经 autoCover 标记被谓词排除——主体点击无副作用不开
+       查看器；查看器族位点击不绑定——3D 拖转、PDF/文档原生输入不被抢，
+       3D/text-pdf 走右上放大钮）；查看器序 = 可放大序列内的位置（稳定附件
+       id 映射）。 */
+    if (!isEnlargeableSlide(current)) return;
+    openViewerAt(current, event.currentTarget);
+  }
+
+  /* D6 #863：打开放大态——按当前 slide 的稳定附件 id 定位可放大序列内的
+     位置（在 3D/pdf 位打开 → 当前项 = 该 3D/pdf，不是首图）；找不到 id
+     （被排除项/链已变）显式 no-op，绝无兜底打开首项路径。 */
+  function openViewerAt(item: MediaGalleryItem, trigger: HTMLElement | null) {
+    const viewerAt = viewerItems.findIndex((candidate) => candidate.id === item.id);
     if (viewerAt < 0) return;
-    viewerTriggerRef.current = event.currentTarget;
+    viewerTriggerRef.current = trigger;
     setViewerIndex(viewerAt);
+  }
+
+  /* D6 #863 右上放大钮入口：触发焦点落在按钮自身（关闭恢复焦点用）；
+     stopPropagation = 防御性兜底（按钮当前为 detail-cover 兄弟位，点击
+     不会冒泡进主体点击语义，该路径当前不可达；与 RefreshPreviewButton
+     同款惯例）。 */
+  function handleEnlargeClick(event: React.MouseEvent<HTMLButtonElement>) {
+    if (!current) return;
+    event.stopPropagation();
+    openViewerAt(current, event.currentTarget);
   }
 
   function handleViewerOpenChange(open: boolean) {
     if (open) return;
+    /* D6：关闭返回最后所看项——左列轮播定位到关闭前查看器内的当前项
+       （稳定附件 id 反查媒体链；换片是轮播语义，复位用户暂停意图）。 */
+    const lastViewed = viewerIndex != null ? viewerItems[clampIndex(viewerIndex, viewerItems.length)] : undefined;
     setViewerIndex(null);
+    if (lastViewed) {
+      const mediaAt = media.findIndex((item) => item.id === lastViewed.id);
+      if (mediaAt >= 0 && mediaAt !== clampIndex(index, media.length)) {
+        userPausedRef.current = false;
+        setIndex(mediaAt);
+      }
+    }
     const trigger = viewerTriggerRef.current;
     viewerTriggerRef.current = null;
     if (trigger) requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
@@ -808,6 +874,11 @@ export function OverlayVariantLayout({
             {current && isViewerSlide && onMediaRefresh && (
               <RefreshPreviewButton onClick={onMediaRefresh} />
             )}
+            {/* D6 #863：可放大位右上放大钮（image/model3d/text_pdf）；
+                多项链中位于 N/M 徽标正下方。 */}
+            {current && isEnlargeableSlide(current) && (
+              <EnlargeButton belowBadge={showControls} onClick={handleEnlargeClick} />
+            )}
           </>
         )}
       </div>
@@ -829,6 +900,8 @@ export function OverlayVariantLayout({
           open={viewerIndex !== null}
           onOpenChange={handleViewerOpenChange}
           onIndexChange={setViewerIndex}
+          contentId={contentId}
+          allowCopy={allowCopy}
         />
       )}
     </div>

@@ -412,6 +412,7 @@
       "next": "下一张",
       "viewFullImage": "查看长图",
       "imageAlt": "第 {current} 张，共 {total} 张",
+      "enlarge": "放大查看",
       "refreshPreview": "刷新预览",
       "error": {
         "loadFailed": "媒体加载失败"
