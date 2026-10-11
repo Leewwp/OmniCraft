@@ -136,6 +136,12 @@ export function ContentDetailOverlayLayer({
     );
   }, []);
 
+  /* D5 #862 签名过期等加载失败的有限重试：重取详情刷新签名 URL（媒体链按
+     附件 id 锚定保持当前位）；不做定时轮询。 */
+  const handleMediaRefresh = useCallback(() => {
+    setAttempt((value) => value + 1);
+  }, []);
+
   /* #409 F1 起跑前几何冻结（统一版式媒体列）：媒体列宽度由 ResizeObserver
      实测驱动（挂载期从百分比兜底到实测像素）；转场起跑须等首次实测到达
      （几何稳定后测量），否则目标矩形在动画中段跳变。 */
@@ -498,6 +504,9 @@ export function ContentDetailOverlayLayer({
         media={chainMedia}
         onFirstMediaSettled={(state) => setCoverReady(state === "ready")}
         holdSrc={motionHoldSrc}
+        contentId={detail?.content?.id}
+        allowCopy={detail?.content?.allow_copy}
+        onMediaRefresh={handleMediaRefresh}
         /* D2 #859 冻结窗口 = 入场转场起跑（motionStarted）→落定（motionSettled）：
            起跑前比例修正即时生效（壳层 opacity 0 不可见），窗口内锁存起跑比例
            零跳宽，落定后恢复 240ms 逐张过渡。 */

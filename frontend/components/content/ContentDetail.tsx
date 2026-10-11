@@ -42,6 +42,7 @@ import { SeriesNav } from "@/components/content/SeriesNav";
 import { SourceAttribution, type SourceSummary } from "@/components/content/SourceAttribution";
 import { RelatedFanworks } from "@/components/content/RelatedFanworks";
 import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
+import { overlaySlideFromAttachment } from "@/lib/overlay-media";
 import { RelatedContents } from "@/components/content/RelatedContents";
 import type { ContentCardData } from "@/components/content/ContentCard";
 import type { AttachmentData, ContentDetailData } from "@/lib/content";
@@ -273,6 +274,12 @@ export function ContentDetail({
     contentType === "video" ? data.cover_image_url : undefined,
   );
   const isMediaContent = contentType === "image" || contentType === "video";
+  /* D5 #862 浮层统一版式语境（桌面右栏）：已迁入左列轮播位的查看器族附件
+     在右栏只保留文件名/大小/下载语义，不再内联挂重复查看器；独立详情页与
+     移动布局（mediaSlot=inline）渲染不变。 */
+  const overlayVariant = mediaSlot === "variant";
+  const viewerFamily = (fileType?: string) =>
+    fileType === "document" || fileType === "model3d" || fileType === "audio";
   const usesGallery = isMediaContent && mediaItems.length > 0;
   const [coverState, setCoverState] = useState<"loading" | "ready" | "error">(() =>
     coverSync && usesGallery ? "loading" : coverSync && data.cover_image_url ? "loading" : "ready",
@@ -460,26 +467,55 @@ export function ContentDetail({
           入口卡（点击后挂载懒加载查看器/播放器；#691 冒烟实证 model3d 此前
           未进分发；无 URL 的非 clean 行由后端不签发 + 组件渲染扫描状态卡；
           .mtl 在组件内回落下载卡）。 */}
-      {downloadItems.some((att) => att.file_type === "document" || att.file_type === "model3d" || att.file_type === "audio") && (
+      {downloadItems.some((att) => viewerFamily(att.file_type)) && (
         <section className="space-y-3">
           {downloadItems
-            .filter((att) => att.file_type === "document" || att.file_type === "model3d" || att.file_type === "audio")
-            .map((att) => (
-              <AttachmentPreview
-                key={att.id}
-                attachment={att}
-                contentId={data.id}
-                allowCopy={Boolean(data.allow_copy)}
-              />
-            ))}
+            .filter((att) => viewerFamily(att.file_type))
+            .map((att) =>
+              overlayVariant && overlaySlideFromAttachment(att) ? (
+                /* D5 #862：该附件已是左列轮播位 slide——右栏只留下载行
+                   （扫描门已过，无需再挂扫描卡/入口卡）。 */
+                <div
+                  key={att.id}
+                  data-testid="overlay-viewer-download-row"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4"
+                >
+                  <div className="flex min-w-0 items-center gap-2 text-sm">
+                    <span className="truncate text-foreground" title={att.original_file_name || undefined}>
+                      {att.original_file_name || t("content.attachmentUnknownType")}
+                    </span>
+                    {att.file_size != null && (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {(att.file_size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    )}
+                  </div>
+                  {data.allow_copy && (
+                    <DownloadButton
+                      contentId={data.id}
+                      attachmentId={att.id}
+                      contentType={att.file_type}
+                      size="sm"
+                    />
+                  )}
+                </div>
+              ) : (
+                <AttachmentPreview
+                  key={att.id}
+                  attachment={att}
+                  contentId={data.id}
+                  allowCopy={Boolean(data.allow_copy)}
+                />
+              ),
+            )}
         </section>
       )}
 
-      {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d" && att.file_type !== "audio").length > 0 && contentType !== "sheet_music" && (
+      {downloadItems.filter((att) => !viewerFamily(att.file_type)).length > 0 && (overlayVariant || contentType !== "sheet_music") && (
         <section className="space-y-2 rounded-md border border-border bg-card p-4 ">
           <h2 className="text-sm font-semibold">{t('content.attachments')}</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {downloadItems.filter((att) => att.file_type !== "document" && att.file_type !== "model3d" && att.file_type !== "audio").map((att) => (
+            {downloadItems.filter((att) => !viewerFamily(att.file_type)).map((att) => (
               <div
                 key={att.id}
                 className="flex items-center justify-between rounded border border-border bg-muted/10 p-2"
@@ -504,8 +540,9 @@ export function ContentDetail({
         </section>
       )}
 
-      {/* Sheet Music Viewer */}
-      {contentType === "sheet_music" && (
+      {/* Sheet Music Viewer（独立详情页/移动布局；浮层统一版式下乐谱逐附件
+          迁入左列轮播位，右栏只留下载行——D5 #862）。 */}
+      {contentType === "sheet_music" && !overlayVariant && (
         <SheetMusicViewer
           contentId={data.id}
           attachments={data.attachments || []}

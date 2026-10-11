@@ -42,8 +42,9 @@ export interface PreviewableAttachment {
   original_file_name?: string | null;
 }
 
-/** 扫描门放行的状态（后端非 clean 不签发 oss_url；这里双保险渲染状态卡）。 */
-function isPreviewBlockedByScan(scanStatus?: string): boolean {
+/** 扫描门放行的状态（后端非 clean 不签发 oss_url；这里双保险渲染状态卡）。
+ * D5 #862：浮层可预览媒体链资格判定沿用同一语义（导出供 overlay-media 复用）。 */
+export function isPreviewBlockedByScan(scanStatus?: string): boolean {
   if (!scanStatus) return false;
   return scanStatus !== "clean" && scanStatus !== "not_required";
 }

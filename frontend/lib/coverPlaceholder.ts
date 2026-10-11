@@ -108,6 +108,23 @@ function promptPlaceholder(): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+/** D5 #862：audio 专属占位图（音符图形；此前与 image/other 共用 generic）。 */
+function audioPlaceholder(): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">
+  <defs><linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#312e81"/><stop offset="100%" stop-color="#1e1b4b"/></linearGradient></defs>
+  <rect width="300" height="400" fill="url(#ag)"/>
+  <g transform="translate(90,140)" fill="none" stroke="#a5b4fc" stroke-width="3">
+    <circle cx="24" cy="108" r="18" fill="#a5b4fc" stroke="none"/>
+    <circle cx="104" cy="92" r="18" fill="#a5b4fc" stroke="none"/>
+    <line x1="42" y1="108" x2="42" y2="16" stroke-width="3"/>
+    <line x1="122" y1="92" x2="122" y2="0" stroke-width="3"/>
+    <path d="M42,16 L122,0 L122,26 L42,42 Z" fill="#818cf8" stroke="none"/>
+  </g>
+  <text x="150" y="320" text-anchor="middle" fill="#a5b4fc" font-family="system-ui,sans-serif" font-size="14">Audio</text>
+</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 function genericPlaceholder(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400">
   <rect width="300" height="400" fill="#f8fafc"/>
@@ -153,7 +170,7 @@ export function getCoverPlaceholder(
     case "image":
       return genericPlaceholder();
     case "audio":
-      return genericPlaceholder();
+      return audioPlaceholder();
     default:
       return genericPlaceholder();
   }

@@ -24,6 +24,7 @@ interface SheetMusicAttachment {
   oss_url?: string;
   oss_key?: string;
   file_size?: number;
+  original_file_name?: string | null;
 }
 
 interface SheetMusicViewerProps {
@@ -54,8 +55,8 @@ function fileTypeFor(att: SheetMusicAttachment): string {
   return "other";
 }
 
-/* ── OSMDRenderer (MusicXML → staff notation) ─ */
-function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
+/* ── OSMDRenderer (MusicXML → staff notation)；导出供浮层轮播位复用（D5 #862） ── */
+export function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
   const t = useTranslations();
   const containerRef = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
@@ -111,8 +112,10 @@ function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
   );
 }
 
-/* ── MIDIPlayer (MIDI playback with soundfont) ─ */
-function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
+/* ── MIDIPlayer (MIDI playback with soundfont)；导出供浮层轮播位复用（D5 #862）。
+   suspended：浮层挂起信号（非顶层/上层弹窗/登录浮窗）——true 时停走 midi 调度并
+   挂起 AudioContext；恢复不自动续播，起播权在用户（与 AudioPlayer suspended 同语义） ── */
+export function MIDIPlayer({ ossUrl, suspended = false }: { ossUrl: string; suspended?: boolean }) {
   const t = useTranslations();
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -135,12 +138,22 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
       setLoading(true);
       setError("");
       try {
-        const [{ Player }, { instrument }] = await Promise.all([
+        const [midiPlayerModule, soundfontModule] = await Promise.all([
           import("midi-player-js"),
           import("soundfont-player"),
         ]);
 
         if (cancelled) return;
+
+        /* CJS 命名导出形态随加载器而异（webpack 直出命名 / node ESM 收进 default）：
+           双路解析保持两端一致。 */
+        const Player =
+          midiPlayerModule.Player ??
+          (midiPlayerModule as unknown as { default?: typeof midiPlayerModule }).default?.Player;
+        const instrument =
+          soundfontModule.instrument ??
+          (soundfontModule as unknown as { default?: typeof soundfontModule }).default?.instrument;
+        if (!Player || !instrument) throw new Error("MIDI playback libraries unavailable");
 
         const piano = await instrument(ctx, "acoustic_grand_piano");
         pianoRef.current = piano;
@@ -179,9 +192,23 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
     init();
     return () => {
       cancelled = true;
+      /* 播放中卸载：显式停走 midi 调度器（AudioContext.close 只关音频图，
+         不取消 midi-player-js 的 setTimeout 事件链）。 */
+      try { playerRef.current?.pause(); } catch (e) { silentError(e, { component: 'MIDIPlayer', action: 'cleanup' }); }
       try { ctx.close(); } catch (e) { silentError(e, { component: 'MIDIPlayer', action: 'cleanup' }); }
     };
   }, [ossUrl, attempt, t]);
+
+  /* 挂起矩阵（浮层压层/上层弹窗/登录浮窗）：停走 midi 调度 + 挂起 AudioContext；
+     恢复不自动续播——起播权在用户（用户再次起播时由 togglePlay 显式 resume）。 */
+  useEffect(() => {
+    if (!suspended) return;
+    playerRef.current?.pause();
+    setPlaying(false);
+    cancelAnimationFrame(animRef.current);
+    const ctx = ctxRef.current;
+    if (ctx?.state === "running") void ctx.suspend().catch(() => {});
+  }, [suspended]);
 
   function togglePlay() {
     const player = playerRef.current;
@@ -193,10 +220,15 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
       setPlaying(false);
       cancelAnimationFrame(animRef.current);
     } else {
+      /* 续播进度基准 = 播放器冻结位置（midi-player-js pause() 把当前 tick 存
+         startTick、play() 从该 tick 续播；未起播/EOF 后为 0）：UI 进度不归零
+         重走，与声音位置一致。getSongTimeRemaining() 会取整到整秒，不满足
+         进度条粒度，故用 ticksToSeconds(0, getCurrentTick()) 直读。 */
+      const playedSeconds = Math.max(player.ticksToSeconds(0, player.getCurrentTick()), 0);
       if (ctx.state === "suspended") ctx.resume();
       player.play();
       setPlaying(true);
-      startRef.current = performance.now();
+      startRef.current = performance.now() - playedSeconds * 1000;
       function tick() {
         const elapsed = (performance.now() - startRef.current) / 1000;
         setCurrentTime(Math.min(elapsed, duration));
@@ -239,7 +271,7 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
           size="sm"
           onClick={togglePlay}
           className="h-9 w-9 p-0"
-          aria-label={playing ? "Pause" : "Play"}
+          aria-label={playing ? t("content.attachmentPreview.audio.pause") : t("content.attachmentPreview.audio.play")}
         >
           {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
@@ -263,11 +295,13 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
 /* ── PDFViewer ─────────────────────────────── */
 function PDFViewer({
   ossUrl,
+  fileName,
   contentId,
   attachmentId,
   allowCopy,
 }: {
   ossUrl: string;
+  fileName: string;
   contentId: number;
   attachmentId: number;
   allowCopy: boolean;
@@ -277,6 +311,7 @@ function PDFViewer({
       <embed
         src={ossUrl}
         type="application/pdf"
+        title={fileName}
         className="h-[500px] w-full rounded-md border border-border"
       />
       {allowCopy && (
@@ -394,6 +429,7 @@ export function SheetMusicViewer({ contentId, attachments, allowCopy, className 
       {previewable && previewable.oss_url && previewableType === "pdf" && (
         <PDFViewer
           ossUrl={previewable.oss_url}
+          fileName={previewable.original_file_name || previewable.oss_key || ""}
           contentId={contentId}
           attachmentId={previewable.id}
           allowCopy={!!allowCopy}

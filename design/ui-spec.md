@@ -2451,7 +2451,7 @@ interface FilterPillOption { value: string; label: string; count?: number }
 - 根据 `contentType` 渲染不同的内容展示器（MarkdownRenderer / SheetMusicViewer / MediaGallery 等）。
 - 标题、作者信息、分类标签在一体化卡片中展示。
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
-- **媒体集 vs 附件（#80 语义权威）**：image/video 内容的多文件渲染为 `MediaGallery`（画廊/播放器，可顺序浏览）；mod/乐谱/音频/模板/prompt 等类型的文件保持附件下载列表语义。二者渲染与上传链路完全分离。
+- **媒体集 vs 附件（#80 语义权威）**：image/video 内容的多文件渲染为 `MediaGallery`（画廊/播放器，可顺序浏览）；mod/乐谱/音频/模板/prompt 等类型的文件保持附件下载列表语义。二者渲染与上传链路完全分离。浮层统一版式例外（D5 #862）：`mediaSlot="variant"`（桌面浮层右栏）下，已迁入左列轮播位的查看器族附件（document/model3d/audio/sheet_music/text-pdf）在右栏只保留文件名/大小/下载/扫描状态（下载行 + 扫描卡），不再内联挂重复查看器；独立详情页与移动布局（mediaSlot=inline）保持本条原语义。
 - **收藏状态（#74 权威）**：收藏动作显示“已收藏”（收藏成员关系）或“添加到收藏集”，由同一事实源（用户活动收藏集的成员关系）派生，与 `CollectionPicker` 保持一致。
 - **作者行内联关注按钮按宿主条件渲染（SP-26 A-8，#780；D1 #858 更新）**：`ContentDetail` 可选 prop `inlineFollowClassName`（缺省渲染内联按钮保持既有调用方行为）；原创页 / 二创独立页 / 浮层移动单列分支传 `"lg:hidden"`（与右栏作者卡 `hidden lg:block` 同断点联动，桌面标准分支不同屏双关注入口），浮层桌面统一右栏分支不传（创作者侧栏不进右栏，内联按钮是唯一直接入口）。改动本节时须保持各分支有且仅有一个可达关注入口。
 
@@ -2580,10 +2580,20 @@ interface ContentDetailOverlayProps {
 - **桌面统一版式（D1 #858 权威，≥960px 唯一版式）**：桌面收敛为单一小红书式左媒体/右信息版式——旧「桌面双栏（#88，全横集 split-media）／竖屏集新版布局（#397 variant）／单列」三分支判定（媒体朝向 × 视口）退役，split 的 64px 常驻控件条（`SPLIT_MEDIA_CONTROLS_HEIGHT`）随之退役（MediaGallery 组件保留给移动/独立详情页）。
   - **断点决定壳层，从 loading 首帧生效**：统一双栏壳（无 header 工具栏行、sr-only 标题、悬浮返回/关闭钮、滚动归属层内 `layer-scroller`）由视口断点 `matchMedia(min-width: 960px)` 决定——不等待媒体朝向/chainReady 才从单列切换；loading/404/403/429/error 各状态保持稳定双栏外壳，图片/探针失败不回退全宽单列。
   - **面板断点对齐**：dialog 面板 `min-[960px]` 收居中面板（`min(92dvh,900px) × min(1120px, 100%-2rem)`、圆角/边框/阴影随壳层），960–1023px 不再出现「全屏面板但内部已双栏」的几何缺口。
-  - **媒体列几何**（承袭 #397 R2，推广到全类型；D2 #859 收口）：左媒体列黑底直贴面板（宿主容器桌面零内边距，负 margin 抵消结构退役）；列宽 = 可用高 × 当前项真实宽高比（逐张自适应、240ms 过渡），上限 = 根区宽 − 380px（右栏保留宽），下限 280px；装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动。全类型媒体源链 = 真实媒体集 → 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）——article/prompt/other 等无媒体类 = 文字封面卡左列 + 右栏（全站形态统一）；媒体链为空（loading/错误态）媒体列保持稳定黑底占位。
+  - **媒体列几何**（承袭 #397 R2，推广到全类型；D2 #859 收口）：左媒体列黑底直贴面板（宿主容器桌面零内边距，负 margin 抵消结构退役）；列宽 = 可用高 × 当前项真实宽高比（逐张自适应、240ms 过渡），上限 = 根区宽 − 380px（右栏保留宽），下限 280px；装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动。全类型媒体源链 = 可预览媒体链（D5 #862，见「媒体列逐类型矩阵」）→ 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）——article/prompt/other 等无媒体类 = 文字封面卡左列 + 右栏（全站形态统一）；媒体链为空（loading/错误态）媒体列保持稳定黑底占位。
   - **媒体几何时序（D2 #859，两段式根除）**：媒体链尺寸实测走共享有界就绪预算（`MEDIA_READY_BUDGET_MS`，须短于浮层 2s 入场保险）——已知尺寸直接就绪；未知尺寸在预算内探测（图片 = Image 规范变体探针，视频 = 附件正数尺寸或 `loadedmetadata` 实测）；超时按稳定 fallback 完成当前入场（视频保留真实 URL + 防御比例，不换占位图）。冻结窗口 = 入场转场起跑→落定，窗口内锁存起跑比例——迟到元数据不得在同次入场动画中改列宽；起跑前（壳层 opacity 0 不可见期）与落定后的比例修正即时/随 240ms 过渡应用。contain 完整呈现允许黑边，不以裁切消除黑边。
   - **翻页控件（三件套，D2 #859 推广到统一版式全部媒体并收口可用性）**：默认仅底部中央半透明圆点（触屏可发现入口）；hover 媒体区与 focus-within 显现左右半透明圆形箭头（垂直中位）+ 右上「N / M」胶囊徽标；触屏（`hover: none`）箭头与徽标恒显保证可发现；控件触控目标 44px；仅多项媒体显示（单项零控件）；到边界 clamp 不循环；键盘 ←/→ 切位且只作用于最顶层活动媒体区——不劫持输入框/评论编辑器（contenteditable）/select/播放器原生控件/上层媒体查看器/登录浮窗；切位按钮点击不触发放大（事件不穿透到主体）；旧 split 分支 64px 常驻控件条（`SPLIT_MEDIA_CONTROLS_HEIGHT`）随 D1 退役。
   - **视频行为（D2 #859，小红书式）**：弹窗内真实比例 contain（允许黑边）；当前活跃且可见的 video `autoPlay + muted + playsInline` 自动静音播放（`play()` 被浏览器策略拒绝时静默降级，controls 手动播放入口保留）；主体点击 = 单次切换播放/暂停（防双触发；用户主动暂停的意图在恢复激活时不被自动续播覆盖，切位换片视为轮播语义复位该意图）；原生 controls 条（44px 近似条内）点击不切播、不翻页、不进查看器；**视频不进 MediaViewer**（全屏用控制条原生全屏按钮），图片点击进查看器行为不变；挂起矩阵 = 切位/压入下一内容层/进入上层弹窗（媒体查看器、登录浮窗）/关闭详情时停止隐藏媒体，恢复激活仅当前项可续播，任何时刻至多一段声音；探针失败/超时保留真实视频 URL（可播放可重试，绝不换成图片占位或送进图片优化器预热）。
+  - **媒体列逐类型矩阵（D5 #862，spec §3.2）**：媒体链 = 逐附件 slide 序列（`selectOverlaySlides`）——image/video 沿用既有契约（`oss_key` 兜底、无前端扫描门）且不再限定内容类型（附件族内容的图/视附件参与混排）；audio/model3d/document 需签名 `oss_url` 且扫描门 clean/not_required（沿用 `isPreviewBlockedByScan` 语义）；model3d 的 .mtl 不进；text 仅持久化 MIME=application/pdf；sheet_music 逐附件（musicxml/midi/pdf 按 file_type 优先、持久化 MIME 兜底；mscz/mscx 留右栏下载行）；mod 永不进（固定包裹占位单卡）。顺序 = 后端稳定排序（sort_order ASC NULLS LAST、id ASC，0 有效），前端不重排；无可预览项回退链不变（封面 → 文字封面）。逐类型位形态：
+    | 类型 | 左列轮播位形态 | 交互要点 |
+    |---|---|---|
+    | audio | audio 专属音符占位图（300×400）为底 + 底部悬浮 AudioPlayer 条 | 起播权在用户；挂起暂停、切位卸载停播释放 |
+    | model3d | ModelViewer 画布（懒分块 + 预算降级） | 拖转/滚轮缩放原生输入不被轮播抢；画布点击不绑定 |
+    | document | DocumentViewer 全高容器（消毒 HTML/网格/降级卡） | 文档网格原生滚动不抢；懒分块 |
+    | text_pdf / sheet_music_pdf | 原生 `<embed type="application/pdf">` 全高 | embed 原生能力；内容点击不绑定（放大归 D6） |
+    | sheet_music_xml | OSMD 横滚容器 | 谱内横向滚动不被箭头拦截（箭头为悬浮小钮） |
+    | sheet_music_midi | 乐谱占位图为底 + 底部 MIDI 回放条 | 起播权在用户；挂起暂停（midi 调度停走 + AudioContext 挂起，恢复不自动续播）、切位卸载即停（AudioContext 随组件清理） |
+    查看器族 slide 名义几何 300×400（3:4，无 intrinsic 宽高）；首项挂载即 settle（不等 2s 入场保险）；当前位才挂载重型查看器（切位/隐藏层停播并释放资源，首屏不抓全部附件正文）。**播放条让位**：当前位为 audio/midi 播放条形态时，底部圆点与混排类型角标上移到播放条上方（`bottom-32`），非播放条位保持默认贴底（`bottom-3`）。**指示器溢出**：slide 数 >9 隐藏底部圆点、只留 N/M 徽标 + 箭头（各类型无数量上限）；**混排角标**：slide 链含 ≥2 个 family 时逐 slide 左下角显示类型小角标（`content.attachmentPreview.familyLabel.*`，i18n 双语），同质链不显示；**查看器过滤**：MediaViewer 只收 image slides（放大态多类型化归 D6），非图片主体点击不绑任何查看语义；**右栏去重**：浮层语境（`ContentDetail mediaSlot="variant"`）下已迁入左列的族（document/model3d/audio 查看器、sheet_music 乐谱查看器）不再在右栏内联挂重复查看器，只保留文件名/大小/下载/扫描状态语义；独立详情页与移动布局渲染不变；**签名过期重试**：查看器位右下角「刷新预览」按钮 = 有限用户重试（重取详情刷新 300s 签名 URL，按附件 id 锚定保持当前位；禁止定时轮询/重复下载计数）。
   - **× 与返回悬浮、滚动条贯通**：× 悬浮面板右上（半透明圆钮覆盖内容，无 pt-14 整行避让空带；右栏首块右上局部避让 = header 块 `pr-14` 预留关闭钮命中区）；返回钮悬浮媒体列左上，hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；右滚动列（`layer-scroller`）滚动条贴面板右缘全高贯通。
   - **右栏块序（钉死，全类型一致，各块单实例）**：创作者行（头像+昵称+关注，`ContentDetail` 的 `creatorFirst` 在 ≥960 视口将创作者行置于标题之前；移动 <960 保持「标题在上」既有契约）→ 标题 → 元信息行（fanwork 含「IP：名」）→ 来源归因（fanwork）→ 正文/附件语义区 → 关联块（⓪关联 IP 行 → ①关联的原创 → ②同系列跳转；无关联整块不渲染）→ 评论区 → 推荐区（衍生列表 + 相似推荐 = `RelatedContents`，复用层内 related-fanworks 合同；推荐区在 960–1099 同样可见——`minViewportPx=960` 下浮旧 1100 门，仅浮层路径，其余调用方缺省 1100 不变）。旧 variantTail 把衍生列表放在评论前的结构退役（`OverlayRelatedBlock` 不再含衍生列表）。
   - **ContentSidebar 退出桌面统一右栏**：创作者行来自 `ContentDetail` 头部，相关列表并入评论后推荐区；移动 <960 侧栏照旧渲染（CSS 自隐藏于 <lg，DOM 契约保持）。
