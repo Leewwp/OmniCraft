@@ -131,6 +131,21 @@ export function overlaySlideFromAttachment(
 }
 
 /**
+ * 可放大 slide 谓词（D6 #863，spec §3.2 放大态行 / §9.6 末两段）：可放大
+ * 序列仅三类 = 真实图片（image，不含 autoCover 标记的合成文字封面）、
+ * model3d、text 族 pdf（text_pdf）。video/audio/document/乐谱族（含
+ * sheet_music_pdf——乐谱族 pdf 仍属乐谱位）一律无放大入口；自动文字封面/
+ * 音频背景封面/video poster 不算独立图片附件——后两者不是 slide 链成员
+ * （由 slide 分发层保证）；自动文字封面确会作为无可预览项时的唯一
+ * fallback image slide 进链（buildOverlayMedia 置 autoCover 标记），
+ * 谓词层按标记排除。
+ */
+export function isEnlargeableSlide(item: MediaGalleryItem): boolean {
+  if (item.type === "image" && item.autoCover) return false;
+  return item.type === "image" || item.type === "model3d" || item.type === "text_pdf";
+}
+
+/**
  * 可预览媒体链（slide 序列）：按附件稳定顺序（后端 sort_order ASC NULLS LAST,
  * id ASC，0 有效）逐附件分派；前端不重排。顺序即轮播顺序。
  */
@@ -179,6 +194,9 @@ export function buildOverlayMedia(detail: NormalizedContentDetailResponse): Medi
       type: "image",
       width: PLACEHOLDER_WIDTH,
       height: PLACEHOLDER_HEIGHT,
+      /* D6 #863：合成文字封面不算独立图片附件（spec §3.2 article 行 = — /
+         §9.6），autoCover 标记供 isEnlargeableSlide 排除放大入口。 */
+      autoCover: true,
     },
   ];
 }

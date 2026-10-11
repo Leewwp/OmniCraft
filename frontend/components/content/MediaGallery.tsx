@@ -34,6 +34,10 @@ export interface MediaGalleryItem {
   /** D5 逐类型位：查看器/下载语义所需的附件元数据（image/video 既有位不使用）。 */
   fileName?: string;
   fileSize?: number;
+  /** D6 #863 合成自动文字封面标记（getCoverPlaceholder 渐变字牌）：不算独立
+   * 图片附件（spec §3.2 article 行放大语义 = — / §9.6），isEnlargeableSlide
+   * 据此排除其放大入口；真内容封面（cover_image_url）不带此标记，保持可放大。 */
+  autoCover?: true;
 }
 
 interface MediaGalleryProps {

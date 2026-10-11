@@ -412,6 +412,7 @@
       "next": "Next media",
       "viewFullImage": "View full image",
       "imageAlt": "Media {current} of {total}",
+      "enlarge": "Enlarge media",
       "refreshPreview": "Refresh preview",
       "error": {
         "loadFailed": "Failed to load media"
