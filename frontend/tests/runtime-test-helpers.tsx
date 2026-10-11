@@ -143,6 +143,8 @@ export const testMessages = {
   },
   content: {
     attachmentPreview: {
+      /* 值与 messages/en.json 不同（钉死来源 = testMessages，断言可见区分）。 */
+      failed: "Preview failed; download to view (test)",
       familyLabel: {
         document: "Document",
         model3d: "3D model",
@@ -171,6 +173,7 @@ export const testMessages = {
       next: "Next media",
       viewFullImage: "View full image",
       imageAlt: "Media {current} of {total}",
+      enlarge: "Enlarge media",
       refreshPreview: "Refresh preview",
       error: {
         loadFailed: "Failed to load media",
