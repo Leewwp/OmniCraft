@@ -142,6 +142,21 @@ export const testMessages = {
     emailUnverified: "Unverified",
   },
   content: {
+    attachmentPreview: {
+      familyLabel: {
+        document: "Document",
+        model3d: "3D model",
+        audio: "Audio",
+        image: "Image",
+        video: "Video",
+        pdf: "PDF",
+        sheetMusic: "Sheet music",
+      },
+      audio: {
+        play: "Play audio",
+        pause: "Pause audio",
+      },
+    },
     limitMb: "Limit: {maxMB}MB",
     selectFile: "Select file",
     uploading: "Uploading",
@@ -156,6 +171,7 @@ export const testMessages = {
       next: "Next media",
       viewFullImage: "View full image",
       imageAlt: "Media {current} of {total}",
+      refreshPreview: "Refresh preview",
       error: {
         loadFailed: "Failed to load media",
       },

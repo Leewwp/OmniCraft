@@ -201,6 +201,70 @@ const FANWORK_RELATED = {
   source_original: { id: 60, title: "The Source Original", zone: "original" },
 };
 
+/* D5 #862 附件族夹具：签名 oss_url + clean 扫描态 = 可预览媒体链输入。 */
+const AUDIO_WITH_URL = {
+  content: {
+    id: 67,
+    title: "Audio Narration Work",
+    zone: "original",
+    content_type: "audio",
+    author: { id: 9, username: "Media Author" },
+    status: "published",
+    description: "Audio body",
+  },
+  attachments: [
+    {
+      id: 561,
+      content_item_id: 67,
+      file_type: "audio",
+      oss_key: "/seed/narration.wav",
+      oss_url: "https://bucket.example/d5/narration.wav",
+      original_file_name: "narration.wav",
+      file_size: 4096,
+      scan_status: "clean",
+      sort_order: 0,
+    },
+  ],
+  tags: [],
+};
+
+const SHEET_WITH_URL = {
+  content: {
+    id: 68,
+    title: "Sheet Music Work",
+    zone: "original",
+    content_type: "sheet_music",
+    author: { id: 9, username: "Media Author" },
+    status: "published",
+    description: "Sheet music body",
+  },
+  attachments: [
+    {
+      id: 571,
+      content_item_id: 68,
+      file_type: "sheet_music_xml",
+      oss_key: "/seed/score.musicxml",
+      oss_url: "https://bucket.example/d5/score.musicxml",
+      original_file_name: "score.musicxml",
+      file_size: 8192,
+      scan_status: "clean",
+      sort_order: 0,
+    },
+    {
+      id: 572,
+      content_item_id: 68,
+      file_type: "sheet_music_mscz",
+      oss_key: "/seed/score.mscz",
+      oss_url: "https://bucket.example/d5/score.mscz",
+      original_file_name: "score.mscz",
+      file_size: 16384,
+      scan_status: "clean",
+      sort_order: 1,
+    },
+  ],
+  tags: [],
+};
+
 const detailByPath = new Map<string, unknown>([
   ["/api/v1/contents/61", LANDSCAPE_SET],
   ["/api/v1/contents/62", PORTRAIT_SET],
@@ -208,6 +272,8 @@ const detailByPath = new Map<string, unknown>([
   ["/api/v1/contents/64", ARTICLE],
   ["/api/v1/contents/65", MOD_CONTENT],
   ["/api/v1/contents/66", FANWORK_RELATED],
+  ["/api/v1/contents/67", AUDIO_WITH_URL],
+  ["/api/v1/contents/68", SHEET_WITH_URL],
 ]);
 
 const originalGet = api.get;
@@ -551,4 +617,74 @@ test("mobile (<960) keeps the single-column contract: header, inline media, side
   /* 行内画廊（detail-cover 行内锚点）存在于单列流。 */
   const inlineCover = document.querySelector('[data-slot="overlay-scroller"] [data-slot="detail-cover"]');
   assert.ok(inlineCover, "inline gallery stays in the mobile flow");
+});
+
+/* ── D5 #862 右栏去重复查看器（spec §9.6：已迁入左列的族不再内联挂查看器） ── */
+
+test("D5 audio in the unified pane: left column owns the player, right rail keeps download semantics only", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={67} zone="original" />, true);
+  await openOverlay(view, "Audio Narration Work");
+
+  const pane = document.querySelector('[data-slot="variant-media-pane"]');
+  assert.ok(pane, "unified pane renders for audio content");
+  await waitFor(() => assert.ok(pane.querySelector('[data-testid="audio-player"]'), "audio player lives in the pane slide"));
+  assert.ok(pane.querySelector("img"), "audio placeholder art is the slide backdrop");
+
+  const scroller = document.querySelector('[data-slot="layer-scroller"]') as HTMLElement;
+  assert.ok(scroller);
+  assert.equal(
+    scroller.querySelectorAll('[data-testid="attachment-preview-entry"]').length,
+    0,
+    "right rail suppresses the duplicate preview entry for the family migrated into the pane",
+  );
+  assert.equal(scroller.querySelectorAll('[data-testid="audio-player"]').length, 0, "no second player in the right rail");
+  assert.ok(
+    scroller.textContent?.includes("narration.wav"),
+    "right rail keeps the file-name/size download semantics",
+  );
+});
+
+test("D5 sheet music in the unified pane: OSMD slide owns preview, mscz stays a right-rail download row", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={68} zone="original" />, true);
+  await openOverlay(view, "Sheet Music Work");
+
+  const pane = document.querySelector('[data-slot="variant-media-pane"]');
+  assert.ok(pane);
+  await waitFor(() => assert.ok(pane.querySelector(".osmd-container"), "musicxml renders as the OSMD pane slide"));
+
+  const scroller = document.querySelector('[data-slot="layer-scroller"]') as HTMLElement;
+  assert.ok(scroller);
+  assert.equal(
+    scroller.querySelectorAll(".osmd-container").length,
+    0,
+    "right rail no longer mounts the duplicate sheet-music viewer (overlay context)",
+  );
+  assert.ok(
+    scroller.textContent?.includes("score.musicxml") || scroller.textContent?.includes("score.mscz"),
+    "sheet attachments stay downloadable from the right rail",
+  );
+  assert.ok(
+    scroller.textContent?.includes("score.mscz"),
+    "mscz keeps its right-rail download row (never a slide)",
+  );
+});
+
+test("D5 mobile overlay keeps the inline attachment preview (variant-only suppression)", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={67} zone="original" />, false);
+  await openOverlay(view, "Audio Narration Work");
+
+  await waitFor(() => {
+    assert.ok(
+      document.querySelector('[data-testid="attachment-preview-entry"]'),
+      "mobile overlay keeps the inline preview entry card (mediaSlot=inline)",
+    );
+  });
+  assert.equal(
+    document.querySelector('[data-slot="variant-media-pane"]'),
+    null,
+    "mobile has no unified pane, so no duplicate to suppress",
+  );
 });

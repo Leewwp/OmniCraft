@@ -370,7 +370,11 @@
       "familyLabel": {
         "document": "Document",
         "model3d": "3D model",
-        "audio": "Audio"
+        "audio": "Audio",
+        "image": "Image",
+        "video": "Video",
+        "pdf": "PDF",
+        "sheetMusic": "Sheet music"
       },
       "scanStatus": {
         "pending": "Attachment is queued for security scanning",
@@ -408,6 +412,7 @@
       "next": "Next media",
       "viewFullImage": "View full image",
       "imageAlt": "Media {current} of {total}",
+      "refreshPreview": "Refresh preview",
       "error": {
         "loadFailed": "Failed to load media"
       }
