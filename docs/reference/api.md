@@ -25,7 +25,7 @@ Content-Type: application/json
 
 #### 游客 Agent（/api/v1/agent/guest）
 
-游客端点使用服务端签名设备 cookie，与账号 JWT 通道分离；携带 Authorization 的请求返回 403 `AUTH_CHANNEL_CONFLICT`，不降级为游客。`features.guest_agent_enabled` 与 `agent.web_agent_enabled` 必须同时开启，否则返回 403 `GUEST_AGENT_DISABLED`。设备 cookie 的创建、验证和配额状态遵循 [ADR 0006](../adr/0006-guest-agent-limited-anonymous-surface.md)。
+游客端点使用服务端签名设备 cookie，与账号 JWT 通道分离；携带 Authorization 的请求返回 403 `AUTH_CHANNEL_CONFLICT`，不降级为游客。`features.guest_agent_enabled` 与 `agent.web_agent_enabled` 必须同时开启，否则返回 403 `GUEST_AGENT_DISABLED`——此为规范契约而非现状描述：游客面准入拒绝采用 403 语义族，不适用 `FEATURE_DISABLED` 503，关闭语义是「通道未授权、登录可解」（ADR 0006 / #882 裁定）。设备 cookie 的创建、验证和配额状态遵循 [ADR 0006](../adr/0006-guest-agent-limited-anonymous-surface.md)。
 
 | 方法 | 路径 | 行为 |
 |------|------|------|
