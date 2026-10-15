@@ -30,7 +30,7 @@ jobs:
         run: bash scripts/release/verify-provenance.sh -Manifest artifacts/sbom/release-manifest.json -ImageDaemon -Repo "$GITHUB_REPOSITORY"
       - name: Upload SBOM evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: sbom-evidence
           path: artifacts/sbom

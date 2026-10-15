@@ -63,7 +63,7 @@ jobs:
         working-directory: backend
       - name: Upload backend evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: backend-evidence
           path: artifacts/backend
@@ -91,7 +91,7 @@ jobs:
         run: bash scripts/verify-project.sh -Scope Frontend -ReportDir artifacts/frontend
       - name: Upload frontend evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: frontend-evidence
           path: artifacts/frontend
@@ -116,7 +116,7 @@ jobs:
         run: bash scripts/verify-project.sh -Scope Docs -ReportDir artifacts/docs
       - name: Upload docs evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: docs-evidence
           path: artifacts/docs
@@ -139,7 +139,7 @@ jobs:
         working-directory: ops/observability/alert-sink
       - name: Upload alerting evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ops-alerting-evidence
           path: artifacts
