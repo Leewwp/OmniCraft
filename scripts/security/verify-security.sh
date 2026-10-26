@@ -568,7 +568,7 @@ if "secrets" in active_gates:
             for f in loaded:
                 add({"id": "gitleaks:%s" % f.get("RuleID"), "component": f.get("File"),
                      "version": "N/A", "severity": "secret", "source": "gitleaks-%s" % rep,
-                     "detail": f.get("Secret", "")[:24]})
+                     "detail": (f.get("Secret") or "")[:24]})
 
 def iter_json_stream(path):
     """Yield each JSON document in a multi-document stream. govulncheck
@@ -649,7 +649,7 @@ if "go" in active_gates:
                 vid = v.get("ID")
                 component = v.get("Package") or v.get("Module")
                 version = v.get("Version") or "unknown"
-                detail = v.get("Details", "")[:80]
+                detail = (v.get("Details") or "")[:80]
             add({"id": vid, "component": component,
                  "version": version, "severity": osv_severity(vid),
                  "source": "govulncheck", "detail": detail})
@@ -666,7 +666,7 @@ if "npm" in active_gates:
                 if isinstance(via, dict) and via.get("source"):
                     add({"id": via["source"], "component": name,
                          "version": info.get("range", "unknown"), "severity": sev,
-                         "source": "npm-audit-%s" % pkg, "detail": via.get("title", "")[:80]})
+                         "source": "npm-audit-%s" % pkg, "detail": (via.get("title") or "")[:80]})
                 elif isinstance(via, str):
                     add({"id": via, "component": name, "version": info.get("range", "unknown"),
                          "severity": sev, "source": "npm-audit-%s" % pkg, "detail": ""})
@@ -697,7 +697,7 @@ if "cargo" in active_gates:
                 sev = "critical"
             add({"id": adv.get("id"), "component": pkg.get("name"),
                  "version": pkg.get("version") or "unknown", "severity": sev,
-                 "source": "cargo-audit", "detail": adv.get("url", "")[:80]})
+                 "source": "cargo-audit", "detail": (adv.get("url") or "")[:80]})
 
 if "trivy-fs" in active_gates:
     tf_path = os.path.join(report_dir, "trivy-fs.json")
@@ -725,7 +725,7 @@ if "trivy-config" in active_gates:
                 if m.get("Severity") in ("HIGH", "CRITICAL"):
                     add({"id": m.get("ID"), "component": r.get("Target"), "version": "N/A",
                          "severity": m.get("Severity"), "source": "trivy-config",
-                         "detail": m.get("Title", "")[:80]})
+                         "detail": (m.get("Title") or "")[:80]})
 
 if "trivy-image" in active_gates:
     for img in ("backend", "frontend", "migrate", "pgbouncer"):
