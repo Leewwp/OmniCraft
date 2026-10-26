@@ -234,7 +234,11 @@ pub fn extract_archive(archive_path: String, dest_dir: String) -> Result<FileOpR
 
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).map_err(|e| format!("zip read error: {}", e))?;
-        let entry_name = entry.name().to_string();
+        // zip 9：name() 对非法编码条目名返回 Result，显式报错拒绝而非猜测转换
+        let entry_name = entry
+            .name()
+            .map_err(|e| format!("zip entry name error: {}", e))?
+            .to_string();
 
         // Zip-slip protection: ensure extracted path stays within dest
         let entry_path = dest_canonical.join(&entry_name);
