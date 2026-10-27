@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Contract tests for scripts/security/verify-security.sh: policy/exception
-# governance, secret-fixture detection, vulnerable-lockfile detection and
-# gate isolation. Each fixture must fail only its intended gate. Runs
-# without containers except the gitleaks and trivy fixtures which use the
-# pinned images like the real verifier.
+# governance, secret-fixture detection, vulnerable-lockfile detection, gate
+# isolation and null-valued report detail tolerance. Each fixture must fail
+# only its intended gate. Runs without containers except the gitleaks and
+# trivy fixtures which use the pinned images like the real verifier.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -644,6 +644,57 @@ assert "GO-9999-0100" in blocked_ids, blocked_ids
 # a module-level finding WITH a fixed version still blocks (actionable by upgrade)
 assert ("GO-9999-0101", "example.com/fixable") in blocked, blocked
 print("verdict module-unfixed informational rule asserted")
+PY
+
+# ------------------------------------- null-valued detail fields (2026-10)
+# cargo-audit advisories may carry "url": null (RUSTSEC records without a
+# link); gitleaks/npm/trivy/govulncheck-legacy reports can likewise carry
+# null where a string detail is expected. A null value defeats the .get()
+# default (defaults fill MISSING keys, not null values), and the historical
+# verdict crashed on None[:N] — after the scanners ran but before the
+# verdict was written, so every gate's conclusion was swallowed and the
+# Security gate stayed chronically red for two months (fixed with the #903
+# (x.get(...) or "") hardening). The verdict must JUDGE these reports:
+# exit code driven by findings, verdict file written, every detail a
+# string. A regression back to the crash also exits 1 here, but leaves no
+# security-verdict.json — the file assertions are the discriminator.
+NULLS_REPORT="$TEMP_ROOT/report-null-details"
+mkdir -p "$NULLS_REPORT"
+python3 - "$NULLS_REPORT" <<'PY'
+import json, os, sys
+rd = sys.argv[1]
+def w(name, obj):
+    with open(os.path.join(rd, name), "w", encoding="utf-8") as f:
+        json.dump(obj, f)
+w("gitleaks-tree.json", [{"RuleID": "generic-api-key",
+                          "File": "sub/fixture.txt", "Secret": None}])
+w("gitleaks-history.json", [])
+w("cargo-audit.json", {"vulnerabilities": {"list": [{
+    "advisory": {"id": "RUSTSEC-9999-0001", "url": None},
+    "package": {"name": "fixture-crate", "version": "0.1.0"}}]}})
+w("npm-frontend-audit.json", {"vulnerabilities": {"fixture-pkg": {
+    "severity": "high", "range": "<2.0.0",
+    "via": [{"source": 990001, "title": None}]}}})
+w("trivy-fs.json", {"SchemaVersion": 2, "Results": [{"Target": "fixture-fs", "Vulnerabilities": [
+    {"VulnerabilityID": "CVE-9999-0002", "PkgName": "fixture-pkg",
+     "InstalledVersion": "1.0.0", "Severity": "HIGH", "FixedVersion": None}]}]})
+w("trivy-config.json", {"Results": [{"Target": "fixture-iac", "Misconfigurations": [
+    {"ID": "AVD-AWS-9999", "Severity": "HIGH", "Title": None}]}]})
+w("govulncheck.json", {"Vulnerabilities": [{"ID": "GO-9999-0200",
+    "Package": "example.com/fixture", "Version": "v0.1.0", "Details": None}]})
+PY
+expect_verdict 1 "verdict judges null-valued details without crashing" \
+  "$VERDICT_ROOT" "secrets,go,npm,cargo,trivy-fs,trivy-config" "$NULLS_REPORT"
+python3 - "$NULLS_REPORT/security-verdict.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+blocked = d["blocked_findings"]
+ids = {str(f["id"]) for f in blocked}
+for expected in ("gitleaks:generic-api-key", "RUSTSEC-9999-0001", "990001",
+                 "CVE-9999-0002", "AVD-AWS-9999", "GO-9999-0200"):
+    assert expected in ids, (expected, sorted(ids))
+assert all(isinstance(f.get("detail"), str) for f in blocked), blocked
+print("null-detail tolerance asserted")
 PY
 
 # A missing trivy-fs report must FAIL the verdict (scanner failure is not
