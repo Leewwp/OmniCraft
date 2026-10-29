@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
-    "@milkdown/crepe": "7.22.1",
+    "@milkdown/crepe": "7.22.3",
     "@milkdown/kit": "7.22.1",
     "@milkdown/react": "7.22.1",
     "class-variance-authority": "^0.7.1",
