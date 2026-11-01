@@ -47,6 +47,48 @@ func (h *AgentGuestHandler) deviceKeyOf(c *gin.Context) (string, bool) {
 	return key, true
 }
 
+// guestConversationErrMap 是游客会话门（GetConversationMessages 与
+// ChatStream 所有权门，迁移前同一 switch 合同）的 sentinel→HTTP 映射：
+// 过期 → 410（客户端可安全丢弃死条目）、外属/缺失 → 404 防探测；未知错
+// 误保持 Safe 500 AGENT_ERROR。
+var guestConversationErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrAgentConversationExpired, status: http.StatusGone, code: "AGENT_CONVERSATION_EXPIRED", message: "conversation has expired"},
+		{sentinel: service.ErrAgentConversationNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "conversation not found"},
+	},
+	fallback: errFallback{
+		status: http.StatusInternalServerError,
+		code:   "AGENT_ERROR",
+	},
+}
+
+// guestQuotaReserveErrMap 是游客回合预留的 sentinel→HTTP 合同：超限与并
+// 发上限 → 429 各自 code、状态丢失 → 403；其余 503 fail-closed 固定文案
+// 兜底。
+var guestQuotaReserveErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: middleware.ErrGuestQuotaExceeded, status: http.StatusTooManyRequests, code: "GUEST_QUOTA_EXHAUSTED", message: "guest turn budget is used up"},
+		{sentinel: middleware.ErrGuestConcurrencyLimit, status: http.StatusTooManyRequests, code: "GUEST_CONCURRENCY_LIMIT", message: "too many concurrent guest requests"},
+		{sentinel: middleware.ErrGuestQuotaStateLost, status: http.StatusForbidden, code: "GUEST_QUOTA_STATE_LOST", message: "guest quota state is unavailable"},
+	},
+	fallback: errFallback{
+		status:  http.StatusServiceUnavailable,
+		code:    "GUEST_QUOTA_UNAVAILABLE",
+		message: "guest quota service is temporarily unavailable",
+	},
+}
+
+// guestQuotaStatusErrMap 是配额余量查询的 503 fail-closed 兜底：无规则，
+// 任何送入的错误都落该固定响应。ErrGuestQuotaStateLost 的放行（fail
+// closed 读作余量 0，继续 200）是调用点的控制流谓词，不在 map 面。
+var guestQuotaStatusErrMap = endpointErrMap{
+	fallback: errFallback{
+		status:  http.StatusServiceUnavailable,
+		code:    "GUEST_QUOTA_UNAVAILABLE",
+		message: "guest quota service is temporarily unavailable",
+	},
+}
+
 // Quota reports the device's remaining turn budget. A lost counter state
 // reads as zero remaining: the workspace shows the conversion card and the
 // server refuses generation (fail closed), never re-creating a budget.
@@ -57,8 +99,7 @@ func (h *AgentGuestHandler) Quota(c *gin.Context) {
 	}
 	remaining, err := h.quota.Remaining(c.Request.Context(), deviceKey)
 	if err != nil && !errors.Is(err, middleware.ErrGuestQuotaStateLost) {
-		response.Error(c, http.StatusServiceUnavailable, "GUEST_QUOTA_UNAVAILABLE",
-			"guest quota service is temporarily unavailable")
+		guestQuotaStatusErrMap.write(c, err)
 		return
 	}
 	exhausted := remaining <= 0
@@ -109,14 +150,7 @@ func (h *AgentGuestHandler) GetConversationMessages(c *gin.Context) {
 	}
 	conv, err := h.agentSvc.GetGuestConversation(c.Request.Context(), deviceKey, convID)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrAgentConversationExpired):
-			response.Error(c, http.StatusGone, "AGENT_CONVERSATION_EXPIRED", "conversation has expired")
-		case errors.Is(err, service.ErrAgentConversationNotFound):
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
-		default:
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
-		}
+		guestConversationErrMap.write(c, err)
 		return
 	}
 	pageSize := h.cfg.Agent.ConversationPageSize
@@ -197,14 +231,7 @@ func (h *AgentGuestHandler) ChatStream(c *gin.Context) {
 	// expired conversations never consume a turn.
 	if conversationID > 0 {
 		if err := h.agentSvc.EnsureGuestConversationUsable(c.Request.Context(), deviceKey, conversationID); err != nil {
-			switch {
-			case errors.Is(err, service.ErrAgentConversationExpired):
-				response.Error(c, http.StatusGone, "AGENT_CONVERSATION_EXPIRED", "conversation has expired")
-			case errors.Is(err, service.ErrAgentConversationNotFound):
-				response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
-			default:
-				response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
-			}
+			guestConversationErrMap.write(c, err)
 			return
 		}
 	}
@@ -216,31 +243,14 @@ func (h *AgentGuestHandler) ChatStream(c *gin.Context) {
 	// A-05 input admission gate before reservation (same semantics as the
 	// authenticated surface: block → 422, unavailable-in-release → 503).
 	if err := h.agentSvc.ModerateChatInput(c.Request.Context(), message); err != nil {
-		if errors.Is(err, service.ErrAgentInputBlocked) {
-			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
-			return
-		}
-		if errors.Is(err, service.ErrAgentModerationUnavailable) {
-			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation unavailable")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		agentModerationErrMap.write(c, err)
 		return
 	}
 
 	// The turn reservation: first Redis operation that consumes anything.
 	// Failures refuse closed and consume nothing.
 	if err := h.quota.Reserve(c.Request.Context(), deviceKey); err != nil {
-		switch {
-		case errors.Is(err, middleware.ErrGuestQuotaExceeded):
-			response.Error(c, http.StatusTooManyRequests, "GUEST_QUOTA_EXHAUSTED", "guest turn budget is used up")
-		case errors.Is(err, middleware.ErrGuestConcurrencyLimit):
-			response.Error(c, http.StatusTooManyRequests, "GUEST_CONCURRENCY_LIMIT", "too many concurrent guest requests")
-		case errors.Is(err, middleware.ErrGuestQuotaStateLost):
-			response.Error(c, http.StatusForbidden, "GUEST_QUOTA_STATE_LOST", "guest quota state is unavailable")
-		default:
-			response.Error(c, http.StatusServiceUnavailable, "GUEST_QUOTA_UNAVAILABLE", "guest quota service is temporarily unavailable")
-		}
+		guestQuotaReserveErrMap.write(c, err)
 		return
 	}
 	// Reserved: success, failure, timeout, stop and disconnect all consume

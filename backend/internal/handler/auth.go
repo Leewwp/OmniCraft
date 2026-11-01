@@ -158,6 +158,81 @@ func (h *AuthHandler) clearLoginFailures(c *gin.Context, email string) {
 	h.rdb.Del(c.Request.Context(), h.loginCaptchaKey(email))
 }
 
+// registerErrMap 是 POST /auth/register（RegisterPending 结果）的
+// sentinel→HTTP 合同，顺序与迁移前分支顺序逐条一致；兜底保留历史固定
+// 文案 "failed to register user"。
+var registerErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrUserAlreadyExists, status: http.StatusConflict, code: "USER_EXISTS", message: "email already registered"},
+		{sentinel: service.ErrUsernameTaken, status: http.StatusConflict, code: "USERNAME_TAKEN", message: "username already taken"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "failed to register user",
+	},
+}
+
+// loginErrMap 是 POST /auth/login 的 sentinel→HTTP 合同，顺序与迁移前分
+// 支顺序逐条一致；兜底保留历史固定文案 "failed to login"。命中
+// ErrInvalidCredentials 时 handler 内的纯副作用分支先记账
+// （recordLoginFailure）再统一 write()，顺序与迁移前逐行相同。
+var loginErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrInvalidCredentials, status: http.StatusUnauthorized, code: "INVALID_CREDENTIALS", message: "invalid email or password"},
+		{sentinel: service.ErrUserBanned, status: http.StatusForbidden, code: service.DenialReasonUserBanned, message: "account has been banned"},
+		{sentinel: service.ErrEmailNotVerified, status: http.StatusForbidden, code: service.DenialReasonEmailNotVerified, message: "email verification required before login"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "failed to login",
+	},
+}
+
+// resetPasswordErrMap 是 POST /auth/reset-password 的 sentinel→HTTP 合
+// 同，顺序与迁移前分支顺序逐条一致；兜底保留历史固定文案。
+var resetPasswordErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrInvalidToken, status: http.StatusBadRequest, code: "INVALID_TOKEN", message: "invalid or expired reset token"},
+		{sentinel: service.ErrPasswordTooShort, status: http.StatusBadRequest, code: "PASSWORD_TOO_SHORT", message: "password does not meet minimum length requirement"},
+		{sentinel: service.ErrPasswordTooLong, status: http.StatusBadRequest, code: "PASSWORD_TOO_LONG", message: "password exceeds the 72-byte maximum length"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "failed to reset password",
+	},
+}
+
+// verifyEmailErrMap 是 POST /auth/verify-email 的 sentinel→HTTP 合同；与
+// resetPasswordErrMap 同 sentinel 不同文案，故分开声明；兜底保留历史固定
+// 文案。
+var verifyEmailErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrInvalidToken, status: http.StatusBadRequest, code: "INVALID_TOKEN", message: "invalid or expired verification token"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "failed to verify email",
+	},
+}
+
+// resendVerificationErrMap 是 POST /auth/resend-verification 的
+// sentinel→HTTP 合同（pending 与 legacy 两个发送点共享同一合同）；兜底
+// 保留历史固定文案。
+var resendVerificationErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrResendCooldown, status: http.StatusTooManyRequests, code: "RESEND_COOLDOWN", message: "please wait before requesting another verification email"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "failed to send verification email",
+	},
+}
+
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input service.RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -180,15 +255,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Store registration data in Redis (NOT in DB yet)
 	regID, err := h.authService.RegisterPending(c.Request.Context(), input)
 	if err != nil {
-		if errors.Is(err, service.ErrUserAlreadyExists) {
-			response.Error(c, http.StatusConflict, "USER_EXISTS", "email already registered")
-			return
-		}
-		if errors.Is(err, service.ErrUsernameTaken) {
-			response.Error(c, http.StatusConflict, "USERNAME_TAKEN", "username already taken")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to register user")
+		registerErrMap.write(c, err)
 		return
 	}
 
@@ -229,20 +296,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, tokens, err := h.authService.Login(input)
 	if err != nil {
+		// 纯副作用分支：命中 ErrInvalidCredentials 先记账（不发响应），
+		// 随后统一 write() 发响应——顺序与迁移前逐行相同。
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			h.recordLoginFailure(c, input.Email)
-			response.Error(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid email or password")
-			return
 		}
-		if errors.Is(err, service.ErrUserBanned) {
-			response.Error(c, http.StatusForbidden, service.DenialReasonUserBanned, "account has been banned")
-			return
-		}
-		if errors.Is(err, service.ErrEmailNotVerified) {
-			response.Error(c, http.StatusForbidden, service.DenialReasonEmailNotVerified, "email verification required before login")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to login")
+		loginErrMap.write(c, err)
 		return
 	}
 
@@ -402,19 +461,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 	userID, err := h.verificationService.ResetPassword(c.Request.Context(), body.Token, body.NewPassword)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidToken) {
-			response.Error(c, http.StatusBadRequest, "INVALID_TOKEN", "invalid or expired reset token")
-			return
-		}
-		if errors.Is(err, service.ErrPasswordTooShort) {
-			response.Error(c, http.StatusBadRequest, "PASSWORD_TOO_SHORT", "password does not meet minimum length requirement")
-			return
-		}
-		if errors.Is(err, service.ErrPasswordTooLong) {
-			response.Error(c, http.StatusBadRequest, "PASSWORD_TOO_LONG", "password exceeds the 72-byte maximum length")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to reset password")
+		resetPasswordErrMap.write(c, err)
 		return
 	}
 
@@ -453,11 +500,7 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	if err := h.verificationService.VerifyEmail(c.Request.Context(), body.Token); err != nil {
-		if errors.Is(err, service.ErrInvalidToken) {
-			response.Error(c, http.StatusBadRequest, "INVALID_TOKEN", "invalid or expired verification token")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to verify email")
+		verifyEmailErrMap.write(c, err)
 		return
 	}
 
@@ -483,11 +526,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	regID, pending, err := h.authService.FindPendingByEmail(c.Request.Context(), normalized)
 	if err == nil && pending != nil {
 		if err := h.verificationService.SendVerificationForPending(c.Request.Context(), regID, pending.Email); err != nil {
-			if errors.Is(err, service.ErrResendCooldown) {
-				response.Error(c, http.StatusTooManyRequests, "RESEND_COOLDOWN", "please wait before requesting another verification email")
-				return
-			}
-			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to send verification email")
+			resendVerificationErrMap.write(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})
@@ -507,11 +546,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	}
 
 	if err := h.verificationService.SendVerification(c.Request.Context(), user); err != nil {
-		if errors.Is(err, service.ErrResendCooldown) {
-			response.Error(c, http.StatusTooManyRequests, "RESEND_COOLDOWN", "please wait before requesting another verification email")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to send verification email")
+		resendVerificationErrMap.write(c, err)
 		return
 	}
 

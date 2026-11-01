@@ -76,6 +76,26 @@ func (h *AgentHandler) requireAgentFeature(c *gin.Context) bool {
 	return false
 }
 
+// agentGenerationQuotaErrMap 是生成配额预留（reserveGenerationQuota）的
+// sentinel→HTTP 合同：超限 → 429 规则；其余结果（Redis 不可用、reserver
+// 未接线）→ 503 fail-closed 固定文案兜底。三个失败出口的 wire 与迁移前
+// 逐字节一致。
+var agentGenerationQuotaErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: middleware.ErrAgentQuotaExceeded, status: http.StatusTooManyRequests, code: "AGENT_RATE_LIMIT_EXCEEDED", message: "agent request limit exceeded"},
+	},
+	fallback: errFallback{
+		status:  http.StatusServiceUnavailable,
+		code:    "AGENT_QUOTA_UNAVAILABLE",
+		message: "agent quota service is temporarily unavailable",
+	},
+}
+
+// errAgentQuotaReserverUnwired 是 reserver 未接线（h.quota == nil）时送入
+// agentGenerationQuotaErrMap 的内部占位错误：永不匹配规则、恒落兜底 503，
+// 且兜底是固定文案，占位文本不进响应。
+var errAgentQuotaReserverUnwired = errors.New("agent quota reserver not wired")
+
 // reserveGenerationQuota reserves one per-minute/per-day request for the
 // current user and maps the outcome: quota-exceeded -> 429, Redis unavailable
 // -> 503 fail-closed. Callers invoke it AFTER schema/visibility checks and
@@ -83,20 +103,44 @@ func (h *AgentHandler) requireAgentFeature(c *gin.Context) bool {
 // consumes the reservation.
 func (h *AgentHandler) reserveGenerationQuota(c *gin.Context) bool {
 	if h.quota == nil {
-		response.Error(c, http.StatusServiceUnavailable, "AGENT_QUOTA_UNAVAILABLE", "agent quota service is temporarily unavailable")
+		agentGenerationQuotaErrMap.write(c, errAgentQuotaReserverUnwired)
 		return false
 	}
 	userID := middleware.GetUserID(c)
-	err := h.quota.Reserve(c.Request.Context(), userID)
-	if err == nil {
-		return true
-	}
-	if errors.Is(err, middleware.ErrAgentQuotaExceeded) {
-		response.Error(c, http.StatusTooManyRequests, "AGENT_RATE_LIMIT_EXCEEDED", "agent request limit exceeded")
+	if err := h.quota.Reserve(c.Request.Context(), userID); err != nil {
+		agentGenerationQuotaErrMap.write(c, err)
 		return false
 	}
-	response.Error(c, http.StatusServiceUnavailable, "AGENT_QUOTA_UNAVAILABLE", "agent quota service is temporarily unavailable")
-	return false
+	return true
+}
+
+// agentConversationErrMap 是会话所有权/读取面的 sentinel→HTTP 合同：服务
+// 层 sentinel（ChatStream 所有权门）与 gorm.ErrRecordNotFound
+// （UpdateConversation 回读 / GetConversationMessages 首查）双规则同一
+// 404——缺失、已删、外属同应答防探测；未知错误保持 Safe 500 AGENT_ERROR。
+var agentConversationErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrAgentConversationNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "conversation not found"},
+		{sentinel: gorm.ErrRecordNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "conversation not found"},
+	},
+	fallback: errFallback{
+		status: http.StatusInternalServerError,
+		code:   "AGENT_ERROR",
+	},
+}
+
+// agentModerationErrMap 是 A-05 输入审核门的 sentinel→HTTP 合同，认证态
+// ChatStream 与游客态 ChatStream 共用同一合同：拦截 → 422、release 态审
+// 核不可用 → 503、未知错误 Safe 500 AGENT_ERROR。
+var agentModerationErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrAgentInputBlocked, status: http.StatusUnprocessableEntity, code: "CONTENT_BLOCKED", message: "content was rejected by content moderation"},
+		{sentinel: service.ErrAgentModerationUnavailable, status: http.StatusServiceUnavailable, code: "MODERATION_UNAVAILABLE", message: "content moderation unavailable"},
+	},
+	fallback: errFallback{
+		status: http.StatusInternalServerError,
+		code:   "AGENT_ERROR",
+	},
 }
 
 func (h *AgentHandler) UploadAssist(c *gin.Context) {
@@ -302,11 +346,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	// missing conversation ids neither consume a request nor leak existence.
 	if conversationID > 0 {
 		if err := h.agentSvc.EnsureConversationOwned(c.Request.Context(), userID, conversationID); err != nil {
-			if errors.Is(err, service.ErrAgentConversationNotFound) {
-				response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
-				return
-			}
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+			agentConversationErrMap.write(c, err)
 			return
 		}
 	}
@@ -325,15 +365,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	// Provider. A4 environment semantics: block → 422 CONTENT_BLOCKED;
 	// moderation unavailable in release mode → 503 (fail-closed).
 	if err := h.agentSvc.ModerateChatInput(c.Request.Context(), message); err != nil {
-		if errors.Is(err, service.ErrAgentInputBlocked) {
-			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
-			return
-		}
-		if errors.Is(err, service.ErrAgentModerationUnavailable) {
-			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation unavailable")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		agentModerationErrMap.write(c, err)
 		return
 	}
 
@@ -422,13 +454,10 @@ func (h *AgentHandler) UpdateConversation(c *gin.Context) {
 	}
 	var conv model.AgentConversation
 	if err := h.db.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Deleted between the UPDATE and the read-back: same 404 as any
-			// other owner-scoped miss.
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		// Deleted between the UPDATE and the read-back: same 404 as any
+		// other owner-scoped miss (gorm.ErrRecordNotFound 规则见
+		// agentConversationErrMap)。
+		agentConversationErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"conversation": conv})
@@ -468,11 +497,7 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 	}
 	var conv model.AgentConversation
 	if err := h.db.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "conversation not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		agentConversationErrMap.write(c, err)
 		return
 	}
 	page := 1
@@ -624,16 +649,20 @@ func (h *AgentHandler) DeleteConversation(c *gin.Context) {
 
 	var conv model.AgentConversation
 	if err := tx.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if commitErr := tx.Commit().Error; commitErr != nil {
-				response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", commitErr)
-				return
-			}
-			committed = true
-			c.Status(http.StatusNoContent)
+		// C 型（commit+204 控制流）：NotFound 在此不是错误映射——提交
+		// 空事务后幂等返回 204，删除缺失/外属同应答，不走 errmap。谓词
+		// 前置（notFound 判定与响应分支分离）保持该控制流对回归门合法。
+		notFound := errors.Is(err, gorm.ErrRecordNotFound)
+		if !notFound {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 			return
 		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		if commitErr := tx.Commit().Error; commitErr != nil {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", commitErr)
+			return
+		}
+		committed = true
+		c.Status(http.StatusNoContent)
 		return
 	}
 	if err := tx.Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{}).Error; err != nil {
