@@ -116,7 +116,7 @@ func TestContentErrMaps_MultiMatchErrorKeepsRuleOrder(t *testing.T) {
 }
 
 // TestContentErrMaps_UnknownErrorFallbacks：未知错误（无 sentinel 命中）
-// 两端点各自落历史兜底——发布 500 INTERNAL_ERROR、下载 500 DB_ERROR，
+// 各端点各自落历史兜底——发布 500 INTERNAL_ERROR、下载 500 DB_ERROR，
 // 不能统一；且安全文案不泄露内部原因（dsn/主机/表名/密钥样例均不得出
 // 现）。
 func TestContentErrMaps_UnknownErrorFallbacks(t *testing.T) {
@@ -144,4 +144,105 @@ func TestContentErrMaps_UnknownErrorFallbacks(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestContentPresignErrMap_RuleContract pins GenerateOSSToken 的动态校验
+// 分流（errors.As UploadValidationError）之后的 sentinel 面（#924 收
+// 口）：OSS 未配置 → Safe 503 OSS_NOT_CONFIGURED；其余 Safe 500
+// INTERNAL_ERROR。
+func TestContentPresignErrMap_RuleContract(t *testing.T) {
+	if len(contentPresignErrMap.rules) != 1 {
+		t.Fatalf("content presign map must keep exactly 1 rule, got %d", len(contentPresignErrMap.rules))
+	}
+	assertErrMapResponse(t, contentPresignErrMap, service.ErrOSSNotConfigured, http.StatusServiceUnavailable,
+		envelope("OSS_NOT_CONFIGURED", "file storage is not configured"))
+	wrapped := fmt.Errorf("presign upload: %w", service.ErrOSSNotConfigured)
+	assertErrMapResponse(t, contentPresignErrMap, wrapped, http.StatusServiceUnavailable,
+		envelope("OSS_NOT_CONFIGURED", "file storage is not configured"))
+
+	leaky := fmt.Errorf("oss svc: dial tcp 10.0.0.1:5432: secret")
+	assertErrMapResponse(t, contentPresignErrMap, leaky, http.StatusInternalServerError,
+		envelope("INTERNAL_ERROR", "an unexpected error occurred, please try again later"))
+}
+
+// TestContentDetailErrMap_RuleContract pins GetContent / ListRelated
+// Fanworks 共用合同（#924 收口；两路由迁移前一个 `==` 直比、一个
+// errors.Is，映射面一致）：NotFound → 404 固定文案；其余 Safe 500
+// DB_ERROR。
+func TestContentDetailErrMap_RuleContract(t *testing.T) {
+	if len(contentDetailErrMap.rules) != 1 {
+		t.Fatalf("content detail map must keep exactly 1 rule, got %d", len(contentDetailErrMap.rules))
+	}
+	assertErrMapResponse(t, contentDetailErrMap, service.ErrContentNotFound, http.StatusNotFound,
+		envelope("NOT_FOUND", "content not found"))
+	wrapped := fmt.Errorf("get visible content: %w", service.ErrContentNotFound)
+	assertErrMapResponse(t, contentDetailErrMap, wrapped, http.StatusNotFound,
+		envelope("NOT_FOUND", "content not found"))
+
+	leaky := fmt.Errorf("content repo: sql: no such table %s", "content_items; dsn=postgres://u:secret@10.0.0.1/db")
+	assertErrMapResponse(t, contentDetailErrMap, leaky, http.StatusInternalServerError,
+		envelope("DB_ERROR", "database operation failed, please try again later"))
+}
+
+// TestUpdateContentErrMap_RuleContract pins UpdateContent（#924 收口
+// `==` 直比四分支）：NotFound → 404；非作者 → 403；banned 禁改 → 403
+// CONTENT_BANNED；封面非平台对象 → 400 VALIDATION_ERROR（迁移前
+// ValidationError 形态，固定文案逐字节保留）；其余 Safe 500 DB_ERROR。
+func TestUpdateContentErrMap_RuleContract(t *testing.T) {
+	cases := []struct {
+		name    string
+		err     error
+		status  int
+		code    string
+		message string
+	}{
+		{name: "content not found", err: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{name: "content forbidden", err: service.ErrContentForbidden, status: http.StatusForbidden, code: "FORBIDDEN", message: "not content author"},
+		{name: "content banned", err: service.ErrContentBanned, status: http.StatusForbidden, code: "CONTENT_BANNED", message: "content is banned and cannot be edited"},
+		{name: "cover not platform oss object", err: service.ErrCoverNotPlatformOSSObject, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "cover image must be a platform OSS object"},
+	}
+	if len(cases) != 4 {
+		t.Fatalf("update content contract table must keep the historical 4 rules, got %d", len(cases))
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			assertErrMapResponse(t, updateContentErrMap, tt.err, tt.status, envelope(tt.code, tt.message))
+			wrapped := fmt.Errorf("update content: %w", tt.err)
+			assertErrMapResponse(t, updateContentErrMap, wrapped, tt.status, envelope(tt.code, tt.message))
+		})
+	}
+
+	leaky := fmt.Errorf("content svc: sql: no such table %s", "content_items; dsn=postgres://u:secret@10.0.0.1/db")
+	assertErrMapResponse(t, updateContentErrMap, leaky, http.StatusInternalServerError,
+		envelope("DB_ERROR", "database operation failed, please try again later"))
+}
+
+// TestDeleteContentErrMap_RuleContract pins DeleteContent（#924 收口
+// `==` 直比两分支）：NotFound → 404；非作者 → 403；其余 Safe 500
+// DB_ERROR。
+func TestDeleteContentErrMap_RuleContract(t *testing.T) {
+	cases := []struct {
+		name    string
+		err     error
+		status  int
+		code    string
+		message string
+	}{
+		{name: "content not found", err: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{name: "content forbidden", err: service.ErrContentForbidden, status: http.StatusForbidden, code: "FORBIDDEN", message: "not content author"},
+	}
+	if len(cases) != 2 {
+		t.Fatalf("delete content contract table must keep the historical 2 rules, got %d", len(cases))
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			assertErrMapResponse(t, deleteContentErrMap, tt.err, tt.status, envelope(tt.code, tt.message))
+			wrapped := fmt.Errorf("delete content: %w", tt.err)
+			assertErrMapResponse(t, deleteContentErrMap, wrapped, tt.status, envelope(tt.code, tt.message))
+		})
+	}
+
+	leaky := fmt.Errorf("content svc: sql: no such table %s", "content_items; dsn=postgres://u:secret@10.0.0.1/db")
+	assertErrMapResponse(t, deleteContentErrMap, leaky, http.StatusInternalServerError,
+		envelope("DB_ERROR", "database operation failed, please try again later"))
 }

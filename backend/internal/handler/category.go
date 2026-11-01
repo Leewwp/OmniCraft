@@ -42,6 +42,48 @@ func NewCategoryHandler(catSvc *service.CategoryService, auditSvc *service.Admin
 	}
 }
 
+// category admin 四端点的 sentinel→HTTP 合同（C3.4 从
+// respondCategoryAuditError 前置 if + 兜底分支收口；审计写失败
+// errAdminAuditWriteFailed → 500 AUDIT_WRITE_FAILED 是各 map 首条规则，
+// 与 admin.go 收编模式一致——withAuditTx 裸返该 sentinel，errors.Is 等价）。
+var (
+	// categoryCreateErrMap：AdminCreateCategory；兜底保持历史 Safe 500
+	// DB_ERROR。
+	categoryCreateErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+		},
+		fallback: fallbackDB,
+	}
+	// categoryUpdateErrMap：AdminUpdateCategory；兜底保持历史 Safe 400
+	// ERROR（迁移前非审计失败一律 SafeErrorResponse(400, "ERROR", err)）。
+	categoryUpdateErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+		},
+		fallback: errFallback{status: http.StatusBadRequest, code: "ERROR"},
+	}
+	// categoryDeleteErrMap：AdminDeleteCategory；有子类/挂内容 → Safe 409
+	// CONFLICT（迁移前为 `==` 直比两哨兵，service 裸返不包装，errors.Is
+	// 等价）；兜底保持历史 Safe 500 DB_ERROR。
+	categoryDeleteErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+			{sentinel: service.ErrCategoryHasChildren, status: http.StatusConflict, code: "CONFLICT"},
+			{sentinel: service.ErrCategoryHasContent, status: http.StatusConflict, code: "CONFLICT"},
+		},
+		fallback: fallbackDB,
+	}
+	// categoryReorderErrMap：AdminReorderCategories；兜底保持历史 Safe 500
+	// DB_ERROR。
+	categoryReorderErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+		},
+		fallback: fallbackDB,
+	}
+)
+
 func (h *CategoryHandler) ListCategories(c *gin.Context) {
 	zone := c.Query("zone")
 	level := c.Query("level")
@@ -90,10 +132,8 @@ func (h *CategoryHandler) AdminCreateCategory(c *gin.Context) {
 		entry.TargetID = strconv.FormatInt(cat.ID, 10)
 		return nil
 	}); err != nil {
-		if respondCategoryAuditError(c, err) {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：审计失败前置分支 + Safe 兜底收口为 categoryCreateErrMap。
+		categoryCreateErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"category": cat})
@@ -131,10 +171,8 @@ func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
 		}
 		return tx.Model(&model.Category{}).Where("id = ?", id).Updates(updates).Error
 	}); err != nil {
-		if respondCategoryAuditError(c, err) {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		// C3.4：审计失败前置分支 + Safe 兜底收口为 categoryUpdateErrMap。
+		categoryUpdateErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
@@ -151,14 +189,9 @@ func (h *CategoryHandler) AdminDeleteCategory(c *gin.Context) {
 		txSvc := service.NewCategoryService(txRepo)
 		return txSvc.AdminDeleteCategory(id)
 	}); err != nil {
-		if respondCategoryAuditError(c, err) {
-			return
-		}
-		if err == service.ErrCategoryHasChildren || err == service.ErrCategoryHasContent {
-			response.SafeErrorResponse(c, http.StatusConflict, "CONFLICT", err)
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：审计失败前置分支 + `==` 直比冲突分支 + Safe 兜底收口为
+		// categoryDeleteErrMap。
+		categoryDeleteErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -182,10 +215,8 @@ func (h *CategoryHandler) AdminReorderCategories(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		if respondCategoryAuditError(c, err) {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：审计失败前置分支 + Safe 兜底收口为 categoryReorderErrMap。
+		categoryReorderErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "reordered"})
@@ -216,12 +247,4 @@ func (h *CategoryHandler) withAuditTx(c *gin.Context, entry *service.RecordAdmin
 		}
 		return nil
 	})
-}
-
-func respondCategoryAuditError(c *gin.Context, err error) bool {
-	if errors.Is(err, errAdminAuditWriteFailed) {
-		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
-		return true
-	}
-	return false
 }

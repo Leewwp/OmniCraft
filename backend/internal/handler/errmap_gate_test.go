@@ -10,9 +10,9 @@ package handler
 // 豁免：
 //   - errmap.go 永久豁免——引擎 write 实现本身就是被拦模式（errors.Is
 //     分支内发响应），它是规则的执行者而非违规者。
-//   - gateWhitelist = 尚未迁移到手写链以外写法的存量文件（C3 推广期临
-//     时豁免，每票迁完移出自己的文件；白名单只缩不涨，条目失效时本门
-//     会报 stale 逼清理）。
+//   - gateWhitelist = 空（C3.4 终态：推广期存量文件已全部迁出，无形状
+//     特异端点豁免；机制保留，新增条目须注明收编票与理由，条目失效时
+//     本门报 stale 逼清理——只缩不涨）。
 //
 // 模式级门不需要文件级豁免来放行 T/C 合法用法：含事务内翻译/谓词的文
 // 件不因合法用法整文件免检，只有真实映射链才计入违规。
@@ -140,21 +140,12 @@ var gatePermanentExemption = map[string]string{
 	"errmap.go": "引擎本体：write 实现即「errors.Is 分支 + 响应调用」模式，是规则的执行者",
 }
 
-// gateWhitelist v1 = C3 推广期尚未迁移的存量文件（reason 指向收编票）。
-// 每票迁完移出自己的文件；条目对应的文件不再含违规模式时本门报
-// stale，逼白名单只缩不涨。
-var gateWhitelist = map[string]string{
-	"browse_history.go": "C3.4 #924（扫尾收容）",
-	"category.go":       "C3.4 #924（扫尾收容；事务内翻译已天然放行）",
-	"collection.go":     "C3.4 #924（扫尾收容）",
-	"content.go":        "C3.4 #924（pilot 两端点之外的余链）",
-	"discussion.go":     "C3.4 #924（扫尾收容）",
-	"ip.go":             "C3.4 #924（扫尾收容）",
-	"message.go":        "C3.4 #924（扫尾收容）",
-	"series.go":         "C3.4 #924（扫尾收容）",
-	"tag.go":            "C3.4 #924（扫尾收容）",
-	"user.go":           "C3.4 #924（扫尾收容；gorm.ErrRecordNotFound == 变体一并收编）",
-}
+// gateWhitelist 终态（C3.4 #924 收敛）：空——全部 10 个推广期存量文件
+// 已迁到 endpointErrMap 声明，无形状特异端点豁免（T 型事务内翻译 / C 型
+// commit+204 / 谓词整形是模式级合法形态，由门语义放行，不需要文件级豁
+// 免）。机制保留：未来确需豁免时须在此注明收编票与理由，且条目失效时
+// 本门会报 stale 逼清理（只缩不涨）。
+var gateWhitelist = map[string]string{}
 
 // TestErrMapGate_MatcherSemantics 在合成片段上锁定识别口径：违规形态必
 // 须命中，合法形态（纯副作用分支 / return sentinel / 日志 / rollback /

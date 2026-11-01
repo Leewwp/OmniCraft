@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 
 	"omnicraft/backend/config"
@@ -103,7 +102,7 @@ func (h *DiscussionHandler) CreateDiscussion(c *gin.Context) {
 		Body:  body.Body,
 	}, callerID)
 	if err != nil {
-		h.respondSocialServiceError(c, err)
+		discussionWriteErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"discussion": d})
@@ -183,29 +182,26 @@ func (h *DiscussionHandler) ReplyToDiscussion(c *gin.Context) {
 		Body:         body.Content,
 	}, callerID)
 	if err != nil {
-		h.respondSocialServiceError(c, err)
+		discussionWriteErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"comment": comment})
 }
 
-// respondSocialServiceError maps SocialService domain errors to the same HTTP
-// contract SocialHandler uses, so both discussion write paths (/ips and
-// /social) answer with identical status codes and error codes.
-func (h *DiscussionHandler) respondSocialServiceError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, service.ErrLowReputation):
-		response.Forbidden(c, "reputation score too low to perform this action")
-	case errors.Is(err, service.ErrTextBlocked):
-		response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
-	case errors.Is(err, service.ErrModerationUnavailable):
-		response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
-	case errors.Is(err, service.ErrDiscussionTargetInvalid):
+// discussionWriteErrMap 是 /ips/:id 讨论写侧两路由（CreateDiscussion /
+// ReplyToDiscussion，均走 SocialService）的 sentinel→HTTP 合同，规则序与
+// 迁移前 respondSocialServiceError 的 switch case 序逐条一致——与
+// /social 路径（SocialHandler）保持同一错误面；兜底保持历史 Safe 500
+// DB_ERROR。
+var discussionWriteErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrLowReputation, status: http.StatusForbidden, code: "FORBIDDEN", message: "reputation score too low to perform this action"},
+		{sentinel: service.ErrTextBlocked, status: http.StatusUnprocessableEntity, code: "CONTENT_BLOCKED", message: "content was rejected by content moderation"},
+		{sentinel: service.ErrModerationUnavailable, status: http.StatusServiceUnavailable, code: "MODERATION_UNAVAILABLE", message: "content moderation is temporarily unavailable, please try again later"},
 		// run-1 审计 #4：挂非公开父/未知目标 → 404（与 /social 路径同口径）。
-		response.Error(c, http.StatusNotFound, "DISCUSSION_TARGET_INVALID", "discussion target not found or not visible")
-	default:
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-	}
+		{sentinel: service.ErrDiscussionTargetInvalid, status: http.StatusNotFound, code: "DISCUSSION_TARGET_INVALID", message: "discussion target not found or not visible"},
+	},
+	fallback: fallbackDB,
 }
 
 // PinDiscussion is admin-only (#290): the pin right moved from the IP creator
