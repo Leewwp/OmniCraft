@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
+import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
 import type { AttachmentData } from "@/lib/content";
 import { isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
 import { SWIPE_THRESHOLD, attemptPlay, clampIndex, toggleVideoSlideClick } from "@/lib/media-interaction";
@@ -65,10 +66,10 @@ const MIN_CONTAINER_HEIGHT = "75cqw";
 /** #753 折叠长图高度：顶部 3:4 区域 = 4W/3（显式 cqw 高度 + overflow-hidden，
     流式图片从顶渲染被裁出顶部 3:4 取景；展开后该高度约束移除）。 */
 const FOLDED_LONG_IMAGE_HEIGHT = "133.333cqw";
-/** #753 图片布局分端断点：<960 移动语义（通栏自然比例 + 0.75W 最低占位 +
+/* #753 图片布局分端断点：<960 移动语义（通栏自然比例 + 0.75W 最低占位 +
     长图折叠/就地展开）；≥960 PC 语义（当前项 contain、无内部滚动、无折叠，
-    长图随容器等比缩窄居中）。与浮层图片布局门同值。 */
-const MOBILE_MEDIA_QUERY = "(max-width: 959px)";
+    长图随容器等比缩窄居中）。分端判定由 useOverlayViewport 的 twoColumn
+    反写承载（C2 #921，旧 959 反写消灭）。 */
 /* 滑动翻页阈值 / 视频 controls 条高度 / 索引钳制 / 自动播放重试 /
    视频点击切拨：共享原语收口于 lib/media-interaction（C1 #920）。 */
 
@@ -228,16 +229,12 @@ export function MediaGallery({
   const sectionRef = useRef<HTMLElement | null>(null);
   /* D2 #859：视频位引用表（主体点击切播使用），随挂载/卸载维护。 */
   const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
-  /* #753 分端：matchMedia 缺失（测试环境）按移动语义渲染。 */
-  const [mobileLayout, setMobileLayout] = useState(true);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia(MOBILE_MEDIA_QUERY);
-    const update = () => setMobileLayout(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
+  /* #753 分端：mobileLayout = !twoColumn（<960 移动语义：通栏自然比例 +
+     0.75W 最低占位 + 长图折叠/就地展开；≥960 PC 语义）。视口语义来自
+     useOverlayViewport（C2 #921，旧 959 反写消灭）；缺 matchMedia（SSR/
+     测试）按移动语义渲染，与旧缺省等价。 */
+  const { twoColumn } = useOverlayViewport();
+  const mobileLayout = !twoColumn;
 
   /* 换内容复位：展开状态与页码回到初始（同一媒体集内翻页不复位）。 */
   const itemsIdentity = items.map((item) => item.id).join(",");
