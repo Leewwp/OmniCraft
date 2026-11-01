@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"omnicraft/backend/internal/pkg/response"
 
@@ -20,6 +19,36 @@ type AgentAccessTokenHandler struct {
 
 func NewAgentAccessTokenHandler(svc *service.AgentAccessTokenService) *AgentAccessTokenHandler {
 	return &AgentAccessTokenHandler{svc: svc}
+}
+
+// createAgentTokenErrMap 是 POST .../tokens（Create 签发）的 sentinel→HTTP
+// 合同：name/scopes 校验失败同 400（迁移前单 case 双 sentinel，拆为同响
+// 应两条规则，语义等价）、活跃上限 409；兜底保留历史固定文案 500
+// DB_ERROR。
+var createAgentTokenErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrAgentTokenNameInvalid, status: http.StatusBadRequest, code: "AGENT_TOKEN_INVALID", message: "invalid token name or scopes"},
+		{sentinel: service.ErrAgentTokenScopesInvalid, status: http.StatusBadRequest, code: "AGENT_TOKEN_INVALID", message: "invalid token name or scopes"},
+		{sentinel: service.ErrAgentTokenLimitReached, status: http.StatusConflict, code: "AGENT_TOKEN_LIMIT_REACHED", message: "too many active tokens, revoke one first"},
+	},
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "failed to create token",
+	},
+}
+
+// revokeAgentTokenErrMap 是 DELETE .../tokens/:id（Revoke 撤销）的
+// sentinel→HTTP 合同；兜底保留历史固定文案 500 DB_ERROR。
+var revokeAgentTokenErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrAgentTokenNotFound, status: http.StatusNotFound, code: "AGENT_TOKEN_NOT_FOUND", message: "token not found"},
+	},
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "failed to revoke token",
+	},
 }
 
 // List returns the caller's live tokens, newest first, without secrets.
@@ -57,15 +86,7 @@ func (h *AgentAccessTokenHandler) Create(c *gin.Context) {
 	}
 	issued, err := h.svc.Issue(c.Request.Context(), userID, req.Name, req.Scopes)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrAgentTokenNameInvalid),
-			errors.Is(err, service.ErrAgentTokenScopesInvalid):
-			response.Error(c, http.StatusBadRequest, "AGENT_TOKEN_INVALID", "invalid token name or scopes")
-		case errors.Is(err, service.ErrAgentTokenLimitReached):
-			response.Error(c, http.StatusConflict, "AGENT_TOKEN_LIMIT_REACHED", "too many active tokens, revoke one first")
-		default:
-			response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to create token")
-		}
+		createAgentTokenErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{
@@ -86,11 +107,7 @@ func (h *AgentAccessTokenHandler) Revoke(c *gin.Context) {
 		return
 	}
 	if err := h.svc.Revoke(c.Request.Context(), userID, tokenID); err != nil {
-		if errors.Is(err, service.ErrAgentTokenNotFound) {
-			response.Error(c, http.StatusNotFound, "AGENT_TOKEN_NOT_FOUND", "token not found")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to revoke token")
+		revokeAgentTokenErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "revoked"})
