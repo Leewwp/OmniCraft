@@ -20,8 +20,11 @@ document slide）与 D6 pdf 放大态（text_pdf 可放大原生 embed）的线�
   doc-tpl-csv-01        template 原  document(csv) + 封面回填    D5 文档位·csv
   doc-tpl-pdf-01        template 原  model3d + text(pdf) + 封面  D6 放大态·3D↔pdf 混排导航
   doc-tpl-suite-01      template 原  document×2 + text(pdf)+封面 D5+D6 一站式三件套
-  doc-3dp-pdf-01        3d_print 原  model3d + text(pdf) + 封面  D6·3d_print 宿主
+  doc-3dp-pdf-01r       3d_print 原  model3d + text(pdf) + 封面  D6·3d_print 宿主
   doc-3dp-pdf-02        3d_print 二  model3d + text(pdf) + 封面  D6·二创区（IP 绑定）
+
+（doc-3dp-pdf-01r 键位 r = 真机 Green 首跑对人物类封面偶发误判后的换图重发，
+沿 A5 fan-video-02 处置先例；封面取风景图避开人物检测面。）
 
 凭据纪律：与 A5 相同——CORPUS_FIXTURE_PASSWORD / GREEN_UID / GREEN_SEED
 只从 env 读取（演示服务器 env 注入），绝不硬编码/写文件/打印日志。
@@ -93,7 +96,7 @@ FEATURE_BY_KEY = {
     "doc-tpl-csv-01": "D5 文档位·csv",
     "doc-tpl-pdf-01": "D6 放大态·3D+pdf 混排",
     "doc-tpl-suite-01": "D5+D6 三件套混排",
-    "doc-3dp-pdf-01": "D6 放大态·3d_print 宿主",
+    "doc-3dp-pdf-01r": "D6 放大态·3d_print 宿主",
     "doc-3dp-pdf-02": "D6 放大态·二创区",
 }
 
@@ -201,8 +204,8 @@ def build_doc_plan(
         description="一站式混排：docx 与 csv 占据 document 文档位（D5），pdf 占据 text_pdf 位并可放大（D6）。",
     )
     add(
-        KEY_PREFIX + "3dp-pdf-01", "original", "3d_print",
-        account=accounts[0], attachments=[stl, doc_library["pdf"]], cover=img[9],
+        KEY_PREFIX + "3dp-pdf-01r", "original", "3d_print",
+        account=accounts[0], attachments=[stl, doc_library["pdf"]], cover=img[14],
         category="other", title="演示·文档·3D打印·pdf 说明书",
         description="3D 打印附 pdf 打印说明书：3d_print 宿主上的 text_pdf 放大态（D6）演示条目。",
     )
