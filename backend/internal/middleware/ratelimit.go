@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -47,11 +48,7 @@ func RateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 		}
 		rdb.Expire(ctx, key, windowTTL)
 		if int(count) > limit {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "RATE_LIMIT_EXCEEDED",
-				"message": "too many requests, please try again later",
-			})
-			c.Abort()
+			response.Error(c, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", "too many requests, please try again later")
 			return
 		}
 		c.Next()
@@ -98,11 +95,7 @@ func UploadRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Handler
 			return
 		}
 		if err := ConsumeUploadQuota(c.Request.Context(), rdb, cfg, userID); err != nil {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "UPLOAD_RATE_LIMIT_EXCEEDED",
-				"message": "upload limit exceeded, please try again later",
-			})
-			c.Abort()
+			response.Error(c, http.StatusTooManyRequests, "UPLOAD_RATE_LIMIT_EXCEEDED", "upload limit exceeded, please try again later")
 			return
 		}
 		c.Next()
@@ -116,8 +109,7 @@ func CredentialRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Han
 			return
 		}
 		if rdb == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "RATE_LIMIT_UNAVAILABLE", "message": "rate limit temporarily unavailable"})
-			c.Abort()
+			response.Error(c, http.StatusServiceUnavailable, "RATE_LIMIT_UNAVAILABLE", "rate limit temporarily unavailable")
 			return
 		}
 
@@ -142,17 +134,12 @@ func CredentialRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Han
 		for _, key := range keys {
 			count, err := rdb.Incr(ctx, key).Result()
 			if err != nil {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "RATE_LIMIT_UNAVAILABLE", "message": "rate limit temporarily unavailable"})
-				c.Abort()
+				response.Error(c, http.StatusServiceUnavailable, "RATE_LIMIT_UNAVAILABLE", "rate limit temporarily unavailable")
 				return
 			}
 			rdb.Expire(ctx, key, credWindowTTL)
 			if int(count) > limit {
-				c.JSON(http.StatusTooManyRequests, gin.H{
-					"code":    "CREDENTIAL_RATE_LIMIT_EXCEEDED",
-					"message": "too many credential attempts, please try again later",
-				})
-				c.Abort()
+				response.Error(c, http.StatusTooManyRequests, "CREDENTIAL_RATE_LIMIT_EXCEEDED", "too many credential attempts, please try again later")
 				return
 			}
 		}
@@ -171,8 +158,7 @@ func RedisFixedWindowLimit(rdb *redis.Client, keyPrefix string, limit int, windo
 		}
 		if rdb == nil {
 			if failClosed {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "RATE_LIMIT_UNAVAILABLE", "message": "rate limit temporarily unavailable"})
-				c.Abort()
+				response.Error(c, http.StatusServiceUnavailable, "RATE_LIMIT_UNAVAILABLE", "rate limit temporarily unavailable")
 				return
 			}
 			c.Next()
@@ -187,8 +173,7 @@ func RedisFixedWindowLimit(rdb *redis.Client, keyPrefix string, limit int, windo
 		count, err := rdb.Incr(ctx, key).Result()
 		if err != nil {
 			if failClosed {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "RATE_LIMIT_UNAVAILABLE", "message": "rate limit temporarily unavailable"})
-				c.Abort()
+				response.Error(c, http.StatusServiceUnavailable, "RATE_LIMIT_UNAVAILABLE", "rate limit temporarily unavailable")
 				return
 			}
 			c.Next()
@@ -196,11 +181,7 @@ func RedisFixedWindowLimit(rdb *redis.Client, keyPrefix string, limit int, windo
 		}
 		rdb.Expire(ctx, key, 2*window)
 		if int(count) > limit {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "RATE_LIMIT_EXCEEDED",
-				"message": "too many requests, please try again later",
-			})
-			c.Abort()
+			response.Error(c, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", "too many requests, please try again later")
 			return
 		}
 		c.Next()
@@ -255,11 +236,7 @@ func CommentEditRateLimit(rdb *redis.Client) gin.HandlerFunc {
 		}
 		rdb.Expire(ctx, key, 60*time.Second)
 		if int(count) > limit {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"code":    "COMMENT_EDIT_RATE_LIMIT",
-				"message": "comment edit rate limit exceeded, please try again later",
-			})
-			c.Abort()
+			response.Error(c, http.StatusTooManyRequests, "COMMENT_EDIT_RATE_LIMIT", "comment edit rate limit exceeded, please try again later")
 			return
 		}
 		c.Next()

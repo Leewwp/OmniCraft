@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"omnicraft/backend/internal/pkg/response"
 )
 
 func BodyLimit(maxBytes int64) gin.HandlerFunc {
@@ -13,11 +15,7 @@ func BodyLimit(maxBytes int64) gin.HandlerFunc {
 			return
 		}
 		if c.Request.ContentLength > maxBytes {
-			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
-				"code":    "REQUEST_BODY_TOO_LARGE",
-				"message": "request body is too large",
-			})
-			c.Abort()
+			response.Error(c, http.StatusRequestEntityTooLarge, "REQUEST_BODY_TOO_LARGE", "request body is too large")
 			return
 		}
 		if c.Request.Body != nil {

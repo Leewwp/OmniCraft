@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"omnicraft/backend/internal/observability"
+	"omnicraft/backend/internal/pkg/response"
 )
 
 // PanicRecovery converts handler panics into a bounded 500 response. The
@@ -25,10 +26,7 @@ func PanicRecovery(logger *slog.Logger, metrics *observability.Metrics) gin.Hand
 					"method", c.Request.Method,
 					"stack", string(debug.Stack()),
 				)
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"code":    "INTERNAL_ERROR",
-					"message": "internal server error",
-				})
+				response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 			}
 		}()
 		c.Next()
