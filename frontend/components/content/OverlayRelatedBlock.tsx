@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { SeriesMembership, SourceSummary } from "@/lib/content";
+import { isValidSeriesMembership, resolveSeriesStepTarget } from "@/lib/series-guard";
 
 interface OverlayRelatedBlockProps {
   /** ⓪ 关联 IP 行（#846：仅 fanwork 传入；有封面显签名图、无封面显名称首两字，
@@ -16,23 +17,6 @@ interface OverlayRelatedBlockProps {
   /** trigger 透传给浮层压栈（弹层时焦点还给触发钮，与关联列表行同一契约）。 */
   onOpenRelated: (entry: { id: number; zone?: string }, trigger: HTMLElement) => void;
   onNavigateSeries: (contentId: number, trigger?: HTMLElement | null) => void;
-}
-
-function isValidMembership(value: SeriesMembership | undefined): value is SeriesMembership {
-  return Boolean(
-    value &&
-      Number.isInteger(value.series_id) &&
-      value.series_id > 0 &&
-      value.series_title.trim() &&
-      Number.isInteger(value.current_index) &&
-      value.current_index > 0 &&
-      Number.isInteger(value.total) &&
-      value.total >= value.current_index,
-  );
-}
-
-function isValidTarget(value: SeriesMembership["previous"] | undefined): boolean {
-  return Boolean(value && Number.isInteger(value.id) && value.id > 0 && value.title.trim());
 }
 
 /**
@@ -51,7 +35,7 @@ export function OverlayRelatedBlock({
 }: OverlayRelatedBlockProps) {
   const t = useTranslations();
   const firstSeries = series?.[0];
-  const seriesValid = isValidMembership(firstSeries);
+  const seriesValid = isValidSeriesMembership(firstSeries);
   const hasSourceOriginal = Boolean(sourceOriginal?.id && sourceOriginal.title.trim());
   /* #846：行渲染门槛 = id + 非空名称（与侧栏 IP 卡一致）；派生局部量让
      TS 在行内完成收窄（ipName 空串只可能出现在 ipRow 未设的分支）。 */
@@ -60,14 +44,8 @@ export function OverlayRelatedBlock({
 
   if (!ipRow && !hasSourceOriginal && !seriesValid) return null;
 
-  const previous =
-    seriesValid && firstSeries.current_index > 1 && isValidTarget(firstSeries.previous)
-      ? firstSeries.previous
-      : undefined;
-  const next =
-    seriesValid && firstSeries.current_index < firstSeries.total && isValidTarget(firstSeries.next)
-      ? firstSeries.next
-      : undefined;
+  const previous = resolveSeriesStepTarget(firstSeries, "previous");
+  const next = resolveSeriesStepTarget(firstSeries, "next");
 
   return (
     <section
