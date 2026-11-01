@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -67,6 +66,27 @@ func NewSeriesHandler(seriesSvc *service.SeriesService) *SeriesHandler {
 	return &SeriesHandler{seriesSvc: seriesSvc}
 }
 
+// seriesErrMap 是系列管理九路由（CreateSeries / ListSeries /
+// ListCandidates / GetSeries / UpdateSeries / DeleteSeries / AddItem /
+// RemoveItem / ReorderItems）共享的 sentinel→HTTP 合同，规则序与迁移前
+// writeSeriesError 的 switch case 序逐条一致（迁移前即共享 switch 函数，
+// 改形为一处 map 声明）；未知错误兜底保持历史 Safe 500 DB_ERROR。
+var seriesErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: repository.ErrSeriesNotFound, status: http.StatusNotFound, code: "SERIES_NOT_FOUND", message: "series not found"},
+		{sentinel: repository.ErrNotSeriesOwner, status: http.StatusForbidden, code: "NOT_SERIES_OWNER", message: "only the series owner can manage it"},
+		{sentinel: repository.ErrContentNotOwnedOrContributed, status: http.StatusBadRequest, code: "CONTENT_NOT_OWNED_OR_CONTRIBUTED", message: "content is not owned or contributed by the series owner"},
+		{sentinel: repository.ErrSeriesZoneMismatch, status: http.StatusBadRequest, code: "ZONE_MISMATCH", message: "series and content zones do not match"},
+		{sentinel: repository.ErrDuplicateSeriesItem, status: http.StatusConflict, code: "DUPLICATE_SERIES_ITEM", message: "content already exists in series"},
+		{sentinel: repository.ErrCoverNotInSeries, status: http.StatusBadRequest, code: "COVER_NOT_IN_SERIES", message: "cover content must belong to the series"},
+		{sentinel: repository.ErrSeriesContentUnavailable, status: http.StatusBadRequest, code: "CONTENT_UNAVAILABLE", message: "content is unavailable for series management"},
+		{sentinel: repository.ErrSeriesItemSetMismatch, status: http.StatusBadRequest, code: "SERIES_ITEM_SET_MISMATCH", message: "item_ids must match the complete series item set"},
+		{sentinel: repository.ErrSeriesItemNotFound, status: http.StatusNotFound, code: "SERIES_ITEM_NOT_FOUND", message: "series item not found"},
+		{sentinel: repository.ErrInvalidSeries, status: http.StatusBadRequest, code: "INVALID_SERIES", message: "invalid series"},
+	},
+	fallback: fallbackDB,
+}
+
 // SetDisplayURLSigner wires display URL signing for series cover and item
 // content covers (B-002).
 func (h *SeriesHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
@@ -88,7 +108,7 @@ func (h *SeriesHandler) CreateSeries(c *gin.Context) {
 	}
 	series, err := h.seriesSvc.CreateSeries(c.Request.Context(), middleware.GetUserID(c), input.Title, input.Description, strings.TrimSpace(input.Zone))
 	if err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"series": mapSeriesSummary(*series)})
@@ -102,7 +122,7 @@ func (h *SeriesHandler) ListSeries(c *gin.Context) {
 	}
 	series, err := h.seriesSvc.ListOwnedSeries(c.Request.Context(), middleware.GetUserID(c), zone)
 	if err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	items := make([]seriesSummaryResponse, 0, len(series))
@@ -121,7 +141,7 @@ func (h *SeriesHandler) ListCandidates(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	items, err := h.seriesSvc.ListCandidateContents(c.Request.Context(), middleware.GetUserID(c), zone, c.Query("q"), limit)
 	if err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	result := make([]seriesContentResponse, 0, len(items))
@@ -146,7 +166,7 @@ func (h *SeriesHandler) GetSeries(c *gin.Context) {
 		detail, err = h.seriesSvc.GetSeriesDetail(c.Request.Context(), seriesID, viewerID)
 	}
 	if err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	series := mapSeriesDetail(h.displaySigner, detail.Series, detail.Cover, detail.ItemCount)
@@ -208,7 +228,7 @@ func (h *SeriesHandler) UpdateSeries(c *gin.Context) {
 	}
 	series, err := h.seriesSvc.UpdateSeries(c.Request.Context(), seriesID, middleware.GetUserID(c), patch)
 	if err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"series": mapSeriesSummary(*series)})
@@ -220,7 +240,7 @@ func (h *SeriesHandler) DeleteSeries(c *gin.Context) {
 		return
 	}
 	if err := h.seriesSvc.DeleteSeries(c.Request.Context(), seriesID, middleware.GetUserID(c)); err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -243,7 +263,7 @@ func (h *SeriesHandler) AddItem(c *gin.Context) {
 	}
 	item, err := h.seriesSvc.AddItem(c.Request.Context(), seriesID, middleware.GetUserID(c), input.ContentItemID)
 	if err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"item": gin.H{
@@ -262,7 +282,7 @@ func (h *SeriesHandler) RemoveItem(c *gin.Context) {
 		return
 	}
 	if err := h.seriesSvc.RemoveItem(c.Request.Context(), seriesID, middleware.GetUserID(c), itemID); err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "removed"})
@@ -290,37 +310,10 @@ func (h *SeriesHandler) ReorderItems(c *gin.Context) {
 		}
 	}
 	if err := h.seriesSvc.ReorderItems(c.Request.Context(), seriesID, middleware.GetUserID(c), input.ItemIDs); err != nil {
-		h.writeSeriesError(c, err)
+		seriesErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "reordered"})
-}
-
-func (h *SeriesHandler) writeSeriesError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, repository.ErrSeriesNotFound):
-		response.Error(c, http.StatusNotFound, "SERIES_NOT_FOUND", "series not found")
-	case errors.Is(err, repository.ErrNotSeriesOwner):
-		response.Error(c, http.StatusForbidden, "NOT_SERIES_OWNER", "only the series owner can manage it")
-	case errors.Is(err, repository.ErrContentNotOwnedOrContributed):
-		response.Error(c, http.StatusBadRequest, "CONTENT_NOT_OWNED_OR_CONTRIBUTED", "content is not owned or contributed by the series owner")
-	case errors.Is(err, repository.ErrSeriesZoneMismatch):
-		response.Error(c, http.StatusBadRequest, "ZONE_MISMATCH", "series and content zones do not match")
-	case errors.Is(err, repository.ErrDuplicateSeriesItem):
-		response.Error(c, http.StatusConflict, "DUPLICATE_SERIES_ITEM", "content already exists in series")
-	case errors.Is(err, repository.ErrCoverNotInSeries):
-		response.Error(c, http.StatusBadRequest, "COVER_NOT_IN_SERIES", "cover content must belong to the series")
-	case errors.Is(err, repository.ErrSeriesContentUnavailable):
-		response.Error(c, http.StatusBadRequest, "CONTENT_UNAVAILABLE", "content is unavailable for series management")
-	case errors.Is(err, repository.ErrSeriesItemSetMismatch):
-		response.Error(c, http.StatusBadRequest, "SERIES_ITEM_SET_MISMATCH", "item_ids must match the complete series item set")
-	case errors.Is(err, repository.ErrSeriesItemNotFound):
-		response.Error(c, http.StatusNotFound, "SERIES_ITEM_NOT_FOUND", "series item not found")
-	case errors.Is(err, repository.ErrInvalidSeries):
-		response.Error(c, http.StatusBadRequest, "INVALID_SERIES", "invalid series")
-	default:
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-	}
 }
 
 func mapSeriesSummary(series model.ContentSeries) seriesSummaryResponse {

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -28,6 +27,22 @@ type BrowseHistoryHandler struct {
 // PR-3；display signer 仍为处理器内配置派生，非共享态).
 func NewBrowseHistoryHandler(histRepo *repository.BrowseHistoryRepository, cfg *config.Config) *BrowseHistoryHandler {
 	return &BrowseHistoryHandler{histRepo: histRepo, cfg: cfg, displaySigner: service.NewDisplayURLSigner(cfg)}
+}
+
+// clearHistoryBindErrMap 是 DELETE /users/me/browse-history
+// （ClearHistory）请求体绑定失败面的 sentinel→HTTP 合同：空 body
+// （io.EOF）要求显式确认；其余绑定错误走 ValidationError 形态的固定兜
+// 底（400 VALIDATION_ERROR "invalid request body"，逐字节保留迁移前
+// ValidationError 分支）。
+var clearHistoryBindErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: io.EOF, status: http.StatusBadRequest, code: "CLEAR_CONFIRMATION_REQUIRED", message: "explicit clear confirmation is required"},
+	},
+	fallback: errFallback{
+		status:  http.StatusBadRequest,
+		code:    "VALIDATION_ERROR",
+		message: "invalid request body",
+	},
 }
 
 func (h *BrowseHistoryHandler) RecordView(c *gin.Context) {
@@ -83,11 +98,9 @@ func (h *BrowseHistoryHandler) ClearHistory(c *gin.Context) {
 		ClearAll *bool    `json:"clear_all"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		if errors.Is(err, io.EOF) {
-			response.Error(c, http.StatusBadRequest, "CLEAR_CONFIRMATION_REQUIRED", "explicit clear confirmation is required")
-			return
-		}
-		response.ValidationError(c, "invalid request body")
+		// C3.4：迁移前 io.EOF 分支 + ValidationError 兜底收口为
+		// clearHistoryBindErrMap（固定兜底文案逐字节保留）。
+		clearHistoryBindErrMap.write(c, err)
 		return
 	}
 	if body.IDs != nil && len(*body.IDs) > 100 {

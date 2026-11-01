@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -69,6 +68,17 @@ func (h *TagHandler) SearchTags(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"tags": tags})
 }
 
+// suggestTagErrMap 是 POST /contents/:id/tags/suggest（SuggestTag）的
+// sentinel→HTTP 合同：限流命中走 Safe 429 专用码（文案按 code 解析的安
+// 全文案，与迁移前 SafeErrorResponse 相同）；其余错误兜底保持历史 Safe
+// 400 ERROR。
+var suggestTagErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrTagSuggestRateLimited, status: http.StatusTooManyRequests, code: "TAG_SUGGEST_RATE_LIMIT_EXCEEDED"},
+	},
+	fallback: errFallback{status: http.StatusBadRequest, code: "ERROR"},
+}
+
 func (h *TagHandler) SuggestTag(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
@@ -88,11 +98,8 @@ func (h *TagHandler) SuggestTag(c *gin.Context) {
 		return
 	}
 	if err := h.tagSvc.SuggestTag(contentID, callerID, body.Tag, body.Action); err != nil {
-		if errors.Is(err, service.ErrTagSuggestRateLimited) {
-			response.SafeErrorResponse(c, http.StatusTooManyRequests, "TAG_SUGGEST_RATE_LIMIT_EXCEEDED", err)
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		// C3.4：迁移前限流分支 + Safe 兜底收口为 suggestTagErrMap。
+		suggestTagErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "suggestion submitted"})

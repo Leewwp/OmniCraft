@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -53,6 +52,26 @@ func NewIPHandlerWithCache(ipSvc *service.IPService, contentRepo *repository.Con
 		ipCategories:   cfg.IPCategories,
 		cfg:            cfg,
 	}
+}
+
+// createIPErrMap 是 POST /ips（CreateIP）的 sentinel→HTTP 合同；兜底保持
+// 历史 Safe 500 INTERNAL_ERROR。
+var createIPErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrIPSlugTaken, status: http.StatusConflict, code: "IP_SLUG_TAKEN", message: "could not derive a unique slug for this name, try a different name"},
+	},
+	fallback: fallbackInternal,
+}
+
+// ipDetailErrMap 是 IP 详情读侧（GET /ips/:id GetIP 与 GET /ips/:id/
+// contents GetIPContents）的 sentinel→HTTP 合同：两路由迁移前同为 `==`
+// 直比变体、映射面一致（service 裸返 sentinel），共用一份声明；兜底保持
+// 历史 Safe 500 DB_ERROR。
+var ipDetailErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrIPNotFound, status: http.StatusNotFound, code: "IP_NOT_FOUND", message: "ip not found"},
+	},
+	fallback: fallbackDB,
 }
 
 // ipCategoryAllowed enforces the config allowlist for a non-empty category.
@@ -154,11 +173,8 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 
 	ip, err := h.ipSvc.CreateIP(c.Request.Context(), input, callerID)
 	if err != nil {
-		if errors.Is(err, service.ErrIPSlugTaken) {
-			response.Error(c, http.StatusConflict, "IP_SLUG_TAKEN", "could not derive a unique slug for this name, try a different name")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		// C3.4：迁移前 slug 冲突分支 + Safe 兜底收口为 createIPErrMap。
+		createIPErrMap.write(c, err)
 		return
 	}
 
@@ -174,11 +190,8 @@ func (h *IPHandler) GetIP(c *gin.Context) {
 
 	ip, err := h.ipSvc.GetIP(id)
 	if err != nil {
-		if err == service.ErrIPNotFound {
-			response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比变体收口为 ipDetailErrMap。
+		ipDetailErrMap.write(c, err)
 		return
 	}
 	if !ipVisibleToViewer(c, ip) {
@@ -246,11 +259,8 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 
 	ip, err := h.ipSvc.GetIP(id)
 	if err != nil {
-		if err == service.ErrIPNotFound {
-			response.Error(c, http.StatusNotFound, "IP_NOT_FOUND", "ip not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比变体收口为 ipDetailErrMap（与 GetIP 共用）。
+		ipDetailErrMap.write(c, err)
 		return
 	}
 	if !ipVisibleToViewer(c, ip) {

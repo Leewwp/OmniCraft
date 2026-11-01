@@ -76,6 +76,55 @@ func NewContentHandler(cfg *config.Config, deps ContentHandlerDeps) *ContentHand
 	}
 }
 
+// contentPresignErrMap 是 POST /contents/oss-token（GenerateOSSToken）经
+// 动态校验分流（errors.As UploadValidationError 分支留在 handler——错误
+// 码随错误体变化，非 sentinel 映射）后的 sentinel→HTTP 合同；未知错误兜
+// 底保持历史 Safe 500 INTERNAL_ERROR。
+var contentPresignErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrOSSNotConfigured, status: http.StatusServiceUnavailable, code: "OSS_NOT_CONFIGURED"},
+	},
+	fallback: fallbackInternal,
+}
+
+// contentDetailErrMap 是内容详情读侧（GET /contents/:id GetContent 与
+// GET /contents/:id/related-fanworks ListRelatedFanworks）的 sentinel→HTTP
+// 合同：两路由迁移前一个用 `==` 直比、一个用 errors.Is，映射面一致
+// （service 裸返 sentinel），共用一份声明；兜底保持历史 Safe 500
+// DB_ERROR。
+var contentDetailErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+	},
+	fallback: fallbackDB,
+}
+
+// updateContentErrMap 是 PATCH /contents/:id（UpdateContent）的
+// sentinel→HTTP 合同，规则序与迁移前分支序逐条一致（ErrCoverNotPlatform
+// OSSObject 迁移前走 ValidationError 形态 = 固定 400 VALIDATION_ERROR 文
+// 案，规则化后逐字节相同）；兜底保持历史 Safe 500 DB_ERROR。
+var updateContentErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{sentinel: service.ErrContentForbidden, status: http.StatusForbidden, code: "FORBIDDEN", message: "not content author"},
+		// banned 终态禁改（FIX-13）：删除仍允许，编辑引导走申诉。
+		{sentinel: service.ErrContentBanned, status: http.StatusForbidden, code: "CONTENT_BANNED", message: "content is banned and cannot be edited"},
+		{sentinel: service.ErrCoverNotPlatformOSSObject, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "cover image must be a platform OSS object"},
+	},
+	fallback: fallbackDB,
+}
+
+// deleteContentErrMap 是 DELETE /contents/:id（DeleteContent）的
+// sentinel→HTTP 合同，规则序与迁移前分支序逐条一致；兜底保持历史 Safe
+// 500 DB_ERROR。
+var deleteContentErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{sentinel: service.ErrContentForbidden, status: http.StatusForbidden, code: "FORBIDDEN", message: "not content author"},
+	},
+	fallback: fallbackDB,
+}
+
 func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 	if h.ossSvc == nil {
 		response.SafeErrorResponse(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", h.ossInitErr)
@@ -94,6 +143,7 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 		var validationErr *service.UploadValidationError
 		if errors.As(err, &validationErr) {
 			// T25（FIX-41）：超限走专用码（前端出专属文案），其余参数错误保持通用码。
+			// 动态码随错误体变化（非 sentinel 映射），留在 handler。
 			if validationErr.Code != "" {
 				response.Error(c, http.StatusBadRequest, validationErr.Code, validationErr.Message)
 				return
@@ -101,11 +151,8 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 			response.ValidationError(c, "invalid request parameters")
 			return
 		}
-		if errors.Is(err, service.ErrOSSNotConfigured) {
-			response.SafeErrorResponse(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", err)
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		// C3.4：OSS 未配置与其余未知错误收口为 contentPresignErrMap。
+		contentPresignErrMap.write(c, err)
 		return
 	}
 
@@ -259,11 +306,9 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 
 	content, err := h.contentSvc.GetContent(id)
 	if err != nil {
-		if err == service.ErrContentNotFound {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比变体收口为 contentDetailErrMap（与
+		// ListRelatedFanworks 的 errors.Is 链映射面一致，共用一份声明）。
+		contentDetailErrMap.write(c, err)
 		return
 	}
 
@@ -396,11 +441,9 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 	viewerID := middleware.GetUserID(c)
 	source, err := h.contentSvc.GetVisibleContent(sourceID, viewerID)
 	if err != nil {
-		if errors.Is(err, service.ErrContentNotFound) {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 errors.Is 链收口为 contentDetailErrMap（与 GetContent
+		// 映射面一致，共用一份声明）。
+		contentDetailErrMap.write(c, err)
 		return
 	}
 
@@ -562,24 +605,9 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	}
 
 	if err := h.contentSvc.UpdateContentWithContext(c.Request.Context(), id, callerID, updates); err != nil {
-		if err == service.ErrContentNotFound {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		if err == service.ErrContentForbidden {
-			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not content author")
-			return
-		}
-		// banned 终态禁改（FIX-13）：删除仍允许，编辑引导走申诉。
-		if err == service.ErrContentBanned {
-			response.Error(c, http.StatusForbidden, "CONTENT_BANNED", "content is banned and cannot be edited")
-			return
-		}
-		if err == service.ErrCoverNotPlatformOSSObject {
-			response.ValidationError(c, "cover image must be a platform OSS object")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比四分支收口为 updateContentErrMap，规则序
+		// 与分支序一致，wire 逐字节不变。
+		updateContentErrMap.write(c, err)
 		return
 	}
 
@@ -599,15 +627,8 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 	}
 
 	if err := h.contentSvc.DeleteContentWithContext(c.Request.Context(), id, callerID); err != nil {
-		if err == service.ErrContentNotFound {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		if err == service.ErrContentForbidden {
-			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not content author")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比两分支收口为 deleteContentErrMap。
+		deleteContentErrMap.write(c, err)
 		return
 	}
 

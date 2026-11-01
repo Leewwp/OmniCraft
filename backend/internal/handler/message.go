@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"math"
 	"net/http"
 	"strings"
@@ -63,6 +62,26 @@ func NewMessageHandler(msgRepo *repository.MessageRepository) *MessageHandler {
 	return h
 }
 
+// dmModerateErrMap 是 SendMessage 私信文本审核失败面的 sentinel→HTTP 合
+// 同，规则序与迁移前分支序一致（文案为中文固定文案，逐字节保留）；兜底
+// 保持历史 Safe 500 DB_ERROR。
+var dmModerateErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrTextBlocked, status: http.StatusUnprocessableEntity, code: "CONTENT_BLOCKED", message: "内容包含违规内容，无法发送"},
+		{sentinel: service.ErrModerationUnavailable, status: http.StatusServiceUnavailable, code: "MODERATION_UNAVAILABLE", message: "内容审核服务暂时不可用，请稍后重试"},
+	},
+	fallback: fallbackDB,
+}
+
+// dmSendErrMap 是 SendMessage 冷启动守卫（SendWithColdStartGuard）失败面
+// 的 sentinel→HTTP 合同；兜底保持历史 Safe 500 DB_ERROR。
+var dmSendErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: repository.ErrDMReplyRequired, status: http.StatusForbidden, code: "DM_REPLY_REQUIRED", message: "对方尚未回复，请等待回复后再发送新消息"},
+	},
+	fallback: fallbackDB,
+}
+
 func (h *MessageHandler) SetNotificationService(ns *service.NotificationService) {
 	h.notifSvc = ns
 }
@@ -107,25 +126,15 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	}
 
 	if err := h.moderateText(c.Request.Context(), "dm", body.Text); err != nil {
-		if errors.Is(err, service.ErrTextBlocked) {
-			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "内容包含违规内容，无法发送")
-			return
-		}
-		if errors.Is(err, service.ErrModerationUnavailable) {
-			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "内容审核服务暂时不可用，请稍后重试")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前两分支收口为 dmModerateErrMap。
+		dmModerateErrMap.write(c, err)
 		return
 	}
 
 	msg, err := h.msgRepo.SendWithColdStartGuard(callerID, body.RecipientID, body.Text)
-	if errors.Is(err, repository.ErrDMReplyRequired) {
-		response.Error(c, http.StatusForbidden, "DM_REPLY_REQUIRED", "对方尚未回复，请等待回复后再发送新消息")
-		return
-	}
 	if err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 errors.Is 单分支收口为 dmSendErrMap。
+		dmSendErrMap.write(c, err)
 		return
 	}
 
