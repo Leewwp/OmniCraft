@@ -9,6 +9,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/response"
 )
 
 var validate = validator.New()
@@ -78,11 +79,7 @@ func BindAndValidate(obj interface{}) gin.HandlerFunc {
 		if err := c.ShouldBindJSON(obj); err != nil {
 			errs, ok := err.(validator.ValidationErrors)
 			if !ok {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"code":    "VALIDATION_ERROR",
-					"message": "invalid request body",
-				})
-				c.Abort()
+				response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request body")
 				return
 			}
 
@@ -94,12 +91,7 @@ func BindAndValidate(obj interface{}) gin.HandlerFunc {
 				})
 			}
 
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    "VALIDATION_ERROR",
-				"message": "validation failed",
-				"details": details,
-			})
-			c.Abort()
+			response.ErrorWithDetails(c, http.StatusBadRequest, "VALIDATION_ERROR", "validation failed", details)
 			return
 		}
 

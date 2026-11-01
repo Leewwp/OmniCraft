@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 )
 
@@ -72,11 +73,7 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 			c.Request.Method == http.MethodDelete {
 			headerToken := c.GetHeader(csrfHeaderName)
 			if headerToken == "" || !hmacEqual(headerToken, token) {
-				c.JSON(http.StatusForbidden, gin.H{
-					"code":    "CSRF_TOKEN_INVALID",
-					"message": "CSRF token missing or invalid",
-				})
-				c.Abort()
+				response.Error(c, http.StatusForbidden, "CSRF_TOKEN_INVALID", "CSRF token missing or invalid")
 				return
 			}
 		}
