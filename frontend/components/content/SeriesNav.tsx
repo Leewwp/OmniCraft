@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { buttonVariants } from "@/components/ui/button";
 import { getSeriesDetail, type SeriesContent } from "@/lib/series";
 import type { SeriesMembership } from "@/lib/content";
+import { isValidSeriesMembership, isValidSeriesStepTarget, resolveSeriesStepTarget } from "@/lib/series-guard";
 import { cn } from "@/lib/utils";
 
 interface SeriesNavProps {
@@ -15,22 +16,6 @@ interface SeriesNavProps {
   /** 浮层内目录/章节切换压栈（ui-spec:2587）：由浮层上下文注入。
       独立详情页不传：上一章/下一章保持整页 Link，目录指向 /series/:id。 */
   onNavigateInOverlay?: (contentId: number, trigger?: HTMLElement | null) => void;
-}
-
-function isValidMembership(value: SeriesMembership): boolean {
-  return (
-    Number.isInteger(value.series_id) &&
-    value.series_id > 0 &&
-    Boolean(value.series_title.trim()) &&
-    Number.isInteger(value.current_index) &&
-    value.current_index > 0 &&
-    Number.isInteger(value.total) &&
-    value.total >= value.current_index
-  );
-}
-
-function isValidTarget(value: SeriesMembership["previous"]): value is NonNullable<SeriesMembership["previous"]> {
-  return Boolean(value && Number.isInteger(value.id) && value.id > 0 && value.title.trim());
 }
 
 function contentHref(id: number, zone?: SeriesMembership["series_zone"]): string {
@@ -45,7 +30,7 @@ type DirectoryLoad =
 
 export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) {
   const t = useTranslations("series.nav");
-  const validMemberships = useMemo(() => memberships.filter(isValidMembership), [memberships]);
+  const validMemberships = useMemo(() => memberships.filter(isValidSeriesMembership), [memberships]);
   const visibleTabs = validMemberships.slice(0, 3);
   const overflow = validMemberships.slice(3);
   const [activeSeriesID, setActiveSeriesID] = useState<number | null>(null);
@@ -131,8 +116,8 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
   const matchedActiveIndex = visibleTabs.findIndex((membership) => membership.series_id === activeSeriesID);
   const safeActiveIndex = matchedActiveIndex >= 0 ? matchedActiveIndex : 0;
   const active = visibleTabs[safeActiveIndex] ?? validMemberships[0];
-  const previous = active.current_index > 1 && isValidTarget(active.previous) ? active.previous : undefined;
-  const next = active.current_index < active.total && isValidTarget(active.next) ? active.next : undefined;
+  const previous = resolveSeriesStepTarget(active, "previous");
+  const next = resolveSeriesStepTarget(active, "next");
 
   const directoryLoad = directoryBySeries[active.series_id];
   const directoryItems = directoryLoad?.status === "ready" ? directoryLoad.items : [];
@@ -189,7 +174,7 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
           if (prev[seriesId]?.status !== "loading") return prev;
           const items = detail.items
             .map((item) => item.content)
-            .filter((content) => Number.isInteger(content.id) && content.id > 0 && content.title.trim());
+            .filter((content) => isValidSeriesStepTarget(content));
           return { ...prev, [seriesId]: { status: "ready", items } };
         });
       })
