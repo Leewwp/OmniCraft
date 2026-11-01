@@ -11,6 +11,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -194,6 +195,36 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 	})
 }
 
+// publishErrMap 是 POST /contents（CreateContent）的 sentinel→HTTP 合同，
+// 顺序与迁移前 content.go 分支顺序逐条一致；未知错误兜底保持历史 500
+// INTERNAL_ERROR（与下载端点的 DB_ERROR 兜底不同）。
+var publishErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrPublishFrozen, status: http.StatusForbidden, code: "PUBLISH_FROZEN"},
+		{sentinel: service.ErrSourceNotAllowedForOriginal, status: http.StatusBadRequest, code: "SOURCE_NOT_ALLOWED_FOR_ORIGINAL"},
+		{sentinel: service.ErrFanworkSourceRequired, status: http.StatusBadRequest, code: "FANWORK_SOURCE_REQUIRED"},
+		{sentinel: service.ErrMultipleSourceConflict, status: http.StatusBadRequest, code: "MULTIPLE_SOURCE_CONFLICT"},
+		{sentinel: service.ErrSourceOriginalUnavailable, status: http.StatusBadRequest, code: "SOURCE_ORIGINAL_UNAVAILABLE"},
+		{sentinel: service.ErrSourceFanworkUnavailable, status: http.StatusBadRequest, code: "SOURCE_FANWORK_UNAVAILABLE"},
+		{sentinel: service.ErrUploadGrantInvalid, status: http.StatusBadRequest, code: "UPLOAD_GRANT_INVALID"},
+		{sentinel: service.ErrMediaSetInvalid, status: http.StatusBadRequest, code: "MEDIA_SET_INVALID"},
+		{sentinel: service.ErrArchiveAttachmentRequired, status: http.StatusBadRequest, code: "ARCHIVE_ATTACHMENT_REQUIRED", message: "mod content requires a zip archive attachment"},
+		// #690：注册表 attachment_policy（required_any_of）违规面——任何
+		// 配置了 policy 的类型共用，非 3d_print 专属分支。
+		{sentinel: service.ErrAttachmentPolicyRequired, status: http.StatusBadRequest, code: "ATTACHMENT_POLICY_REQUIRED", message: "content type requires at least one attachment of the required family"},
+		{sentinel: archivezip.ErrEncrypted, status: http.StatusBadRequest, code: "ARCHIVE_ENCRYPTED", message: "archive is encrypted"},
+		{sentinel: archivezip.ErrPathInvalid, status: http.StatusBadRequest, code: "ARCHIVE_PATH_INVALID", message: "archive path is invalid"},
+		{sentinel: archivezip.ErrLinkForbidden, status: http.StatusBadRequest, code: "ARCHIVE_LINK_FORBIDDEN", message: "archive link is forbidden"},
+		{sentinel: archivezip.ErrLimitExceeded, status: http.StatusBadRequest, code: "ARCHIVE_LIMIT_EXCEEDED", message: "archive limits exceeded"},
+		{sentinel: archivezip.ErrInvalid, status: http.StatusBadRequest, code: "ARCHIVE_INVALID", message: "archive is invalid"},
+		{sentinel: service.ErrArchiveScanUnavailable, status: http.StatusServiceUnavailable, code: "ARCHIVE_SCAN_UNAVAILABLE", message: "archive scanning is unavailable"},
+		{sentinel: service.ErrArchiveScanFailed, status: http.StatusConflict, code: "ARCHIVE_SCAN_FAILED", message: "archive scan failed"},
+		{sentinel: service.ErrArchiveScanPending, status: http.StatusConflict, code: "ARCHIVE_SCAN_PENDING", message: "archive scan is pending"},
+		{sentinel: service.ErrUploadGrantUnavailable, status: http.StatusServiceUnavailable, code: "UPLOAD_GRANT_UNAVAILABLE"},
+	},
+	fallback: fallbackInternal,
+}
+
 func (h *ContentHandler) CreateContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
@@ -209,8 +240,8 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 
 	content, err := h.contentSvc.PublishContentWithContext(c.Request.Context(), input, callerID)
 	if err != nil {
-		// #794：sentinel→HTTP 合同集中在 errmap.go（publishErrMap，按原分
-		// 支顺序 errors.Is 首个命中）；未知错误兜底保持历史 500
+		// #794：sentinel→HTTP 合同集中在文件内 publishErrMap（按原分支
+		// 顺序 errors.Is 首个命中）；未知错误兜底保持历史 500
 		// INTERNAL_ERROR。
 		publishErrMap.write(c, err)
 		return
@@ -583,6 +614,28 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
+// downloadErrMap 是 GET /contents/:id/download（DownloadContent）的
+// sentinel→HTTP 合同，顺序与迁移前 content.go 分支顺序逐条一致；未知错
+// 误兜底保持历史 500 DB_ERROR。该合同同时是 SP-16 #451 MCP 工具
+// omnicraft_request_download 的 REST 面投影，语义不得分叉。
+var downloadErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrDownloadUnauthorized, status: http.StatusUnauthorized, code: "UNAUTHORIZED", message: "login required"},
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{sentinel: service.ErrDownloadNotPublished, status: http.StatusForbidden, code: "FORBIDDEN", message: "content not available for download"},
+		{sentinel: service.ErrDownloadUnavailable, status: http.StatusForbidden, code: "CONTENT_UNAVAILABLE", message: "content is unavailable"},
+		{sentinel: service.ErrDownloadNotAllowed, status: http.StatusForbidden, code: "FORBIDDEN", message: "download not allowed"},
+		{sentinel: service.ErrOSSNotConfigured, status: http.StatusServiceUnavailable, code: "OSS_NOT_CONFIGURED", message: "oss service not configured"},
+		{sentinel: service.ErrNoAttachments, status: http.StatusNotFound, code: "NO_ATTACHMENTS", message: "no downloadable files"},
+		{sentinel: service.ErrInvalidAttachmentID, status: http.StatusBadRequest, code: "INVALID_ATTACHMENT_ID", message: "invalid attachment_id"},
+		{sentinel: service.ErrAttachmentMismatch, status: http.StatusBadRequest, code: "ATTACHMENT_MISMATCH", message: "attachment does not belong to this content"},
+		{sentinel: service.ErrAmbiguousAttachment, status: http.StatusBadRequest, code: "AMBIGUOUS_ATTACHMENT", message: "specify attachment_id; cannot determine a unique primary attachment"},
+		{sentinel: service.ErrArchiveNotClean, status: http.StatusForbidden, code: "ARCHIVE_NOT_CLEAN", message: "archive is not clean"},
+		{sentinel: service.ErrDownloadPresignFailed, status: http.StatusInternalServerError, code: "OSS_ERROR", message: "failed to generate download url"},
+	},
+	fallback: fallbackDB,
+}
+
 func (h *ContentHandler) DownloadContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
@@ -601,7 +654,7 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 	// HTTP contract.
 	res, err := h.contentSvc.RequestDownload(c.Request.Context(), callerID, id, c.Query("attachment_id"))
 	if err != nil {
-		// #794：sentinel→HTTP 合同集中在 errmap.go（downloadErrMap，按原分
+		// #794：sentinel→HTTP 合同集中在文件内 downloadErrMap（按原分
 		// 支顺序 errors.Is 首个命中）；未知错误兜底保持历史 500 DB_ERROR。
 		downloadErrMap.write(c, err)
 		return
