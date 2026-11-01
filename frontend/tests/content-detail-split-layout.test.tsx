@@ -369,7 +369,7 @@ test("#858 unified desktop contracts exist in source: 960 panel, flush shell, vi
   assert.match(overlay, /min-\[960px\]:m-auto/);
   assert.match(overlay, /min-\[960px\]:h-\[min\(92dvh,900px\)\]/);
   assert.doesNotMatch(overlay, /lg:h-\[min\(92dvh/);
-  assert.match(overlay, /isDesktopViewport && "h-full overflow-hidden p-0"/);
+  assert.match(overlay, /twoColumn && "h-full overflow-hidden p-0"/);
   assert.match(overlay, /data-slot="overlay-scroller"/);
 
   /* 三分支退役：split 布局判定与 64px 控件条不再存在。 */

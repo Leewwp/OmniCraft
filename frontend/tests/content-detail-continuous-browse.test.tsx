@@ -414,7 +414,9 @@ test("#89 source contracts: context fields live on the entry, not as a second st
   assert.match(hook, /contextList\?: ContentOverlayContextItem\[\]/);
   assert.match(hook, /contextList=\{entry\.contextList\}/);
   assert.match(layer, /onSwitchNext\?: \(entry: OverlayEntry\) => void/);
-  assert.match(layer, /isMobileViewport/);
+  /* C2 #921：连续浏览的 PC 档门改读 useOverlayViewport 的 pcTier 订阅值
+     （旧 isMobileViewport() 事件时同步助手退役）。 */
+  assert.match(layer, /if \(pcTier\) return;/);
   assert.match(overlay, /switchTopLayer/);
   /* 连续浏览不复制关闭状态机，不压栈（复用既有 close/open 契约）。 */
   assert.doesNotMatch(overlay, /pushHistoryState\(.*switch/);

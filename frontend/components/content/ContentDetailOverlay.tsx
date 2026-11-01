@@ -38,6 +38,7 @@ import {
   type OverlayHistoryRecord,
 } from "@/lib/overlay-history";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
+import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
 
 const OVERLAY_EASING = "cubic-bezier(0.22,0.61,0.36,1)";
 /** 入场转场等待层数据的保险时限：超时按降级路径淡入，避免不可见卡死。 */
@@ -47,15 +48,6 @@ const COVER_READY_CAP_MS = 150;
 /** #409 F1：关闭方向 VT 的方向标记（root/group 快照时长 240ms 档，
     见 globals.css :root[data-vt-close] 规则）。 */
 const VT_CLOSE_ATTR = "data-vt-close";
-
-/** D1 #858 统一版式壳层判定：桌面 ≥960 = 统一双栏壳（无 header 工具栏、
-    返回/关闭悬浮半透明圆钮、滚动归属层内 layer-scroller），由视口断点决定、
-    从 loading 首帧生效——不再等待媒体朝向/chainReady 才从单列切换；
-    <960 保持移动单列 + header 工具栏。 */
-function matchesDesktopViewport(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(min-width: 960px)").matches;
-}
 
 /** D3 #860：history 记录 → 浮层条目（forward 重建层/换篇对齐用）。 */
 function entryFromRecord(record: OverlayHistoryRecord): OverlayEntry {
@@ -115,9 +107,13 @@ export function ContentDetailOverlay({
   const [closing, setClosing] = useState(false);
   const [stackMove, setStackMove] = useState<"push" | "pop" | null>(null);
   const [popFocus, setPopFocus] = useState<HTMLElement | null>(null);
-  /* D1 #858：统一版式壳层由 ≥960 视口断点决定（matchMedia 状态，SSR/测试
-     环境缺 matchMedia 时按移动壳层处理）。 */
-  const [isDesktopViewport, setIsDesktopViewport] = useState(() => matchesDesktopViewport());
+  /* D1 #858：统一版式壳层由 twoColumn（≥960 视口，C2 #921 useOverlayViewport）
+     决定——桌面 = 统一双栏壳（无 header 工具栏、返回/关闭悬浮半透明圆钮、
+     滚动归属层内 layer-scroller），从 loading 首帧生效；<960 保持移动单列 +
+     header 工具栏。浮层为纯客户端挂载无水合路径，uSES 首帧直接走 getSnapshot
+     （同步读 matchMedia，与旧惰性初始化语义等价）；SSR/测试缺 matchMedia
+     按移动壳层处理。 */
+  const { twoColumn } = useOverlayViewport();
   /* #409 F1 单一时间轴配套：入场转场落定标记（驱动首帧保持解除与媒体列
      几何解冻）+ 首帧保持 src（打开瞬间卡片封面实际渲染的地址）。 */
   const [entranceSettled, setEntranceSettled] = useState(false);
@@ -131,7 +127,7 @@ export function ContentDetailOverlay({
   const lastOpenRef = useRef(false);
   const topKeyRef = useRef<string | null>(null);
   const onOpenChangeRef = useRef(onOpenChange);
-  const isDesktopViewportRef = useRef(isDesktopViewport);
+  const twoColumnRef = useRef(twoColumn);
   /* D3 #860：当前浮层 history 会话 id（卸载兜底 abort 用）。 */
   const historySessionRef = useRef<string | null>(null);
 
@@ -148,17 +144,8 @@ export function ContentDetailOverlay({
   }, [onOpenChange]);
 
   useEffect(() => {
-    isDesktopViewportRef.current = isDesktopViewport;
-  }, [isDesktopViewport]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 960px)");
-    const update = () => setIsDesktopViewport(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
+    twoColumnRef.current = twoColumn;
+  }, [twoColumn]);
 
   /* 转场状态（#67 原型 §5 契约）：run token 拦截过期回调；入场只跑一次。 */
   const motionRunRef = useRef(0);
@@ -174,7 +161,7 @@ export function ContentDetailOverlay({
   const resolveActiveScroller = useCallback((): HTMLElement | null => {
     const scroller = scrollerRef.current;
     if (!scroller) return null;
-    if (!isDesktopViewportRef.current) return scroller;
+    if (!twoColumnRef.current) return scroller;
     const candidates = scroller.querySelectorAll<HTMLElement>('[data-slot="layer-scroller"]');
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
       if (candidates[i].offsetParent !== null) return candidates[i];
@@ -1013,7 +1000,7 @@ export function ContentDetailOverlay({
         ref={shellRef}
         className={cn(
           "relative grid h-full w-full overflow-hidden bg-card min-[960px]:rounded-lg min-[960px]:border min-[960px]:border-border min-[960px]:shadow-[var(--elevation-3)]",
-          isDesktopViewport ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]",
+          twoColumn ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]",
           closing && "pointer-events-none",
         )}
       >
@@ -1021,7 +1008,7 @@ export function ContentDetailOverlay({
             返回/关闭由壳层悬浮圆钮承担（返回钮 hover 显示「返回到：XXX」）；
             sr-only 标题保留 dialog 无障碍名称（aria-labelledby）、初始焦点锚点
             与多层栈返回文案三职。移动 <960 保持 header 工具栏。 */}
-        {!isDesktopViewport && (
+        {!twoColumn && (
           <header className="flex items-center gap-2 border-b border-border bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:px-4 lg:pb-2.5">
             <button
               type="button"
@@ -1052,7 +1039,7 @@ export function ContentDetailOverlay({
             </button>
           </header>
         )}
-        {isDesktopViewport && (
+        {twoColumn && (
           <>
             <h2
               id={titleId}
@@ -1099,7 +1086,7 @@ export function ContentDetailOverlay({
                零内边距、不滚动——统一版式直贴面板，无需负 margin 抵消（旧的
                overlay-scroller px/pt/pb 与 variant root -mx/-mb/-mt 相互抵消的
                结构退役）。 */
-            isDesktopViewport && "h-full overflow-hidden p-0",
+            twoColumn && "h-full overflow-hidden p-0",
           )}
         >
           {stack.map((layer, index) => (

@@ -25,6 +25,7 @@ import { OverlayVariantLayout } from "@/components/content/OverlayVariantLayout"
 import { OverlayRelatedBlock } from "@/components/content/OverlayRelatedBlock";
 import { RelatedContents } from "@/components/content/RelatedContents";
 import { DeferredMount } from "@/components/content/DeferredMount";
+import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
 import { useOverlayMedia } from "@/lib/overlay-media";
 
 export type OverlaySource = "recommendation" | "zone-page" | "ip-page" | "agent-citation";
@@ -55,12 +56,6 @@ interface ContentDetailOverlayLayerProps {
 }
 
 type LayerStatus = "loading" | "default" | "forbidden" | "not-found" | "error" | "rate-limited";
-
-/** #89 连续浏览视口判定：与 ui-spec 全局三档一致（PC > 1100px），桌面不出现连续浏览交互。 */
-function isMobileViewport(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
-  return !window.matchMedia("(min-width: 1100px)").matches;
-}
 
 const TYPE_LABEL_KEYS: Record<string, string> = {
   article: "home.text",
@@ -93,17 +88,10 @@ export function ContentDetailOverlayLayer({
   const [relatedLoaded, setRelatedLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [coverReady, setCoverReady] = useState<boolean | undefined>(undefined);
-  /* D1 #858 统一版式视口判定（≥960 与浮层壳层断点同源）：桌面全状态双栏，
-     移动 <960 单列。 */
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 960px)");
-    const update = () => setIsDesktop(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
+  /* D1 #858 统一版式视口判定（twoColumn 与浮层壳层断点同源，C2 #921
+     useOverlayViewport）：桌面全状态双栏，移动 <960 单列；pcTier（≥1100）
+     承载 #89 连续浏览门（PC 档不出现连续浏览交互）。 */
+  const { twoColumn: isDesktop, pcTier } = useOverlayViewport();
 
   const onTitleChangeRef = useRef(onTitleChange);
   useEffect(() => {
@@ -239,9 +227,10 @@ export function ContentDetailOverlayLayer({
     };
   }, [entry.contentId, attempt]);
 
-  /* #89 连续浏览：媒体集最后一项继续上滑 → 切换上下文列表下一篇（仅移动端）；
-     上下文列表到底时不再切换，显示「已经到底」提示。浮层内关联内容等无
-     contextList 的入口不参与连续浏览。 */
+  /* #89 连续浏览：媒体集最后一项继续上滑 → 切换上下文列表下一篇（仅移动端，
+     pcTier 订阅值承载旧事件时同步查询的 <1100 语义）；上下文列表到底时不再
+     切换，显示「已经到底」提示。浮层内关联内容等无 contextList 的入口不参与
+     连续浏览。 */
   const atContextEnd = Boolean(
     entry.contextList?.length &&
       entry.contextIndex !== undefined &&
@@ -249,7 +238,7 @@ export function ContentDetailOverlayLayer({
   );
 
   const handleReachEnd = useCallback(() => {
-    if (!isMobileViewport()) return;
+    if (pcTier) return;
     const list = entry.contextList;
     const index = entry.contextIndex;
     if (!list || list.length === 0 || index === undefined) return;
@@ -262,7 +251,7 @@ export function ContentDetailOverlayLayer({
       contextList: list,
       contextIndex: index + 1,
     });
-  }, [entry, onSwitchNext]);
+  }, [entry, onSwitchNext, pcTier]);
 
   /* #69 浮层内系列导航：上一章/下一章/目录选择都压入同一导航栈（与关联卡片同模型），
      不整页跳转；zone 沿用当前层（系列单一 zone，与 membership.series_zone 一致）。 */

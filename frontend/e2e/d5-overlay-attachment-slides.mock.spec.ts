@@ -466,8 +466,8 @@ test.describe("D5 #862 附件族轮播位（mocked 契约）", () => {
     await expect(pane(page).locator('[data-testid="document-viewer-grid"]')).toBeVisible({ timeout: 15_000 });
     await expect(pane(page).locator('[data-slot="media-count-badge"]')).toContainText("2 / 2");
 
-    /* 查看器位主体点击不开查看器（embed/网格原生输入不抢）；detail-cover 在
-       右栏行内封面（隐藏于桌面但仍在 DOM）也有一份——锚定到浮层媒体列。 */
+    /* 查看器位主体点击不开查看器（embed/网格原生输入不抢）；C2 #921 单挂载后
+       detail-cover 锚点唯一（= 浮层媒体列），仍锚定到媒体列点击。 */
     /* 点击落点避开悬浮返回钮（媒体列左上）与翻页箭头（两侧垂直中位）。 */
     await pane(page).locator('[data-slot="detail-cover"]').click({ position: { x: 220, y: 180 } });
     await expect(page.locator("dialog[open] canvas, dialog[open] img")).toHaveCount(0);

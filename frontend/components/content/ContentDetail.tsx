@@ -42,6 +42,7 @@ import { SeriesNav } from "@/components/content/SeriesNav";
 import { SourceAttribution, type SourceSummary } from "@/components/content/SourceAttribution";
 import { RelatedFanworks } from "@/components/content/RelatedFanworks";
 import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
+import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
 import { overlaySlideFromAttachment } from "@/lib/overlay-media";
 import { RelatedContents } from "@/components/content/RelatedContents";
 import type { ContentCardData } from "@/components/content/ContentCard";
@@ -243,30 +244,13 @@ export function ContentDetail({
     setIsFavorited(Boolean(data.isFavorited));
   }, [data.id, data.isFavorited]);
 
-  /* #90 桌面/web 相关内容块：≥1100px 时关联行由 RelatedContents 统一承载，
-     行内 RelatedFanworks 降级为 <1100px（移动/平板，与 #89 连续浏览边界一致）。 */
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 1100px)");
-    const update = () => setIsDesktop(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-
-  /* D1 #858 creatorFirst 生效判定（≥960 与浮层统一版式断点同源）：桌面创作者行
-     置顶 + 首块右上局部避让；移动 <960 保持「标题在上」既有契约。 */
-  const [unifiedViewport, setUnifiedViewport] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 960px)");
-    const update = () => setUnifiedViewport(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-  const creatorRowFirst = Boolean(creatorFirst && unifiedViewport);
+  /* #90 桌面/web 相关内容块：≥1100px（pcTier）时关联行由 RelatedContents 统一
+     承载，行内 RelatedFanworks 降级为 <1100px（移动/平板，与 #89 连续浏览边界
+     一致）。视口语义来自 useOverlayViewport（C2 #921）。
+     D1 #858 creatorFirst 生效判定（twoColumn 与浮层统一版式断点同源）：桌面
+     创作者行置顶 + 首块右上局部避让；移动 <960 保持「标题在上」既有契约。 */
+  const { twoColumn, pcTier } = useOverlayViewport();
+  const creatorRowFirst = Boolean(creatorFirst && twoColumn);
 
   const { media: mediaItems, downloads: downloadItems } = selectMediaItems(
     data.attachments ?? [],
@@ -689,7 +673,7 @@ export function ContentDetail({
       {/* 相关二创/衍生作品行（ui-spec:2697）：正文后、评论区上方，与 SeriesNav 同级。
           #90 桌面/web（≥1100px）关联行由评论区之后的 RelatedContents 统一承载，
           行内行降级为 <1100px 渲染，避免同页重复展示关联作品。 */}
-      {relatedFanworks && !isDesktop && (
+      {relatedFanworks && !pcTier && (
         <RelatedFanworks {...relatedFanworks} onOpenDetail={onOpenRelatedDetail} />
       )}
 
