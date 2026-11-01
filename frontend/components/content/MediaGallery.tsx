@@ -8,7 +8,8 @@ import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import type { AttachmentData } from "@/lib/content";
-import { LONG_IMAGE_RATIO } from "@/lib/overlay-media";
+import { isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
+import { SWIPE_THRESHOLD, attemptPlay, clampIndex, toggleVideoSlideClick } from "@/lib/media-interaction";
 
 /** 统一 slide 类型（D5 #862）：image/video = 既有媒体集位（selectMediaItems
  * 产出，独立详情页契约不变）；其余 = 浮层侧可预览媒体链的逐附件位
@@ -56,10 +57,9 @@ interface MediaGalleryProps {
   firstItemHoldSrc?: string | null;
 }
 
-/** 防御性默认比例（AC4）：宽高缺失/历史数据时使用 3:4，不报错不隐藏。 */
-const DEFAULT_ASPECT_RATIO = 3 / 4;
-/* #753 长图阈值 = overlay-media LONG_IMAGE_RATIO（单一共享常量，含等号）。 */
-/** #753 最低容器占位：0.75×媒体可用宽（宽高 4:3 的最低占位；无侧边距时
+/** 防御性默认比例（AC4）：宽高缺失/历史数据时的兜底由 overlay-media
+    itemAspectRatio 内置（3:4，与浮层媒体几何同源）。 */
+/* #753 最低容器占位：0.75×媒体可用宽（宽高 4:3 的最低占位；无侧边距时
     等价 75vw）。横图不足该高度时留空居中，不放大不裁切。 */
 const MIN_CONTAINER_HEIGHT = "75cqw";
 /** #753 折叠长图高度：顶部 3:4 区域 = 4W/3（显式 cqw 高度 + overflow-hidden，
@@ -69,29 +69,11 @@ const FOLDED_LONG_IMAGE_HEIGHT = "133.333cqw";
     长图折叠/就地展开）；≥960 PC 语义（当前项 contain、无内部滚动、无折叠，
     长图随容器等比缩窄居中）。与浮层图片布局门同值。 */
 const MOBILE_MEDIA_QUERY = "(max-width: 959px)";
-/** 滑动翻页/连续浏览位移阈值（px）。 */
-const SWIPE_THRESHOLD = 40;
-/** 视频 controls 条近似高度：点击该区域内不进入查看器/不切播（原生控件语义）。 */
-const VIDEO_CONTROLS_STRIP = 44;
-
-function clampIndex(value: number, length: number): number {
-  if (!Number.isFinite(value) || length <= 0) return 0;
-  return Math.min(Math.max(Math.floor(value), 0), length - 1);
-}
+/* 滑动翻页阈值 / 视频 controls 条高度 / 索引钳制 / 自动播放重试 /
+   视频点击切拨：共享原语收口于 lib/media-interaction（C1 #920）。 */
 
 function hasPositiveDimensions(item: MediaGalleryItem): boolean {
   return Boolean(item.width && item.height && item.width > 0 && item.height > 0);
-}
-
-/** 浏览器策略可能拒绝 play()（jsdom 返回 undefined 同样防御）：失败静默，
-    controls 手动播放入口保留。 */
-function attemptPlay(video: HTMLVideoElement): void {
-  const attempt = video.play() as unknown as Promise<void> | undefined;
-  if (attempt && typeof attempt.catch === "function") {
-    attempt.catch(() => {
-      /* 自动播放被拒：用户可用 controls 手动播放。 */
-    });
-  }
 }
 
 /**
@@ -151,19 +133,9 @@ function GalleryVideo({
   );
 }
 
-function itemAspectRatio(item: MediaGalleryItem): number {
-  if (item.width && item.height && item.width > 0 && item.height > 0) {
-    return item.width / item.height;
-  }
-  return DEFAULT_ASPECT_RATIO;
-}
-
-/** #753：当前项决定几何与长图判定（首项锁高退役）；含边界等号。 */
-function isLongImage(item: MediaGalleryItem): boolean {
-  if (item.type !== "image") return false;
-  if (!item.width || !item.height || item.width <= 0 || item.height <= 0) return false;
-  return item.height / item.width >= LONG_IMAGE_RATIO;
-}
+/** #753：当前项决定几何与长图判定（首项锁高退役）；长图判定与媒体比例
+    复用 overlay-media 既有导出（isLongImageItem / itemAspectRatio，与浮层
+    统一版式同源，含 h/w ≥ 16/9 边界等号）。 */
 
 /** #753 连续浏览放行条件：最近可滚祖先（浮层滚动层或页面）已到实际内容
     末端；无内部滚动容器时以 window 兜底。纵读折叠长图时内容未到末端，
@@ -297,7 +269,7 @@ export function MediaGallery({
      长图折叠态 = 顶部 3:4（高 4W/3）裁切 + 渐隐 + 展开按钮；展开态 = 高度
      auto 交主体滚动。视频（D2 #859）：有正数尺寸时容器同按真实比例定型
      （元数据到达前后几何不变，根除两段式）；缺尺寸维持自然流（既有防御）。 */
-  const currentIsLongImage = isLongImage(current);
+  const currentIsLongImage = isLongImageItem(current);
   const currentExpanded = Boolean(expandedIds[current.id]);
   const longImageCollapsed = mobileLayout && currentIsLongImage && !currentExpanded;
   const currentHasDims = hasPositiveDimensions(current);
@@ -309,23 +281,15 @@ export function MediaGallery({
   }
 
   /* D2 #859：视频主体点击 = 单次切换播放/暂停（controls 条 44px 内点击属原生
-     控件语义，不切播）；视频不再打开 MediaViewer（全屏用控制条原生按钮）；
-     图片点击进查看器契约不变。 */
+     控件语义，不切播）；共享处理函数收口于 lib/media-interaction（C1 #920，
+     记账顺序/全屏豁免/preventDefault 语义与轮播位同源）；视频不再打开
+     MediaViewer（全屏用控制条原生按钮），图片点击进查看器契约不变。 */
   function handleMediaClick(event: React.MouseEvent<HTMLElement>) {
     if (current.type === "video") {
-      const rect = event.currentTarget.getBoundingClientRect();
-      if (rect.height > 0 && event.clientY > rect.bottom - VIDEO_CONTROLS_STRIP) return;
-      /* 同 OverlayVariantLayout（审查 N1）：全屏交还原生控件，主体点击
-         preventDefault 抑制 WebKit 默认 togglePlayState 双触发。 */
-      if (document.fullscreenElement) return;
-      event.preventDefault();
-      const video = videoRefs.current.get(current.id);
-      if (!video) return;
-      if (video.paused) {
-        attemptPlay(video);
-      } else {
-        video.pause();
-      }
+      toggleVideoSlideClick({
+        event,
+        getVideo: () => videoRefs.current.get(current.id),
+      });
       return;
     }
     const targetIndex = clampIndex(index, items.length);
@@ -407,7 +371,7 @@ export function MediaGallery({
           aspectRatio: ratioStabilizesContainer ? String(currentRatio) : undefined,
           maxHeight: "100%",
         };
-  const firstIsLongImage = isLongImage(first);
+  const firstIsLongImage = isLongImageItem(first);
 
   return (
     <section
@@ -428,8 +392,8 @@ export function MediaGallery({
           const active = itemIndex === clampIndex(index, items.length);
           const itemFailed = Boolean(failed[item.id]);
           const itemLoaded = Boolean(loaded[item.id]);
-          const itemCollapsedLong = mobileLayout && active && isLongImage(item) && !expandedIds[item.id];
-          const itemExpandedLong = mobileLayout && active && isLongImage(item) && expandedIds[item.id];
+          const itemCollapsedLong = mobileLayout && active && isLongImageItem(item) && !expandedIds[item.id];
+          const itemExpandedLong = mobileLayout && active && isLongImageItem(item) && expandedIds[item.id];
           return (
             <div
               key={item.id}
