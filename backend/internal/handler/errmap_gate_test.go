@@ -144,7 +144,6 @@ var gatePermanentExemption = map[string]string{
 // 每票迁完移出自己的文件；条目对应的文件不再含违规模式时本门报
 // stale，逼白名单只缩不涨。
 var gateWhitelist = map[string]string{
-	"admin.go":              "C3.3a #925（admin 核心 21 链 + respondAuditTxError/auditFailed 收编）",
 	"admin_archive_scan.go": "C3.3b #929（admin 卫星四文件）",
 	"admin_evals.go":        "C3.3b #929（admin 卫星四文件）",
 	"admin_feedback.go":     "C3.3b #929（admin 卫星四文件）",

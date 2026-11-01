@@ -112,6 +112,11 @@ type AdminHandler struct {
 	displaySigner *service.DisplayURLSigner
 	contentOutbox repository.OutboxWriter
 	mu            sync.Mutex
+	// dlqReplayErrMap 是 ReplayDLQEntry 的实例级 errmap（构造器内建）：
+	// NotFound 规则挂规则级 before 写按分支失败审计（error_code 随分支
+	// 变化，闭包捕获 h）；REPLAY_FAILED 兜底的失败审计在 handler 的纯副
+	// 作用分支内先于统一 write() 执行。
+	dlqReplayErrMap endpointErrMap
 }
 
 var sensitiveConfigFields = map[string]bool{
@@ -144,7 +149,7 @@ type AdminDeps struct {
 // NewAdminHandler receives the container-owned dependencies; the raw db and
 // rdb stay for the admin file's transactional and cache-invalidation needs.
 func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSvc *service.AdminAuditService, deps AdminDeps) *AdminHandler {
-	return &AdminHandler{
+	h := &AdminHandler{
 		ipSvc:         deps.IPAdminSvc,
 		contentRepo:   deps.ContentRepo,
 		userRepo:      deps.UserRepo,
@@ -156,6 +161,24 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSv
 		dlqWorker:     deps.DLQWorker,
 		displaySigner: deps.DisplaySigner,
 	}
+	h.dlqReplayErrMap = endpointErrMap{
+		rules: []errorRule{
+			{
+				sentinel: worker.ErrDLQEntryNotFound,
+				status:   http.StatusNotFound,
+				code:     "DLQ_ENTRY_NOT_FOUND",
+				message:  "dlq entry not found",
+				before: func(c *gin.Context, err error) {
+					h.auditFailed(c, "dlq_replay", "dlq_entry", strings.TrimSpace(c.Param("id")), map[string]any{"error_code": "DLQ_ENTRY_NOT_FOUND"})
+				},
+			},
+		},
+		fallback: errFallback{
+			status: http.StatusInternalServerError,
+			code:   "REPLAY_FAILED",
+		},
+	}
+	return h
 }
 
 func (h *AdminHandler) SetNotificationService(ns *service.NotificationService) {
@@ -173,6 +196,19 @@ type broadcastRequest struct {
 	Title   string `json:"title"`
 	Body    string `json:"body"`
 	Channel string `json:"channel"`
+}
+
+// broadcastErrMap 是 POST /admin/notifications/broadcast 的 sentinel→HTTP
+// 合同，顺序与迁移前 switch 分支顺序逐条一致；兜底 Safe 500 INTERNAL_ERROR。
+// ErrBroadcastValidation 规则承接原 response.ValidationError（等价于固定
+// 文案的 400 VALIDATION_ERROR）。
+var broadcastErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrIdempotencyKeyRequired, status: http.StatusBadRequest, code: "IDEMPOTENCY_KEY_REQUIRED", message: "Idempotency-Key header is required"},
+		{sentinel: service.ErrIdempotencyKeyReused, status: http.StatusConflict, code: "IDEMPOTENCY_KEY_REUSED", message: "idempotency key was already used with a different payload"},
+		{sentinel: service.ErrBroadcastValidation, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "invalid request parameters"},
+	},
+	fallback: fallbackInternal,
 }
 
 func (h *AdminHandler) BroadcastNotification(c *gin.Context) {
@@ -196,16 +232,7 @@ func (h *AdminHandler) BroadcastNotification(c *gin.Context) {
 		c.GetHeader("Idempotency-Key"),
 	)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrIdempotencyKeyRequired):
-			response.Error(c, http.StatusBadRequest, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key header is required")
-		case errors.Is(err, service.ErrIdempotencyKeyReused):
-			response.Error(c, http.StatusConflict, "IDEMPOTENCY_KEY_REUSED", "idempotency key was already used with a different payload")
-		case errors.Is(err, service.ErrBroadcastValidation):
-			response.ValidationError(c, "invalid request parameters")
-		default:
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
-		}
+		broadcastErrMap.write(c, err)
 		return
 	}
 
@@ -232,6 +259,19 @@ func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
 	}
 	h.displaySigner.DecorateIPs(ips)
 	c.JSON(http.StatusOK, gin.H{"ips": ips, "total": total})
+}
+
+// ipDecisionErrMap 是 ApproveIP / RejectIP 审计事务错误的 sentinel→HTTP
+// 合同（两路由共享）：审计写失败 → 500 AUDIT_WRITE_FAILED；其余错误（含
+// 事务内翻成的 ErrIPNotFound）→ Safe 400 ERROR。
+var ipDecisionErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+	},
+	fallback: errFallback{
+		status: http.StatusBadRequest,
+		code:   "ERROR",
+	},
 }
 
 func (h *AdminHandler) ApproveIP(c *gin.Context) {
@@ -264,10 +304,7 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		if h.respondAuditTxError(c, err, http.StatusBadRequest, "ERROR", "failed to approve ip") {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		ipDecisionErrMap.write(c, err)
 		return
 	}
 	// T16: approve/reject both notify the creator (T52 consumes this to make
@@ -329,10 +366,7 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 			Reason:     reason,
 		}).Error
 	}); err != nil {
-		if h.respondAuditTxError(c, err, http.StatusBadRequest, "ERROR", "failed to reject ip") {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		ipDecisionErrMap.write(c, err)
 		return
 	}
 	if h.notifSvc != nil && creatorID != 0 {
@@ -376,6 +410,27 @@ func (h *AdminHandler) ListTrashedContents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"contents": contents, "total": total, "page": page, "page_size": pageSize})
 }
 
+// contentPrecheckErrMap 是 BanContent / RestoreContent 前置存在性校验的
+// sentinel→HTTP 合同（T27/FIX-34）：不存在的 ID → 404；其余 → Safe 500
+// DB_ERROR。
+var contentPrecheckErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: gorm.ErrRecordNotFound, status: http.StatusNotFound, code: "CONTENT_NOT_FOUND", message: "content not found"},
+	},
+	fallback: fallbackDB,
+}
+
+// contentModerationErrMap 是 BanContent / RestoreContent 审计事务错误的
+// sentinel→HTTP 合同（两路由共享）：并发缺失（Updates 影响 0 行）→ 404、
+// 审计写失败 → 500、其余 → Safe 500 DB_ERROR。
+var contentModerationErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAdminTargetMissing, status: http.StatusNotFound, code: "CONTENT_NOT_FOUND", message: "content not found"},
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+	},
+	fallback: fallbackDB,
+}
+
 func (h *AdminHandler) BanContent(c *gin.Context) {
 	id, ok := pathID(c, "id", "invalid content id")
 	if !ok {
@@ -391,11 +446,7 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 	// 污染审计日志。
 	var content model.ContentItem
 	if err := h.contentRepo.DB().First(&content, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		contentPrecheckErrMap.write(c, err)
 		return
 	}
 	updates := map[string]interface{}{"status": "banned"}
@@ -413,14 +464,7 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		if errors.Is(err, errAdminTargetMissing) {
-			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban content") {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		contentModerationErrMap.write(c, err)
 		return
 	}
 	// 审核决策即时生效（FIX-38）：封禁后立即失效公共读路径缓存，
@@ -444,11 +488,7 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 	// 落入 200 假成功并写成功审计行）。
 	var content model.ContentItem
 	if err := h.contentRepo.DB().First(&content, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		contentPrecheckErrMap.write(c, err)
 		return
 	}
 	entry := h.auditEntry(c, "content_restore", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id})
@@ -470,14 +510,7 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 		}
 		return h.emitContentRestoredEvent(c.Request.Context(), tx, &content)
 	}); err != nil {
-		if errors.Is(err, errAdminTargetMissing) {
-			response.Error(c, http.StatusNotFound, "CONTENT_NOT_FOUND", "content not found")
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to restore content") {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		contentModerationErrMap.write(c, err)
 		return
 	}
 	// 审核决策即时生效（FIX-38）：恢复后立即失效残留的陈旧缓存键。
@@ -498,6 +531,46 @@ func (h *AdminHandler) emitContentRestoredEvent(ctx context.Context, tx *gorm.DB
 	return service.EmitContentStatusEventTx(ctx, tx, h.contentOutbox, events.TopicContentPublished, content, "published")
 }
 
+// userPrecheckErrMap 是 BanUser / UnbanUser 前置存在性校验的 sentinel→HTTP
+// 合同（T27/FIX-34）：不存在的 ID → 404；其余 → 500 固定文案。
+var userPrecheckErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: gorm.ErrRecordNotFound, status: http.StatusNotFound, code: "USER_NOT_FOUND", message: "user not found"},
+	},
+	fallback: errFallback{
+		status:  http.StatusInternalServerError,
+		code:    "DB_ERROR",
+		message: "failed to load user",
+	},
+}
+
+// banUserErrMap / unbanUserErrMap 是 BanUser / UnbanUser 审计事务错误的
+// sentinel→HTTP 合同：并发缺失 → 404、审计写失败 → 500、其余 → 500 固定
+// 文案（两路由仅兜底文案不同，故分开声明）。
+var banUserErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAdminTargetMissing, status: http.StatusNotFound, code: "USER_NOT_FOUND", message: "user not found"},
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+	},
+	fallback: errFallback{
+		status:  http.StatusInternalServerError,
+		code:    "DB_ERROR",
+		message: "failed to ban user",
+	},
+}
+
+var unbanUserErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAdminTargetMissing, status: http.StatusNotFound, code: "USER_NOT_FOUND", message: "user not found"},
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+	},
+	fallback: errFallback{
+		status:  http.StatusInternalServerError,
+		code:    "DB_ERROR",
+		message: "failed to unban user",
+	},
+}
+
 func (h *AdminHandler) BanUser(c *gin.Context) {
 	id, ok := pathID(c, "id", "invalid user id")
 	if !ok {
@@ -513,11 +586,7 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 	// admin 目标与调用者自身拒绝封禁（此前仅前端按钮禁用，API 可绕过）。
 	var target model.User
 	if err := h.userRepo.DB().First(&target, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load user")
+		userPrecheckErrMap.write(c, err)
 		return
 	}
 	if callerID := middleware.GetUserID(c); target.ID == callerID {
@@ -539,14 +608,7 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		if errors.Is(err, errAdminTargetMissing) {
-			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban user") {
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to ban user")
+		banUserErrMap.write(c, err)
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
@@ -561,11 +623,7 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404。
 	var target model.User
 	if err := h.userRepo.DB().First(&target, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to load user")
+		userPrecheckErrMap.write(c, err)
 		return
 	}
 	entry := h.auditEntry(c, "user_unban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id})
@@ -579,14 +637,7 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		if errors.Is(err, errAdminTargetMissing) {
-			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to unban user") {
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to unban user")
+		unbanUserErrMap.write(c, err)
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
@@ -686,6 +737,17 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"appeals": appeals, "total": total})
 }
 
+// resolveAppealErrMap 是 ResolveAppeal 审计事务错误的 sentinel→HTTP 合
+// 同：目标不可恢复（事务内 sentinel）→ 409、审计写失败 → 500、其余 →
+// Safe 500 DB_ERROR。
+var resolveAppealErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAppealTargetGone, status: http.StatusConflict, code: "APPEAL_TARGET_GONE", message: "appeal target is no longer available"},
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+	},
+	fallback: fallbackDB,
+}
+
 func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 	id, ok := pathID(c, "id", "invalid appeal id")
 	if !ok {
@@ -748,14 +810,7 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 			return nil
 		}
 	}); err != nil {
-		if errors.Is(err, errAppealTargetGone) {
-			response.Error(c, http.StatusConflict, "APPEAL_TARGET_GONE", "appeal target is no longer available")
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to resolve appeal") {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		resolveAppealErrMap.write(c, err)
 		return
 	}
 	// 申诉批准（content 目标）回写 published 后立即失效缓存（FIX-38）。
@@ -979,6 +1034,57 @@ func (h *AdminHandler) ListLLMConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"configs": configs})
 }
 
+// LLM 配置面四份 map：审计写失败均为首条规则（错误只包
+// errAdminAuditWriteFailed 一个 sentinel，与其余规则的判定错误判交集为
+// 空，规则序与迁移前分支序对任意实际错误值等价）。密钥链缺失（SP-25
+// 中-4）与 Delete 的 404 兜底为迁移前 Safe / 固定分支逐字节承接；服务层
+// 裸返 sentinel（不包装），errors.Is 与迁移前 `==` 比较等价。
+var (
+	// llmConfigCreateErrMap：POST /admin/llm-configs。
+	llmConfigCreateErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+			{sentinel: service.ErrLLMKeyEncryptionSecretMissing, status: http.StatusInternalServerError, code: "LLM_KEY_ENCRYPTION_UNAVAILABLE"},
+		},
+		fallback: fallbackDB,
+	}
+	// llmConfigUpdateErrMap：PATCH /admin/llm-configs/:id。
+	llmConfigUpdateErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+			{sentinel: service.ErrLLMKeyEncryptionSecretMissing, status: http.StatusInternalServerError, code: "LLM_KEY_ENCRYPTION_UNAVAILABLE"},
+			{sentinel: service.ErrConfigNotFound, status: http.StatusNotFound, code: "CONFIG_NOT_FOUND", message: "config not found"},
+		},
+		fallback: fallbackDB,
+	}
+	// llmConfigDeleteErrMap：DELETE /admin/llm-configs/:id——未知错误也回
+	// 404（迁移前的固定 404 兜底分支）。
+	llmConfigDeleteErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+			{sentinel: repository.ErrActiveConfigCannotDelete, status: http.StatusConflict, code: "ACTIVE_CONFIG", message: "cannot delete active config"},
+		},
+		fallback: errFallback{
+			status:  http.StatusNotFound,
+			code:    "CONFIG_NOT_FOUND",
+			message: "config not found",
+		},
+	}
+	// llmConfigActivateErrMap：POST /admin/llm-configs/:id/activate——
+	// 404（配置不存在）与 500（DB 故障）区分（T28/FIX-35）。
+	llmConfigActivateErrMap = endpointErrMap{
+		rules: []errorRule{
+			{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+			{sentinel: service.ErrConfigNotFound, status: http.StatusNotFound, code: "CONFIG_NOT_FOUND", message: "config not found"},
+		},
+		fallback: errFallback{
+			status:  http.StatusInternalServerError,
+			code:    "DB_ERROR",
+			message: "failed to activate config",
+		},
+	}
+)
+
 func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 	var req struct {
 		ConfigName   string `json:"config_name" binding:"required"`
@@ -1002,15 +1108,7 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 		entry.TargetID = strconv.FormatInt(r.ID, 10)
 		return nil
 	}); err != nil {
-		if errors.Is(err, service.ErrLLMKeyEncryptionSecretMissing) {
-			// SP-25 中-4：密钥链缺失是配置错误而非数据库故障，须可辨识。
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "LLM_KEY_ENCRYPTION_UNAVAILABLE", err)
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to create config") {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		llmConfigCreateErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"config": r})
@@ -1033,18 +1131,7 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		return h.llmConfigSvc.UpdateConfigTx(c.Request.Context(), tx, id, req)
 	}); err != nil {
-		if errors.Is(err, service.ErrLLMKeyEncryptionSecretMissing) {
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "LLM_KEY_ENCRYPTION_UNAVAILABLE", err)
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update config") {
-			return
-		}
-		if err == service.ErrConfigNotFound {
-			response.Error(c, http.StatusNotFound, "CONFIG_NOT_FOUND", "config not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		llmConfigUpdateErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config updated"})
@@ -1059,14 +1146,7 @@ func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		return h.llmConfigSvc.DeleteConfigTx(c.Request.Context(), tx, id)
 	}); err != nil {
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to delete config") {
-			return
-		}
-		if err == repository.ErrActiveConfigCannotDelete {
-			response.Error(c, http.StatusConflict, "ACTIVE_CONFIG", "cannot delete active config")
-			return
-		}
-		response.Error(c, http.StatusNotFound, "CONFIG_NOT_FOUND", "config not found")
+		llmConfigDeleteErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config deleted"})
@@ -1081,16 +1161,9 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		return h.llmConfigSvc.ActivateConfigTx(c.Request.Context(), tx, id)
 	}); err != nil {
-		// T28（FIX-35）：404（配置不存在）与 500（DB 故障）区分——此前任何
-		// 错误统一 404，排障时误导方向。
-		if errors.Is(err, service.ErrConfigNotFound) {
-			response.Error(c, http.StatusNotFound, "CONFIG_NOT_FOUND", "config not found")
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to activate config") {
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to activate config")
+		// T28（FIX-35）：404（配置不存在）与 500（DB 故障）区分——兜底固定
+		// 文案由 llmConfigActivateErrMap 承接。
+		llmConfigActivateErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config activated"})
@@ -1133,6 +1206,27 @@ func (h *AdminHandler) ListReports(c *gin.Context) {
 	})
 }
 
+// reportPrecheckErrMap 是 ResolveReport 前置存在性校验的 sentinel→HTTP
+// 合同（T27/FIX-34/F-114）：不存在的 ID → 404；其余 → Safe 500 DB_ERROR。
+var reportPrecheckErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: gorm.ErrRecordNotFound, status: http.StatusNotFound, code: "REPORT_NOT_FOUND", message: "report not found"},
+	},
+	fallback: fallbackDB,
+}
+
+// reportResolveErrMap 是 ResolveReport 审计事务错误的 sentinel→HTTP 合
+// 同：并发缺失 → 404、审计写失败 → 500、其余 → Safe 500 DB_ERROR。非法
+// status 的失败审计（auditFailed）是纯副作用分支，留在 handler 内先于
+// 响应执行。
+var reportResolveErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAdminTargetMissing, status: http.StatusNotFound, code: "REPORT_NOT_FOUND", message: "report not found"},
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+	},
+	fallback: fallbackDB,
+}
+
 func (h *AdminHandler) ResolveReport(c *gin.Context) {
 	id, ok := pathID(c, "id", "invalid report id")
 	if !ok {
@@ -1159,11 +1253,7 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 	// 200 假成功 + 成功审计行。
 	var report model.Report
 	if err := h.contentRepo.DB().First(&report, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Error(c, http.StatusNotFound, "REPORT_NOT_FOUND", "report not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		reportPrecheckErrMap.write(c, err)
 		return
 	}
 	entry := h.auditEntry(c, "report_resolve", "report", strconv.FormatInt(id, 10), map[string]any{"report_id": id, "decision": body.Status, "reason": body.ActionTaken})
@@ -1182,14 +1272,7 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		if errors.Is(err, errAdminTargetMissing) {
-			response.Error(c, http.StatusNotFound, "REPORT_NOT_FOUND", "report not found")
-			return
-		}
-		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update report") {
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		reportResolveErrMap.write(c, err)
 		return
 	}
 	// Reporter feedback loop (FIX-28a): notify the reporter once the row was
@@ -1283,13 +1366,13 @@ func (h *AdminHandler) ReplayDLQEntry(c *gin.Context) {
 
 	entry, err := h.dlqWorker.Replay(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, worker.ErrDLQEntryNotFound) {
-			h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "DLQ_ENTRY_NOT_FOUND"})
-			response.Error(c, http.StatusNotFound, "DLQ_ENTRY_NOT_FOUND", "dlq entry not found")
-			return
+		// 纯副作用分支：非 NotFound 的失败先写按分支失败审计（error_code
+		// REPLAY_FAILED），随后统一 write() 发响应——审计先于响应，与迁移
+		// 前逐行同序；NotFound 分支的审计由实例 map 的规则级 before 承接。
+		if !errors.Is(err, worker.ErrDLQEntryNotFound) {
+			h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "REPLAY_FAILED"})
 		}
-		h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "REPLAY_FAILED"})
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "REPLAY_FAILED", err)
+		h.dlqReplayErrMap.write(c, err)
 		return
 	}
 
@@ -1351,15 +1434,4 @@ func (h *AdminHandler) withAuditTx(c *gin.Context, entry *service.RecordAdminAud
 		}
 		return nil
 	})
-}
-
-func (h *AdminHandler) respondAuditTxError(c *gin.Context, err error, status int, code, message string) bool {
-	if errors.Is(err, errAdminAuditWriteFailed) {
-		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
-		return true
-	}
-	if status > 0 && code != "" && message != "" {
-		return false
-	}
-	return false
 }
