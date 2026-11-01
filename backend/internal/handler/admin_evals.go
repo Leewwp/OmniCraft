@@ -70,6 +70,32 @@ type createDraftInput struct {
 	TraceID string `json:"trace_id" binding:"required"`
 }
 
+// evalDraftPrecheckErrMap 是 CreateDraftFromTrace 草稿存在性预检的兜底合
+// 同：无规则，任何送入的错误都回 500 DB_ERROR 固定文案。
+// ErrRagEvalNotFound 的放行（读作「尚无同源草稿」继续创建路径）是调用点
+// 的控制流谓词，不在 map 面。
+var evalDraftPrecheckErrMap = endpointErrMap{
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "failed to check existing draft",
+	},
+}
+
+// evalDeleteDraftErrMap 是 DeleteDraft 的 sentinel→HTTP 合同：草稿缺失
+// （含冻结用例——冻结集永不从该面删除，设计上即 404）→ 404；兜底固定文
+// 案。
+var evalDeleteDraftErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: repository.ErrRagEvalNotFound, status: http.StatusNotFound, code: "DRAFT_NOT_FOUND", message: "golden draft not found"},
+	},
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "failed to delete golden draft",
+	},
+}
+
 type traceMessageRow struct {
 	ID   int64   `json:"id"`
 	Role string  `json:"role"`
@@ -131,7 +157,7 @@ func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 		return
 	}
 	if err != nil && !errors.Is(err, repository.ErrRagEvalNotFound) {
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to check existing draft")
+		evalDraftPrecheckErrMap.write(c, err)
 		return
 	}
 
@@ -205,11 +231,7 @@ func (h *AdminEvalHandler) DeleteDraft(c *gin.Context) {
 		return
 	}
 	if err := h.evalRepo.DeleteGoldenDraft(c.Request.Context(), caseKey); err != nil {
-		if errors.Is(err, repository.ErrRagEvalNotFound) {
-			response.Error(c, http.StatusNotFound, "DRAFT_NOT_FOUND", "golden draft not found")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to delete golden draft")
+		evalDeleteDraftErrMap.write(c, err)
 		return
 	}
 	if h.auditSvc != nil {
