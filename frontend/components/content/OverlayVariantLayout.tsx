@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, Maximize2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,23 +8,12 @@ import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
-import { AudioPlayer } from "@/components/content/AudioPlayer";
+import { SlideViewer, asViewerSlide } from "@/components/content/SlideViewer";
 import { MIDIPlayer, OSMDRenderer } from "@/components/content/SheetMusicViewer";
 import type { MediaGalleryItem, MediaSlideType } from "@/components/content/MediaGallery";
 import { OVERLAY_DEFAULT_RATIO, isEnlargeableSlide, isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
 import { attemptPlay, clampIndex, toggleVideoSlideClick } from "@/lib/media-interaction";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
-import { usePublicConfig } from "@/lib/use-public-config";
-
-/** D5 #862 查看器族懒分块：重依赖（mammoth/exceljs/three.js）不进主包，
- * 当前位才挂载（React.lazy + Suspense；轮播位仅在客户端浮层打开后渲染，
- * 无 SSR 直出路径）。 */
-const DocumentViewer = lazy(() =>
-  import("@/components/content/DocumentViewer").then((m) => ({ default: m.DocumentViewer })),
-);
-const ModelViewer = lazy(() =>
-  import("@/components/content/ModelViewer").then((m) => ({ default: m.ModelViewer })),
-);
 
 /**
  * 内容详情浮窗「统一版式」（D1 #858，桌面 ≥960 全类型唯一版式；几何承袭 #397
@@ -129,9 +118,11 @@ interface SlideViewerContext {
   suspended: boolean;
 }
 
-/** D5 #862 audio 位：audio 专属占位图为底 + 底部悬浮紧凑 AudioPlayer 条。
- * 起播权在用户；切位卸载停播释放、挂起暂停；右下角预留刷新钮命中区。 */
+/** D5 #862 audio 位：audio 专属占位图为底 + 底部悬浮紧凑 AudioPlayer 条
+ * （封面合成留宿主；查看器装配经 SlideViewer 单一来源）。起播权在用户；
+ * 切位卸载停播释放、挂起暂停；右下角预留刷新钮命中区。 */
 function AudioSlide({ item, contentId, allowCopy, suspended }: SlideViewerContext) {
+  const slide = asViewerSlide(item);
   return (
     <div className="relative h-full w-full" data-slot="slide-audio">
       {/* eslint-disable-next-line @next/next/no-img-element -- data: SVG 占位图直通（不走图片优化器） */}
@@ -142,60 +133,32 @@ function AudioSlide({ item, contentId, allowCopy, suspended }: SlideViewerContex
         className="absolute inset-0 h-full w-full object-contain"
       />
       <div className="absolute inset-x-0 bottom-0 pb-3 pl-3 pr-14">
-        <AudioPlayer
-          url={item.url}
-          fileName={item.fileName ?? ""}
-          fileSize={item.fileSize}
-          contentId={contentId ?? 0}
-          attachmentId={item.id}
-          allowCopy={Boolean(allowCopy)}
-          suspended={suspended}
-        />
+        {slide && (
+          <SlideViewer item={slide} contentId={contentId} allowCopy={allowCopy} suspended={suspended} />
+        )}
       </div>
     </div>
   );
 }
 
 /** D5 #862 model3d 位：ModelViewer 画布（拖转/滚轮缩放/四机位已有；画布
- * 点击不绑定——轮播切页依显式箭头）。 */
+ * 点击不绑定——轮播切页依显式箭头）。装配（懒加载/预算映射）经 SlideViewer。 */
 function Model3dSlide({ item, contentId, allowCopy }: SlideViewerContext) {
-  const config = usePublicConfig();
+  const slide = asViewerSlide(item);
   return (
     <div className="h-full w-full overflow-y-auto p-3" data-slot="slide-model3d">
-      <Suspense fallback={null}>
-        <ModelViewer
-          url={item.url}
-          fileName={item.fileName ?? ""}
-          fileSize={item.fileSize}
-          maxPreviewMB={config?.upload?.model3d_max_preview_mb}
-          maxTriangles={config?.upload?.model3d_max_triangles}
-          gcodeMaxLines={config?.upload?.gcode_max_lines}
-          contentId={contentId ?? 0}
-          attachmentId={item.id}
-          allowCopy={Boolean(allowCopy)}
-        />
-      </Suspense>
+      {slide && <SlideViewer item={slide} contentId={contentId} allowCopy={allowCopy} />}
     </div>
   );
 }
 
 /** D5 #862 document 位：DocumentViewer 全高容器（docx 消毒 HTML / xlsx·csv
- * 网格 / 超预算降级卡由查看器内部维持）。 */
+ * 网格 / 超预算降级卡由查看器内部维持；装配经 SlideViewer）。 */
 function DocumentSlide({ item, contentId, allowCopy }: SlideViewerContext) {
-  const config = usePublicConfig();
+  const slide = asViewerSlide(item);
   return (
     <div className="h-full w-full overflow-y-auto p-3" data-slot="slide-document">
-      <Suspense fallback={null}>
-        <DocumentViewer
-          url={item.url}
-          fileName={item.fileName ?? ""}
-          fileSize={item.fileSize}
-          maxPreviewMB={config?.upload?.document_preview_max_mb}
-          contentId={contentId ?? 0}
-          attachmentId={item.id}
-          allowCopy={Boolean(allowCopy)}
-        />
-      </Suspense>
+      {slide && <SlideViewer item={slide} contentId={contentId} allowCopy={allowCopy} />}
     </div>
   );
 }

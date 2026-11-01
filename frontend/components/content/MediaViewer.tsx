@@ -1,19 +1,13 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ImageOff, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaGalleryItem } from "@/components/content/MediaGallery";
+import { SlideViewer, asViewerSlide } from "@/components/content/SlideViewer";
 import { SWIPE_THRESHOLD, clampIndex } from "@/lib/media-interaction";
-import { usePublicConfig } from "@/lib/use-public-config";
-
-/** D6 #863 全屏 3D 位懒分块：three.js 重依赖不进主包（React.lazy + Suspense，
- * 与统一版式左列同一挂载模式；查看器仅在客户端浮层打开后渲染）。 */
-const ModelViewer = lazy(() =>
-  import("@/components/content/ModelViewer").then((m) => ({ default: m.ModelViewer })),
-);
 
 interface MediaViewerProps {
   className?: string;
@@ -56,8 +50,8 @@ function clampPanToStage(
   };
 }
 
-/** D6 #863 model3d 全屏位：与统一版式左列 Model3dSlide 同一装配（预算取
- * 公开配置、缺省走组件内置兜底）；画布输入交 OrbitControls 原生交互。 */
+/** D6 #863 model3d 全屏位：与统一版式左列同一装配（SlideViewer 单一来源，
+ * 预算取公开配置、缺省走组件内置兜底）；画布输入交 OrbitControls 原生交互。 */
 function ViewerModel3dPane({
   item,
   contentId,
@@ -67,22 +61,10 @@ function ViewerModel3dPane({
   contentId?: number;
   allowCopy?: boolean;
 }) {
-  const config = usePublicConfig();
+  const slide = asViewerSlide(item);
   return (
     <div className="h-full w-full overflow-y-auto p-3" data-slot="viewer-model3d">
-      <Suspense fallback={null}>
-        <ModelViewer
-          url={item.url}
-          fileName={item.fileName ?? ""}
-          fileSize={item.fileSize}
-          maxPreviewMB={config?.upload?.model3d_max_preview_mb}
-          maxTriangles={config?.upload?.model3d_max_triangles}
-          gcodeMaxLines={config?.upload?.gcode_max_lines}
-          contentId={contentId ?? 0}
-          attachmentId={item.id}
-          allowCopy={Boolean(allowCopy)}
-        />
-      </Suspense>
+      {slide && <SlideViewer item={slide} contentId={contentId} allowCopy={allowCopy} />}
     </div>
   );
 }
