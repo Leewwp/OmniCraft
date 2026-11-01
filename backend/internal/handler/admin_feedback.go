@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"errors"
-	"log/slog"
 	"net/http"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
@@ -14,6 +12,87 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// adminFeedbackGetErrMap 是 GET /admin/feedback/:id 的 sentinel→HTTP 合同：
+// 工单缺失 → 404；其余错误先落兜底日志再回 500 固定文案。
+var adminFeedbackGetErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrFeedbackTicketNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "Feedback ticket not found"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to get feedback ticket",
+		log:     "failed to get feedback ticket for admin",
+	},
+}
+
+// adminFeedbackPatchErrMap 是 PATCH /admin/feedback/:id 审计事务错误的
+// sentinel→HTTP 合同：审计写失败 → 500 AUDIT_WRITE_FAILED（首条规则，与
+// 迁移前 if 前置分支同位）；事务错误按迁移前 switch 分支序映射；兜底固定
+// 文案，无兜底日志。
+var adminFeedbackPatchErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+		{sentinel: service.ErrFeedbackTicketNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "Feedback ticket not found"},
+		{sentinel: service.ErrFeedbackInvalidStatus, status: http.StatusBadRequest, code: "INVALID_STATUS", message: "Invalid status value"},
+		{sentinel: service.ErrFeedbackInvalidPriority, status: http.StatusBadRequest, code: "INVALID_PRIORITY", message: "Invalid priority value"},
+		{sentinel: service.ErrFeedbackDeliveryFailed, status: http.StatusBadGateway, code: "FEEDBACK_DELIVERY_FAILED", message: "Feedback update delivery failed; please retry"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to update feedback ticket",
+	},
+}
+
+// adminFeedbackPatchNotifyErrMap 是 PATCH /admin/feedback/:id 通知分支的
+// sentinel→HTTP 合同：投递失败 → 502；其余错误先落兜底日志再回 500 固定
+// 文案。
+var adminFeedbackPatchNotifyErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrFeedbackDeliveryFailed, status: http.StatusBadGateway, code: "FEEDBACK_DELIVERY_FAILED", message: "Feedback update delivery failed; please retry"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to update feedback ticket",
+		log:     "failed to notify patch ticket",
+	},
+}
+
+// adminFeedbackReplyErrMap 是 POST /admin/feedback/:id/replies 审计事务错
+// 误的 sentinel→HTTP 合同：审计写失败 → 500 AUDIT_WRITE_FAILED（首条规
+// 则）；事务错误按迁移前 switch 分支序映射；兜底固定文案，无兜底日志。
+var adminFeedbackReplyErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+		{sentinel: service.ErrFeedbackTicketNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "Feedback ticket not found"},
+		{sentinel: service.ErrFeedbackBodyRequired, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "Reply body is required"},
+		{sentinel: service.ErrFeedbackBodyTooLong, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "Reply body must not exceed 5000 characters"},
+		{sentinel: service.ErrFeedbackDeliveryFailed, status: http.StatusBadGateway, code: "FEEDBACK_DELIVERY_FAILED", message: "Feedback reply delivery failed; please retry"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to create reply",
+	},
+}
+
+// adminFeedbackReplyNotifyErrMap 是 POST /admin/feedback/:id/replies 通知
+// 分支的 sentinel→HTTP 合同：投递失败 → 502；其余错误先落兜底日志再回
+// 500 固定文案。
+var adminFeedbackReplyNotifyErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrFeedbackDeliveryFailed, status: http.StatusBadGateway, code: "FEEDBACK_DELIVERY_FAILED", message: "Feedback reply delivery failed; please retry"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to create reply",
+		log:     "failed to notify admin reply",
+	},
+}
 
 type AdminFeedbackHandler struct {
 	feedbackSvc *service.FeedbackService
@@ -65,12 +144,7 @@ func (h *AdminFeedbackHandler) GetFeedback(c *gin.Context) {
 
 	ticket, err := h.feedbackSvc.GetTicketForAdmin(c.Request.Context(), ticketID)
 	if err != nil {
-		if errors.Is(err, service.ErrFeedbackTicketNotFound) {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
-			return
-		}
-		slog.Error("failed to get feedback ticket for admin", "error", err)
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get feedback ticket")
+		adminFeedbackGetErrMap.write(c, err)
 		return
 	}
 
@@ -114,32 +188,12 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 		return txErr
 	})
 	if err != nil {
-		if errors.Is(err, errAdminAuditWriteFailed) {
-			response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
-			return
-		}
-		switch {
-		case errors.Is(err, service.ErrFeedbackTicketNotFound):
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
-		case errors.Is(err, service.ErrFeedbackInvalidStatus):
-			response.Error(c, http.StatusBadRequest, "INVALID_STATUS", "Invalid status value")
-		case errors.Is(err, service.ErrFeedbackInvalidPriority):
-			response.Error(c, http.StatusBadRequest, "INVALID_PRIORITY", "Invalid priority value")
-		case errors.Is(err, service.ErrFeedbackDeliveryFailed):
-			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback update delivery failed; please retry")
-		default:
-			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update feedback ticket")
-		}
+		adminFeedbackPatchErrMap.write(c, err)
 		return
 	}
 
 	if err := h.feedbackSvc.NotifyPatchTicket(c.Request.Context(), ticket, input); err != nil {
-		if errors.Is(err, service.ErrFeedbackDeliveryFailed) {
-			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback update delivery failed; please retry")
-			return
-		}
-		slog.Error("failed to notify patch ticket", "error", err)
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update feedback ticket")
+		adminFeedbackPatchNotifyErrMap.write(c, err)
 		return
 	}
 
@@ -189,32 +243,12 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 		return txErr
 	})
 	if err != nil {
-		if errors.Is(err, errAdminAuditWriteFailed) {
-			response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
-			return
-		}
-		switch {
-		case errors.Is(err, service.ErrFeedbackTicketNotFound):
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
-		case errors.Is(err, service.ErrFeedbackBodyRequired):
-			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Reply body is required")
-		case errors.Is(err, service.ErrFeedbackBodyTooLong):
-			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Reply body must not exceed 5000 characters")
-		case errors.Is(err, service.ErrFeedbackDeliveryFailed):
-			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback reply delivery failed; please retry")
-		default:
-			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create reply")
-		}
+		adminFeedbackReplyErrMap.write(c, err)
 		return
 	}
 
 	if err := h.feedbackSvc.NotifyAdminReply(c.Request.Context(), ticket, input); err != nil {
-		if errors.Is(err, service.ErrFeedbackDeliveryFailed) {
-			response.Error(c, http.StatusBadGateway, "FEEDBACK_DELIVERY_FAILED", "Feedback reply delivery failed; please retry")
-			return
-		}
-		slog.Error("failed to notify admin reply", "error", err)
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create reply")
+		adminFeedbackReplyNotifyErrMap.write(c, err)
 		return
 	}
 

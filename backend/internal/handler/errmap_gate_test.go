@@ -144,20 +144,16 @@ var gatePermanentExemption = map[string]string{
 // 每票迁完移出自己的文件；条目对应的文件不再含违规模式时本门报
 // stale，逼白名单只缩不涨。
 var gateWhitelist = map[string]string{
-	"admin_archive_scan.go": "C3.3b #929（admin 卫星四文件）",
-	"admin_evals.go":        "C3.3b #929（admin 卫星四文件）",
-	"admin_feedback.go":     "C3.3b #929（admin 卫星四文件）",
-	"admin_prompt.go":       "C3.3b #929（admin 卫星四文件）",
-	"browse_history.go":     "C3.4 #924（扫尾收容）",
-	"category.go":           "C3.4 #924（扫尾收容；事务内翻译已天然放行）",
-	"collection.go":         "C3.4 #924（扫尾收容）",
-	"content.go":            "C3.4 #924（pilot 两端点之外的余链）",
-	"discussion.go":         "C3.4 #924（扫尾收容）",
-	"ip.go":                 "C3.4 #924（扫尾收容）",
-	"message.go":            "C3.4 #924（扫尾收容）",
-	"series.go":             "C3.4 #924（扫尾收容）",
-	"tag.go":                "C3.4 #924（扫尾收容）",
-	"user.go":               "C3.4 #924（扫尾收容；gorm.ErrRecordNotFound == 变体一并收编）",
+	"browse_history.go": "C3.4 #924（扫尾收容）",
+	"category.go":       "C3.4 #924（扫尾收容；事务内翻译已天然放行）",
+	"collection.go":     "C3.4 #924（扫尾收容）",
+	"content.go":        "C3.4 #924（pilot 两端点之外的余链）",
+	"discussion.go":     "C3.4 #924（扫尾收容）",
+	"ip.go":             "C3.4 #924（扫尾收容）",
+	"message.go":        "C3.4 #924（扫尾收容）",
+	"series.go":         "C3.4 #924（扫尾收容）",
+	"tag.go":            "C3.4 #924（扫尾收容）",
+	"user.go":           "C3.4 #924（扫尾收容；gorm.ErrRecordNotFound == 变体一并收编）",
 }
 
 // TestErrMapGate_MatcherSemantics 在合成片段上锁定识别口径：违规形态必

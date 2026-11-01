@@ -74,7 +74,7 @@ func (h *AdminArchiveScanHandler) GetJob(c *gin.Context) {
 	}
 	job, err := h.repo.GetJob(c.Request.Context(), jobID)
 	if err != nil {
-		h.respondArchiveScanError(c, err)
+		archiveScanErrMap.write(c, err)
 		return
 	}
 	attempts, err := h.repo.ListAttemptsByJob(c.Request.Context(), jobID)
@@ -84,7 +84,7 @@ func (h *AdminArchiveScanHandler) GetJob(c *gin.Context) {
 	}
 	entry := archiveScanAuditEntry(c, "archive_scan_view", jobID, map[string]any{"job_id": jobID})
 	if err := h.recordArchiveScanAudit(c, entry); err != nil {
-		h.respondArchiveScanError(c, err)
+		archiveScanErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"job": job, "attempts": attempts})
@@ -99,7 +99,7 @@ func (h *AdminArchiveScanHandler) Retry(c *gin.Context) {
 	if err := h.withArchiveScanAuditTx(c, entry, func(tx *gorm.DB) error {
 		return h.repo.RetryFailedJobTx(c.Request.Context(), tx, jobID)
 	}); err != nil {
-		h.respondArchiveScanError(c, err)
+		archiveScanErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": model.ScanStatusPending})
@@ -124,12 +124,12 @@ func (h *AdminArchiveScanHandler) StartManualReview(c *gin.Context) {
 	}
 	job, err := h.repo.GetJob(c.Request.Context(), jobID)
 	if err != nil {
-		h.respondArchiveScanError(c, err)
+		archiveScanErrMap.write(c, err)
 		return
 	}
 	attachment, err := h.repo.GetAttachmentScanState(c.Request.Context(), job.AttachmentID)
 	if err != nil {
-		h.respondArchiveScanError(c, err)
+		archiveScanErrMap.write(c, err)
 		return
 	}
 	present, err := h.objects.Exists(strings.TrimSpace(attachment.OSSKey))
@@ -161,7 +161,7 @@ func (h *AdminArchiveScanHandler) StartManualReview(c *gin.Context) {
 	if err := h.withArchiveScanAuditTx(c, entry, func(tx *gorm.DB) error {
 		return h.repo.StartManualReviewTx(c.Request.Context(), tx, jobID)
 	}); err != nil {
-		h.respondArchiveScanError(c, err)
+		archiveScanErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": model.ScanStatusManualReview})
@@ -190,7 +190,7 @@ func (h *AdminArchiveScanHandler) ResolveManualReview(c *gin.Context) {
 		return
 	}
 	if h.audit == nil {
-		h.respondArchiveScanError(c, errAdminAuditUnavailable)
+		archiveScanErrMap.write(c, errAdminAuditUnavailable)
 		return
 	}
 	if body.Outcome == model.ScanStatusClean && h.objects == nil {
@@ -213,12 +213,12 @@ func (h *AdminArchiveScanHandler) ResolveManualReview(c *gin.Context) {
 		})
 	}
 	if err != nil {
-		h.respondArchiveScanError(c, err)
+		archiveScanErrMap.write(c, err)
 		return
 	}
 	if h.notifier != nil && body.Outcome == model.ScanStatusClean {
 		if err := h.notifier.ArchiveScanClean(c.Request.Context(), attachmentID); err != nil {
-			h.respondArchiveScanError(c, errors.Join(errArchiveScanCompletionFailed, err))
+			archiveScanErrMap.write(c, errors.Join(errArchiveScanCompletionFailed, err))
 			return
 		}
 	}
@@ -344,29 +344,29 @@ func (h *AdminArchiveScanHandler) withArchiveScanAuditTx(c *gin.Context, entry s
 	})
 }
 
-func (h *AdminArchiveScanHandler) respondArchiveScanError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, errArchiveRestoreRollbackFailed):
-		response.Error(c, http.StatusInternalServerError, "ARCHIVE_RESTORE_ROLLBACK_FAILED", "archive restore rollback failed")
-	case errors.Is(err, errAdminAuditWriteFailed):
-		response.Error(c, http.StatusInternalServerError, "AUDIT_WRITE_FAILED", "audit write failed")
-	case errors.Is(err, errAdminAuditUnavailable):
-		response.Error(c, http.StatusServiceUnavailable, "AUDIT_UNAVAILABLE", "audit service is unavailable")
-	case errors.Is(err, repository.ErrArchiveScanNotFound):
-		response.Error(c, http.StatusNotFound, "NOT_FOUND", "archive scan job not found")
-	case errors.Is(err, repository.ErrArchiveScanIllegalState):
-		response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_ILLEGAL_STATE", "archive scan state transition is not allowed")
-	case errors.Is(err, repository.ErrArchiveScanRetryExhausted):
-		response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_RETRY_EXHAUSTED", "archive scan retry budget is exhausted")
-	case errors.Is(err, errArchiveRestoreFailed):
-		response.Error(c, http.StatusBadGateway, "ARCHIVE_RESTORE_FAILED", "archive restore failed")
-	case errors.Is(err, errArchiveRestoreTargetExists):
-		response.Error(c, http.StatusConflict, "ARCHIVE_RESTORE_TARGET_EXISTS", "archive restore target already exists")
-	case errors.Is(err, errArchiveScanCompletionFailed):
-		response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_SCAN_COMPLETION_FAILED", "archive scan completion could not be applied")
-	default:
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "archive scan operation failed")
-	}
+// archiveScanErrMap 是 admin 归档扫描面全部错误出口的 sentinel→HTTP 合同
+// （GetJob / Retry / StartManualReview / ResolveManualReview 共享，取代迁
+// 移前的 respondArchiveScanError switch 函数）：规则序锁迁移前 case 序，
+// errors.Join 组合错误（restore 补偿失败、审计写失败、完成通知失败的实
+// 际错误形态）按表序首命中；兜底 DB_ERROR 固定文案，无兜底日志（补偿失
+// 败路径的 slog 在 resolveCleanManualReview 内、随该分支保留）。
+var archiveScanErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: errArchiveRestoreRollbackFailed, status: http.StatusInternalServerError, code: "ARCHIVE_RESTORE_ROLLBACK_FAILED", message: "archive restore rollback failed"},
+		{sentinel: errAdminAuditWriteFailed, status: http.StatusInternalServerError, code: "AUDIT_WRITE_FAILED", message: "audit write failed"},
+		{sentinel: errAdminAuditUnavailable, status: http.StatusServiceUnavailable, code: "AUDIT_UNAVAILABLE", message: "audit service is unavailable"},
+		{sentinel: repository.ErrArchiveScanNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "archive scan job not found"},
+		{sentinel: repository.ErrArchiveScanIllegalState, status: http.StatusConflict, code: "ARCHIVE_SCAN_ILLEGAL_STATE", message: "archive scan state transition is not allowed"},
+		{sentinel: repository.ErrArchiveScanRetryExhausted, status: http.StatusConflict, code: "ARCHIVE_SCAN_RETRY_EXHAUSTED", message: "archive scan retry budget is exhausted"},
+		{sentinel: errArchiveRestoreFailed, status: http.StatusBadGateway, code: "ARCHIVE_RESTORE_FAILED", message: "archive restore failed"},
+		{sentinel: errArchiveRestoreTargetExists, status: http.StatusConflict, code: "ARCHIVE_RESTORE_TARGET_EXISTS", message: "archive restore target already exists"},
+		{sentinel: errArchiveScanCompletionFailed, status: http.StatusServiceUnavailable, code: "ARCHIVE_SCAN_COMPLETION_FAILED", message: "archive scan completion could not be applied"},
+	},
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "archive scan operation failed",
+	},
 }
 
 var errAdminAuditUnavailable = errors.New("archive scan audit service unavailable")
