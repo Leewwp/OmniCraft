@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ImageOff, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaGalleryItem } from "@/components/content/MediaGallery";
+import { SWIPE_THRESHOLD, clampIndex } from "@/lib/media-interaction";
 import { usePublicConfig } from "@/lib/use-public-config";
 
 /** D6 #863 全屏 3D 位懒分块：three.js 重依赖不进主包（React.lazy + Suspense，
@@ -33,15 +34,10 @@ const ZOOM_MIN = 1;
 const ZOOM_MAX = 5;
 const ZOOM_BUTTON_STEP = 1.5;
 const WHEEL_ZOOM_FACTOR = 1.2;
-/** 触摸滑动翻页位移阈值（px）。 */
-const SWIPE_THRESHOLD = 40;
+/** 触摸滑动翻页位移阈值（px）与索引钳制：共享原语收口于
+ *  lib/media-interaction（C1 #920）。 */
 /** 视为「点击」而非拖拽的最大位移（px），防止手势结束误触发背板关闭。 */
 const CLICK_MOVE_THRESHOLD = 10;
-
-function clampIndex(value: number, length: number): number {
-  if (!Number.isFinite(value) || length <= 0) return 0;
-  return Math.min(Math.max(Math.floor(value), 0), length - 1);
-}
 
 function clampPanToStage(
   pan: { x: number; y: number },
