@@ -1,36 +1,14 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Box, FileText, FileWarning, Music, ShieldAlert } from "lucide-react";
 
-import type { PublicConfig } from "@/lib/public-config";
-import { usePublicConfig } from "@/lib/use-public-config";
 import { isPreviewBlockedByScan } from "@/lib/attachment-policy";
+import { overlaySlideFromAttachment } from "@/lib/overlay-media";
+import { usePublicConfig } from "@/lib/use-public-config";
 import { DownloadButton } from "@/components/content/DownloadButton";
-import { AudioPlayer } from "@/components/content/AudioPlayer";
-
-/**
- * 全站首个 next/dynamic 用例（#688）：查看器重依赖（mammoth/exceljs）
- * 全部懒加载分块，不进主包。
- */
-const DocumentViewer = dynamic(
-  () => import("@/components/content/DocumentViewer").then((m) => m.DocumentViewer),
-  {
-    ssr: false,
-    loading: () => null,
-  },
-);
-
-/** #689：3D 查看器独立懒分块（three.js 全家桶不进主包）。 */
-const ModelViewer = dynamic(
-  () => import("@/components/content/ModelViewer").then((m) => m.ModelViewer),
-  {
-    ssr: false,
-    loading: () => null,
-  },
-);
+import { SlideViewer, asViewerSlide } from "@/components/content/SlideViewer";
 
 export interface PreviewableAttachment {
   id: number;
@@ -155,27 +133,29 @@ function ScanStatusCard({ status, contentId, attachmentId, allowCopy }: {
 }
 
 /**
- * 统一附件预览分发（#688；#722 点击触发化）。
+ * 统一附件预览分发（#688；#722 点击触发化；C1 #920 查看器装配收口）。
  *
  * 主路由 = 附件持久化 file_type（发布时服务端校验过的事实）→ 族群内
  * subtype 按扩展名（original_file_name / oss_key 尾缀）→ MIME 辅助。
- * document/model3d/audio 三族群经预览入口卡显式点击后挂载查看器；
- * 无查看器的扩展名回落调用方既有下载卡（行为不变）。
+ * document/model3d/audio 三族群经预览入口卡显式点击后，借 overlay-media
+ * 既有 overlaySlideFromAttachment 构造器归一（签名 URL/文件名回退/类型映射
+ * 同源，不重写）喂入 SlideViewer 单一装配模块（懒加载/预算映射/类型分发
+ * 与浮层轮播位、放大态三宿主同源）；无查看器的扩展名回落调用方既有下载卡
+ * （行为不变）。
  */
 export function AttachmentPreview({
   attachment,
   contentId,
   allowCopy,
-  config,
 }: {
   attachment: PreviewableAttachment;
   contentId: number;
   allowCopy: boolean;
-  config?: PublicConfig | null;
 }) {
   const t = useTranslations();
-  const fetchedConfig = usePublicConfig();
-  const effectiveConfig = config ?? fetchedConfig;
+  /* 配置获取时序保持现状：宿主挂载即取公开配置（仅喂查看器预算 props，
+     本组件 UI 零消费），已解析配置注入 SlideViewer（模块内另有兜底）。 */
+  const effectiveConfig = usePublicConfig();
   const [active, setActive] = useState(false);
   const variant = resolvePreviewVariant(attachment);
 
@@ -201,50 +181,24 @@ export function AttachmentPreview({
     );
   }
 
-  if (variant === "entry" && attachment.file_type === "document") {
-    return (
-      <DocumentViewer
-        url={attachment.oss_url as string}
-        fileName={attachment.original_file_name || attachment.oss_key || ""}
-        fileSize={attachment.file_size ?? undefined}
-        maxPreviewMB={effectiveConfig?.upload?.document_preview_max_mb}
-        contentId={contentId}
-        attachmentId={attachment.id}
-        allowCopy={allowCopy}
-      />
-    );
-  }
-
-  // #689 model3d 族：.mtl 已在 variant 判定中落下载卡，这里五格式进查看器。
-  if (variant === "entry" && attachment.file_type === "model3d") {
-    const model3dName = attachment.original_file_name || attachment.oss_key || "";
-    return (
-      <ModelViewer
-        url={attachment.oss_url as string}
-        fileName={model3dName}
-        fileSize={attachment.file_size ?? undefined}
-        maxPreviewMB={effectiveConfig?.upload?.model3d_max_preview_mb}
-        maxTriangles={effectiveConfig?.upload?.model3d_max_triangles}
-        gcodeMaxLines={effectiveConfig?.upload?.gcode_max_lines}
-        contentId={contentId}
-        attachmentId={attachment.id}
-        allowCopy={allowCopy}
-      />
-    );
-  }
-
-  // #722 audio 族：SoundCloud 式紧凑播放器（预览入口点击后挂载）。
-  if (variant === "entry" && attachment.file_type === "audio") {
-    return (
-      <AudioPlayer
-        url={attachment.oss_url as string}
-        fileName={attachment.original_file_name || attachment.oss_key || ""}
-        fileSize={attachment.file_size ?? undefined}
-        contentId={contentId}
-        attachmentId={attachment.id}
-        allowCopy={allowCopy}
-      />
-    );
+  if (variant === "entry") {
+    /* entry 已保证签名 oss_url + 扫描门放行 + 非 .mtl → slide 必非空
+       （构造器与 resolvePreviewVariant 同判）；防御性兜底回落下载卡。 */
+    const normalized = overlaySlideFromAttachment({
+      ...attachment,
+      file_size: attachment.file_size ?? undefined,
+    });
+    const slide = normalized ? asViewerSlide(normalized) : null;
+    if (slide) {
+      return (
+        <SlideViewer
+          item={slide}
+          contentId={contentId}
+          allowCopy={allowCopy}
+          config={effectiveConfig}
+        />
+      );
+    }
   }
 
   // 无查看器的族群与缺 URL 的行：回落下载卡（story 10——
