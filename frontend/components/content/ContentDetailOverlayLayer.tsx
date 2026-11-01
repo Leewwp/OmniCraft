@@ -423,9 +423,9 @@ export function ContentDetailOverlayLayer({
 
     if (isDesktop) {
       /* D1 #858 桌面统一右栏（全类型一致，钉死块序）：ContentDetail（creatorFirst
-         = 创作者行置顶 + mediaSlot="variant" 隐藏行内媒体）→ 关联块（⓪关联 IP →
-         ①关联的原创 → ②系列导航）→ 评论区 → 推荐区（衍生列表 + 相似推荐，
-         RelatedContents 复用层内 related 数据、视口门下浮到 960）。
+         = 创作者行置顶 + mediaSlot="variant" 下行内媒体区不渲染（C2 #921 单挂载））
+         → 关联块（⓪关联 IP → ①关联的原创 → ②系列导航）→ 评论区 → 推荐区
+         （衍生列表 + 相似推荐，RelatedContents 复用层内 related 数据、视口门下浮到 960）。
          SP-17/T4 契约保持：内联关注按钮 = 唯一直接入口（不传
          inlineFollowClassName），ContentSidebar 不进右栏。 */
       statusBody = (

@@ -365,8 +365,9 @@ export function ContentDetailOverlay({
     const scroller = scrollerRef.current;
     if (!scroller) return null;
     const covers = scroller.querySelectorAll<HTMLElement>(`[data-slot="${OVERLAY_COVER_SLOT}"]`);
-    /* #88 双栏：行内媒体区（min-[960px]:hidden，#753）也是 detail-cover 锚点，须跳过
-       display:none 的隐藏实例，取可见的左栏媒体列。 */
+    /* C2 #921 单挂载后桌面变体态行内媒体区不再渲染（唯一锚点 = 左栏媒体列）；
+       逐锚点跳过 display:none 的隐藏实例仍是 data-slot 缝的防御语义——任何
+       隐藏 detail-cover 锚点的回归都被兜住。 */
     for (let i = covers.length - 1; i >= 0; i -= 1) {
       if (covers[i].offsetParent !== null || covers[i].getClientRects().length > 0) {
         return covers[i];
