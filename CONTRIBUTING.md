@@ -38,6 +38,8 @@ go run cmd/worker/main.go
 cd ../frontend && pnpm install && pnpm dev   # http://localhost:3000
 ```
 
+> `docker compose` 强制要求 `.env` 中已设置 `POSTGRES_PASSWORD`（无默认回退，缺失或留空都会拒绝启动）。请先执行第 3 步的 `cp .env.example .env` 并为 `POSTGRES_PASSWORD=` 填入本地值，再运行第 1 步的 `docker compose up`。
+
 ## 提交前必须通过的验证
 
 ```bash

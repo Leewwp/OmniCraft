@@ -236,7 +236,7 @@ services:
     container_name: omnicraft-backend
     env_file: .env
     environment:
-      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:-localdev}
       RAG_INDEX_URL: "http://opensearch:9200"
@@ -304,7 +304,7 @@ services:
     container_name: omnicraft-worker
     env_file: .env
     environment:
-      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:-localdev}
       RAG_INDEX_URL: "http://opensearch:9200"
@@ -392,7 +392,7 @@ services:
     container_name: omnicraft-postgres-exporter
     environment:
       # Password comes from the same .env variable as the postgres service.
-      DATA_SOURCE_NAME: "postgresql://omnicraft:${POSTGRES_PASSWORD:-omnicraft}@postgres:5432/omnicraft?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://omnicraft:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/omnicraft?sslmode=disable"
     depends_on:
       postgres:
         condition: service_healthy

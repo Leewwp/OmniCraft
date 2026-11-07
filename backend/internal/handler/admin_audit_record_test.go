@@ -34,7 +34,7 @@ func (a *erroringAdminRAGAudit) Record(_ context.Context, entry service.RecordAd
 }
 
 // installAuditFailureMetrics installs a fresh process-wide metrics registry for
-// the duration of one test and restores the previous value afterwards.
+// the duration of one test and resets the default to nil afterwards.
 func installAuditFailureMetrics(t *testing.T) *observability.Metrics {
 	t.Helper()
 	metrics := observability.NewMetrics()
