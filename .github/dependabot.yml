@@ -11,30 +11,51 @@ updates:
       # the module graph (242 govulncheck findings for code we never use).
       # Pinned at v0.1.12; revisit when the plugin drops that import.
       - dependency-name: gorm.io/plugin/opentelemetry
+    groups:
+      gomod-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
 
   - package-ecosystem: npm
     directory: /tauri-client
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: cargo
     directory: /tauri-client/src-tauri
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      cargo-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      github-actions-dependencies:
+        patterns:
+          - "*"
 
   # Audit F-05 finding 4: docker base-image pins had no automated upgrade
   # path (the 2026-09 stdlib CVE was closed by hand-pinning).
