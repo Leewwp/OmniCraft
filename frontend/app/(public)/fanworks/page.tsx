@@ -1,4 +1,5 @@
 import { absoluteUrl } from "@/lib/site-url";
+import { canonicalAlternates } from "@/lib/seo";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { FanworksHomeView } from "@/components/home/FanworksHomeView";
@@ -17,6 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t("home.heroSubtitle"),
     description: t("home.heroDescription"),
+    alternates: canonicalAlternates("/fanworks"),
     openGraph: {
       title: t("home.heroSubtitle"),
       description: t("home.heroTitle"),

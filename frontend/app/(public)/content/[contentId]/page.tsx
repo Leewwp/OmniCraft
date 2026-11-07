@@ -1,5 +1,6 @@
 import { getServerApiBase } from "@/lib/server-api";
 import { absoluteUrl } from "@/lib/site-url";
+import { buildCreativeWorkJsonLd, canonicalAlternates, serializeJsonLd } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
@@ -21,10 +22,11 @@ export async function generateMetadata({ params }: { params: Promise<{ contentId
   const t = await getTranslations();
   const data = await fetchContent(getServerApiBase(), contentId);
   const content = normalizeContentDetailResponse(data).content;
-  if (!content) return { title: t('content.contentNotFound') };
+  const alternates = canonicalAlternates(`/content/${contentId}`);
+  if (!content) return { title: t('content.contentNotFound'), alternates };
   const title = `${content.title} — ${t('nav.siteName')}`;
   const desc = content.description?.slice(0, 160) || `${content.title} - ${t('content.viewContent')}`;
-  return { title, description: desc, openGraph: { title, description: desc, images: [{ url: content.cover_image_url || `${baseUrl}/og-default.png`, width: 1200, height: 630 }], type: "article" }, twitter: { card: "summary_large_image", title, description: desc, images: [content.cover_image_url || `${baseUrl}/og-default.png`] } };
+  return { title, description: desc, alternates, openGraph: { title, description: desc, images: [{ url: content.cover_image_url || `${baseUrl}/og-default.png`, width: 1200, height: 630 }], type: "article" }, twitter: { card: "summary_large_image", title, description: desc, images: [content.cover_image_url || `${baseUrl}/og-default.png`] } };
 }
 
 export default async function FanworkContentDetailPage({ params }: { params: Promise<{ contentId: string }> }) {
@@ -38,13 +40,23 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
 
   const tags = normalized.tags;
   const zone: "fanwork" = "fanwork";
+  // 票 #950：结构化数据取页面已有数据（不新增接口调用）
+  const jsonLd = serializeJsonLd(
+    buildCreativeWorkJsonLd({
+      name: content.title,
+      url: absoluteUrl(`/content/${contentId}`),
+      dateModified: content.updated_at,
+    }),
+  );
   const sourceOriginal =
     normalized.sourceOriginal ??
     (content.source_original_id ? { id: content.source_original_id, title: "" } : null);
   const sourceFanwork = normalized.sourceFanwork ?? null;
 
   return (
-    <ContentDetailOverlayHost
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
+      <ContentDetailOverlayHost
       content={{ ...content, attachments: normalized.attachments, tags }}
       zone={zone}
       author={
@@ -67,5 +79,6 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
         createHref: `/studio/publish/fanwork?source_fanwork_id=${content.id}`,
       }}
     />
+    </>
   );
 }

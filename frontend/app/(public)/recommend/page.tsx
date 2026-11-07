@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { getBrowserApiBase, getServerApiBase } from "@/lib/server-api";
+import { canonicalAlternates } from "@/lib/seo";
 import { normalizeContentList, type ContentDetailData } from "@/lib/content";
 import { RecommendFeedClient } from "@/components/recommend/RecommendFeedClient";
 import { BackToTopButton } from "@/components/shared/BackToTopButton";
@@ -15,6 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${t("recommend.title")} — ${t("nav.siteName")}`,
     description: t("recommend.subtitle"),
+    alternates: canonicalAlternates("/recommend"),
   };
 }
 

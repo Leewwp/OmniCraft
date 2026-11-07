@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { FanworksHomeView } from "@/components/home/FanworksHomeView";
 import { fetchHomePageData } from "@/lib/home-page-data";
+import { canonicalAlternates } from "@/lib/seo";
 
 // `/` 双态页（票 #853 / spec §12.2）：
 // - 双态由 AuthProvider 恢复完成后的真实身份决定；SSR 只读 refresh cookie
@@ -23,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t("metaTitle"),
     description: t("metaDescription"),
+    alternates: canonicalAlternates("/"),
   };
 }
 
