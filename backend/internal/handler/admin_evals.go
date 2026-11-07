@@ -205,16 +205,14 @@ func (h *AdminEvalHandler) CreateDraftFromTrace(c *gin.Context) {
 		return
 	}
 	adminID := middleware.GetUserID(c)
-	if h.auditSvc != nil {
-		_ = h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
-			AdminUserID: adminID,
-			Action:      "eval.golden_draft.create",
-			TargetType:  "eval_golden_case",
-			TargetID:    caseKey,
-			Metadata:    map[string]interface{}{"trace_id": traceID, "citations": len(citations)},
-			Result:      "success",
-		})
-	}
+	recordAudit(c.Request.Context(), h.auditSvc, service.RecordAdminAuditInput{
+		AdminUserID: adminID,
+		Action:      "eval.golden_draft.create",
+		TargetType:  "eval_golden_case",
+		TargetID:    caseKey,
+		Metadata:    map[string]interface{}{"trace_id": traceID, "citations": len(citations)},
+		Result:      "success",
+	})
 	created, err := h.evalRepo.GetGoldenCaseByKey(c.Request.Context(), caseKey)
 	if err != nil {
 		created = &draft
@@ -234,15 +232,13 @@ func (h *AdminEvalHandler) DeleteDraft(c *gin.Context) {
 		evalDeleteDraftErrMap.write(c, err)
 		return
 	}
-	if h.auditSvc != nil {
-		_ = h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
-			AdminUserID: middleware.GetUserID(c),
-			Action:      "eval.golden_draft.delete",
-			TargetType:  "eval_golden_case",
-			TargetID:    caseKey,
-			Result:      "success",
-		})
-	}
+	recordAudit(c.Request.Context(), h.auditSvc, service.RecordAdminAuditInput{
+		AdminUserID: middleware.GetUserID(c),
+		Action:      "eval.golden_draft.delete",
+		TargetType:  "eval_golden_case",
+		TargetID:    caseKey,
+		Result:      "success",
+	})
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }
 
