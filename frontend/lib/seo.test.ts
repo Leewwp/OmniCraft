@@ -8,15 +8,12 @@ test("canonical alternates point at the page's own canonical URL", () => {
   assert.deepEqual(canonicalAlternates("/original/12"), { canonical: absoluteUrl("/original/12") });
 });
 
-test("canonical alternates go absolute when the site URL is configured", async () => {
+test("canonical alternates go absolute when the site URL is configured", () => {
   const previous = process.env.NEXT_PUBLIC_SITE_URL;
   process.env.NEXT_PUBLIC_SITE_URL = "https://example.com/";
   try {
-    // site-url 在模块加载时冻结 SITE_BASE_URL，用 query 隔离出独立模块实例
-    // （运行时 tsx 支持该 specifier，tsc 无对应类型声明）
-    // @ts-expect-error -- query-bust import for an isolated module instance
-    const mod = await import("./site-url?absolute-canonical");
-    assert.equal(mod.absoluteUrl("/ip/3"), "https://example.com/ip/3");
+    // absoluteUrl 调用时读取 env，直接改环境变量即可驱动断言
+    assert.equal(absoluteUrl("/ip/3"), "https://example.com/ip/3");
   } finally {
     if (previous === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
     else process.env.NEXT_PUBLIC_SITE_URL = previous;
