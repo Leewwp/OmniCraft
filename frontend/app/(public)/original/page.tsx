@@ -1,11 +1,16 @@
 import { getServerApiBase, getBrowserApiBase } from "@/lib/server-api";
 import { getTranslations } from 'next-intl/server';
+import type { Metadata } from "next";
+import { canonicalAlternates } from "@/lib/seo";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { OriginalFeedClient } from "@/components/original/OriginalFeedClient";
 import { SidebarWrapper } from "@/components/original/OriginalSidebar";
 import { normalizeContentList } from "@/lib/content";
 import { resolveDefaultSort } from "@/lib/search-filters";
 import { BackToTopButton } from "@/components/shared/BackToTopButton";
+
+// 票 #950：仅补 canonical（title 等维持根 layout 回退，无可见变化）。
+export const metadata: Metadata = { alternates: canonicalAlternates("/original") };
 
 interface CategoryItem {
   id: number; slug: string; name_i18n?: Record<string, string>;
