@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"errors"
-	"log/slog"
 	"net/http"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
@@ -13,6 +11,67 @@ import (
 
 type FeedbackHandler struct {
 	feedbackService *service.FeedbackService
+}
+
+// submitTicketErrMap 是 POST /feedback（SubmitTicket）的 sentinel→HTTP
+// 合同，顺序与迁移前分支顺序逐条一致；兜底保留历史固定文案
+// "Failed to submit feedback" 与兜底日志（fallbackMessage + fallbackLog
+// 承接原 slog.Error 分支，日志先于响应）。
+var submitTicketErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrFeedbackInvalidCategory, status: http.StatusBadRequest, code: "INVALID_CATEGORY", message: "Invalid feedback category"},
+		{sentinel: service.ErrFeedbackTitleAndDescriptionReq, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "Title and description are required"},
+		{sentinel: service.ErrFeedbackTitleTooLong, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "Title must not exceed 160 characters"},
+		{sentinel: service.ErrFeedbackContactEmailRequired, status: http.StatusBadRequest, code: "CONTACT_EMAIL_REQUIRED", message: "Contact email is required for anonymous submissions"},
+		{sentinel: service.ErrFeedbackCaptchaRequired, status: http.StatusBadRequest, code: "CAPTCHA_REQUIRED", message: "Captcha verification is required for anonymous submissions"},
+		{sentinel: service.ErrFeedbackCaptchaFailed, status: http.StatusBadRequest, code: "CAPTCHA_FAILED", message: "Captcha verification failed"},
+		{sentinel: service.ErrFeedbackUploadGrantInvalid, status: http.StatusBadRequest, code: "UPLOAD_GRANT_INVALID", message: "Screenshot upload grant is invalid or has already been used"},
+		{sentinel: service.ErrFeedbackAttachmentBlocked, status: http.StatusBadRequest, code: "ATTACHMENT_BLOCKED", message: "Attachment image was rejected by content moderation"},
+		{sentinel: service.ErrFeedbackAttachmentModerationUnavailable, status: http.StatusServiceUnavailable, code: "ATTACHMENT_MODERATION_UNAVAILABLE", message: "Attachment image moderation is temporarily unavailable, please retry without attachments"},
+		{sentinel: service.ErrUploadGrantUnavailable, status: http.StatusServiceUnavailable, code: "UPLOAD_GRANT_UNAVAILABLE", message: "Screenshot upload grants are temporarily unavailable"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to submit feedback",
+		log:     "failed to submit feedback",
+	},
+}
+
+// presignUploadErrMap 是 POST /feedback/attachments/presign
+// （PresignUpload）的 sentinel→HTTP 合同，顺序与迁移前分支顺序逐条一致
+// （ErrOSSNotConfigured 原为 default 内嵌 errors.Is 分支，规则化后语义
+// 等价：规则全不命中才落兜底）；兜底保留历史固定文案与兜底日志。
+var presignUploadErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrFeedbackCaptchaRequired, status: http.StatusBadRequest, code: "CAPTCHA_REQUIRED", message: "Captcha verification is required for anonymous uploads"},
+		{sentinel: service.ErrFeedbackCaptchaFailed, status: http.StatusBadRequest, code: "CAPTCHA_FAILED", message: "Captcha verification failed"},
+		{sentinel: service.ErrFeedbackInvalidMimeType, status: http.StatusBadRequest, code: "INVALID_MIME_TYPE", message: "Only image uploads are supported for feedback screenshots"},
+		{sentinel: service.ErrFeedbackFileTooLarge, status: http.StatusBadRequest, code: "FILE_TOO_LARGE", message: "Screenshot must be smaller than 20MB"},
+		{sentinel: service.ErrUploadGrantUnavailable, status: http.StatusServiceUnavailable, code: "UPLOAD_GRANT_UNAVAILABLE", message: "Screenshot upload grants are temporarily unavailable"},
+		{sentinel: service.ErrOSSNotConfigured, status: http.StatusServiceUnavailable, code: "OSS_NOT_CONFIGURED", message: "OSS upload is not configured"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to generate upload grant",
+		log:     "failed to generate upload grant",
+	},
+}
+
+// getTicketErrMap 是 GET /feedback/:id（GetTicket）的 sentinel→HTTP 合
+// 同，顺序与迁移前分支顺序逐条一致；兜底保留历史固定文案与兜底日志。
+var getTicketErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrFeedbackTicketNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "Feedback ticket not found"},
+		{sentinel: service.ErrFeedbackForbidden, status: http.StatusForbidden, code: "FORBIDDEN", message: "You can only view your own tickets"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "Failed to get feedback ticket",
+		log:     "failed to get feedback ticket",
+	},
 }
 
 func NewFeedbackHandler(feedbackService *service.FeedbackService) *FeedbackHandler {
@@ -68,31 +127,7 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 
 	ticket, err := h.feedbackService.SubmitTicket(c.Request.Context(), input)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrFeedbackInvalidCategory):
-			response.Error(c, http.StatusBadRequest, "INVALID_CATEGORY", "Invalid feedback category")
-		case errors.Is(err, service.ErrFeedbackTitleAndDescriptionReq):
-			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Title and description are required")
-		case errors.Is(err, service.ErrFeedbackTitleTooLong):
-			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "Title must not exceed 160 characters")
-		case errors.Is(err, service.ErrFeedbackContactEmailRequired):
-			response.Error(c, http.StatusBadRequest, "CONTACT_EMAIL_REQUIRED", "Contact email is required for anonymous submissions")
-		case errors.Is(err, service.ErrFeedbackCaptchaRequired):
-			response.Error(c, http.StatusBadRequest, "CAPTCHA_REQUIRED", "Captcha verification is required for anonymous submissions")
-		case errors.Is(err, service.ErrFeedbackCaptchaFailed):
-			response.Error(c, http.StatusBadRequest, "CAPTCHA_FAILED", "Captcha verification failed")
-		case errors.Is(err, service.ErrFeedbackUploadGrantInvalid):
-			response.Error(c, http.StatusBadRequest, "UPLOAD_GRANT_INVALID", "Screenshot upload grant is invalid or has already been used")
-		case errors.Is(err, service.ErrFeedbackAttachmentBlocked):
-			response.Error(c, http.StatusBadRequest, "ATTACHMENT_BLOCKED", "Attachment image was rejected by content moderation")
-		case errors.Is(err, service.ErrFeedbackAttachmentModerationUnavailable):
-			response.Error(c, http.StatusServiceUnavailable, "ATTACHMENT_MODERATION_UNAVAILABLE", "Attachment image moderation is temporarily unavailable, please retry without attachments")
-		case errors.Is(err, service.ErrUploadGrantUnavailable):
-			response.Error(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", "Screenshot upload grants are temporarily unavailable")
-		default:
-			slog.Error("failed to submit feedback", "error", err)
-			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to submit feedback")
-		}
+		submitTicketErrMap.write(c, err)
 		return
 	}
 
@@ -129,25 +164,7 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 
 	grant, err := h.feedbackService.PresignUpload(c.Request.Context(), input)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrFeedbackCaptchaRequired):
-			response.Error(c, http.StatusBadRequest, "CAPTCHA_REQUIRED", "Captcha verification is required for anonymous uploads")
-		case errors.Is(err, service.ErrFeedbackCaptchaFailed):
-			response.Error(c, http.StatusBadRequest, "CAPTCHA_FAILED", "Captcha verification failed")
-		case errors.Is(err, service.ErrFeedbackInvalidMimeType):
-			response.Error(c, http.StatusBadRequest, "INVALID_MIME_TYPE", "Only image uploads are supported for feedback screenshots")
-		case errors.Is(err, service.ErrFeedbackFileTooLarge):
-			response.Error(c, http.StatusBadRequest, "FILE_TOO_LARGE", "Screenshot must be smaller than 20MB")
-		case errors.Is(err, service.ErrUploadGrantUnavailable):
-			response.Error(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", "Screenshot upload grants are temporarily unavailable")
-		default:
-			if errors.Is(err, service.ErrOSSNotConfigured) {
-				response.Error(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", "OSS upload is not configured")
-			} else {
-				slog.Error("failed to generate upload grant", "error", err)
-				response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to generate upload grant")
-			}
-		}
+		presignUploadErrMap.write(c, err)
 		return
 	}
 
@@ -197,15 +214,7 @@ func (h *FeedbackHandler) GetTicket(c *gin.Context) {
 
 	ticket, err := h.feedbackService.GetTicketForUser(c.Request.Context(), ticketID, userID.(int64))
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrFeedbackTicketNotFound):
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "Feedback ticket not found")
-		case errors.Is(err, service.ErrFeedbackForbidden):
-			response.Error(c, http.StatusForbidden, "FORBIDDEN", "You can only view your own tickets")
-		default:
-			slog.Error("failed to get feedback ticket", "error", err)
-			response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get feedback ticket")
-		}
+		getTicketErrMap.write(c, err)
 		return
 	}
 

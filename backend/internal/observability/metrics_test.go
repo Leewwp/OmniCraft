@@ -63,6 +63,7 @@ func TestNewMetricsRegistersBaseMetricSet(t *testing.T) {
 		"omnicraft_migration_last_success_timestamp_seconds",
 		"omnicraft_external_dependency_requests_total",
 		"omnicraft_external_dependency_duration_seconds",
+		"omnicraft_audit_record_failures_total",
 	} {
 		require.Contains(t, names, want, "metric %q must be registered", want)
 	}

@@ -271,7 +271,6 @@ docker compose logs -f
 | frontend | 3000 | Next.js SSR |
 | backend | 8080 | Go API |
 | postgres | 5432 | PostgreSQL 16 (pgvector) |
-| pgbouncer | 6432 | DB connection pooler (host port 6432 → container 5432) |
 | redis | 6379 | Redis 7 |
 | migrate | none | one-shot forward migrations at release time, exits on success |
 

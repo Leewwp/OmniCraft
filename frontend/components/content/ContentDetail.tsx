@@ -42,6 +42,7 @@ import { SeriesNav } from "@/components/content/SeriesNav";
 import { SourceAttribution, type SourceSummary } from "@/components/content/SourceAttribution";
 import { RelatedFanworks } from "@/components/content/RelatedFanworks";
 import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
+import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
 import { overlaySlideFromAttachment } from "@/lib/overlay-media";
 import { RelatedContents } from "@/components/content/RelatedContents";
 import type { ContentCardData } from "@/components/content/ContentCard";
@@ -63,10 +64,10 @@ interface ContentDetailProps {
   className?: string;
   /** 浮层封面同步（#64 决策 11）：开启后正文在封面加载落定前保持布局不可见。 */
   coverSync?: boolean;
-  /** #88 桌面双栏：媒体区由浮层层（Overlay Layer）在左栏另行渲染（≥1100px），
-       行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。
-       #397 "variant" = 竖屏集新版布局（左媒体列由 OverlayVariantLayout 承担），
-       行内媒体区隐藏语义同 "split"。 */
+  /** 浮层桌面双栏（#88/#397/D1 #858）：媒体区由浮层层在左栏媒体列另行渲染，
+       "split"/"variant" 槽位下行内媒体区不渲染（C2 #921 单挂载——隐藏副本
+       不再解码/请求；槽位 prop 随桌面分支同帧原子翻转，无新视口订阅）；
+       "inline"（缺省）= 移动单列与独立详情页的行内媒体区。 */
   mediaSlot?: "inline" | "split" | "variant";
   /** #88/#397 行外媒体区（左栏媒体列）的首项加载落定信号。 */
   coverReady?: boolean;
@@ -243,30 +244,13 @@ export function ContentDetail({
     setIsFavorited(Boolean(data.isFavorited));
   }, [data.id, data.isFavorited]);
 
-  /* #90 桌面/web 相关内容块：≥1100px 时关联行由 RelatedContents 统一承载，
-     行内 RelatedFanworks 降级为 <1100px（移动/平板，与 #89 连续浏览边界一致）。 */
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 1100px)");
-    const update = () => setIsDesktop(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-
-  /* D1 #858 creatorFirst 生效判定（≥960 与浮层统一版式断点同源）：桌面创作者行
-     置顶 + 首块右上局部避让；移动 <960 保持「标题在上」既有契约。 */
-  const [unifiedViewport, setUnifiedViewport] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(min-width: 960px)");
-    const update = () => setUnifiedViewport(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-  const creatorRowFirst = Boolean(creatorFirst && unifiedViewport);
+  /* #90 桌面/web 相关内容块：≥1100px（pcTier）时关联行由 RelatedContents 统一
+     承载，行内 RelatedFanworks 降级为 <1100px（移动/平板，与 #89 连续浏览边界
+     一致）。视口语义来自 useOverlayViewport（C2 #921）。
+     D1 #858 creatorFirst 生效判定（twoColumn 与浮层统一版式断点同源）：桌面
+     创作者行置顶 + 首块右上局部避让；移动 <960 保持「标题在上」既有契约。 */
+  const { twoColumn, pcTier } = useOverlayViewport();
+  const creatorRowFirst = Boolean(creatorFirst && twoColumn);
 
   const { media: mediaItems, downloads: downloadItems } = selectMediaItems(
     data.attachments ?? [],
@@ -284,11 +268,12 @@ export function ContentDetail({
   const [coverState, setCoverState] = useState<"loading" | "ready" | "error">(() =>
     coverSync && usesGallery ? "loading" : coverSync && data.cover_image_url ? "loading" : "ready",
   );
-  /* #88 双栏：≥960px 时行内媒体区被隐藏（min-[960px]:hidden，#753），其首项不会触发
-     落定事件；正文 reveal 改由左栏行外媒体区的 coverReady 信号驱动（任一路径落定即显示，
-     错误态同 reveal，与 ui-spec:2411 稳定占位符语义一致）。 */
+  /* C2 #921 单挂载 + reveal 单路：非 inline 槽位行内媒体区不渲染，其落定信号
+     永不到达，正文 reveal 只由左栏行外媒体区的 coverReady 单路驱动（错误态同
+     reveal，与 ui-spec:2411 稳定占位符语义一致）；inline 槽位维持行内首项
+     落定（coverState）驱动。 */
   const settled =
-    coverState !== "loading" || (mediaSlot !== "inline" && coverReady !== undefined);
+    mediaSlot !== "inline" ? coverReady !== undefined : coverState !== "loading";
   const bodyVisible = !coverSync || settled;
 
   async function handleTagSuggestion(tag: string, action: "add" | "remove") {
@@ -402,9 +387,11 @@ export function ContentDetail({
       {/* Media area: image/video content renders the stable MediaGallery; other
           types keep the cover image (#753 自然比例 contain，去固定 16:9)。The
           gallery carries data-slot="detail-cover" so the overlay FLIP/cover-sync
-          contract keeps working on the shared surface. #88 双栏模式下该行内媒体区
-          在 ≥960px 隐藏（#753，由 Overlay 层的左栏媒体列承担）。 */}
-      <div className={cn(mediaSlot !== "inline" && "min-[960px]:hidden", "max-[959px]:-mx-4")}>
+          contract keeps working on the shared surface. C2 #921 单挂载：
+          "split"/"variant"（浮层桌面双栏）不渲染行内媒体区——媒体只走左栏
+          媒体列一条管线；inline 保持移动通栏（max-[959px]:-mx-4，#753）。 */}
+      {mediaSlot === "inline" && (
+        <div className="max-[959px]:-mx-4">
         {usesGallery ? (
           <MediaGallery
             items={mediaItems}
@@ -426,8 +413,8 @@ export function ContentDetail({
             holdSrc={coverHoldSrc}
           />
         )}
-        {/* #89 连续浏览：上下文列表到底提示（随媒体区一起在双栏桌面端隐藏，
-            与瀑布流统一「已经到底了」语义一致）。 */}
+        {/* #89 连续浏览：上下文列表到底提示（只随行内媒体区渲染——非 inline
+            槽位整区不挂载，与瀑布流统一「已经到底了」语义一致）。 */}
         {usesGallery && galleryEndHint && (
           <div
             data-slot="media-continue-end"
@@ -436,7 +423,8 @@ export function ContentDetail({
             {t("media.continue.endReached")}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Content Body（浮层封面同步：正文在封面落定前保持布局、不可见，避免跳版） */}
       <div
@@ -685,7 +673,7 @@ export function ContentDetail({
       {/* 相关二创/衍生作品行（ui-spec:2697）：正文后、评论区上方，与 SeriesNav 同级。
           #90 桌面/web（≥1100px）关联行由评论区之后的 RelatedContents 统一承载，
           行内行降级为 <1100px 渲染，避免同页重复展示关联作品。 */}
-      {relatedFanworks && !isDesktop && (
+      {relatedFanworks && !pcTier && (
         <RelatedFanworks {...relatedFanworks} onOpenDetail={onOpenRelatedDetail} />
       )}
 

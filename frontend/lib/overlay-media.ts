@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { type MediaGalleryItem, type MediaSlideType } from "@/components/content/MediaGallery";
-import { isPreviewBlockedByScan } from "@/components/content/AttachmentPreview";
+import { isPreviewBlockedByScan } from "@/lib/attachment-policy";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
 import { coverRenderSrc, prefetchCoverVariant } from "@/lib/overlay-motion";
 import type { AttachmentData, NormalizedContentDetailResponse } from "@/lib/content";

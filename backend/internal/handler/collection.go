@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -90,7 +89,7 @@ func (h *CollectionHandler) ListCollections(c *gin.Context) {
 		items, err = h.collectionSvc.ListOwnCollections(c.Request.Context(), ownerID, zone, containsContentItemID)
 	}
 	if err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
@@ -110,14 +109,14 @@ func (h *CollectionHandler) GetCollection(c *gin.Context) {
 
 	collection, err := h.collectionRepo.GetCollectionForViewer(c.Request.Context(), collectionID, viewer)
 	if err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 
 	page, pageSize := parseCollectionPagination(c)
 	items, total, err := h.collectionRepo.ListItemsForViewer(c.Request.Context(), collectionID, viewerID, page, pageSize, strings.TrimSpace(c.Query("content_type")))
 	if err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 
@@ -172,7 +171,7 @@ func (h *CollectionHandler) CreateCollection(c *gin.Context) {
 		IsPublic:    input.IsPublic,
 	})
 	if err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"collection": collection})
@@ -189,7 +188,7 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 		return
 	}
 	if _, exists := fields["zone"]; exists {
-		h.writeCollectionError(c, repository.ErrZoneImmutable)
+		collectionErrMap.write(c, repository.ErrZoneImmutable)
 		return
 	}
 	if !validateCollectionAllowedFields(c, fields, updateCollectionFields) {
@@ -225,7 +224,7 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 
 	collection, err := h.collectionRepo.UpdateCollection(c.Request.Context(), collectionID, middleware.GetUserID(c), patch)
 	if err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"collection": collection})
@@ -237,7 +236,7 @@ func (h *CollectionHandler) DeleteCollection(c *gin.Context) {
 		return
 	}
 	if err := h.collectionRepo.DeleteCollection(c.Request.Context(), collectionID, middleware.GetUserID(c)); err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -263,7 +262,7 @@ func (h *CollectionHandler) AddItem(c *gin.Context) {
 
 	item, err := h.collectionSvc.AddItem(c.Request.Context(), collectionID, middleware.GetUserID(c), input.ContentItemID, input.Note)
 	if err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 	h.displaySigner.DecorateContent(&item.ContentItem)
@@ -276,7 +275,7 @@ func (h *CollectionHandler) RemoveItem(c *gin.Context) {
 		return
 	}
 	if err := h.collectionSvc.RemoveItem(c.Request.Context(), collectionID, middleware.GetUserID(c), itemID); err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "removed"})
@@ -297,30 +296,28 @@ func (h *CollectionHandler) UpdateItem(c *gin.Context) {
 
 	item, err := h.collectionRepo.UpdateItemNote(c.Request.Context(), collectionID, middleware.GetUserID(c), itemID, input.Note)
 	if err != nil {
-		h.writeCollectionError(c, err)
+		collectionErrMap.write(c, err)
 		return
 	}
 	h.displaySigner.DecorateContent(&item.ContentItem)
 	c.JSON(http.StatusOK, gin.H{"item": item})
 }
 
-func (h *CollectionHandler) writeCollectionError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, repository.ErrCollectionNotFound):
-		response.Error(c, http.StatusNotFound, "COLLECTION_NOT_FOUND", "collection not found")
-	case errors.Is(err, repository.ErrZoneMismatch):
-		response.Error(c, http.StatusBadRequest, "ZONE_MISMATCH", "collection and content zones do not match")
-	case errors.Is(err, repository.ErrDuplicateCollectionItem):
-		response.Error(c, http.StatusConflict, "DUPLICATE_COLLECTION_ITEM", "content already exists in collection")
-	case errors.Is(err, repository.ErrDefaultCollectionProtected):
-		response.Error(c, http.StatusBadRequest, "DEFAULT_COLLECTION_PROTECTED", "default collection cannot be deleted")
-	case errors.Is(err, repository.ErrZoneImmutable):
-		response.Error(c, http.StatusBadRequest, "ZONE_IMMUTABLE", "collection zone cannot be changed")
-	case errors.Is(err, repository.ErrInvalidContent):
-		response.Error(c, http.StatusBadRequest, "INVALID_CONTENT", "content is unavailable")
-	default:
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-	}
+// collectionErrMap 是收藏集全部写读路由（ListCollections / GetCollection ×2 /
+// CreateCollection / UpdateCollection（含 zone 不可变哨兵直投）/ Delete
+// Collection / AddItem / RemoveItem / UpdateItem）共享的 sentinel→HTTP 合
+// 同，规则序与迁移前 writeCollectionError 的 switch case 序逐条一致（迁
+// 移前即共享 switch 函数）；兜底保持历史 Safe 500 DB_ERROR。
+var collectionErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: repository.ErrCollectionNotFound, status: http.StatusNotFound, code: "COLLECTION_NOT_FOUND", message: "collection not found"},
+		{sentinel: repository.ErrZoneMismatch, status: http.StatusBadRequest, code: "ZONE_MISMATCH", message: "collection and content zones do not match"},
+		{sentinel: repository.ErrDuplicateCollectionItem, status: http.StatusConflict, code: "DUPLICATE_COLLECTION_ITEM", message: "content already exists in collection"},
+		{sentinel: repository.ErrDefaultCollectionProtected, status: http.StatusBadRequest, code: "DEFAULT_COLLECTION_PROTECTED", message: "default collection cannot be deleted"},
+		{sentinel: repository.ErrZoneImmutable, status: http.StatusBadRequest, code: "ZONE_IMMUTABLE", message: "collection zone cannot be changed"},
+		{sentinel: repository.ErrInvalidContent, status: http.StatusBadRequest, code: "INVALID_CONTENT", message: "content is unavailable"},
+	},
+	fallback: fallbackDB,
 }
 
 func parseCollectionItemParams(c *gin.Context) (int64, int64, bool) {

@@ -11,6 +11,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -75,6 +76,55 @@ func NewContentHandler(cfg *config.Config, deps ContentHandlerDeps) *ContentHand
 	}
 }
 
+// contentPresignErrMap 是 POST /contents/oss-token（GenerateOSSToken）经
+// 动态校验分流（errors.As UploadValidationError 分支留在 handler——错误
+// 码随错误体变化，非 sentinel 映射）后的 sentinel→HTTP 合同；未知错误兜
+// 底保持历史 Safe 500 INTERNAL_ERROR。
+var contentPresignErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrOSSNotConfigured, status: http.StatusServiceUnavailable, code: "OSS_NOT_CONFIGURED"},
+	},
+	fallback: fallbackInternal,
+}
+
+// contentDetailErrMap 是内容详情读侧（GET /contents/:id GetContent 与
+// GET /contents/:id/related-fanworks ListRelatedFanworks）的 sentinel→HTTP
+// 合同：两路由迁移前一个用 `==` 直比、一个用 errors.Is，映射面一致
+// （service 裸返 sentinel），共用一份声明；兜底保持历史 Safe 500
+// DB_ERROR。
+var contentDetailErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+	},
+	fallback: fallbackDB,
+}
+
+// updateContentErrMap 是 PATCH /contents/:id（UpdateContent）的
+// sentinel→HTTP 合同，规则序与迁移前分支序逐条一致（ErrCoverNotPlatform
+// OSSObject 迁移前走 ValidationError 形态 = 固定 400 VALIDATION_ERROR 文
+// 案，规则化后逐字节相同）；兜底保持历史 Safe 500 DB_ERROR。
+var updateContentErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{sentinel: service.ErrContentForbidden, status: http.StatusForbidden, code: "FORBIDDEN", message: "not content author"},
+		// banned 终态禁改（FIX-13）：删除仍允许，编辑引导走申诉。
+		{sentinel: service.ErrContentBanned, status: http.StatusForbidden, code: "CONTENT_BANNED", message: "content is banned and cannot be edited"},
+		{sentinel: service.ErrCoverNotPlatformOSSObject, status: http.StatusBadRequest, code: "VALIDATION_ERROR", message: "cover image must be a platform OSS object"},
+	},
+	fallback: fallbackDB,
+}
+
+// deleteContentErrMap 是 DELETE /contents/:id（DeleteContent）的
+// sentinel→HTTP 合同，规则序与迁移前分支序逐条一致；兜底保持历史 Safe
+// 500 DB_ERROR。
+var deleteContentErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{sentinel: service.ErrContentForbidden, status: http.StatusForbidden, code: "FORBIDDEN", message: "not content author"},
+	},
+	fallback: fallbackDB,
+}
+
 func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 	if h.ossSvc == nil {
 		response.SafeErrorResponse(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", h.ossInitErr)
@@ -93,6 +143,7 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 		var validationErr *service.UploadValidationError
 		if errors.As(err, &validationErr) {
 			// T25（FIX-41）：超限走专用码（前端出专属文案），其余参数错误保持通用码。
+			// 动态码随错误体变化（非 sentinel 映射），留在 handler。
 			if validationErr.Code != "" {
 				response.Error(c, http.StatusBadRequest, validationErr.Code, validationErr.Message)
 				return
@@ -100,11 +151,8 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 			response.ValidationError(c, "invalid request parameters")
 			return
 		}
-		if errors.Is(err, service.ErrOSSNotConfigured) {
-			response.SafeErrorResponse(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", err)
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		// C3.4：OSS 未配置与其余未知错误收口为 contentPresignErrMap。
+		contentPresignErrMap.write(c, err)
 		return
 	}
 
@@ -194,6 +242,36 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 	})
 }
 
+// publishErrMap 是 POST /contents（CreateContent）的 sentinel→HTTP 合同，
+// 顺序与迁移前 content.go 分支顺序逐条一致；未知错误兜底保持历史 500
+// INTERNAL_ERROR（与下载端点的 DB_ERROR 兜底不同）。
+var publishErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrPublishFrozen, status: http.StatusForbidden, code: "PUBLISH_FROZEN"},
+		{sentinel: service.ErrSourceNotAllowedForOriginal, status: http.StatusBadRequest, code: "SOURCE_NOT_ALLOWED_FOR_ORIGINAL"},
+		{sentinel: service.ErrFanworkSourceRequired, status: http.StatusBadRequest, code: "FANWORK_SOURCE_REQUIRED"},
+		{sentinel: service.ErrMultipleSourceConflict, status: http.StatusBadRequest, code: "MULTIPLE_SOURCE_CONFLICT"},
+		{sentinel: service.ErrSourceOriginalUnavailable, status: http.StatusBadRequest, code: "SOURCE_ORIGINAL_UNAVAILABLE"},
+		{sentinel: service.ErrSourceFanworkUnavailable, status: http.StatusBadRequest, code: "SOURCE_FANWORK_UNAVAILABLE"},
+		{sentinel: service.ErrUploadGrantInvalid, status: http.StatusBadRequest, code: "UPLOAD_GRANT_INVALID"},
+		{sentinel: service.ErrMediaSetInvalid, status: http.StatusBadRequest, code: "MEDIA_SET_INVALID"},
+		{sentinel: service.ErrArchiveAttachmentRequired, status: http.StatusBadRequest, code: "ARCHIVE_ATTACHMENT_REQUIRED", message: "mod content requires a zip archive attachment"},
+		// #690：注册表 attachment_policy（required_any_of）违规面——任何
+		// 配置了 policy 的类型共用，非 3d_print 专属分支。
+		{sentinel: service.ErrAttachmentPolicyRequired, status: http.StatusBadRequest, code: "ATTACHMENT_POLICY_REQUIRED", message: "content type requires at least one attachment of the required family"},
+		{sentinel: archivezip.ErrEncrypted, status: http.StatusBadRequest, code: "ARCHIVE_ENCRYPTED", message: "archive is encrypted"},
+		{sentinel: archivezip.ErrPathInvalid, status: http.StatusBadRequest, code: "ARCHIVE_PATH_INVALID", message: "archive path is invalid"},
+		{sentinel: archivezip.ErrLinkForbidden, status: http.StatusBadRequest, code: "ARCHIVE_LINK_FORBIDDEN", message: "archive link is forbidden"},
+		{sentinel: archivezip.ErrLimitExceeded, status: http.StatusBadRequest, code: "ARCHIVE_LIMIT_EXCEEDED", message: "archive limits exceeded"},
+		{sentinel: archivezip.ErrInvalid, status: http.StatusBadRequest, code: "ARCHIVE_INVALID", message: "archive is invalid"},
+		{sentinel: service.ErrArchiveScanUnavailable, status: http.StatusServiceUnavailable, code: "ARCHIVE_SCAN_UNAVAILABLE", message: "archive scanning is unavailable"},
+		{sentinel: service.ErrArchiveScanFailed, status: http.StatusConflict, code: "ARCHIVE_SCAN_FAILED", message: "archive scan failed"},
+		{sentinel: service.ErrArchiveScanPending, status: http.StatusConflict, code: "ARCHIVE_SCAN_PENDING", message: "archive scan is pending"},
+		{sentinel: service.ErrUploadGrantUnavailable, status: http.StatusServiceUnavailable, code: "UPLOAD_GRANT_UNAVAILABLE"},
+	},
+	fallback: fallbackInternal,
+}
+
 func (h *ContentHandler) CreateContent(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
@@ -209,8 +287,8 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 
 	content, err := h.contentSvc.PublishContentWithContext(c.Request.Context(), input, callerID)
 	if err != nil {
-		// #794：sentinel→HTTP 合同集中在 errmap.go（publishErrMap，按原分
-		// 支顺序 errors.Is 首个命中）；未知错误兜底保持历史 500
+		// #794：sentinel→HTTP 合同集中在文件内 publishErrMap（按原分支
+		// 顺序 errors.Is 首个命中）；未知错误兜底保持历史 500
 		// INTERNAL_ERROR。
 		publishErrMap.write(c, err)
 		return
@@ -228,11 +306,9 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 
 	content, err := h.contentSvc.GetContent(id)
 	if err != nil {
-		if err == service.ErrContentNotFound {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比变体收口为 contentDetailErrMap（与
+		// ListRelatedFanworks 的 errors.Is 链映射面一致，共用一份声明）。
+		contentDetailErrMap.write(c, err)
 		return
 	}
 
@@ -365,11 +441,9 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 	viewerID := middleware.GetUserID(c)
 	source, err := h.contentSvc.GetVisibleContent(sourceID, viewerID)
 	if err != nil {
-		if errors.Is(err, service.ErrContentNotFound) {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 errors.Is 链收口为 contentDetailErrMap（与 GetContent
+		// 映射面一致，共用一份声明）。
+		contentDetailErrMap.write(c, err)
 		return
 	}
 
@@ -531,24 +605,9 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	}
 
 	if err := h.contentSvc.UpdateContentWithContext(c.Request.Context(), id, callerID, updates); err != nil {
-		if err == service.ErrContentNotFound {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		if err == service.ErrContentForbidden {
-			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not content author")
-			return
-		}
-		// banned 终态禁改（FIX-13）：删除仍允许，编辑引导走申诉。
-		if err == service.ErrContentBanned {
-			response.Error(c, http.StatusForbidden, "CONTENT_BANNED", "content is banned and cannot be edited")
-			return
-		}
-		if err == service.ErrCoverNotPlatformOSSObject {
-			response.ValidationError(c, "cover image must be a platform OSS object")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比四分支收口为 updateContentErrMap，规则序
+		// 与分支序一致，wire 逐字节不变。
+		updateContentErrMap.write(c, err)
 		return
 	}
 
@@ -568,19 +627,34 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 	}
 
 	if err := h.contentSvc.DeleteContentWithContext(c.Request.Context(), id, callerID); err != nil {
-		if err == service.ErrContentNotFound {
-			response.Error(c, http.StatusNotFound, "NOT_FOUND", "content not found")
-			return
-		}
-		if err == service.ErrContentForbidden {
-			response.Error(c, http.StatusForbidden, "FORBIDDEN", "not content author")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前 `==` 直比两分支收口为 deleteContentErrMap。
+		deleteContentErrMap.write(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
+// downloadErrMap 是 GET /contents/:id/download（DownloadContent）的
+// sentinel→HTTP 合同，顺序与迁移前 content.go 分支顺序逐条一致；未知错
+// 误兜底保持历史 500 DB_ERROR。该合同同时是 SP-16 #451 MCP 工具
+// omnicraft_request_download 的 REST 面投影，语义不得分叉。
+var downloadErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: service.ErrDownloadUnauthorized, status: http.StatusUnauthorized, code: "UNAUTHORIZED", message: "login required"},
+		{sentinel: service.ErrContentNotFound, status: http.StatusNotFound, code: "NOT_FOUND", message: "content not found"},
+		{sentinel: service.ErrDownloadNotPublished, status: http.StatusForbidden, code: "FORBIDDEN", message: "content not available for download"},
+		{sentinel: service.ErrDownloadUnavailable, status: http.StatusForbidden, code: "CONTENT_UNAVAILABLE", message: "content is unavailable"},
+		{sentinel: service.ErrDownloadNotAllowed, status: http.StatusForbidden, code: "FORBIDDEN", message: "download not allowed"},
+		{sentinel: service.ErrOSSNotConfigured, status: http.StatusServiceUnavailable, code: "OSS_NOT_CONFIGURED", message: "oss service not configured"},
+		{sentinel: service.ErrNoAttachments, status: http.StatusNotFound, code: "NO_ATTACHMENTS", message: "no downloadable files"},
+		{sentinel: service.ErrInvalidAttachmentID, status: http.StatusBadRequest, code: "INVALID_ATTACHMENT_ID", message: "invalid attachment_id"},
+		{sentinel: service.ErrAttachmentMismatch, status: http.StatusBadRequest, code: "ATTACHMENT_MISMATCH", message: "attachment does not belong to this content"},
+		{sentinel: service.ErrAmbiguousAttachment, status: http.StatusBadRequest, code: "AMBIGUOUS_ATTACHMENT", message: "specify attachment_id; cannot determine a unique primary attachment"},
+		{sentinel: service.ErrArchiveNotClean, status: http.StatusForbidden, code: "ARCHIVE_NOT_CLEAN", message: "archive is not clean"},
+		{sentinel: service.ErrDownloadPresignFailed, status: http.StatusInternalServerError, code: "OSS_ERROR", message: "failed to generate download url"},
+	},
+	fallback: fallbackDB,
 }
 
 func (h *ContentHandler) DownloadContent(c *gin.Context) {
@@ -601,7 +675,7 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 	// HTTP contract.
 	res, err := h.contentSvc.RequestDownload(c.Request.Context(), callerID, id, c.Query("attachment_id"))
 	if err != nil {
-		// #794：sentinel→HTTP 合同集中在 errmap.go（downloadErrMap，按原分
+		// #794：sentinel→HTTP 合同集中在文件内 downloadErrMap（按原分
 		// 支顺序 errors.Is 首个命中）；未知错误兜底保持历史 500 DB_ERROR。
 		downloadErrMap.write(c, err)
 		return

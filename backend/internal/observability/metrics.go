@@ -124,6 +124,15 @@ func IncDefaultAgentToolCall(name string, failed bool) {
 	}
 }
 
+// IncDefaultAuditRecordFailure records one degraded admin audit write (the
+// mutation itself succeeded; only the audit trail row failed) through the
+// installed process-wide registry (no-op in CLI tools and isolated tests).
+func IncDefaultAuditRecordFailure() {
+	if metrics := defaultMetrics.Load(); metrics != nil {
+		metrics.IncAuditRecordFailure()
+	}
+}
+
 // NormalizeRoute validates the Gin full-path template used as a logs and
 // metrics label. Callers must pass Gin's FullPath rather than Request.URL.Path;
 // the identifier checks are defense in depth, not a general raw-URL sanitizer.
@@ -190,10 +199,11 @@ type Metrics struct {
 	httpDuration *prometheus.HistogramVec
 	panics       prometheus.Counter
 
-	queueBacklog      prometheus.Gauge
-	workerFailures    prometheus.Counter
-	migrationStatus   prometheus.Gauge
-	migrationLastSeen prometheus.Gauge
+	queueBacklog        prometheus.Gauge
+	workerFailures      prometheus.Counter
+	migrationStatus     prometheus.Gauge
+	migrationLastSeen   prometheus.Gauge
+	auditRecordFailures prometheus.Counter
 
 	externalRequests *prometheus.CounterVec
 	externalDuration *prometheus.HistogramVec
@@ -246,6 +256,10 @@ func NewMetrics() *Metrics {
 		migrationLastSeen: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "omnicraft_migration_last_success_timestamp_seconds",
 			Help: "Unix time of the last successful migration run.",
+		}),
+		auditRecordFailures: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "omnicraft_audit_record_failures_total",
+			Help: "Admin audit record writes that failed and degraded to a log line.",
 		}),
 
 		externalRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -301,6 +315,7 @@ func NewMetrics() *Metrics {
 		m.workerFailures,
 		m.migrationStatus,
 		m.migrationLastSeen,
+		m.auditRecordFailures,
 		m.externalRequests,
 		m.externalDuration,
 		m.breakerState,
@@ -412,6 +427,10 @@ func (m *Metrics) SetQueueBacklog(count float64) { m.queueBacklog.Set(count) }
 
 // IncWorkerFailures records a worker failure that exhausted retries.
 func (m *Metrics) IncWorkerFailures() { m.workerFailures.Inc() }
+
+// IncAuditRecordFailure records an admin audit write that failed and was
+// degraded to a structured log line instead of failing the admin operation.
+func (m *Metrics) IncAuditRecordFailure() { m.auditRecordFailures.Inc() }
 
 // SetMigrationOutcome records the latest migration run result. lastSuccess
 // is the Unix timestamp of the last successful run (0 when unknown).

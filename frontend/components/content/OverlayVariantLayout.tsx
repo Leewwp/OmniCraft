@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, Maximize2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,22 +8,12 @@ import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
-import { AudioPlayer } from "@/components/content/AudioPlayer";
+import { SlideViewer, asViewerSlide } from "@/components/content/SlideViewer";
 import { MIDIPlayer, OSMDRenderer } from "@/components/content/SheetMusicViewer";
 import type { MediaGalleryItem, MediaSlideType } from "@/components/content/MediaGallery";
 import { OVERLAY_DEFAULT_RATIO, isEnlargeableSlide, isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
+import { attemptPlay, clampIndex, toggleVideoSlideClick } from "@/lib/media-interaction";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
-import { usePublicConfig } from "@/lib/use-public-config";
-
-/** D5 #862 查看器族懒分块：重依赖（mammoth/exceljs/three.js）不进主包，
- * 当前位才挂载（React.lazy + Suspense；轮播位仅在客户端浮层打开后渲染，
- * 无 SSR 直出路径）。 */
-const DocumentViewer = lazy(() =>
-  import("@/components/content/DocumentViewer").then((m) => ({ default: m.DocumentViewer })),
-);
-const ModelViewer = lazy(() =>
-  import("@/components/content/ModelViewer").then((m) => ({ default: m.ModelViewer })),
-);
 
 /**
  * 内容详情浮窗「统一版式」（D1 #858，桌面 ≥960 全类型唯一版式；几何承袭 #397
@@ -79,15 +69,10 @@ const RIGHT_COL_MIN = 380;
 const PANE_MIN_WIDTH = 280;
 /** 逐张自适应几何过渡（SP-12 缓动口径）。 */
 const PANE_TRANSITION = "width 240ms cubic-bezier(0.22,0.61,0.36,1)";
-/** 视频 controls 条近似高度：点击该区域内属于原生控件语义（与 MediaGallery 一致）。 */
-const VIDEO_CONTROLS_STRIP = 44;
 /** 测量未就绪时的媒体列初始宽度比例。 */
 const PANE_FALLBACK_RATIO = 0.58;
-
-function clampIndex(value: number, length: number): number {
-  if (!Number.isFinite(value) || length <= 0) return 0;
-  return Math.min(Math.max(Math.floor(value), 0), length - 1);
-}
+/* 视频 controls 条高度 / 索引钳制 / 自动播放重试 / 视频点击切播：共享原语
+   收口于 lib/media-interaction（C1 #920）。 */
 
 /** 根区可用宽高测量（ResizeObserver）：媒体列宽 = 可用高 × 当前图比例的基准。 */
 function useMediaArea() {
@@ -117,17 +102,6 @@ function paneWidth(area: { w: number; h: number } | null, ratio: number): string
   return `${Math.round(Math.max(PANE_MIN_WIDTH, Math.min(byHeight, cap)))}px`;
 }
 
-/** 浏览器策略可能拒绝 play()（jsdom 返回 undefined 同样防御）：失败静默，
-    controls 手动播放入口保留。 */
-function attemptPlay(video: HTMLVideoElement): void {
-  const attempt = video.play() as unknown as Promise<void> | undefined;
-  if (attempt && typeof attempt.catch === "function") {
-    attempt.catch(() => {
-      /* 自动播放被拒：用户可用 controls 手动播放。 */
-    });
-  }
-}
-
 /** 圆点指示器渲染上限（D5 #862）：>9 项隐藏圆点，只留 N/M 徽标 + 箭头
  * （非媒体类型 slide 无数量上限）。 */
 const MAX_DOT_ITEMS = 9;
@@ -144,9 +118,11 @@ interface SlideViewerContext {
   suspended: boolean;
 }
 
-/** D5 #862 audio 位：audio 专属占位图为底 + 底部悬浮紧凑 AudioPlayer 条。
- * 起播权在用户；切位卸载停播释放、挂起暂停；右下角预留刷新钮命中区。 */
+/** D5 #862 audio 位：audio 专属占位图为底 + 底部悬浮紧凑 AudioPlayer 条
+ * （封面合成留宿主；查看器装配经 SlideViewer 单一来源）。起播权在用户；
+ * 切位卸载停播释放、挂起暂停；右下角预留刷新钮命中区。 */
 function AudioSlide({ item, contentId, allowCopy, suspended }: SlideViewerContext) {
+  const slide = asViewerSlide(item);
   return (
     <div className="relative h-full w-full" data-slot="slide-audio">
       {/* eslint-disable-next-line @next/next/no-img-element -- data: SVG 占位图直通（不走图片优化器） */}
@@ -157,60 +133,32 @@ function AudioSlide({ item, contentId, allowCopy, suspended }: SlideViewerContex
         className="absolute inset-0 h-full w-full object-contain"
       />
       <div className="absolute inset-x-0 bottom-0 pb-3 pl-3 pr-14">
-        <AudioPlayer
-          url={item.url}
-          fileName={item.fileName ?? ""}
-          fileSize={item.fileSize}
-          contentId={contentId ?? 0}
-          attachmentId={item.id}
-          allowCopy={Boolean(allowCopy)}
-          suspended={suspended}
-        />
+        {slide && (
+          <SlideViewer item={slide} contentId={contentId} allowCopy={allowCopy} suspended={suspended} />
+        )}
       </div>
     </div>
   );
 }
 
 /** D5 #862 model3d 位：ModelViewer 画布（拖转/滚轮缩放/四机位已有；画布
- * 点击不绑定——轮播切页依显式箭头）。 */
+ * 点击不绑定——轮播切页依显式箭头）。装配（懒加载/预算映射）经 SlideViewer。 */
 function Model3dSlide({ item, contentId, allowCopy }: SlideViewerContext) {
-  const config = usePublicConfig();
+  const slide = asViewerSlide(item);
   return (
     <div className="h-full w-full overflow-y-auto p-3" data-slot="slide-model3d">
-      <Suspense fallback={null}>
-        <ModelViewer
-          url={item.url}
-          fileName={item.fileName ?? ""}
-          fileSize={item.fileSize}
-          maxPreviewMB={config?.upload?.model3d_max_preview_mb}
-          maxTriangles={config?.upload?.model3d_max_triangles}
-          gcodeMaxLines={config?.upload?.gcode_max_lines}
-          contentId={contentId ?? 0}
-          attachmentId={item.id}
-          allowCopy={Boolean(allowCopy)}
-        />
-      </Suspense>
+      {slide && <SlideViewer item={slide} contentId={contentId} allowCopy={allowCopy} />}
     </div>
   );
 }
 
 /** D5 #862 document 位：DocumentViewer 全高容器（docx 消毒 HTML / xlsx·csv
- * 网格 / 超预算降级卡由查看器内部维持）。 */
+ * 网格 / 超预算降级卡由查看器内部维持；装配经 SlideViewer）。 */
 function DocumentSlide({ item, contentId, allowCopy }: SlideViewerContext) {
-  const config = usePublicConfig();
+  const slide = asViewerSlide(item);
   return (
     <div className="h-full w-full overflow-y-auto p-3" data-slot="slide-document">
-      <Suspense fallback={null}>
-        <DocumentViewer
-          url={item.url}
-          fileName={item.fileName ?? ""}
-          fileSize={item.fileSize}
-          maxPreviewMB={config?.upload?.document_preview_max_mb}
-          contentId={contentId ?? 0}
-          attachmentId={item.id}
-          allowCopy={Boolean(allowCopy)}
-        />
-      </Suspense>
+      {slide && <SlideViewer item={slide} contentId={contentId} allowCopy={allowCopy} />}
     </div>
   );
 }
@@ -693,29 +641,19 @@ export function OverlayVariantLayout({
   };
 
   /* 点击媒体：图片进入 MediaViewer 看大图（关闭后焦点还给触发媒体区，AC4）；
-     视频主体 = 单次切换播放/暂停（controls 条 44px 内点击属原生控件语义，
-     不切播、不翻页、不进查看器——全屏用控制条原生按钮，D2 #859）。用户主动
-     暂停的意图被记录，恢复激活时不自动续播。 */
+     视频主体 = 单次切换播放/暂停——共享处理函数收口于 lib/media-interaction
+     （C1 #920：controls 条豁免/原生全屏豁免/preventDefault 防双触发/记账顺序
+     与画廊同源）。用户主动暂停的意图被记录，恢复激活时不自动续播。 */
   function handleCoverClick(event: React.MouseEvent<HTMLDivElement>) {
     if (!current) return;
     if (isVideo) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      if (rect.height > 0 && event.clientY > rect.bottom - VIDEO_CONTROLS_STRIP) return;
-      /* 原生全屏内点击交还原生控件（Blink 全屏路径不理会 defaultPrevented）；
-         其余主体点击必须 preventDefault——WebKit 显示 controls 时对主体 click
-         有默认 togglePlayState，不抑制会与 JS 切播双触发互相抵消（审查 N1：
-         Safari 主体切播整体失效、Chrome 原生全屏内失效）。 */
-      if (document.fullscreenElement) return;
-      event.preventDefault();
-      const video = videoRef.current;
-      if (!video) return;
-      if (video.paused) {
-        userPausedRef.current = false;
-        attemptPlay(video);
-      } else {
-        userPausedRef.current = true;
-        video.pause();
-      }
+      toggleVideoSlideClick({
+        event,
+        getVideo: () => videoRef.current,
+        onUserPausedChange: (paused) => {
+          userPausedRef.current = paused;
+        },
+      });
       return;
     }
     /* D6 #863：主体点击仅可放大的 image 位开查看器（真图/真封面双入口之一；

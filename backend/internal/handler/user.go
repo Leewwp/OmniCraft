@@ -33,6 +33,42 @@ var (
 	ErrAvatarModerationUnavailable = errors.New("avatar moderation unavailable")
 )
 
+// getUserErrMap 是 GET /users/:id（GetUser）的 sentinel→HTTP 合同：
+// gorm.ErrRecordNotFound → 404（迁移前为 `==` 直比变体，C3.4 规则化——
+// FindByID 裸返 sentinel 不包装，errors.Is 与直比等价）；未知错误兜底保持
+// 历史 Safe 500 DB_ERROR。
+var getUserErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: gorm.ErrRecordNotFound, status: http.StatusNotFound, code: "USER_NOT_FOUND", message: "user not found"},
+	},
+	fallback: fallbackDB,
+}
+
+// avatarReviewErrMap 是 UpdateUser 头像审核失败面的 sentinel→HTTP 合同，
+// 规则序与迁移前 switch case 序一致；未知错误兜底保持历史 Safe 500
+// INTERNAL_ERROR。
+var avatarReviewErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: ErrAvatarBlocked, status: http.StatusBadRequest, code: "AVATAR_BLOCKED", message: "avatar image was blocked by content moderation"},
+		{sentinel: ErrAvatarModerationUnavailable, status: http.StatusServiceUnavailable, code: "MODERATION_UNAVAILABLE", message: "avatar moderation is temporarily unavailable, please try again later"},
+	},
+	fallback: fallbackInternal,
+}
+
+// hashPasswordErrMap 是 ChangePassword 新密码哈希失败面的 sentinel→HTTP
+// 合同；兜底保留历史固定文案 "failed to hash password"（固定 message 分
+// 支，非 Safe 语义）。
+var hashPasswordErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: bcrypt.ErrPasswordTooLong, status: http.StatusBadRequest, code: "PASSWORD_TOO_LONG", message: "password must be at most 72 bytes"},
+	},
+	fallback: errFallback{
+		status:  fallbackInternal.status,
+		code:    fallbackInternal.code,
+		message: "failed to hash password",
+	},
+}
+
 // avatarReviewer is the minimal image-moderation dependency UserHandler needs
 // to gate avatar_url updates before they are persisted. *service.ReviewService
 // satisfies it; tests inject a fake.
@@ -81,11 +117,9 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 
 	user, err := h.userRepo.FindByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			response.Error(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
-			return
-		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		// C3.4：迁移前为 `==` 直比变体（NotFound D 型收尾），规则化后
+		// errors.Is 匹配——FindByID 裸返 sentinel，语义等价。
+		getUserErrMap.write(c, err)
 		return
 	}
 	// FindByID 对不存在用户返回 (nil, nil)——此前 nil 直传投影函数会 panic
@@ -208,14 +242,9 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 				return
 			}
 			if err := h.reviewAvatarImage(c, avatarURL); err != nil {
-				switch {
-				case errors.Is(err, ErrAvatarBlocked):
-					response.Error(c, http.StatusBadRequest, "AVATAR_BLOCKED", "avatar image was blocked by content moderation")
-				case errors.Is(err, ErrAvatarModerationUnavailable):
-					response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "avatar moderation is temporarily unavailable, please try again later")
-				default:
-					response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
-				}
+				// C3.4：迁移前 switch 三分支（含 default Safe 兜底）收口为
+				// avatarReviewErrMap，顺序与 wire 逐字节一致。
+				avatarReviewErrMap.write(c, err)
 				return
 			}
 		}
@@ -247,7 +276,13 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	user, _ := h.userRepo.FindByID(id)
+	// 体检 A11（#949）：回读失败不再吞错——空对象直传投影会 panic 成无信封
+	// 500；统一走 Safe 500 DB_ERROR（更新本身已成功，仅回读失败）。
+	user, err := h.userRepo.FindByID(id)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"user": h.sanitizeUser(user)})
 }
 
@@ -501,11 +536,8 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		if errors.Is(err, bcrypt.ErrPasswordTooLong) {
-			response.Error(c, http.StatusBadRequest, "PASSWORD_TOO_LONG", "password must be at most 72 bytes")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to hash password")
+		// C3.4：迁移前两分支收口为 hashPasswordErrMap（固定兜底文案逐字节保留）。
+		hashPasswordErrMap.write(c, err)
 		return
 	}
 
@@ -672,6 +704,11 @@ func (h *UserHandler) sanitizeUser(u *model.User) gin.H {
 // preferred_locale, no email_verified_at (FIX-19a / audit #17 — self-tier
 // data must never leak to others, on any projection surface).
 func (h *UserHandler) publicUser(u *model.User) gin.H {
+	// 体检 A11（#949）：nil 防御——回读路径残留的 nil 不再 panic 成无信封
+	// 500，而是返回安全空壳（不外泄任何字段）。
+	if u == nil {
+		return gin.H{}
+	}
 	avatarURL := u.AvatarURL
 	if h.displaySigner != nil {
 		avatarURL = h.displaySigner.SignURL(avatarURL)

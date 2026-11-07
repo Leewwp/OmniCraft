@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"omnicraft/backend/config"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
 	"omnicraft/backend/internal/pkg/rediskeys"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 )
@@ -68,15 +70,13 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "authorization header required"})
-			c.Abort()
+			response.Error(c, 401, "UNAUTHORIZED", "authorization header required")
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "invalid authorization header format"})
-			c.Abort()
+			response.Error(c, 401, "UNAUTHORIZED", "invalid authorization header format")
 			return
 		}
 
@@ -92,8 +92,7 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 			switch denial {
 			case "":
 				if !enforcePATRateLimit(c, rdb, cfg, identity.TokenID) {
-					c.JSON(429, gin.H{"code": "RATE_LIMIT_EXCEEDED", "message": "too many requests, please try again later"})
-					c.Abort()
+					response.Error(c, 429, "RATE_LIMIT_EXCEEDED", "too many requests, please try again later")
 					return
 				}
 				c.Set(UserIDKey, status.ID)
@@ -104,26 +103,23 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 				c.Next()
 				return
 			case service.DenialReasonAuthStatusUnavailable:
-				c.JSON(503, gin.H{"code": denial, "message": "auth service is temporarily unavailable, please try again later"})
+				response.Error(c, 503, denial, "auth service is temporarily unavailable, please try again later")
 			case service.DenialReasonUserBanned:
-				c.JSON(401, gin.H{"code": denial, "message": "account has been banned"})
+				response.Error(c, 401, denial, "account has been banned")
 			default:
-				c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "invalid or revoked token"})
+				response.Error(c, 401, "UNAUTHORIZED", "invalid or revoked token")
 			}
-			c.Abort()
 			return
 		}
 
 		claims, err := jwtutil.ParseToken(tokenStr, cfg.JWT.Secret)
 		if err != nil {
-			c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "invalid or expired token"})
-			c.Abort()
+			response.Error(c, 401, "UNAUTHORIZED", "invalid or expired token")
 			return
 		}
 
 		if claims.Subject != "access" {
-			c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "invalid token type"})
-			c.Abort()
+			response.Error(c, 401, "UNAUTHORIZED", "invalid token type")
 			return
 		}
 
@@ -131,11 +127,7 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 		dbAvailable := dbInstance != nil
 
 		if !redisAvailable && !dbAvailable {
-			c.JSON(503, gin.H{
-				"code":    service.DenialReasonAuthStatusUnavailable,
-				"message": "auth service is temporarily unavailable, please try again later",
-			})
-			c.Abort()
+			response.Error(c, 503, service.DenialReasonAuthStatusUnavailable, "auth service is temporarily unavailable, please try again later")
 			return
 		}
 
@@ -144,13 +136,11 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 			blacklistKey := rediskeys.TokenBlacklistKey(tokenStr)
 			val, redisErr := rdb.Get(c.Request.Context(), blacklistKey).Result()
 			if redisErr == nil && val == "1" {
-				c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "token has been revoked"})
-				c.Abort()
+				response.Error(c, 401, "UNAUTHORIZED", "token has been revoked")
 				return
 			}
 			if redisErr != nil && redisErr != redis.Nil {
-				c.JSON(503, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
-				c.Abort()
+				response.Error(c, 503, service.DenialReasonAuthStatusUnavailable, "account status is temporarily unavailable")
 				return
 			}
 		}
@@ -159,23 +149,19 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 		status, resolveErr := service.ResolveRuntimeUserStatus(c.Request.Context(), dbInstance, cache, claims.UserID)
 		if resolveErr != nil {
 			if errors.Is(resolveErr, service.ErrUserStatusNotFound) || errors.Is(resolveErr, service.ErrUserStatusDeleted) {
-				c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "user not found or deleted"})
-				c.Abort()
+				response.Error(c, 401, "UNAUTHORIZED", "user not found or deleted")
 				return
 			}
 			if status != nil && status.IsBanned {
-				c.JSON(401, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
-				c.Abort()
+				response.Error(c, 401, service.DenialReasonUserBanned, "account has been banned")
 				return
 			}
-			c.JSON(503, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
-			c.Abort()
+			response.Error(c, 503, service.DenialReasonAuthStatusUnavailable, "account status is temporarily unavailable")
 			return
 		}
 
 		if status.IsBanned && !bannedWhitelistAllowed(c.Request.Method, c.Request.URL.Path) {
-			c.JSON(401, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
-			c.Abort()
+			response.Error(c, 401, service.DenialReasonUserBanned, "account has been banned")
 			return
 		}
 
@@ -234,7 +220,11 @@ func enforcePATRateLimit(c *gin.Context, rdb *redis.Client, cfg *config.Config, 
 	if err != nil {
 		return true
 	}
-	rdb.Expire(context.Background(), key, 2*time.Duration(windowSec)*time.Second)
+	if err := rdb.Expire(context.Background(), key, 2*time.Duration(windowSec)*time.Second).Err(); err != nil {
+		// 体检 A8（#949）：TTL 设置失败只记日志不改变限流语义（保持 fail-open）；
+		// 同窗口键每个请求都会重试 Expire，泄漏仅在持续故障下发生。
+		slog.Error("pat rate limit expire failed", "key", key, "error", err)
+	}
 	return int(count) <= limit
 }
 
@@ -358,8 +348,7 @@ func RequireScopeForPAT(scope string) gin.HandlerFunc {
 			return
 		}
 		if !HasPATScope(c, scope) {
-			c.JSON(403, gin.H{"code": "PAT_SCOPE_REQUIRED", "message": "token lacks required scope: " + scope})
-			c.Abort()
+			response.Error(c, 403, "PAT_SCOPE_REQUIRED", "token lacks required scope: "+scope)
 			return
 		}
 		c.Next()
@@ -371,8 +360,7 @@ func RequireScopeForPAT(scope string) gin.HandlerFunc {
 func RequireJWTChannel() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if GetAuthChannel(c) == AuthChannelPAT {
-			c.JSON(403, gin.H{"code": "JWT_CHANNEL_REQUIRED", "message": "this endpoint requires the web session channel"})
-			c.Abort()
+			response.Error(c, 403, "JWT_CHANNEL_REQUIRED", "this endpoint requires the web session channel")
 			return
 		}
 		c.Next()
@@ -382,8 +370,7 @@ func RequireJWTChannel() gin.HandlerFunc {
 func AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !IsAdmin(c) {
-			c.JSON(403, gin.H{"code": "FORBIDDEN", "message": "admin access required"})
-			c.Abort()
+			response.Error(c, 403, "FORBIDDEN", "admin access required")
 			return
 		}
 		c.Next()

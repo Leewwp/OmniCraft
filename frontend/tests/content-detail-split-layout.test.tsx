@@ -286,8 +286,14 @@ test("#858 media-set content renders the unified desktop layout: flush media pan
   const layerScroller = document.querySelector('[data-slot="layer-scroller"]');
   assert.ok(layerScroller, "unified layout must expose the info-column scroller");
   assert.ok(document.querySelector('[data-slot="variant-media-pane"]'), "media pane present for media-set content");
-  /* 行内媒体区（单列兜底，min-[960px]:hidden）+ 左栏媒体列 = 两个 detail-cover 锚点。 */
-  assert.equal(document.querySelectorAll('[data-slot="detail-cover"]').length, 2);
+  /* C2 #921 单挂载：桌面变体态行内媒体区不渲染——detail-cover 锚点唯一
+     （= 左栏媒体列），DOM 无行内 MediaGallery 节点（隐藏副本不再解码/请求）。 */
+  assert.equal(document.querySelectorAll('[data-slot="detail-cover"]').length, 1);
+  assert.equal(
+    document.querySelectorAll('[data-slot="detail-cover"][class*="container-type"]').length,
+    0,
+    "inline MediaGallery must not mount in the desktop variant layout",
+  );
   assert.ok(view.getByRole("heading", { level: 1, name: "Gallery Image Work" }));
   assert.ok(view.getByText("Image body"));
 });
@@ -344,10 +350,12 @@ test("#858 unified desktop contracts exist in source: 960 panel, flush shell, vi
   const layer = read("components/content/ContentDetailOverlayLayer.tsx");
   const relatedContents = read("components/content/RelatedContents.tsx");
 
-  /* ContentDetail：媒体槽与行内媒体隐藏契约保持；creatorFirst（右栏块序）。 */
+  /* ContentDetail：媒体槽单挂载契约（非 inline 不渲染行内媒体区）与
+     creatorFirst（右栏块序）。 */
   assert.match(detail, /mediaSlot\?: "inline" \| "split" \| "variant"/);
   assert.match(detail, /coverReady\?: boolean/);
-  assert.match(detail, /min-\[960px\]:hidden/);
+  assert.match(detail, /mediaSlot === "inline" && \(/);
+  assert.doesNotMatch(detail, /min-\[960px\]:hidden/);
   assert.match(detail, /creatorFirst\?: boolean/);
 
   /* 统一版式几何：媒体列直贴面板（无负 margin 抵消）、右栏唯一滚动列。 */
@@ -361,7 +369,7 @@ test("#858 unified desktop contracts exist in source: 960 panel, flush shell, vi
   assert.match(overlay, /min-\[960px\]:m-auto/);
   assert.match(overlay, /min-\[960px\]:h-\[min\(92dvh,900px\)\]/);
   assert.doesNotMatch(overlay, /lg:h-\[min\(92dvh/);
-  assert.match(overlay, /isDesktopViewport && "h-full overflow-hidden p-0"/);
+  assert.match(overlay, /twoColumn && "h-full overflow-hidden p-0"/);
   assert.match(overlay, /data-slot="overlay-scroller"/);
 
   /* 三分支退役：split 布局判定与 64px 控件条不再存在。 */

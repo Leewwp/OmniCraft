@@ -339,6 +339,72 @@ exits 1 with `pq: password authentication failed for user "omnicraft"
 (28P01)` and `docker compose ps` shows backend/frontend/worker `Created` but
 not running.
 
+### 6.5 trusted_proxies: compose network subnet (client IP attribution)
+
+nginx reaches the backend through the compose Docker network
+(`proxy_pass http://backend:8080` in `nginx/omnicraft.single-server.conf`),
+so the backend's peer address is the nginx container IP, not the visitor.
+The factory `security.trusted_proxies: ["127.0.0.1"]` in `backend/config.yaml`
+does not trust that peer, so gin ignores the `X-Forwarded-For` header nginx
+sets and every request resolves to the nginx container IP: per-IP rate limit
+buckets, hashed-IP logging and IP-based attribution collapse into one
+site-wide identity. After the stack is up, widen the trust to the exact
+compose subnet.
+
+Read the subnet of the compose network. Compose names the default network
+`<project>_default` from the project directory (`omnicraft_default` for the
+`/opt/omnicraft` checkout):
+
+```bash
+docker network ls    # locate <project>_default, e.g. omnicraft_default
+docker network inspect omnicraft_default \
+  --format '{{(index .IPAM.Config 0).Subnet}}'
+# e.g. 172.18.0.0/16 — host-specific; re-read it after recreating the network
+```
+
+Add the subnet to `security.trusted_proxies` in the server override file
+`/var/lib/omnicraft/config_override.yaml` (section 4). An override section
+replaces the factory list, so keep `127.0.0.1` in it, and keep the set
+minimal — never `0.0.0.0/0`, which would let any caller that reaches the
+backend directly forge `X-Forwarded-For`:
+
+```yaml
+security:
+  allowed_origins:
+    - "https://app.example.com"
+  trusted_proxies:
+    - "127.0.0.1"
+    - "172.18.0.0/16"   # the subnet read above
+```
+
+Restart the backend (the override file is read only at process startup; it is
+a bind mount, so a restart re-reads it):
+
+```bash
+docker compose --env-file .env -f docker-compose.single-server.yml restart backend
+# lean-profile host appends the lean override:
+docker compose --env-file .env -f docker-compose.single-server.yml \
+  -f docker-compose.lean.yml restart backend
+```
+
+Verify attribution from the backend logs. The request log never prints a raw
+address (`client_ip` is a keyed HMAC of the resolved `ClientIP()`), so verify
+by distinctness: send requests from two different client networks (for
+example home broadband and a phone on cellular) and confirm the log shows two
+distinct `client_ip` values. Before this fix every line carries the same
+collapsed value (the hash of the nginx container IP):
+
+```bash
+docker compose --env-file .env -f docker-compose.single-server.yml logs --tail=200 backend \
+  | grep -o '"client_ip":"[^"]*"' | sort | uniq -c
+```
+
+A probe that bypasses nginx and forges `X-Forwarded-For` stays untrusted:
+peers outside `trusted_proxies` are never consulted for the header, which is
+why the list must stay minimal. The release preflight
+(`scripts/release/preflight.sh`) rejects loopback-only `trusted_proxies`
+(section 11.1), so the widened list is also what keeps that gate green.
+
 ## 7. Verify
 
 ```bash

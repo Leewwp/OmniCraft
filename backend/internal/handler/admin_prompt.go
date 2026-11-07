@@ -42,6 +42,45 @@ type adminPromptSlotView struct {
 	LatestVersion        int      `json:"latest_version"`
 }
 
+// promptNextVersionErrMap 是 CreateVersion 解析下一版本号的兜底合同：无规
+// 则，任何送入的错误都回 500 DB_ERROR 固定文案。ErrPromptNotFound 的放行
+// （读作「该槽位当前无任何版本，从 1 开始」继续创建路径）是调用点的控制
+// 流谓词，不在 map 面。
+var promptNextVersionErrMap = endpointErrMap{
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "failed to resolve next version",
+	},
+}
+
+// promptCreateVersionErrMap 是 CreateVersion 落库的 sentinel→HTTP 合同：
+// 并发创建同名下一版本（LatestVersion→CreateVersion 窗口）撞唯一约束 →
+// 409——版本行不可变、重试即可成功，语义是冲突而非故障；兜底固定文案。
+var promptCreateVersionErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: repository.ErrPromptVersionExists, status: http.StatusConflict, code: "PROMPT_VERSION_EXISTS", message: "prompt version already exists, retry to re-resolve next version"},
+	},
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "failed to create prompt version",
+	},
+}
+
+// promptSetLabelErrMap 是 SetLabel 移动 production/staging 标签指针的
+// sentinel→HTTP 合同：目标版本不存在 → 404；兜底固定文案。
+var promptSetLabelErrMap = endpointErrMap{
+	rules: []errorRule{
+		{sentinel: repository.ErrPromptNotFound, status: http.StatusNotFound, code: "PROMPT_VERSION_NOT_FOUND", message: "prompt version not found"},
+	},
+	fallback: errFallback{
+		status:  fallbackDB.status,
+		code:    fallbackDB.code,
+		message: "failed to move prompt label",
+	},
+}
+
 // ListSlots returns every registry slot with its current label pointers.
 func (h *AdminPromptHandler) ListSlots(c *gin.Context) {
 	labels, err := h.repo.ListAllLabels(c.Request.Context())
@@ -125,7 +164,7 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 	}
 	latest, err := h.repo.LatestVersion(c.Request.Context(), name)
 	if err != nil && !errors.Is(err, repository.ErrPromptNotFound) {
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to resolve next version")
+		promptNextVersionErrMap.write(c, err)
 		return
 	}
 	next := 1
@@ -146,25 +185,17 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 		CreatedBy:            &adminID,
 	}
 	if err := h.repo.CreateVersion(c.Request.Context(), row); err != nil {
-		// 并发创建同名下一版本（LatestVersion→CreateVersion 窗口）撞唯一约束：
-		// 版本行不可变、重试即可成功——语义是冲突而非故障，映射 409。
-		if errors.Is(err, repository.ErrPromptVersionExists) {
-			response.Error(c, http.StatusConflict, "PROMPT_VERSION_EXISTS", "prompt version already exists, retry to re-resolve next version")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to create prompt version")
+		promptCreateVersionErrMap.write(c, err)
 		return
 	}
-	if h.auditSvc != nil {
-		_ = h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
-			AdminUserID: adminID,
-			Action:      "prompt.version.create",
-			TargetType:  "prompt",
-			TargetID:    name,
-			Metadata:    map[string]interface{}{"version": next, "content_bytes": len(in.Content)},
-			Result:      "success",
-		})
-	}
+	recordAudit(c.Request.Context(), h.auditSvc, service.RecordAdminAuditInput{
+		AdminUserID: adminID,
+		Action:      "prompt.version.create",
+		TargetType:  "prompt",
+		TargetID:    name,
+		Metadata:    map[string]interface{}{"version": next, "content_bytes": len(in.Content)},
+		Result:      "success",
+	})
 	c.JSON(http.StatusCreated, gin.H{"version": row.Version})
 }
 
@@ -192,25 +223,19 @@ func (h *AdminPromptHandler) SetLabel(c *gin.Context) {
 		return
 	}
 	if err := h.repo.SetLabel(c.Request.Context(), name, in.Label, in.Version); err != nil {
-		if errors.Is(err, repository.ErrPromptNotFound) {
-			response.Error(c, http.StatusNotFound, "PROMPT_VERSION_NOT_FOUND", "prompt version not found")
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "DB_ERROR", "failed to move prompt label")
+		promptSetLabelErrMap.write(c, err)
 		return
 	}
 	if h.resolver != nil {
 		h.resolver.Invalidate()
 	}
-	if h.auditSvc != nil {
-		_ = h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
-			AdminUserID: middleware.GetUserID(c),
-			Action:      "prompt.label.set",
-			TargetType:  "prompt",
-			TargetID:    name,
-			Metadata:    map[string]interface{}{"label": in.Label, "version": in.Version},
-			Result:      "success",
-		})
-	}
+	recordAudit(c.Request.Context(), h.auditSvc, service.RecordAdminAuditInput{
+		AdminUserID: middleware.GetUserID(c),
+		Action:      "prompt.label.set",
+		TargetType:  "prompt",
+		TargetID:    name,
+		Metadata:    map[string]interface{}{"label": in.Label, "version": in.Version},
+		Result:      "success",
+	})
 	c.JSON(http.StatusOK, gin.H{"status": "moved"})
 }
