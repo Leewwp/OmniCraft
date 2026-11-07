@@ -1,4 +1,5 @@
 import { getBrowserApiBase, getServerApiBase } from "@/lib/server-api";
+import { canonicalAlternates } from "@/lib/seo";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
 import { IPBrowseClient } from "@/components/ip/IPBrowseClient";
@@ -18,6 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${t('ip.title')} — ${t('nav.siteName')}`,
     description: t('ip.browseDescription'),
+    alternates: canonicalAlternates("/ips"),
   };
 }
 

@@ -13,10 +13,11 @@ services:
     container_name: omnicraft-postgres
     environment:
       POSTGRES_USER: omnicraft
-      # Single source of truth is the project .env (server: rotated credential;
-      # dev without .env falls back to the local default). Only affects a
-      # brand-new data volume — an initialized volume keeps its password.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omnicraft}
+      # Single source of truth is the project .env (server: rotated
+      # credential). No fallback: compose refuses to start when the
+      # variable is unset. Only affects a brand-new data volume — an
+      # initialized volume keeps its password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: omnicraft
     ports:
       - "127.0.0.1:5432:5432"
@@ -40,7 +41,7 @@ services:
       dockerfile: Dockerfile
     container_name: omnicraft-migrate
     environment:
-      DB_DSN: "host=postgres port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=postgres port=5432 user=omnicraft password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=omnicraft sslmode=disable"
       METRICS_TEXTFILE_DIR: /var/lib/omnicraft/metrics
     depends_on:
       postgres:
@@ -65,8 +66,6 @@ services:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
     command: ["pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
-    ports:
-      - "127.0.0.1:6432:5432"
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,13 +84,20 @@ services:
   redis:
     image: redis:7-alpine
     container_name: omnicraft-redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # Same-source default: server password and every client env below are
+    # interpolated from the same variable, so both sides always match (unset
+    # in .env → `localdev` everywhere).
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-localdev}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-localdev}
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # Authenticated probe: reads the password from the container env (no
+      # plaintext in this file); plain `redis-cli ping` would fail NOAUTH.
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -230,8 +236,9 @@ services:
     container_name: omnicraft-backend
     env_file: .env
     environment:
-      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-localdev}
       RAG_INDEX_URL: "http://opensearch:9200"
       OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       OBSERVABILITY_TRACING_ENABLED: "true"
@@ -297,8 +304,9 @@ services:
     container_name: omnicraft-worker
     env_file: .env
     environment:
-      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:-omnicraft} dbname=omnicraft sslmode=disable"
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-localdev}
       RAG_INDEX_URL: "http://opensearch:9200"
       CLAMD_ADDRESS: "clamav:3310"
       OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
@@ -383,7 +391,8 @@ services:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: omnicraft-postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://omnicraft:omnicraft@postgres:5432/omnicraft?sslmode=disable"
+      # Password comes from the same .env variable as the postgres service.
+      DATA_SOURCE_NAME: "postgresql://omnicraft:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/omnicraft?sslmode=disable"
     depends_on:
       postgres:
         condition: service_healthy
@@ -399,6 +408,8 @@ services:
     container_name: omnicraft-redis-exporter
     environment:
       REDIS_ADDR: "redis://redis:6379"
+      # Same-source default as the redis requirepass above.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-localdev}
     depends_on:
       redis:
         condition: service_healthy

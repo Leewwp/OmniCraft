@@ -276,7 +276,13 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	user, _ := h.userRepo.FindByID(id)
+	// 体检 A11（#949）：回读失败不再吞错——空对象直传投影会 panic 成无信封
+	// 500；统一走 Safe 500 DB_ERROR（更新本身已成功，仅回读失败）。
+	user, err := h.userRepo.FindByID(id)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"user": h.sanitizeUser(user)})
 }
 
@@ -698,6 +704,11 @@ func (h *UserHandler) sanitizeUser(u *model.User) gin.H {
 // preferred_locale, no email_verified_at (FIX-19a / audit #17 — self-tier
 // data must never leak to others, on any projection surface).
 func (h *UserHandler) publicUser(u *model.User) gin.H {
+	// 体检 A11（#949）：nil 防御——回读路径残留的 nil 不再 panic 成无信封
+	// 500，而是返回安全空壳（不外泄任何字段）。
+	if u == nil {
+		return gin.H{}
+	}
 	avatarURL := u.AvatarURL
 	if h.displaySigner != nil {
 		avatarURL = h.displaySigner.SignURL(avatarURL)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -219,7 +220,11 @@ func enforcePATRateLimit(c *gin.Context, rdb *redis.Client, cfg *config.Config, 
 	if err != nil {
 		return true
 	}
-	rdb.Expire(context.Background(), key, 2*time.Duration(windowSec)*time.Second)
+	if err := rdb.Expire(context.Background(), key, 2*time.Duration(windowSec)*time.Second).Err(); err != nil {
+		// 体检 A8（#949）：TTL 设置失败只记日志不改变限流语义（保持 fail-open）；
+		// 同窗口键每个请求都会重试 Expire，泄漏仅在持续故障下发生。
+		slog.Error("pat rate limit expire failed", "key", key, "error", err)
+	}
 	return int(count) <= limit
 }
 

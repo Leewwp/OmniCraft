@@ -270,7 +270,6 @@ docker compose logs -f
 | frontend | 3000 | Next.js SSR |
 | backend | 8080 | Go API |
 | postgres | 5432 | PostgreSQL 16 (pgvector) |
-| pgbouncer | 6432 | 数据库连接池（宿主机端口 6432 → 容器内 5432） |
 | redis | 6379 | Redis 7 |
 | migrate | 无 | 发布时一次性执行前向迁移，成功后退出 |
 

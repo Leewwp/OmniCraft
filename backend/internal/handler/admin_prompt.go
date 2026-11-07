@@ -188,16 +188,14 @@ func (h *AdminPromptHandler) CreateVersion(c *gin.Context) {
 		promptCreateVersionErrMap.write(c, err)
 		return
 	}
-	if h.auditSvc != nil {
-		_ = h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
-			AdminUserID: adminID,
-			Action:      "prompt.version.create",
-			TargetType:  "prompt",
-			TargetID:    name,
-			Metadata:    map[string]interface{}{"version": next, "content_bytes": len(in.Content)},
-			Result:      "success",
-		})
-	}
+	recordAudit(c.Request.Context(), h.auditSvc, service.RecordAdminAuditInput{
+		AdminUserID: adminID,
+		Action:      "prompt.version.create",
+		TargetType:  "prompt",
+		TargetID:    name,
+		Metadata:    map[string]interface{}{"version": next, "content_bytes": len(in.Content)},
+		Result:      "success",
+	})
 	c.JSON(http.StatusCreated, gin.H{"version": row.Version})
 }
 
@@ -231,15 +229,13 @@ func (h *AdminPromptHandler) SetLabel(c *gin.Context) {
 	if h.resolver != nil {
 		h.resolver.Invalidate()
 	}
-	if h.auditSvc != nil {
-		_ = h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
-			AdminUserID: middleware.GetUserID(c),
-			Action:      "prompt.label.set",
-			TargetType:  "prompt",
-			TargetID:    name,
-			Metadata:    map[string]interface{}{"label": in.Label, "version": in.Version},
-			Result:      "success",
-		})
-	}
+	recordAudit(c.Request.Context(), h.auditSvc, service.RecordAdminAuditInput{
+		AdminUserID: middleware.GetUserID(c),
+		Action:      "prompt.label.set",
+		TargetType:  "prompt",
+		TargetID:    name,
+		Metadata:    map[string]interface{}{"label": in.Label, "version": in.Version},
+		Result:      "success",
+	})
 	c.JSON(http.StatusOK, gin.H{"status": "moved"})
 }
