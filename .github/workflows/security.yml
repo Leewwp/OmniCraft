@@ -54,6 +54,10 @@ jobs:
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             EXTRA_ARGS="-BuildImages"
           fi
+          # -BuildImages runs `docker compose build`, whose interpolation needs
+          # POSTGRES_PASSWORD since the compose default fallback was removed.
+          # Build-time placeholder only; never a runtime credential.
+          export POSTGRES_PASSWORD=omnicraft
           bash scripts/security/verify-security.sh $EXTRA_ARGS -ReportDir artifacts/security
       - name: Upload security evidence
         if: always()
