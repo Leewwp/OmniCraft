@@ -242,6 +242,13 @@
   background: transparent;
 }
 
+/* 详情浮窗内容推导壳宽（E1 #953）：顶层内容几何规格上报后由内联样式覆写为
+   媒体列 + 固定右列（上限 min(1320, 视口 − 2rem)）；未上报前回退内容宽
+   （min-[960px]:w-[var(--overlay-shell-width,fit-content)]，移动 <960 不读）。 */
+.content-detail-overlay {
+  --overlay-shell-width: fit-content;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
