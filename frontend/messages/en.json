@@ -374,8 +374,10 @@
         "image": "Image",
         "video": "Video",
         "pdf": "PDF",
-        "sheetMusic": "Sheet music"
+        "sheetMusic": "Sheet music",
+        "fallback": "File"
       },
+      "fallbackHint": "No online preview for this format. Download it to view.",
       "scanStatus": {
         "pending": "Attachment is queued for security scanning",
         "scanning": "Attachment is being security-scanned",

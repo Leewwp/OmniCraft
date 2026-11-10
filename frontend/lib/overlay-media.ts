@@ -8,9 +8,11 @@ import { coverRenderSrc, prefetchCoverVariant } from "@/lib/overlay-motion";
 import type { AttachmentData, NormalizedContentDetailResponse } from "@/lib/content";
 
 /**
- * 详情浮层统一版式的全类型媒体几何库（D2 #859 起；D5 #862 扩为可预览媒体链）：
- * 媒体链构建、逐附件 slide 分发、图片/视频类型分流尺寸探测与共享有界就绪预算。
+ * 详情浮层统一版式的全类型媒体几何库（D2 #859 起；D5 #862 扩为可预览媒体链；
+ * E3 #955 封面恒为首屏 + 不可预览附件托底位）：媒体链构建、逐附件 slide
+ * 分发、图片/视频类型分流尺寸探测与共享有界就绪预算。
  * 设计输入：docs/superpowers/specs/2026-10-09-omnicraft-detail-overlay-unification-design.md §9.3/§9.6；
+ * docs/superpowers/specs/2026-11-07-omnicraft-overlay-xhs-parity-design.md（四项裁决 3）；
  * 历史：docs/working/2026-09-06-overlay-rework-prototype-handoff.md §2/§7（#397 R2 胜者记录）。
  */
 
@@ -60,7 +62,8 @@ export function isPortraitMediaSet(items: MediaGalleryItem[]): boolean {
 }
 
 /** sheet_music 族逐附件分派（D5 #862）：file_type 优先、持久化 MIME 兜底；
- * mscz/mscx 与未知格式不产出 slide（只留右栏下载行）。 */
+ * mscz/mscx 与未知格式不产出可预览 slide（E3 #955 起由
+ * overlayFallbackSlideFromAttachment 产出托底位）。 */
 function sheetMusicSlideType(attachment: AttachmentData): MediaSlideType | null {
   const fileType = attachment.file_type ?? "";
   const mime = attachment.mime_type ?? "";
@@ -132,13 +135,13 @@ export function overlaySlideFromAttachment(
 
 /**
  * 可放大 slide 谓词（D6 #863，spec §3.2 放大态行 / §9.6 末两段）：可放大
- * 序列仅三类 = 真实图片（image，不含 autoCover 标记的合成文字封面）、
- * model3d、text 族 pdf（text_pdf）。video/audio/document/乐谱族（含
- * sheet_music_pdf——乐谱族 pdf 仍属乐谱位）一律无放大入口；自动文字封面/
- * 音频背景封面/video poster 不算独立图片附件——后两者不是 slide 链成员
- * （由 slide 分发层保证）；自动文字封面确会作为无可预览项时的唯一
- * fallback image slide 进链（buildOverlayMedia 置 autoCover 标记），
- * 谓词层按标记排除。
+ * 序列仅三类 = 真实图片（image，含真内容封面 slide；不含 autoCover 标记的
+ * 合成文字封面）、model3d、text 族 pdf（text_pdf）。video/audio/document/
+ * 乐谱族（含 sheet_music_pdf——乐谱族 pdf 仍属乐谱位）与托底位
+ * （fallback_download，属性卡非媒体）一律无放大入口；自动文字封面/音频
+ * 背景封面/video poster 不算独立图片附件——后两者不是 slide 链成员（由
+ * slide 分发层保证）；自动文字封面确会作为无可预览项时的唯一 fallback
+ * image slide 进链（buildOverlayMedia 置 autoCover 标记），谓词层按标记排除。
  */
 export function isEnlargeableSlide(item: MediaGalleryItem): boolean {
   if (item.type === "image" && item.autoCover) return false;
@@ -162,31 +165,80 @@ export function selectOverlaySlides(
 }
 
 /**
- * 全类型媒体源链（胜者记录 §7；D5 #862 首级扩为可预览媒体链）：可预览
- * slide 序列 → 内容封面 → 自动文字封面（getCoverPlaceholder 3:4 渐变字牌）。
- * cover_width/cover_height 全库为 0，封面项由 useOverlayMedia 预加载实测
- * intrinsic 尺寸后再判朝向（横封面 ≥16:9 维持现设计）。
+ * 不可预览附件的托底 slide（E3 #955）：mscz/txt/mod/压缩包等无浏览器渲染器
+ * 的附件逐附件进链（翻页可逐个查看属性），任何内容打开舞台非空。资格 =
+ * 过扫描门（clean/not_required，与可预览链同门；被拦截行留右栏扫描卡）
+ * 且非 .mtl（纹理伴生文件不是独立内容页）。下载不依赖签名 oss_url——走
+ * DownloadButton 既有 `/contents/{id}/download?attachment_id` 路径按需现签。
+ * url = 舞台底图（有内容封面 = 封面图，无封面 = 空串 → 渲染层按 family
+ * 占位图兜底）；几何 = 查看器族名义 3:4。
+ */
+export function overlayFallbackSlideFromAttachment(
+  attachment: AttachmentData,
+  coverUrl?: string,
+): MediaGalleryItem | null {
+  if (isPreviewBlockedByScan(attachment.scan_status)) return null;
+  const fileName = attachment.original_file_name || attachment.oss_key || "";
+  if (fileName.toLowerCase().endsWith(".mtl")) return null;
+  return {
+    id: attachment.id,
+    url: coverUrl ?? "",
+    type: "fallback_download",
+    fileName,
+    fileSize: attachment.file_size,
+    width: SLIDE_NOMINAL_WIDTH,
+    height: SLIDE_NOMINAL_HEIGHT,
+    fallbackFamily: attachment.file_type ?? "",
+  };
+}
+
+/** URL 归一化（剥 query/hash）：封面与图片附件「同一文件」判定——展示 URL
+    逐响应签名轮换（Expires/Signature 不同），同文件比对只认路径。 */
+function normalizedMediaUrl(url: string): string {
+  return url.split(/[?#]/, 1)[0];
+}
+
+/**
+ * 全类型媒体源链（E3 #955 封面恒为首屏 + 全类型舞台托底）：有封面 →
+ * 封面 slide 0 + 附件序列（可预览优先、不可预览托底，按附件稳定顺序混排）；
+ * 无封面 → 附件序列（维持可预览附件优先现状）→ 自动文字封面兜底
+ * （getCoverPlaceholder 3:4 渐变字牌）。附件序列为空时任何路径必有 slide，
+ * 绝不空舞台。封面与图片附件为同一文件（图片内容封面常 = 首图，签名参数
+    轮换后路径相同）时去重——保留封面位，避免翻页第 2 张与第 1 张相同。
+ * cover_width/cover_height 全库为 0：封面项由 useOverlayMedia 预加载实测
+ * intrinsic 尺寸（缺尺寸图片探针管道）后参与几何推导（E1 contentFrozenRatio
+ * 消费首 slide，封面比例即冻结比例）。
  */
 export function buildOverlayMedia(detail: NormalizedContentDetailResponse): MediaGalleryItem[] {
   const content = detail.content;
   if (!content) return [];
   const contentType = content.content_type;
-  const slides = selectOverlaySlides(
-    detail.attachments ?? [],
-    contentType === "video" ? content.cover_image_url : undefined,
-  );
-  if (slides.length > 0) return slides;
-  if (content.cover_image_url) {
-    return [
-      {
-        id: -(content.id * 100),
-        url: content.cover_image_url,
-        type: "image",
-        width: content.cover_width,
-        height: content.cover_height,
-      },
-    ];
+  const coverUrl = content.cover_image_url ?? "";
+  const attachments = detail.attachments ?? [];
+  const slides: MediaGalleryItem[] = [];
+  for (const attachment of attachments) {
+    const slide =
+      overlaySlideFromAttachment(
+        attachment,
+        contentType === "video" ? coverUrl : undefined,
+      ) ?? overlayFallbackSlideFromAttachment(attachment, coverUrl);
+    if (slide) slides.push(slide);
   }
+  if (coverUrl) {
+    const coverSlide: MediaGalleryItem = {
+      id: -(content.id * 100),
+      url: coverUrl,
+      type: "image",
+      width: content.cover_width,
+      height: content.cover_height,
+    };
+    const coverKey = normalizedMediaUrl(coverUrl);
+    const deduped = slides.filter(
+      (slide) => !(slide.type === "image" && normalizedMediaUrl(slide.url) === coverKey),
+    );
+    return [coverSlide, ...deduped];
+  }
+  if (slides.length > 0) return slides;
   return [
     {
       id: -(content.id * 100 + 1),

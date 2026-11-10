@@ -145,6 +145,7 @@ export const testMessages = {
     attachmentPreview: {
       /* 值与 messages/en.json 不同（钉死来源 = testMessages，断言可见区分）。 */
       failed: "Preview failed; download to view (test)",
+      fallbackHint: "No online preview for this format (test)",
       familyLabel: {
         document: "Document",
         model3d: "3D model",
@@ -153,12 +154,15 @@ export const testMessages = {
         video: "Video",
         pdf: "PDF",
         sheetMusic: "Sheet music",
+        fallback: "File",
       },
       audio: {
         play: "Play audio",
         pause: "Pause audio",
       },
     },
+    attachmentUnknownType: "File",
+    download: "Download",
     limitMb: "Limit: {maxMB}MB",
     selectFile: "Select file",
     uploading: "Uploading",

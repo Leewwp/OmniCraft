@@ -740,3 +740,53 @@ test("D5 midi 播放中卸载：cleanup 显式 pause 停走 midi 调度器（质
     stubs.restore();
   }
 });
+
+/* ── E3 #955 托底位（fallback_download）：属性卡形态与舞台非空 ─────────────── */
+
+test("E3 托底位：占位图为底 + 文件名/大小/提示属性卡；无 allowCopy 无下载钮；舞台非空", async () => {
+  renderLayout({
+    media: [
+      {
+        id: 9301,
+        url: "",
+        type: "fallback_download",
+        fileName: "score.mscz",
+        fileSize: 4096,
+        width: 300,
+        height: 400,
+        fallbackFamily: "sheet_music_mscz",
+      },
+    ],
+    contentId: 9001,
+    allowCopy: false,
+  });
+  const pane = paneElement();
+  const fallback = pane.querySelector('[data-slot="slide-fallback"]');
+  assert.ok(fallback, "fallback slide renders the property card stage (non-empty, never undefined)");
+  assert.ok(fallback.querySelector("img"), "family placeholder art renders as the backdrop (no cover)");
+  assert.ok(fallback.textContent?.includes("score.mscz"), "file name row renders");
+  assert.ok(fallback.textContent?.includes("4.0 KB"), `formatted size row renders (got ${fallback.textContent ?? ""})`);
+  assert.ok(fallback.textContent?.includes("No online preview"), "preview-unavailable hint renders");
+  assert.equal(fallback.querySelectorAll("button").length, 0, "allowCopy=false → no download entry (same gate as the right rail)");
+  assert.equal(pane.querySelector('[data-slot="media-refresh-preview"]'), null, "fallback has no refresh-preview entry (no signed url to refresh)");
+});
+
+test("E3 托底位混排：类型角标取 familyLabel.fallback；托底位不可放大", async () => {
+  renderLayout({
+    media: [imageItem(1), { ...slideItem(2, "fallback_download"), fallbackFamily: "sheet_music_mscz", fileName: "score.mscz" }],
+    contentId: 9001,
+    allowCopy: false,
+  });
+  let badge = document.querySelector('[data-slot="media-type-badge"]');
+  assert.ok(badge, "mixed chain shows the per-slide family badge");
+  assert.equal(badge.textContent, "Image", "slide 0 (image) badges its own family");
+  /* 切到托底位：角标换 fallback 家族；托底位无放大钮（属性卡非媒体）。 */
+  await act(async () => {
+    fireEvent.click(document.querySelectorAll('[data-slot="media-arrow"]')[1]);
+  });
+  badge = document.querySelector('[data-slot="media-type-badge"]');
+  assert.ok(badge);
+  assert.equal(badge.textContent, "File", "fallback family label resolves via i18n");
+  assert.ok(document.querySelector('[data-slot="slide-fallback"]'), "fallback property card is the current stage");
+  assert.equal(document.querySelector('[data-slot="media-enlarge-button"]'), null, "fallback slide has no enlarge entry (excluded from the viewer chain)");
+});

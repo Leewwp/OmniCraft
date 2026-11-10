@@ -14,7 +14,9 @@ import { SWIPE_THRESHOLD, attemptPlay, clampIndex, toggleVideoSlideClick } from 
 
 /** 统一 slide 类型（D5 #862）：image/video = 既有媒体集位（selectMediaItems
  * 产出，独立详情页契约不变）；其余 = 浮层侧可预览媒体链的逐附件位
- * （overlay-media selectOverlaySlides 产出，仅进 OverlayVariantLayout）。 */
+ * （overlay-media selectOverlaySlides 产出，仅进 OverlayVariantLayout）；
+ * fallback_download = E3 #955 不可预览附件的托底位（属性卡 + 下载入口，
+ * 任何内容打开舞台非空）。 */
 export type MediaSlideType =
   | "image"
   | "video"
@@ -24,7 +26,8 @@ export type MediaSlideType =
   | "text_pdf"
   | "sheet_music_xml"
   | "sheet_music_midi"
-  | "sheet_music_pdf";
+  | "sheet_music_pdf"
+  | "fallback_download";
 
 export interface MediaGalleryItem {
   id: number;
@@ -40,6 +43,10 @@ export interface MediaGalleryItem {
    * 图片附件（spec §3.2 article 行放大语义 = — / §9.6），isEnlargeableSlide
    * 据此排除其放大入口；真内容封面（cover_image_url）不带此标记，保持可放大。 */
   autoCover?: true;
+  /** E3 #955 托底位（fallback_download）专属：附件持久化 file_type（占位图/
+   * 图标族映射用）；url = 舞台底图（有内容封面 = 封面 URL，无封面 = 空串 →
+   * 渲染层按 family 占位图兜底），下载走附件 id + DownloadButton 既有路径。 */
+  fallbackFamily?: string;
 }
 
 interface MediaGalleryProps {
