@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { AudioLines, Box, ChevronLeft, ChevronRight, FileText, Maximize2, Music, Package, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -331,6 +331,9 @@ interface MediaSlideProps {
   total: number;
   /** 首项媒体加载落定/失败回调一次（驱动正文 reveal，同 split 路径 coverReady）。 */
   onSettle: (state: "ready" | "error") => void;
+  /** E4 #956 slide 就绪信号（图片解码/视频元数据/查看器挂载；失败同样放行）
+      ——当前层就绪交换门控：未就绪期旧层保持。 */
+  onReady?: () => void;
   /** #409 F1 首帧保持：入场未落定期首项图片渲染卡片封面 src（防换图）。 */
   holdSrc?: string | null;
   /** D2：当前 slide 的 <video> 引用（主体点击切播与挂起矩阵使用）。 */
@@ -357,6 +360,7 @@ function MediaSlide({
   index,
   total,
   onSettle,
+  onReady,
   holdSrc,
   videoRef,
   suspended,
@@ -390,10 +394,12 @@ function MediaSlide({
   }, [item.type, item.id, item.url, suspended, userPausedRef, videoRef]);
 
   /* D5 #862 查看器族位无加载探针：挂载即视为落定（首项驱动正文 reveal，
-     不等浮层 2s 入场保险；onSettle 在布局侧有一次性守卫，重复触发无害）。 */
+     不等浮层 2s 入场保险；onSettle 在布局侧有一次性守卫，重复触发无害）。
+     E4 #956：挂载即就绪同样放行 hold-crossfade 就绪门。 */
   useEffect(() => {
     if (item.type === "image" || item.type === "video") return;
     if (index === 0) onSettle("ready");
+    onReady?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.type, item.id]);
 
@@ -416,8 +422,12 @@ function MediaSlide({
               onVideoMetadata?.(item.id, video.videoWidth, video.videoHeight);
             }
             settleIfFirst("ready");
+            onReady?.();
           }}
-          onError={() => settleIfFirst("error")}
+          onError={() => {
+            settleIfFirst("error");
+            onReady?.();
+          }}
         />
       </div>
     );
@@ -439,7 +449,12 @@ function MediaSlide({
             /* cursor-zoom-in 只给真实图片（主体点击开查看器）；合成自动文字封面
                被 isEnlargeableSlide 排除、主体点击无副作用，保持默认光标。 */
             imgClassName={item.autoCover ? "object-contain" : "cursor-zoom-in object-contain"}
-            onSettle={settleIfFirst}
+            /* E4 #956 就绪交换：onSettle 每 mount 一次（加载或失败），作当前层
+               图片就绪信号——规范变体未就绪期旧层保持。 */
+            onSettle={(state) => {
+              settleIfFirst(state);
+              onReady?.();
+            }}
           />
         </div>
       );
@@ -753,31 +768,56 @@ export function OverlayVariantLayout({
     onGeometrySpec?.({ tier, paneWidth, shellWidth });
   }, [active, geometryMeasured, tier, paneWidth, shellWidth, onGeometrySpec]);
 
-  /* ── E2 #954 舞台 slide 双层交叉淡出（规范第 1/2 条） ─────────────────────
-     翻页时旧 slide 保留为淡出层（180ms 真交叉淡出，新层淡入同时旧层淡出），
-     240ms 后移除；快速连按时已在淡出的层被最新切换立即接管替换（发号牌制：
-     仅最新切换持有旧层清理权，任意时刻舞台至多 2 层 = 1 新 + 1 淡出中）。 */
+  /* ── E2 #954 舞台 slide 双层交叉淡出 + E4 #956 就绪交换（hold-crossfade） ──
+     翻页时旧 slide 保留为淡出层；E4 起新 slide 未就绪（图片未解码/视频缺
+     元数据）时旧层保持满不透明、新层 opacity 0 被压在下——新层就绪（或失败
+     放行）才同时起跑 180ms 真交叉淡出，240ms 后移除旧层（弱网零空白）。
+     快速连按时已在保持/淡出的层被最新切换立即接管替换（发号牌制：仅最新
+     切换持有旧层清理权，任意时刻舞台至多 2 层 = 1 新 + 1 保持/淡出中）。
+     就绪门只作用于翻页交换，不进开场（首挂载无淡出层 = E2 语义，入场起跑
+     时机不受预取/就绪影响）。 */
   const [exitSlide, setExitSlide] = useState<{ item: MediaGalleryItem; index: number } | null>(null);
+  const [enterReady, setEnterReady] = useState(true);
   const exitOwnerRef = useRef(0);
   const prevAtRef = useRef(clampIndex(0, media.length));
-  useEffect(() => {
+  /* pendingAt：正在等就绪的当前位——迟到/串位的就绪回调据此丢弃。 */
+  const pendingAtRef = useRef<number | null>(null);
+  /* useLayoutEffect：切换提交后、绘制前落下保持层，杜绝「旧层先卸载一帧」
+     的空白缝（hold 语义对帧间隙零容忍）。 */
+  useLayoutEffect(() => {
     const prevAt = prevAtRef.current;
     prevAtRef.current = at;
     if (prevAt === at) return;
     const prevItem = media[prevAt];
+    exitOwnerRef.current += 1;
     if (!prevItem) {
+      pendingAtRef.current = null;
       setExitSlide(null);
+      setEnterReady(true);
       return;
     }
     setExitSlide({ item: prevItem, index: prevAt });
-    const myToken = ++exitOwnerRef.current;
+    setEnterReady(false);
+    pendingAtRef.current = at;
+  }, [at, media]);
+
+  /* 旧层移除定时器：就绪交换起跑后才起表（发号牌：更新切换接管时作废）。 */
+  useEffect(() => {
+    if (!exitSlide || !enterReady) return;
+    const myToken = exitOwnerRef.current;
     const timer = window.setTimeout(() => {
-      /* 发号牌：已有更新的切换接管清理权时本定时器作废，不误杀新淡出层。 */
       if (exitOwnerRef.current !== myToken) return;
       setExitSlide(null);
     }, OVERLAY_MOTION.slideExitRemoveMs);
     return () => window.clearTimeout(timer);
-  }, [at, media]);
+  }, [exitSlide, enterReady]);
+
+  /* 当前层就绪回调（渲染闭包携带本渲染的 at；串位就绪经 pendingAt 丢弃）。 */
+  const handleCurrentSlideReady = () => {
+    if (pendingAtRef.current !== null && pendingAtRef.current !== at) return;
+    pendingAtRef.current = null;
+    setEnterReady(true);
+  };
 
   /* ── E2 #954 关窗回源令牌 ──────────────────────────────────────────────────
      关窗开始时递增：舞台瞬时回源（index→0、交叉淡回封面态、档位/宽度无过渡
@@ -948,7 +988,10 @@ export function OverlayVariantLayout({
                 分层不改变几何（宽度在 pane 上，E1 冻结）。data-ultra-tall：长图
                 当前项标记——浮层转场据此退化居中缩淡（C2，卡片两档裁切 vs 面板
                 contain 取景无法统一）。空链（错误态）不渲染锚点：浮层转场维持
-                居中缩淡降级。 */}
+                居中缩淡降级。
+                E4 #956 就绪交换：有保持层且新层未就绪时当前层 opacity 0（被其
+                上满不透明旧层覆盖，加载中的半成品不透出）；就绪后才挂 180ms
+                淡入动画（与旧层淡出同帧起跑 = 真交叉淡出）。 */}
             <div
               key={current.id}
               data-slot="detail-cover"
@@ -957,9 +1000,11 @@ export function OverlayVariantLayout({
               onClick={handleCoverClick}
               style={
                 exitSlide
-                  ? {
-                      animation: `overlay-slide-fade-in ${OVERLAY_MOTION.slideCrossfadeMs}ms ease both`,
-                    }
+                  ? enterReady
+                    ? {
+                        animation: `overlay-slide-fade-in ${OVERLAY_MOTION.slideCrossfadeMs}ms ease both`,
+                      }
+                    : { opacity: 0 }
                   : undefined
               }
             >
@@ -968,6 +1013,7 @@ export function OverlayVariantLayout({
                 index={at}
                 total={media.length}
                 onSettle={settleFirstMedia}
+                onReady={handleCurrentSlideReady}
                 holdSrc={holdSrc}
                 videoRef={videoRef}
                 suspended={suspended}
@@ -977,16 +1023,22 @@ export function OverlayVariantLayout({
                 allowCopy={allowCopy}
               />
             </div>
-            {/* E2 #954 淡出层（规范第 1/2 条）：旧 slide 覆盖其上 180ms 淡出，
-                240ms 后由发号牌定时器移除；挂起态（suspended 硬真）停播防双声。 */}
+            {/* E2 #954 淡出层（规范第 1/2 条）+ E4 #956 保持层：旧 slide 覆盖
+                其上；新层未就绪期无动画 = 满不透明保持（hold），就绪后 180ms
+                淡出、240ms 由发号牌定时器移除；挂起态（suspended 硬真）停播
+                防双声。 */}
             {exitSlide && (
               <div
                 data-slot="slide-fade-out"
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 overflow-hidden"
-                style={{
-                  animation: `overlay-slide-fade-out ${OVERLAY_MOTION.slideCrossfadeMs}ms ease both`,
-                }}
+                style={
+                  enterReady
+                    ? {
+                        animation: `overlay-slide-fade-out ${OVERLAY_MOTION.slideCrossfadeMs}ms ease both`,
+                      }
+                    : undefined
+                }
               >
                 <MediaSlide
                   item={exitSlide.item}

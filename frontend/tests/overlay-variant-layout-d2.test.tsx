@@ -551,6 +551,19 @@ function exitLayer(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="slide-fade-out"]');
 }
 
+/** E4 #956 就绪门驱动：jsdom 图片永不自然加载，当前层图片 load 即放行交换。 */
+async function loadCurrentImage() {
+  const img = document.querySelector<HTMLImageElement>(
+    '[data-slot="variant-media-pane"] > [data-slot="detail-cover"] img:not([data-slot="cover-hold"])',
+  );
+  if (img) {
+    await act(async () => {
+      fireEvent.load(img);
+      await Promise.resolve();
+    });
+  }
+}
+
 test("E2 交叉淡出：翻页 = 1 新层 + 1 淡出层，240ms 后收敛回单层", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)] });
   await waitFor(() => assert.ok(countBadgeText() !== ""));
@@ -560,14 +573,22 @@ test("E2 交叉淡出：翻页 = 1 新层 + 1 淡出层，240ms 后收敛回单�
     pressArrowKey("ArrowRight");
   });
   assert.equal(countBadgeText(), "2 / 3");
-  assert.equal(stageLayerCount(), 2, "翻页瞬间 = 新层 + 淡出层（双层真交叉淡出）");
+  assert.equal(stageLayerCount(), 2, "翻页瞬间 = 新层 + 保持/淡出层（双层）");
   const exit = exitLayer();
   assert.ok(exit, "exit layer renders");
   assert.equal(exit?.getAttribute("aria-hidden"), "true", "exit layer is aria-hidden");
   assert.ok(exit?.className.includes("pointer-events-none"), "exit layer never intercepts interactions");
+  /* E4 #956 hold：新图未就绪期旧层保持（无淡出动画、新层被压在下）。 */
+  assert.equal(
+    exit?.style.animation ?? "",
+    "",
+    "incoming media not ready keeps the old layer holding without fading",
+  );
+  /* 就绪放行：双层同帧起跑真交叉淡出。 */
+  await loadCurrentImage();
   assert.ok(
-    (exit?.style.animation ?? "").includes("overlay-slide-fade-out"),
-    `exit layer plays the fade-out animation (got ${exit?.style.animation})`,
+    (exitLayer()?.style.animation ?? "").includes("overlay-slide-fade-out"),
+    `exit layer plays the fade-out animation (got ${exitLayer()?.style.animation})`,
   );
   const current = document.querySelector<HTMLElement>('[data-slot="variant-media-pane"] > [data-slot="detail-cover"]');
   assert.ok(
@@ -588,13 +609,15 @@ test("E2 快速连按：任意时刻舞台 ≤2 层，最新淡出层接管清�
     pressArrowKey("ArrowRight");
   });
   assert.equal(countBadgeText(), "3 / 3", "连按两步到位");
-  assert.ok(stageLayerCount() <= 2, `任意时刻至多 2 层（1 新 + 1 淡出中），got ${stageLayerCount()}`);
-  assert.equal(stageLayerCount(), 2, "最新一次切换的旧层仍在淡出");
+  assert.ok(stageLayerCount() <= 2, `任意时刻至多 2 层（1 新 + 1 保持/淡出中），got ${stageLayerCount()}`);
+  assert.equal(stageLayerCount(), 2, "最新一次切换的旧层仍在保持/淡出");
   /* 再连按回翻：第三次切换接管清理权，第一份淡出层立即被替换（无叠层残留）。 */
   await act(async () => {
     pressArrowKey("ArrowLeft");
   });
   assert.ok(stageLayerCount() <= 2, `中断再切换仍 ≤2 层，got ${stageLayerCount()}`);
+  /* E4 就绪门：最新位图片就绪后交换收敛（jsdom 由 load 驱动）。 */
+  await loadCurrentImage();
   await waitFor(() => assert.equal(stageLayerCount(), 1, "连按结束后舞台收敛单层"));
   assert.equal(countBadgeText(), "2 / 3");
 });

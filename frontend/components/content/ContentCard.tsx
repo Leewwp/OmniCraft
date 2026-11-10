@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
@@ -13,6 +13,7 @@ import {
   coverRenderSrc,
   prefetchCoverVariant,
 } from "@/lib/overlay-motion";
+import { scheduleIdleTask } from "@/lib/overlay-prefetch";
 
 export interface ContentCardData {
   id: number;
@@ -99,6 +100,8 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
      未知/失败 3:4 稳定占位。卡片与详情不再天然同取景（详情 contain），
      转场侧按几何差异走既有居中缩淡降级（overlay-motion C2）。 */
   const [measuredCover, setMeasuredCover] = useState<{ w: number; h: number } | null>(null);
+  /* E4 #956 封面可见即预热的观察锚点（card-cover 容器，见下方 IntersectionObserver）。 */
+  const coverSlotRef = useRef<HTMLDivElement | null>(null);
   const coverWidth = data.cover_width;
   const coverHeight = data.cover_height;
   const hasCoverSize =
@@ -138,7 +141,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
   );
 
   const cover = (
-    <div data-slot="card-cover" className="relative w-full bg-muted">
+    <div data-slot="card-cover" ref={coverSlotRef} className="relative w-full bg-muted">
       {/* #753 两档封面：3:4 / 9:16 + object-cover 中心裁切 */}
       <div
         data-slot="card-cover-aspect"
@@ -308,6 +311,28 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
     cancelHoverPrefetch();
     prefetchCoverVariant(prefetchTarget);
   };
+
+  /* E4 #956 封面可见即预热（hover/pointerdown 预取的补位）：浮窗模式卡片封面
+     进入视口即经 idle 调度预取 1080 规范变体——开窗 settle 换图目标提前入
+     缓存，未 hover 直接点按/触屏滑动打开也不撞冷缓存。420 快变体 = 卡片渲染
+     地址天然已缓存，预热增量只有 1080；一次可见一次预取（prefetchCoverVariant
+     内部去重，重挂/滚动往返零成本）；占位封面（data:）无可预热对象。 */
+  useEffect(() => {
+    if (!onOpenDetail || !coverUrl || typeof IntersectionObserver === "undefined") return;
+    const el = coverSlotRef.current;
+    if (!el) return;
+    let cancelIdle: (() => void) | null = null;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      cancelIdle = scheduleIdleTask(() => prefetchCoverVariant(coverUrl));
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelIdle?.();
+    };
+  }, [onOpenDetail, coverUrl]);
 
   if (onOpenDetail) {
     return (

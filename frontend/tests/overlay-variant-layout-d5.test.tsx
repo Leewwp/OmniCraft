@@ -339,7 +339,9 @@ test("D5 audio 挂起（非顶层）暂停播放；切位卸载停播释放", as
       "suspension pauses the audio slide",
     );
 
-    /* 切位：AudioPlayer 卸载（当前位才挂载），audio 元素离场即停播释放。 */
+    /* 切位：AudioPlayer 卸载（当前位才挂载），audio 元素离场即停播释放。
+       E4 #956：图片位就绪前旧层保持（jsdom 由 load 驱动就绪），就绪交换后
+       保持层（含 audio 位）卸载释放。 */
     const next = document.querySelector<HTMLButtonElement>('button[aria-label="Next media"]');
     assert.ok(next);
     await act(async () => {
@@ -347,6 +349,13 @@ test("D5 audio 挂起（非顶层）暂停播放；切位卸载停播释放", as
     });
     await act(async () => {
       fireEvent.click(next);
+    });
+    const incomingImg = document.querySelector<HTMLImageElement>(
+      '[data-slot="variant-media-pane"] > [data-slot="detail-cover"] img:not([data-slot="cover-hold"])',
+    );
+    assert.ok(incomingImg, "image slide mounts underneath the holding audio layer");
+    await act(async () => {
+      fireEvent.load(incomingImg);
     });
     await waitFor(() => assert.ok(!pane.querySelector('[data-testid="audio-player"]'), "switching slides unmounts the player"));
     assert.equal(pane.querySelectorAll("audio").length, 0, "audio element is released on slide switch");
@@ -628,6 +637,14 @@ test("D5 播放条形态位：底部圆点与类型角标上移让位（几何�
   assert.ok(prev());
   await act(async () => {
     fireEvent.click(prev()!);
+  });
+  /* E4 #956：图片位就绪（jsdom 由 load 驱动）后保持的 audio 位淡出卸载。 */
+  const backImg = document.querySelector<HTMLImageElement>(
+    '[data-slot="variant-media-pane"] > [data-slot="detail-cover"] img:not([data-slot="cover-hold"])',
+  );
+  assert.ok(backImg, "image slide remounts on the way back");
+  await act(async () => {
+    fireEvent.load(backImg);
   });
   await waitFor(() => assert.ok(!document.querySelector('[data-slot="slide-audio"]'), "back on the image slide"));
   const dotsDefault = document.querySelector<HTMLElement>('[data-slot="media-paging-dots"]');
