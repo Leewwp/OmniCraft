@@ -8,9 +8,11 @@ import { testMessages } from "./runtime-test-helpers";
 import { act, cleanup, fireEvent, installDom, render, waitFor } from "./runtime-test-helpers";
 
 /* ────────────────────────────────────────────────────────────────────────────
- * D2 #859 统一版式媒体列契约（spec §3.1/§3.3/§9.3）：
- * - 几何时序：冻结窗口（入场动画期）迟到尺寸不得改列宽；解冻后恢复真实比例；
- *   无尺寸视频首帧按防御比例稳定占位，不得闪现后跳宽。
+ * D2 #859 统一版式媒体列契约（spec §3.1/§3.3/§9.3）+ E1 #953 几何引擎：
+ * - 几何（E1）：按内容冻结（宽度只随首 slide 比例与档位变化，内容内翻页零
+ *   变化）；文档族 slide = reading 宽舞台档（pane data-tier）；首帧宽度即
+ *   终值（px 无百分比兜底）；首项迟到回填一次平滑修正；几何规格上报
+ *   （onGeometrySpec：壳宽 = 媒体列 + 固定右列 440）。
  * - 视频生命周期：活跃可见项 muted+playsInline+autoPlay；挂起（非顶层/查看器
  *   打开/登录浮窗）停播，恢复仅当前项；主体点击单次切播；controls 条点击不切播；
  *   视频不再进 MediaViewer（图片行为不变）。
@@ -20,9 +22,11 @@ import { act, cleanup, fireEvent, installDom, render, waitFor } from "./runtime-
  * 断言失败值绝不传 DOM 节点（node:test 序列化挂死），统一 Boolean()/字符串。
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/* jsdom 无布局：给 ResizeObserver 桩固定可用区（1000×800），paneWidth 公式
-   在其上给出可区分像素值：3:4 → 600px；16:9 → 620px（cap=1000-380）。 */
+/* jsdom 无布局：ResizeObserver 桩固定根区（1000×800，高为几何基准）；
+   视口桩 1440 → 壳宽上限 min(1320,1408)=1320、可用宽 1320-440=880。
+   宽度期望值：3:4 → 800×0.75=600；1:1 → 800；16:9 → clamp 880；9:16 → 450。 */
 const AREA = { width: 1000, height: 800 };
+const VIEWPORT_WIDTH = 1440;
 
 function installResizeObserverStub() {
   class ResizeObserverStub {
@@ -55,6 +59,8 @@ function installResizeObserverStub() {
   }
   /* 组件代码经 tsx 在 Node 全局解析裸标识符：必须挂 globalThis 而非 window。 */
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = ResizeObserverStub;
+  /* 视口桩：宽度推导的上限基准（computeOverlayGeometry 的 viewportWidth）。 */
+  Object.defineProperty(window, "innerWidth", { value: VIEWPORT_WIDTH, configurable: true, writable: true });
 }
 
 interface MediaCall {
@@ -135,7 +141,7 @@ type LayoutProps = Omit<OverlayVariantLayoutProps, "children"> & { children?: Re
 
 function LayoutHarness({
   media,
-  freezeGeometry,
+  onGeometrySpec,
   active,
   onMediaDimensions,
   children,
@@ -147,7 +153,7 @@ function LayoutHarness({
         <OverlayVariantLayout
           media={media}
           active={active}
-          freezeGeometry={freezeGeometry}
+          onGeometrySpec={onGeometrySpec}
           onMediaDimensions={onMediaDimensions}
         >
           {children ?? <p>d2 harness body</p>}
@@ -176,6 +182,14 @@ function paneWidth(): string {
   return paneElement().style.width;
 }
 
+function paneTier(): string {
+  return paneElement().dataset.tier ?? "";
+}
+
+function paneTransition(): string {
+  return paneElement().style.transition;
+}
+
 function countBadgeText(): string {
   const badge = document.querySelector<HTMLElement>('[data-slot="media-count-badge"]');
   return badge?.textContent ?? "";
@@ -195,44 +209,129 @@ function pressArrowKey(key: "ArrowLeft" | "ArrowRight", target?: Element) {
 
 test.afterEach(() => cleanup());
 
-/* ── 几何时序（两段式根除） ─────────────────────────────────────────────── */
+/* ── 几何引擎（E1 #953：按内容冻结 + 阅读宽舞台档 + 首帧即终值） ────────── */
 
-test("D2 冻结窗口：迟到尺寸不改列宽（入场动画零跳宽），解冻后恢复真实比例", async () => {
-  const view = renderLayout({
-    media: [videoItem()],
-    freezeGeometry: true,
+test("E1 按内容冻结：混排比例内容翻页宽度零变化（3:4/1:1/9:16）", async () => {
+  const media = [
+    imageItem(1, { width: 900, height: 1200 }),
+    imageItem(2, { width: 800, height: 800 }),
+    imageItem(3, { width: 720, height: 1280 }),
+  ];
+  renderLayout({ media });
+  await waitFor(() => assert.ok(paneWidth() !== "", "pane measured"));
+  assert.equal(paneWidth(), "600px", "冻结比例 = 首 slide 3:4（800×0.75）");
+  assert.equal(paneTier(), "visual", "image 位 = visual 档");
+
+  /* 跨比例翻页：宽度读数零变化（后续 slide 比例不参与几何）。 */
+  await act(async () => {
+    pressArrowKey("ArrowRight");
   });
+  assert.equal(paneWidth(), "600px", "1:1 位宽度不变（按内容冻结）");
+  await act(async () => {
+    pressArrowKey("ArrowRight");
+  });
+  assert.equal(paneWidth(), "600px", "9:16 位宽度不变（按内容冻结）");
+  await act(async () => {
+    pressArrowKey("ArrowLeft");
+  });
+  assert.equal(paneWidth(), "600px", "翻回首页宽度仍不变");
+});
+
+test("E1 阅读宽舞台档：文档族 slide 取满可用宽，档位切换一次（visual↔reading）", async () => {
+  const docSlide: MediaGalleryItem = {
+    id: 90,
+    url: "https://bucket.example/e1/sheet.csv",
+    type: "document",
+    fileName: "sheet.csv",
+    width: 300,
+    height: 400,
+  };
+  renderLayout({ media: [imageItem(1, { width: 900, height: 1200 }), docSlide] });
+  await waitFor(() => assert.ok(paneWidth() !== ""));
+  assert.equal(paneWidth(), "600px", "首 slide 3:4 → visual 档 600px");
+  assert.equal(paneTier(), "visual");
+
+  await act(async () => {
+    pressArrowKey("ArrowRight");
+  });
+  assert.equal(paneTier(), "reading", "document 位 = reading 档");
+  assert.equal(paneWidth(), "880px", "宽舞台 = 可用宽（1320-440）");
+
+  await act(async () => {
+    pressArrowKey("ArrowLeft");
+  });
+  assert.equal(paneTier(), "visual", "翻回影像位回 visual 档");
+  assert.equal(paneWidth(), "600px", "档位切换一次，无逐张漂移");
+});
+
+test("E1 首帧宽度即终值（px 无百分比兜底）+ 宽度过渡常量与测量落地帧语义", async () => {
+  renderLayout({ media: [imageItem(1, { width: 900, height: 1200 })] });
+  await waitFor(() => assert.ok(paneWidth() !== "", "first frame already carries px width"));
+  assert.equal(paneWidth(), "600px", "测量落地帧即终值（无 58% 兜底路径）");
+  /* 测量落地帧关闭过渡（亚像素修正不产生动画），随后启用 240ms SP-12 过渡
+     （rAF 定时器由 act 异步泵送）。 */
+  await waitFor(() => assert.ok(paneTransition().startsWith("width 240ms"), "settled frames enable the 240ms width transition"));
+});
+
+test("E1 首项迟到回填：宽度随新冻结比例一次修正（后续位回填不参与几何）", async () => {
+  const view = renderLayout({ media: [videoItem()] });
   await waitFor(() => assert.ok(paneWidth() !== "", "pane measured"));
   assert.equal(paneWidth(), "600px", "dims-less video holds the defensive 3:4 geometry");
 
-  /* 冻结窗口内元数据迟到：列宽必须保持，不得在入场动画中跳宽。 */
+  /* 首 slide 元数据迟到回填（探针超时后的 loadedmetadata 修正）：按新冻结
+     比例一次修正（16:9 → clamp 到可用宽 880）。 */
   await act(async () => {
-    view.rerender(
-      <LayoutHarness media={[videoItem({ width: 1600, height: 900 })]} freezeGeometry={true} />,
-    );
+    view.rerender(<LayoutHarness media={[videoItem({ width: 1600, height: 900 })]} />);
   });
-  assert.equal(paneWidth(), "600px", "frozen window must not apply late dimensions");
+  assert.equal(paneWidth(), "880px", "first-slide backfill re-derives the frozen ratio once");
 
-  /* 解冻（入场落定）后恢复真实比例（16:9 触发 380px 右栏保留上限 → 620px）。 */
+  /* 非首项回填：几何零变化（宽度只依赖首 slide）。 */
   await act(async () => {
     view.rerender(
       <LayoutHarness
-        media={[videoItem({ width: 1600, height: 900 })]}
-        freezeGeometry={false}
-      />
-      ,
+        media={[
+          videoItem({ width: 1600, height: 900 }),
+          imageItem(2, { width: 720, height: 1280 }),
+        ]}
+      />,
     );
   });
-  assert.equal(paneWidth(), "620px", "post-settle the live true ratio applies");
+  assert.equal(paneWidth(), "880px", "later slides' dims never touch the geometry");
 });
 
-test("D2 已知尺寸直接就绪：冻结起跑即锁真实比例，全程无 3:4 闪现", async () => {
-  renderLayout({
-    media: [videoItem({ width: 1600, height: 900 })],
-    freezeGeometry: true,
+test("E1 几何规格上报：壳宽 = 媒体列 + 固定右列 440，同档翻页零重复上报", async () => {
+  const specs: Array<{ tier: string; paneWidth: number; shellWidth: number }> = [];
+  const view = renderLayout({
+    media: [imageItem(1, { width: 900, height: 1200 }), imageItem(2, { width: 720, height: 1280 })],
+    onGeometrySpec: (spec) => specs.push({ tier: spec.tier, paneWidth: spec.paneWidth, shellWidth: spec.shellWidth }),
   });
-  await waitFor(() => assert.ok(paneWidth() !== ""));
-  assert.equal(paneWidth(), "620px", "known dims lock the true ratio from the frozen first frame");
+  await waitFor(() => assert.ok(specs.length >= 1, "geometry spec reported once measured"));
+  assert.equal(specs[0].tier, "visual");
+  assert.equal(specs[0].paneWidth, 600);
+  assert.equal(specs[0].shellWidth, 1040, "shell width = pane + 440");
+
+  const reportsBefore = specs.length;
+  await act(async () => {
+    pressArrowKey("ArrowRight");
+  });
+  assert.equal(paneWidth(), "600px");
+  assert.equal(specs.length, reportsBefore, "same-tier paging reports nothing");
+
+  /* 非活动（压层）布局不上报；恢复活动后按需重报。 */
+  await act(async () => {
+    view.rerender(
+      <LayoutHarness
+        media={[imageItem(1, { width: 900, height: 1200 }), imageItem(2, { width: 720, height: 1280 })]}
+        active={false}
+        onGeometrySpec={(spec) => specs.push({ tier: spec.tier, paneWidth: spec.paneWidth, shellWidth: spec.shellWidth })}
+      />,
+    );
+  });
+  const countAfterInactive = specs.length;
+  await act(async () => {
+    pressArrowKey("ArrowRight");
+  });
+  assert.equal(specs.length, countAfterInactive, "inactive layer never reports");
 });
 
 /* ── 视频生命周期 ───────────────────────────────────────────────────────── */

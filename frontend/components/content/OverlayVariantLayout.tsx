@@ -11,20 +11,39 @@ import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { SlideViewer, asViewerSlide } from "@/components/content/SlideViewer";
 import { MIDIPlayer, OSMDRenderer } from "@/components/content/SheetMusicViewer";
 import type { MediaGalleryItem, MediaSlideType } from "@/components/content/MediaGallery";
-import { OVERLAY_DEFAULT_RATIO, isEnlargeableSlide, isLongImageItem, itemAspectRatio } from "@/lib/overlay-media";
+import { isEnlargeableSlide, isLongImageItem } from "@/lib/overlay-media";
+import {
+  OVERLAY_GEOMETRY_TRANSITION,
+  OVERLAY_RIGHT_COL_WIDTH,
+  computeOverlayGeometry,
+  contentFrozenRatio,
+  slideTierOf,
+  type OverlayGeometrySpec,
+} from "@/lib/overlay-geometry";
 import { attemptPlay, clampIndex, toggleVideoSlideClick } from "@/lib/media-interaction";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
 
 /**
- * 内容详情浮窗「统一版式」（D1 #858，桌面 ≥960 全类型唯一版式；几何承袭 #397
- * R2 竖屏集新版布局）：左媒体列贴边满幅、列宽 = 可用高 × 当前项真实比例
- * （240ms 过渡；长图缩窄居中完整显示、无内部滚动）；控件 = 悬浮半透明箭头 +
- * 底部指示点 + 右上角标，图片主体点击进查看器；右栏独立滚动
- * （data-slot="layer-scroller"，滚动条贴面板右缘全高贯通）。
+ * 内容详情浮窗「统一版式」（D1 #858，桌面 ≥960 全类型唯一版式）：左媒体列
+ * 贴边满幅、右栏固定宽独立滚动（data-slot="layer-scroller"，滚动条贴面板
+ * 右缘全高贯通）；控件 = 悬浮半透明箭头 + 底部指示点 + 右上角标，图片主体
+ * 点击进查看器。
  *
  * 媒体列直贴面板（宿主容器桌面零内边距，不再用负 margin 抵消 overlay-scroller
  * 的 px/pt/pb）；loading/错误态媒体链为空时媒体列保持稳定黑底占位（双栏外壳
  * 不塌缩、不回退全宽单列）。
+ *
+ * E1 #953 几何引擎（lib/overlay-geometry 纯函数 + 本组件接线）：
+ * - 壳宽内容推导：壳宽 = 媒体列（= 壳高 × 内容冻结比例）+ 固定右列 440，
+ *   上限 min(1320, 视口宽 − 2rem)；几何规格经 onGeometrySpec 上浮到浮层壳层
+ *   驱动 dialog 宽（同程 240ms 过渡）；
+ * - 按内容冻结：冻结比例 = 媒体链首 slide intrinsic（E3 封面恒首屏后自然
+ *   变为封面），内容内翻页零几何变化（跨比例图在同一媒体列 letterbox）；
+ * - 阅读宽舞台档：文档族 slide（document/text_pdf/乐谱族/model3d；pane
+ *   data-tier=reading）取满可用宽；影像+文档混合内容翻页时一次 240ms 档位
+ *   切换，同档内翻页宽度恒定；
+ * - 首帧宽度即终值（px，无百分比兜底→实测的跳变舞蹈）；测量落地帧关闭
+ *   过渡，其后真实值变化才走 240ms 宽度过渡。
  *
  * D2 #859 媒体列几何与视频行为（spec §3.1/§3.3/§9.3）：
  * - 视频全套小红书行为：活跃可见项 muted+playsInline 自动播放；主体点击单次
@@ -32,9 +51,9 @@ import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
  *   play() 被浏览器策略拒绝时保留 controls 手动播放入口；视频不再进 MediaViewer
  *   （全屏用控制条原生按钮）。
  * - 两段式根除：共享有界就绪预算（lib MEDIA_READY_BUDGET_MS）先于入场保险
- *   结清 chainReady；冻结窗口（freezeGeometry = 入场转场起跑→落定）内锁存
- *   起跑比例——迟到元数据不得在同次入场动画中改列宽，落定后随切位/回填平滑
- *   调整；contain 完整呈现允许黑边。
+ *   结清 chainReady；contain 完整呈现允许黑边。首 slide 迟到元数据回填在
+ *   入场落定后按新冻结比例一次 240ms 平滑修正（宽度仅依赖首 slide，后续位
+ *   元数据不参与几何）。
  * - 挂起矩阵：非顶层（压层）、上层查看器、登录浮窗打开时停止隐藏媒体；
  *   恢复仅当前项；任何时刻至多一段声音（同刻只挂载当前 slide）。
  * - 三件套可用性：仅多项显示；边界 clamp 不循环；hover 与 focus-within 均可见；
@@ -60,21 +79,15 @@ import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
  *
  * 布局不变量（R3 动效契约挂点）：data-slot="detail-cover" 锚点盒不含翻页控件，
  * 且仅在媒体链非空时渲染（空链不产出转场锚点，错误态维持居中缩淡降级）；
- * 媒体几何单一比例源 = 当前项 intrinsic（itemAspectRatio）。
+ * 媒体几何比例源 = 媒体链首 slide intrinsic（内容冻结，lib/overlay-geometry
+ * contentFrozenRatio）。
  */
 
-/** 右栏最小宽度：媒体列宽上限 = 根区宽 − 该值（保证文字列可读）。 */
-const RIGHT_COL_MIN = 380;
-/** 媒体列最小宽度。 */
-const PANE_MIN_WIDTH = 280;
-/** 逐张自适应几何过渡（SP-12 缓动口径）。 */
-const PANE_TRANSITION = "width 240ms cubic-bezier(0.22,0.61,0.36,1)";
-/** 测量未就绪时的媒体列初始宽度比例。 */
-const PANE_FALLBACK_RATIO = 0.58;
 /* 视频 controls 条高度 / 索引钳制 / 自动播放重试 / 视频点击切播：共享原语
    收口于 lib/media-interaction（C1 #920）。 */
 
-/** 根区可用宽高测量（ResizeObserver）：媒体列宽 = 可用高 × 当前图比例的基准。 */
+/** 根区实测（ResizeObserver）：高度 = 壳内容高（媒体列高的几何基准；宽度
+    不再参与推导——壳宽由内容反推，根区宽随之确定，不存在反向依赖）。 */
 function useMediaArea() {
   const ref = useRef<HTMLDivElement>(null);
   const [area, setArea] = useState<{ w: number; h: number } | null>(null);
@@ -91,15 +104,23 @@ function useMediaArea() {
   return { ref, area };
 }
 
-/** 当前项列宽（#753）：可用高 × 当前项真实比例（长图缩窄居中完整显示，不再按
-    3:4 名义宽拉大 + 内滚），上限 = 根区宽 − 右栏最小宽（横图自然收窄 letterbox）。
-    D1 #858：全类型统一（文字封面链 3:4 / 媒体集真实比例同一公式）；媒体链为空
-    （loading/错误态）按防御比例 3:4 占位。 */
-function paneWidth(area: { w: number; h: number } | null, ratio: number): string {
-  if (!area) return `${Math.round(PANE_FALLBACK_RATIO * 100)}%`;
-  const byHeight = area.h * ratio;
-  const cap = Math.max(area.w - RIGHT_COL_MIN, PANE_MIN_WIDTH);
-  return `${Math.round(Math.max(PANE_MIN_WIDTH, Math.min(byHeight, cap)))}px`;
+/** 壳高 CSS 基准（dialog min-[960px]:h-[min(92dvh,900px)]）的 JS 镜像：
+    根区实测未就绪时的首帧估计（桌面无 URL 栏，dvh ≈ vh，估计与实测同值
+    量级，仅亚像素差）；测量落地后以实测高为准。 */
+function estimateShellHeight(): number {
+  if (typeof window === "undefined") return 0;
+  return Math.min(window.innerHeight * 0.92, 900);
+}
+
+/** 视口宽订阅（壳宽上限 = min(1320, 视口宽 − 2rem) 的基准；resize 时重算）。 */
+function useViewportWidth(): number {
+  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 0 : window.innerWidth));
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  return width;
 }
 
 /** 圆点指示器渲染上限（D5 #862）：>9 项隐藏圆点，只留 N/M 徽标 + 箭头
@@ -513,9 +534,9 @@ export interface OverlayVariantLayoutProps {
   onFirstMediaSettled?: (state: "ready" | "error") => void;
   /** #409 F1 首帧保持：入场未落定期首项图片渲染卡片封面 src（防换图）。 */
   holdSrc?: string | null;
-  /** #409 F1 / D2 几何时序：true = 入场转场起跑→落定的冻结窗口——窗口内锁存
-      起跑比例（迟到元数据不得在同次入场动画中改列宽）；窗口外跟随真实比例。 */
-  freezeGeometry?: boolean;
+  /** E1 #953 几何规格上浮：桌面媒体链就绪且根区实测后，把推导出的档位/媒体
+      列宽/壳宽报给浮层壳层（驱动 dialog 宽）；值变化才触发（翻页同档零上报）。 */
+  onGeometrySpec?: (spec: OverlayGeometrySpec) => void;
   /** #409 F1 几何稳定门：根区完成首次实测（ResizeObserver 回报）后回调一次，
       浮层据此放行入场转场（测量在几何稳定后进行）。 */
   onPaneMeasured?: () => void;
@@ -539,7 +560,7 @@ export function OverlayVariantLayout({
   media,
   onFirstMediaSettled,
   holdSrc,
-  freezeGeometry,
+  onGeometrySpec,
   onPaneMeasured,
   active = true,
   onMediaDimensions,
@@ -552,6 +573,7 @@ export function OverlayVariantLayout({
   const [index, setIndex] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const { ref: rootRef, area } = useMediaArea();
+  const viewportWidth = useViewportWidth();
   const firstSettledRef = useRef(false);
   const measuredOnceRef = useRef(false);
   const viewerTriggerRef = useRef<HTMLElement | null>(null);
@@ -610,25 +632,37 @@ export function OverlayVariantLayout({
   const isViewerSlide = current ? current.type !== "image" && current.type !== "video" : false;
   /* D5 #862：当前位为播放条形态（audio/midi）——底部圆点/类型角标上移让位。 */
   const playerBarSlide = current?.type === "audio" || current?.type === "sheet_music_midi";
-  /* 媒体链为空（loading/错误态）按防御比例 3:4 占位，双栏外壳几何稳定。 */
-  const liveRatio = current ? itemAspectRatio(current) : OVERLAY_DEFAULT_RATIO;
 
-  /* D2 两段式根除：冻结窗口（入场转场起跑→落定）锁存起跑时的比例——起跑前
-     壳层 opacity 0，比例修正即时生效不可见；窗口内迟到元数据不改列宽（零跳宽）；
-     落定后清除锁存，真实比例随 240ms 过渡平滑应用（切位/回填正常调整）。 */
-  const [frozenRatio, setFrozenRatio] = useState<number | null>(null);
-  const prevFreezeRef = useRef(false);
+  /* E1 #953 几何推导：冻结比例 = 首 slide intrinsic（空链回退防御比例，双栏
+     外壳几何稳定）；档位 = 当前 slide 类型（同档内翻页宽度恒定，档位切换一次
+     240ms）；壳高取根区实测（未就绪用 CSS 同式估计，首帧宽度即终值口径）。 */
+  const frozenRatio = contentFrozenRatio(media);
+  const tier = current ? slideTierOf(current) : "visual";
+  const measured = area != null && area.h > 0;
+  const { paneWidth, shellWidth } = computeOverlayGeometry({
+    tier,
+    frozenRatio,
+    shellHeight: measured ? area.h : estimateShellHeight(),
+    viewportWidth,
+  });
+  /* 测量落地帧关闭过渡（估计→实测的亚像素差不产生入场动画），其后真实值
+     变化（档位切换/跨内容）才走 240ms 宽度过渡。 */
+  const [geometrySettled, setGeometrySettled] = useState(false);
   useEffect(() => {
-    const frozen = Boolean(freezeGeometry);
-    if (frozen && !prevFreezeRef.current) {
-      setFrozenRatio(liveRatio);
-    } else if (!frozen && frozenRatio !== null) {
-      setFrozenRatio(null);
-    }
-    prevFreezeRef.current = frozen;
-  }, [freezeGeometry, liveRatio, frozenRatio]);
-  const ratio = frozenRatio ?? liveRatio;
+    if (!measured || geometrySettled) return;
+    const handle = requestAnimationFrame(() => setGeometrySettled(true));
+    return () => cancelAnimationFrame(handle);
+  }, [measured, geometrySettled]);
   const tall = isLongImageItem(current);
+
+  /* 几何规格上浮（仅顶层活动层 + 媒体链就绪 + 实测有效）：驱动浮层壳层
+     dialog 宽。依赖为原始值——同档翻页/重复渲染零上报，档位切换/跨内容/
+     首项迟到回填才上报一次。 */
+  const geometryMeasured = measured && media.length > 0;
+  useEffect(() => {
+    if (!active || !geometryMeasured) return;
+    onGeometrySpec?.({ tier, paneWidth, shellWidth });
+  }, [active, geometryMeasured, tier, paneWidth, shellWidth, onGeometrySpec]);
 
   /* D2 挂起矩阵：非顶层（压入下一层/被压）、上层查看器、登录浮窗任一成立即
      停止隐藏媒体；恢复时仅当前 slide（唯一挂载者）续播（用户主动暂停不覆盖）。 */
@@ -749,16 +783,17 @@ export function OverlayVariantLayout({
       data-slot="variant-root"
       className="relative flex h-full min-h-0 w-full"
     >
-      {/* 媒体列：宽 = 可用高 × 当前项比例（逐张自适应过渡），黑底满幅贴边。
-          媒体链为空（loading/错误态）保持稳定黑底占位——双栏外壳不塌缩。
-          #409 F1：入场未落定（freezeGeometry）时 width 过渡关闭；D2：冻结窗口
-          内比例锁存（迟到元数据零跳宽）。 */}
+      {/* 媒体列（E1 #953）：宽 = 壳高 × 内容冻结比例（visual 档）/ 取满可用宽
+          （reading 档 data-tier），黑底满幅贴边；同档翻页宽度恒定，档位切换一次
+          240ms 过渡。媒体链为空（loading/错误态）保持稳定黑底占位——双栏外壳
+          不塌缩。首帧宽度即终值（px），测量落地帧无过渡。 */}
       <div
         data-slot="variant-media-pane"
+        data-tier={tier}
         className="group/media relative h-full shrink-0 overflow-hidden bg-black"
         style={{
-          width: paneWidth(area, ratio),
-          transition: freezeGeometry ? "none" : PANE_TRANSITION,
+          width: `${paneWidth}px`,
+          transition: geometrySettled ? OVERLAY_GEOMETRY_TRANSITION : "none",
         }}
       >
         {current && (
@@ -821,12 +856,13 @@ export function OverlayVariantLayout({
         )}
       </div>
 
-      {/* 右文字列：浮层内唯一滚动容器（滚动条贴面板右缘全高贯通）；× 悬浮面板
-          右上覆盖内容，不留整行避让空带（首块右上局部避让由 ContentDetail
-          creatorFirst 头部承担）。 */}
+      {/* 右文字列（E1 #953 固定宽 440，小红书实测互动列宽）：浮层内唯一滚动
+          容器（滚动条贴面板右缘全高贯通）；× 悬浮面板右上覆盖内容，不留整行
+          避让空带（首块右上局部避让由 ContentDetail creatorFirst 头部承担）。 */}
       <div
         data-slot="layer-scroller"
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-card px-5 pb-4 pt-4"
+        className="min-h-0 shrink-0 overflow-y-auto overscroll-contain bg-card px-5 pb-4 pt-4"
+        style={{ width: OVERLAY_RIGHT_COL_WIDTH }}
       >
         {children}
       </div>

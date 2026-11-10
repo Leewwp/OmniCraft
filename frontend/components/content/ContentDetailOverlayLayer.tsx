@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/FollowButton";
 import { CommentSection } from "@/components/social/CommentSection";
 import { OverlayVariantLayout } from "@/components/content/OverlayVariantLayout";
+import type { OverlayGeometrySpec } from "@/lib/overlay-geometry";
 import { OverlayRelatedBlock } from "@/components/content/OverlayRelatedBlock";
 import { RelatedContents } from "@/components/content/RelatedContents";
 import { DeferredMount } from "@/components/content/DeferredMount";
@@ -49,8 +50,9 @@ interface ContentDetailOverlayLayerProps {
   onMotionReady?: () => void;
   /** #409 F1 首帧保持：入场未落定期封面以卡片封面 src 渲染（防动效期间换图）。 */
   motionHoldSrc?: string | null;
-  /** #409 F1 入场落定标记：true 表示首帧保持与几何冻结可以解除。 */
-  motionSettled?: boolean;
+  /** E1 #953 内容推导壳宽：顶层活动层的几何规格（媒体链就绪且实测后）上浮，
+      浮层壳层据此设 dialog 宽（跨内容一次 240ms 平滑重定）。 */
+  onShellWidthChange?: (px: number) => void;
   /** D2 #859：本层是否为顶层活动层（键盘翻页/媒体挂起矩阵只作用于顶层）。 */
   active?: boolean;
 }
@@ -75,7 +77,7 @@ export function ContentDetailOverlayLayer({
   onTitleChange,
   onMotionReady,
   motionHoldSrc,
-  motionSettled,
+  onShellWidthChange,
   active = true,
 }: ContentDetailOverlayLayerProps) {
   const t = useTranslations();
@@ -101,13 +103,14 @@ export function ContentDetailOverlayLayer({
   /* #397 全类型媒体链（真实媒体集 → 内容封面 → 自动文字封面）：D2 #859 类型
      分流——图片缺尺寸走 Image 规范变体探针、视频走 loadedmetadata 实测（失败
      保留视频 URL）；实测在共享有界预算内结清（先于浮层 2s 入场保险），超时按
-     稳定 fallback 放行，迟到元数据由冻结窗口挡在入场动画外。 */
+     稳定 fallback 放行——入场转场在 chainReady 之后起跑，几何以就绪值为准。 */
   const { media: probedMedia, ready: chainReady } = useOverlayMedia(
     status === "default" ? detail : null,
   );
 
   /* D2 #859：挂载视频 loadedmetadata 回填（探针失败/超时后的迟到修正）——
-     按附件 id 覆盖尺寸，入场落定后随 240ms 过渡平滑应用；换内容复位。 */
+     按附件 id 覆盖尺寸；几何只消费首 slide（E1 #953 内容冻结），首项回填在
+     入场落定后按新冻结比例一次 240ms 平滑修正；换内容复位。 */
   const [dimOverrides, setDimOverrides] = useState<Record<number, { width: number; height: number }>>({});
   const chainMedia = useMemo(() => {
     if (Object.keys(dimOverrides).length === 0) return probedMedia;
@@ -131,10 +134,17 @@ export function ContentDetailOverlayLayer({
   }, []);
 
   /* #409 F1 起跑前几何冻结（统一版式媒体列）：媒体列宽度由 ResizeObserver
-     实测驱动（挂载期从百分比兜底到实测像素）；转场起跑须等首次实测到达
-     （几何稳定后测量），否则目标矩形在动画中段跳变。 */
+     实测驱动；转场起跑须等首次实测到达（几何稳定后测量），否则目标矩形在
+     动画中段跳变。 */
   const [paneMeasured, setPaneMeasured] = useState(false);
   const handlePaneMeasured = useCallback(() => setPaneMeasured(true), []);
+
+  /* E1 #953 几何规格上浮：只透传壳宽（dialog 宽的唯一输入）；稳定回调引用
+     （上报 effect 以回调为依赖，匿名内联会让每次渲染都触发上报）。 */
+  const handleGeometrySpec = useCallback(
+    (spec: OverlayGeometrySpec) => onShellWidthChange?.(spec.shellWidth),
+    [onShellWidthChange],
+  );
 
   const onMotionReadyRef = useRef(onMotionReady);
   useEffect(() => {
@@ -145,8 +155,8 @@ export function ContentDetailOverlayLayer({
      错误态没有封面几何，浮层会走居中缩淡降级。#397：default 态等媒体几何实测
      就绪（chainReady）再触发；#409 F1：统一版式再等媒体列首次实测
      （paneMeasured）。网络悬挂由浮层 2s 保险定时器兜底。
-     D2：motionStarted 标记入场转场起跑——冻结窗口 = 起跑→落定，起跑前壳层
-     opacity 0，媒体比例修正即时生效不可见；窗口内锁存起跑比例（零跳宽）。 */
+     motionStarted 标记入场转场起跑——起跑前壳层 opacity 0，几何以就绪值为准
+     （宽度推导的首 slide 尺寸在 chainReady 时已结清）。 */
   const [motionStarted, setMotionStarted] = useState(false);
   const motionGate =
     status === "loading"
@@ -496,10 +506,9 @@ export function ContentDetailOverlayLayer({
         contentId={detail?.content?.id}
         allowCopy={detail?.content?.allow_copy}
         onMediaRefresh={handleMediaRefresh}
-        /* D2 #859 冻结窗口 = 入场转场起跑（motionStarted）→落定（motionSettled）：
-           起跑前比例修正即时生效（壳层 opacity 0 不可见），窗口内锁存起跑比例
-           零跳宽，落定后恢复 240ms 逐张过渡。 */
-        freezeGeometry={motionStarted && !motionSettled}
+        /* E1 #953 几何规格上浮：内容推导壳宽（媒体链就绪且根区实测后上报，
+           跨内容一次 240ms 平滑重定；同档翻页零上报）。 */
+        onGeometrySpec={handleGeometrySpec}
         onPaneMeasured={handlePaneMeasured}
         active={active}
         onMediaDimensions={handleMediaDimensions}

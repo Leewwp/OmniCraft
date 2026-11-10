@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,7 @@ import {
 } from "@/lib/overlay-history";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
+import { OVERLAY_GEOMETRY_TRANSITION } from "@/lib/overlay-geometry";
 
 const OVERLAY_EASING = "cubic-bezier(0.22,0.61,0.36,1)";
 /** 入场转场等待层数据的保险时限：超时按降级路径淡入，避免不可见卡死。 */
@@ -114,10 +115,18 @@ export function ContentDetailOverlay({
      （同步读 matchMedia，与旧惰性初始化语义等价）；SSR/测试缺 matchMedia
      按移动壳层处理。 */
   const { twoColumn } = useOverlayViewport();
-  /* #409 F1 单一时间轴配套：入场转场落定标记（驱动首帧保持解除与媒体列
-     几何解冻）+ 首帧保持 src（打开瞬间卡片封面实际渲染的地址）。 */
+  /* #409 F1 单一时间轴配套：入场转场落定标记（驱动首帧保持解除）+ 首帧保持
+     src（打开瞬间卡片封面实际渲染的地址）。 */
   const [entranceSettled, setEntranceSettled] = useState(false);
   const [motionHoldSrc, setMotionHoldSrc] = useState<string | null>(null);
+  /* E1 #953 内容推导壳宽：顶层活动层媒体链就绪后上报的 dialog 宽（媒体列 +
+     固定右列，经 CSS 变量喂给 min-[960px]:w-[var(--overlay-shell-width,…)]；
+     未上报前回退 fit-content（媒体列 px + 右列 440 的内容宽，loading/错误态
+     不留右侧空带）。跨内容/档位切换时值变化 → 240ms 宽度过渡。 */
+  const [shellWidthPx, setShellWidthPx] = useState<number | null>(null);
+  const handleShellWidthChange = useCallback((px: number) => {
+    setShellWidthPx((prev) => (prev === px ? prev : px));
+  }, []);
 
   const stackRef = useRef<OverlayLayerState[]>(stack);
   const popFocusRef = useRef<HTMLElement | null>(popFocus);
@@ -198,6 +207,9 @@ export function ContentDetailOverlay({
       const cardImg = sourceAnchorRef.current?.querySelector("img") ?? null;
       setMotionHoldSrc(cardImg?.currentSrc || cardImg?.getAttribute("src") || null);
       setEntranceSettled(false);
+      /* E1 #953：新开浮窗壳宽清零回退 fit-content，顶层链就绪后按内容推导上报
+         （起跑前壳层 opacity 0，宽度跳变不可见）。 */
+      setShellWidthPx(null);
       trigger?.setAttribute("data-overlay-motion-lock", "");
       restoreRef.current = { trigger, windowY: window.scrollY };
       setStack([
@@ -978,10 +990,22 @@ export function ContentDetailOverlay({
            视觉（底色/边框/圆角/阴影）全部随壳层走——入场前壳层 opacity 0 时
            旧快照里不残留白板面板。
            D1 #858：面板断点与内部统一双栏断点对齐（960–1023 也收居中面板，
-           修「全屏面板 + 内部已双栏」的几何缺口）。 */
+           修「全屏面板 + 内部已双栏」的几何缺口）。
+           E1 #953：桌面宽 = 内容推导（顶层层上报的 --overlay-shell-width：
+           媒体列 + 固定右列 440，上限 min(1320, 视口 − 2rem)）；未上报前
+           fit-content（媒体列 px + 右列的内容宽），不再固定 1120。移动
+           <960 不读该变量（全屏单列路径不受影响）。 */
         "content-detail-overlay fixed inset-0 m-0 h-dvh w-full max-h-none max-w-none overflow-hidden border-0 bg-transparent p-0 text-foreground",
-        "min-[960px]:m-auto min-[960px]:h-[min(92dvh,900px)] min-[960px]:w-[min(1120px,calc(100%-2rem))]",
+        "min-[960px]:m-auto min-[960px]:h-[min(92dvh,900px)] min-[960px]:w-[var(--overlay-shell-width,fit-content)] min-[960px]:max-w-[calc(100%-2rem)]",
       )}
+      style={
+        {
+          ...(shellWidthPx != null ? { "--overlay-shell-width": `${shellWidthPx}px` } : null),
+          /* 档位切换/跨内容的宽度过渡与媒体列同程（SP-12 缓动口径）；移动端
+             w-full 恒定值不触发。 */
+          transition: OVERLAY_GEOMETRY_TRANSITION,
+        } as CSSProperties
+      }
       aria-labelledby={titleId}
       onCancel={(event) => {
         // SP-17/T2：登录浮窗打开时 Esc 只关浮窗（浮窗自有关闭链路）。
@@ -1117,10 +1141,11 @@ export function ContentDetailOverlay({
                 onSwitchNext={switchTopLayer}
                 onTitleChange={handleTitleChange(index)}
                 onMotionReady={handleMotionReady}
-                /* #409 F1：首帧保持/几何冻结只作用于首层（唯一做共享元素
-                   入场转场的层；后续 push/pop 走水平滑动动画）。 */
+                /* #409 F1：首帧保持只作用于首层（唯一做共享元素入场转场的层；
+                   后续 push/pop 走水平滑动动画）。E1 #953：壳宽跟随顶层活动层
+                   的内容推导规格（几何上报在布局侧以 active 门控）。 */
                 motionHoldSrc={index === 0 ? motionHoldSrc : null}
-                motionSettled={entranceSettled}
+                onShellWidthChange={handleShellWidthChange}
                 /* D2 #859：键盘翻页/媒体挂起矩阵只作用于顶层活动层
                    （关闭中的层即将卸载，同样不算活动）。 */
                 active={index === depth - 1 && !closing}
