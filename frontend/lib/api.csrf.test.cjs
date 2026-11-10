@@ -2,7 +2,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const ts = require("typescript");
+// #967：TS 7（原生重写版）无 TS JS API，ts.transpileModule 不可用——
+// TS→CJS 转译改用 esbuild（与 tsx 同源已在依赖树内，显式声明于
+// devDependencies）。
+const esbuild = require("esbuild");
 
 const apiSourcePath = path.join(__dirname, "api.ts");
 
@@ -19,12 +22,11 @@ function response(status, body) {
 
 function loadApi(fetchImpl) {
   const source = fs.readFileSync(apiSourcePath, "utf8");
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2020,
-    },
-  }).outputText;
+  const compiled = esbuild.transformSync(source, {
+    loader: "ts",
+    format: "cjs",
+    target: "es2020",
+  }).code;
 
   const module = { exports: {} };
   const context = vm.createContext({

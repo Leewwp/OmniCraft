@@ -1,4 +1,4 @@
-import ts from "typescript";
+import { maskedRegions, lineAt } from "./source-scan.mjs";
 
 // #380/F-A006: static i18n key-existence gate. Scans production sources for
 // next-intl translation references and verifies every statically resolvable
@@ -7,7 +7,12 @@ import ts from "typescript";
 // catalogs; #308 and F-A006 are that blind spot's third strike, one of which
 // rendered a raw key name to users on the reset-password validation path.
 //
-// Deliberate limitations (same strict-scan posture as checkNativeDialogs):
+// #967：解析层不再依赖 typescript 包的 JS AST（TS 7 原生重写版无 JS
+// API），改用掩码区间过滤（source-scan.mjs）+ 两遍静态正则：在原始源
+// 码上扫描，命中起点落在注释/字符串内容掩码区内的丢弃（字符串里的
+// 't("x")' 文案不误报），先收集 translator 绑定再扫描绑定名调用。语义
+// 与原 AST 版逐点对齐（304 文件全量等价性对照见 #967 PR 描述），刻意
+// 限制姿势不变：
 // - Only `useTranslations` / `getTranslations` bindings (incl. `await` and
 //   `{ namespace: "..." }` object form) feed the variable→namespace map; an
 //   alias import or a shadowed local named like a mapped variable escapes.
@@ -18,58 +23,43 @@ import ts from "typescript";
 // - Member calls are scanned for t.rich/t.raw/t.markup; other members (e.g.
 //   t.has) are ignored.
 
-const TRANSLATOR_FACTORIES = new Set(["useTranslations", "getTranslations"]);
-const TRANSLATOR_MEMBERS = new Set(["rich", "raw", "markup"]);
+// `const t = useTranslations("ns")` / `const t = await getTranslations(...)`
+// / `const t = getTranslations({ namespace: "ns" })`，含无参形式（绑定到
+// 根命名空间 ""）。非字面量命名空间实参（三元/标识符）不绑定——与 AST
+// 版 namespaceFromArgument 返回 null 时不入表一致。
+const BINDING_PATTERN =
+  /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(useTranslations|getTranslations)\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|\{\s*namespace\s*:\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*\}|(?=[),]))/g;
 
-function literalText(node) {
-  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-    return node.text;
-  }
-  return null;
+// 绑定名调用四形态（与 AST 版调用点语义逐点对齐）：
+// `t(` / `t?.(` / `t.(rich|raw|markup)(` / `t?.(rich|raw|markup)(`。
+// 后瞻断言（?<![\w$.]）排除成员接收者（foo.t(...) 不视为绑定名调用，
+// 且 t.has(...) 这类非枚举成员在任一分支都不匹配——AST 版同语义）。
+const CALL_PATTERN =
+  /(?<![\w$.])([A-Za-z_$][\w$]*)(?:\?\.\s*(rich|raw|markup)\s*\(|\.\s*(rich|raw|markup)\s*\(|\?\.\s*\(|\s*\()/g;
+
+function unescapeLiteral(raw) {
+  // StringLiteral.text 的最小等价：本仓 key 均为 ASCII 点分标识符，
+  // 仅处理常见转义即可与 AST 全量等价（对照见 #967 PR）。
+  return raw.replace(/\\(.)/g, (_, ch) => {
+    if (ch === "n") return "\n";
+    if (ch === "t") return "\t";
+    return ch;
+  });
 }
 
-function namespaceFromArgument(arg) {
-  if (!arg) return "";
-  const direct = literalText(arg);
-  if (direct !== null) return direct;
-  if (ts.isObjectLiteralExpression(arg)) {
-    for (const property of arg.properties) {
-      if (!ts.isPropertyAssignment(property)) continue;
-      const name = property.name;
-      const isNamespace =
-        (ts.isIdentifier(name) && name.text === "namespace") ||
-        (ts.isStringLiteral(name) && name.text === "namespace");
-      if (isNamespace) return literalText(property.initializer);
-    }
+// 调用点实参形态 → { key } | { dynamic: true }（与 AST 版 literalText
+// 语义一致：字符串/无插值模板字面量为 key，其余（含缺参）一律 dynamic）。
+function firstArgumentInfo(scanned, argStart) {
+  const rest = scanned.slice(argStart);
+  const single = /^\s*'((?:[^'\\]|\\.)*)'/.exec(rest);
+  if (single) return { key: unescapeLiteral(single[1]) };
+  const double = /^\s*"((?:[^"\\]|\\.)*)"/.exec(rest);
+  if (double) return { key: unescapeLiteral(double[1]) };
+  const template = /^\s*`((?:[^`\\]|\\.)*)`/.exec(rest);
+  if (template && !template[1].includes("${")) {
+    return { key: unescapeLiteral(template[1]) };
   }
-  return null;
-}
-
-// Extracts the call expression behind `await` so
-// `const t = await getTranslations("auth")` binds like the sync form.
-function unwrapAwait(node) {
-  return node && ts.isAwaitExpression(node) ? node.expression : node;
-}
-
-function collectNamespaceBindings(sourceFile) {
-  const bindings = new Map();
-  function visit(node) {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
-      const initializer = unwrapAwait(node.initializer);
-      if (initializer && ts.isCallExpression(initializer)) {
-        const callee = initializer.expression;
-        const isFactory =
-          ts.isIdentifier(callee) && TRANSLATOR_FACTORIES.has(callee.text);
-        if (isFactory) {
-          const namespace = namespaceFromArgument(initializer.arguments[0]);
-          if (namespace !== null) bindings.set(node.name.text, namespace);
-        }
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-  return bindings;
+  return { dynamic: true };
 }
 
 // Returns { resolved: [{ filePath, line, key, allowNonLeaf }], unresolved: [{ filePath, line }] }.
@@ -77,44 +67,37 @@ export function collectI18nKeyReferences(sourceByPath) {
   const resolved = [];
   const unresolved = [];
   for (const [filePath, source] of Object.entries(sourceByPath)) {
-    const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-    const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind);
-    const bindings = collectNamespaceBindings(sourceFile);
-
-    function visit(node) {
-      if (ts.isCallExpression(node)) {
-        // TS AST names the call target `expression` (not ESTree's `callee`).
-        const callee = node.expression;
-        let namespace = null;
-        let allowNonLeaf = false;
-        if (ts.isIdentifier(callee) && bindings.has(callee.text)) {
-          namespace = bindings.get(callee.text);
-        } else if (
-          ts.isPropertyAccessExpression(callee) &&
-          ts.isIdentifier(callee.expression) &&
-          bindings.has(callee.expression.text) &&
-          TRANSLATOR_MEMBERS.has(callee.name.text)
-        ) {
-          namespace = bindings.get(callee.expression.text);
-          // t.raw() legitimately returns a nested object, so its target need
-          // not be a leaf; plain t() must resolve to a message.
-          allowNonLeaf = callee.name.text === "raw";
-        }
-        if (namespace !== null) {
-          const argument = node.arguments[0];
-          const key = argument ? literalText(argument) : null;
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-          if (key !== null) {
-            const fullKey = namespace ? `${namespace}.${key}` : key;
-            resolved.push({ filePath, line: line + 1, key: fullKey, allowNonLeaf });
-          } else {
-            unresolved.push({ filePath, line: line + 1 });
-          }
-        }
-      }
-      ts.forEachChild(node, visit);
+    const masked = maskedRegions(source);
+    const inMask = (index) =>
+      masked.some(([start, end]) => index >= start && index < end);
+    // 两遍静态正则替代 TS AST 遍历：绑定收集与调用扫描都先经掩码过滤
+    // （注释示例与字符串文案里的 t()/绑定不参与），文档序扫描，绑定名
+    // （含可选链）与 rich/raw/markup 成员调用按 AST 版语义归入
+    // resolved / unresolved。
+    const bindings = new Map();
+    for (const match of source.matchAll(BINDING_PATTERN)) {
+      if (inMask(match.index)) continue;
+      const name = match[1];
+      const namespace = match[3] ?? match[4] ?? match[5] ?? match[6];
+      // 后出现者覆盖先出现者——与 AST 版整文件单表、末次绑定生效一致。
+      bindings.set(name, namespace ?? "");
     }
-    visit(sourceFile);
+
+    for (const match of source.matchAll(CALL_PATTERN)) {
+      if (inMask(match.index)) continue;
+      const name = match[1];
+      const member = match[2] ?? match[3] ?? null;
+      if (!bindings.has(name)) continue;
+      const namespace = bindings.get(name);
+      const info = firstArgumentInfo(source, match.index + match[0].length);
+      const line = lineAt(source, match.index);
+      if (info.key !== undefined) {
+        const fullKey = namespace ? `${namespace}.${info.key}` : info.key;
+        resolved.push({ filePath, line, key: fullKey, allowNonLeaf: member === "raw" });
+      } else {
+        unresolved.push({ filePath, line });
+      }
+    }
   }
   return { resolved, unresolved };
 }
