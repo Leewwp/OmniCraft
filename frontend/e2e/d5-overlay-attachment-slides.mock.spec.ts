@@ -507,12 +507,14 @@ test.describe("D5 #862 附件族轮播位（mocked 契约）", () => {
       .poll(async () => pane(page).locator("audio").evaluate((el) => (el as HTMLAudioElement).paused))
       .toBe(false);
 
-    /* 切位：旧播放器卸载（当前位单挂载）→ 至多一段声音。 */
+    /* 切位：舞台为双层交叉淡出（180ms 交换 + 240ms 旧层移除，淡出层旧播放器
+       挂起停播）——先等旧层卸载落定，再断言当前位单挂载、新播放器为停播态。 */
     await pane(page).hover();
     await page.getByRole("button", { name: "下一张" }).click();
+    await expect(pane(page).locator("audio")).toHaveCount(1, { timeout: 5_000 });
     const second = pane(page).locator('[data-testid="audio-player"]');
     await expect(second).toBeVisible();
-    await expect(pane(page).locator("audio")).toHaveCount(1);
+    await expect(second).toHaveAttribute("aria-label", /narration-b\.wav/);
     await expect
       .poll(async () => pane(page).locator("audio").evaluate((el) => (el as HTMLAudioElement).paused))
       .toBe(true);

@@ -2533,20 +2533,35 @@ interface ContentDetailProps {
 - 打开时保存背景滚动位置与触发元素；完全退出后恢复最初触发入口的滚动位置和焦点；Agent 引用入口必须恢复原会话滚动位置并聚焦引用卡片。
 - 支持显式关闭、遮罩点击、Esc 和浏览器返回关闭；浮层内部点击不关闭。
 
-**共享元素转场（#64 决策 7-10 权威，覆盖 #67 原型与 #68 接入；#398 C1~C4；#409 F1 动效契约重建为现行权威）**
-- 转场核心为手动计算的 FLIP 几何：source 矩形 = 触发卡片封面/媒体区；开启动画把该视觉锚点放大为浮层封面几何，同时外壳按同一时间线推进；关闭时仅在 source 矩形仍可测量（在视口、未 detach）时反向回归。
-- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）；长图当前项同样退化（#753 起两端取景语义仍无法统一：卡片 3:4/9:16 中心裁切 vs 浮窗真实比例 contain）。
-- View Transition API 是渐进增强：`document.startViewTransition` 可用时启用，不支持的环境继续走 FLIP；VT 命名落在两端封面 `<img>` 本身（盒底色/边框差异随 root 交叉淡化消化）。
-- **C1 图源统一（#409 F1 收紧为三处同源）**：卡片封面、点击预取、浮窗首帧（MediaGallery/统一版式媒体列/CoverImage）三者渲染**同一 URL 串**——位图一律为唯一规范变体 `w=1080`（`coverRenderSrc`，优化器管线），SVG 与 data: 占位直通原地址（优化器对 SVG 400，next/image 对 .svg 本就直通）；浮窗模式的卡片封面用受控 `<img>`（响应式 sizes 无法跨端钉死同一变体）。点击卡片瞬间预取同一变体并 decode；MediaViewer 看大图维持原图。
-- **C2 几何统一**：卡片 cover 盒与浮窗锚点盒同一比例数据源——cover 元数据缺失时卡片在封面加载后用实测 intrinsic 回填（与浮窗媒体链同源），防御值同为 3:4；锚点盒不含翻页控件。
-- **C3 快照纯净**：浮层打开期间触发卡带 `data-overlay-motion-lock` 锁定 hover 缩放（VT 旧快照捕获时 `<img>` 未变换位姿），完全关闭后解除。
-- **C4 真就绪**：转场起跑等浮窗实际渲染的封面 `<img>` decode 完成；150ms 上限仅极端网络兜底（点击时预取使解码通常已完成）。
-- **F1 单一时间轴（2026-09-08 取代 #398 落地时的壳层先行反馈形态）**：壳层不透明度与封面几何动画同帧起跑、同长结束、同一缓动族——开 300ms / 关 240ms 逐向单一时钟（每个方向内部壳层与封面共用同一时钟，几何与缓动方向互逆）；旧「壳层 160ms 先行反馈淡入」与「VT root 180ms 交叉淡化」并存的档位差已移除（VT root 交叉淡化并入 300/240 档，关闭方向经 `html[data-vt-close]` 统一压到 240ms）；FLIP/VT/降级三路径同契约。参与 transform 动画的元素动效期间临时提升合成层（will-change），结束释放。
-- **F1 动效期间零换图**：动画进行中禁止封面 src 变化、骨架消失、媒体链附件替换；媒体链选出与卡片封面不同的文件时，首帧保持渲染卡片封面（`coverHoldSrc` 传递），入场落定后才切换到链内媒体。
-- **F1 起跑前几何冻结**：统一版式媒体列的 width 过渡在入场未落定期关闭（挂载期从百分比兜底到实测像素的过渡不得与共享元素转场同窗）；统一版式的转场起跑额外等待媒体列首次实测（ResizeObserver 回报）后才测量。
-- **遮罩与面板同钟（2026-09-09 用户验收反馈轮确立）**：遮罩视觉由 dialog 外兄弟层 `.content-detail-backdrop` 承载（`pointer-events-none fixed inset-0 z-[70]`，top-layer 语义保证其在面板之下、页面之上），不透明度与壳层/封面同一时钟驱动——开 = 按压反馈层 0.35（160ms ease-out，数据未就绪期的唯一视觉反馈）→ 入场动效起跑同帧升至 1（VT 路径经「回调内置新态」由 root 交叉淡化承载）；关 = 与壳层同帧 240ms 降至 0；reduced-motion 随 100ms 淡化档。**禁止**使用 `::backdrop` CSS 动画（VT 快照期间真实元素不渲染 + Safari 不执行 `::backdrop` 动画，两方向瞬现瞬消，2026-09-09 用户录屏实锤）；原生 `::backdrop` 仅保留透明命中层（背板点击 target === dialog）。VT 开路径壳层置 1 只能在 startViewTransition 回调内（新态）——回调前置 1 会烘进旧快照、root 交叉淡化失去壳层渐显。桌面面板视觉（底色/边框/圆角/阴影）随壳层元素走、dialog 永久只承担定位与尺寸——入场前壳层 opacity 0 时旧快照里不得残留白板面板。
-- 时长与缓动：开 300ms / 关 240ms，共享缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化（SP-12「动效 150ms」豁免项，用户 2026-09-06 裁决）。
+**开合转场（整容器封面 morph，唯一现行路径）**
+- 转场核心 = 手动计算的整容器 shared-element morph：**整个弹窗容器**从被点卡片的封面矩形生长出来（不是只动封面、壳淡入）——起点帧壳瞬移到卡片位（transform = translate 对齐舞台左上角与封面左上角 + 等比 `scale`），400ms 缓动 `ease` 收敛到 identity；右列随行。起点帧整壳置不透明，frame 0 的实心壳恰好落在来源卡片正上方（舞台与封面像素重合），出场闪变被卡片本体掩盖。
+- **等比锚定**：`scale = 卡片封面宽 ÷ 媒体舞台宽`（杜绝非等比压扁文字）；`transform-origin` 锚定媒体舞台左上角（媒体列贴壳左缘，origin ≈ 0 0，仅边框亚像素偏移）。morph 锚点元素 = `data-slot="variant-media-pane"`（移动单列/兜底回退 `detail-cover`）。
+- **路径选择（每次操作独立判定，不缓存）**：`prefers-reduced-motion` → 100ms 纯 opacity 淡化；source 矩形不可测（缺失/在视口外/detached/无面积）或舞台不可测或长图当前项（`data-ultra-tall`）→ 居中 `scale(0.96)` 缩淡降级（开/关同口径 400ms ease，直接程序化打开无卡片 source 时同样使用）；否则 morph。
+- **关窗 = 独立 morphBack 镜像编排**（identity → 卡片位一次到位，不复用开窗 FLIP 反演——先瞬移再放大回来会造成二次闪现）：①舞台内容若已翻离来源封面（翻页/翻档），关窗开始时先**瞬时回源**（slide 0、档位与宽度无 240ms 过渡——过渡中的盒尺寸会让 morphBack 测量漂移、落点对不齐卡片）；②右列与舞台 chrome（箭头/圆点/角标/播放条让位件/放大/刷新/悬浮返回关闭钮）随收缩 **300ms 同步淡出**（`data-closing` 选择器，`!important` 压过三件套 hover 显现）；③**整壳同程溶解**——transform 与 opacity 同一 transition 400ms ease，落地时壳已全透明，隐藏帧零可见变化（根治关窗末闪）；④**关窗开始即解锁**（第 0ms 解除滚动锁与让位补偿，复位运动被收缩掩盖，等动画结束才解锁会被感知为页面闪跳）；⑤隐藏时机贴动画结束（≈415ms），消灭静止死帧；遮罩与壳层同程 400ms 淡出。
+- **入场起跑时机（无媒体就绪门）**：层数据落定（含错误态）+ 媒体列首次实测（ResizeObserver 回报）即起跑，不等封面 decode——首帧由 hold 保持层（卡片快变体，必命中缓存）自然呈现，规范变体就绪后经 `HoldCrossfadeImage` 180ms 交叉淡入；网络悬挂由浮层 2s 保险定时器兜底降级。
+- **动效期间零换图**：入场未落定期首项图片渲染卡片封面当前 src（`coverHoldSrc`）；媒体链选出与卡片封面不同文件时，入场落定后才切换。动效元素临时提升合成层（will-change），落定释放。
+- **图源两变体渐进**：卡片封面 = 快变体 `w=420`（带宽/解码轻）；浮窗首帧保持层沿用卡片当前渲染串（必命中缓存、秒出）；入场落定且规范变体 `w=1080` 解码就绪后 180ms 交叉淡入换入（`coverRenderSrc` 优化器管线）；SVG 与 data: 占位直通原地址（优化器对 SVG 400）。浮窗模式的卡片封面用受控 `<img>`（响应式 sizes 无法跨端钉死同一变体）。MediaViewer 看大图维持原图。
+- **几何统一**：卡片 cover 盒与浮窗舞台盒同一比例数据源——cover 元数据缺失时卡片在封面加载后用实测 intrinsic 回填（与浮窗媒体链同源），防御值同为 3:4；舞台锚点盒不含翻页控件。浮层打开期间触发卡带 `data-overlay-motion-lock` 锁定 hover 缩放，完全关闭后解除。
+- **翻页 slide 交换 = 双层真交叉淡出 + 发号牌制**：新 slide 未就绪（图片未解码/视频缺元数据）时旧层满不透明保持（hold）、新层 opacity 0 被压在下；就绪（或失败放行）才同帧起跑 **180ms** 双层交叉淡出（新层淡入 + 旧层淡出），**240ms** 后移除旧层。快速连按时已在保持/淡出的层被最新切换立即接管（**发号牌制**：仅最新切换持有旧层清理权，防连按定时器误杀新层），任意时刻舞台至多 2 层（1 新 + 1 保持/淡出中）。就绪门只作用于翻页交换，不进开场。
+- **遮罩与面板同钟**：遮罩视觉由 dialog 外兄弟层 `.content-detail-backdrop` 承载（`pointer-events-none fixed inset-0 z-[70]`，top-layer 语义保证其在面板之下、页面之上）——开 = 按压反馈层 0.35（160ms ease-out，数据未就绪期的唯一视觉反馈）→ 入场动效起跑同帧 400ms ease 升至 1；关 = 与壳层同程 400ms 降至 0；reduced-motion 随 100ms 淡化档。**禁止**使用 `::backdrop` CSS 动画（Safari 不执行 `::backdrop` 动画，两方向瞬现瞬消）；原生 `::backdrop` 仅保留透明命中层（背板点击 target === dialog）。桌面面板视觉（底色/边框/圆角/阴影）随壳层元素走、dialog 永久只承担定位与尺寸——入场前壳层 opacity 0 时不得残留白板面板。
 - 封面加载与主体同步：浮层在最终封面几何内展示媒体加载态（骨架/稳定占位）；封面加载成功才显示主体内容；加载失败显示稳定占位符后仍展示可用详情，不无限阻塞。
+
+**动画参数表（唯一权威数值）**
+
+| 动效 | 时长/缓动 | 形态 |
+|---|---|---|
+| 开窗 morph | 400ms `ease` | 整容器 transform：起点 = 卡片封面位姿（scale=封面宽÷舞台宽，origin=舞台左上角）→ identity |
+| 关窗 morphBack | 400ms `ease` | identity → 卡片位姿一次到位；transform 与 opacity **同一 transition**（溶解式落地，落地即透明） |
+| 关窗 chrome 淡出 | 300ms `ease` | 右列 + 舞台 chrome（箭头/圆点/角标/播放条让位件/放大/刷新/悬浮返回关闭钮）同步淡出（`data-closing`） |
+| 关窗隐藏时机 | ≈415ms | 贴动画结束（400ms + 余量），消灭静止死帧 |
+| 关窗解锁 | 0ms | 关窗开始即解除滚动锁与让位补偿 |
+| 翻页 slide 交叉淡出 | 180ms `ease` 双层 | 新层淡入 + 旧层淡出同帧起跑；240ms 移除旧层（发号牌制，任意时刻 ≤2 层） |
+| 档位/跨内容宽度过渡 | 240ms `cubic-bezier(0.22,0.61,0.36,1)` | 媒体列与 dialog 宽同程（SP-12 缓动口径）；关窗回源帧与首帧测量帧关闭过渡 |
+| 遮罩 | 同壳层钟 | 开 = 0.35（160ms ease-out 按压反馈）→ 起跑同帧 400ms 升 1；关 = 400ms 降 0 |
+| 栈内层切换 | 240ms 同缓动 | 水平滑动 + 淡入（push 右入 / pop 左入） |
+| 封面 settle 交叉淡入 | 180ms | hold（卡片 420 快变体）→ 规范变体 w=1080 |
+| 降级 fallback | 400ms `ease` | 居中 `scale(0.96)` 缩淡（source/舞台不可测、长图当前项） |
+| reduced-motion | 100ms | 纯 opacity 淡化（SP-12「动效 150ms」豁免项） |
 
 **导航栈（逐层返回）**
 - 浮层内访问关联内容压入内部导航栈，栈深度 ≤ 5（2026-08-04 三缺口执行规划；P-01 原型为"无硬上限"，生产以此为准）。
@@ -2574,17 +2589,22 @@ interface ContentDetailOverlayProps {
 **视觉结构**
 - 遮罩层：固定覆盖视口，`--elevation-3` 浮层阴影 + 1px border + 设计系统浮层背景。
 - 详情容器：复用 `ContentDetail`，包含独立可访问标题与唯一内部内容滚动区；桌面统一右栏不重复渲染创作者侧栏（创作者行 = 右栏首位，仅头像、昵称、关注）。
-- 外壳与封面共享同一开合动画进度：开 300ms / 关 240ms，同帧同缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化。
+- 外壳与封面共享同一开合动画进度：开/关 400ms `ease` 整容器封面 morph（数值详见「动画参数表」）；栈内层切换水平滑动 240ms；reduced-motion 降级为 100ms 纯透明度淡化。
 - 触发卡无缩略图或不在视口时，入场降级为居中轻缩放 + 淡化。
 - Agent 来源不增加专属详情外观。
 - **桌面统一版式（D1 #858 权威，≥960px 唯一版式）**：桌面收敛为单一小红书式左媒体/右信息版式——旧「桌面双栏（#88，全横集 split-media）／竖屏集新版布局（#397 variant）／单列」三分支判定（媒体朝向 × 视口）退役，split 的 64px 常驻控件条（`SPLIT_MEDIA_CONTROLS_HEIGHT`）随之退役（MediaGallery 组件保留给移动/独立详情页）。
   - **断点决定壳层，从 loading 首帧生效**：统一双栏壳（无 header 工具栏行、sr-only 标题、悬浮返回/关闭钮、滚动归属层内 `layer-scroller`）由视口断点 `matchMedia(min-width: 960px)` 决定——不等待媒体朝向/chainReady 才从单列切换；loading/404/403/429/error 各状态保持稳定双栏外壳，图片/探针失败不回退全宽单列。
-  - **面板断点对齐**：dialog 面板 `min-[960px]` 收居中面板（`min(92dvh,900px) × min(1120px, 100%-2rem)`、圆角/边框/阴影随壳层），960–1023px 不再出现「全屏面板但内部已双栏」的几何缺口。
-  - **媒体列几何**（承袭 #397 R2，推广到全类型；D2 #859 收口）：左媒体列黑底直贴面板（宿主容器桌面零内边距，负 margin 抵消结构退役）；列宽 = 可用高 × 当前项真实宽高比（逐张自适应、240ms 过渡），上限 = 根区宽 − 380px（右栏保留宽），下限 280px；装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动。全类型媒体源链 = 可预览媒体链（D5 #862，见「媒体列逐类型矩阵」）→ 内容封面（cover 尺寸缺失时 Image 预加载实测）→ 自动文字封面（3:4 渐变字牌）——article/prompt/other 等无媒体类 = 文字封面卡左列 + 右栏（全站形态统一）；媒体链为空（loading/错误态）媒体列保持稳定黑底占位。
-  - **媒体几何时序（D2 #859，两段式根除）**：媒体链尺寸实测走共享有界就绪预算（`MEDIA_READY_BUDGET_MS`，须短于浮层 2s 入场保险）——已知尺寸直接就绪；未知尺寸在预算内探测（图片 = Image 规范变体探针，视频 = 附件正数尺寸或 `loadedmetadata` 实测）；超时按稳定 fallback 完成当前入场（视频保留真实 URL + 防御比例，不换占位图）。冻结窗口 = 入场转场起跑→落定，窗口内锁存起跑比例——迟到元数据不得在同次入场动画中改列宽；起跑前（壳层 opacity 0 不可见期）与落定后的比例修正即时/随 240ms 过渡应用。contain 完整呈现允许黑边，不以裁切消除黑边。
-  - **翻页控件（三件套，D2 #859 推广到统一版式全部媒体并收口可用性）**：默认仅底部中央半透明圆点（触屏可发现入口）；hover 媒体区与 focus-within 显现左右半透明圆形箭头（垂直中位）+ 右上「N / M」胶囊徽标；触屏（`hover: none`）箭头与徽标恒显保证可发现；控件触控目标 44px；仅多项媒体显示（单项零控件）；到边界 clamp 不循环；键盘 ←/→ 切位且只作用于最顶层活动媒体区——不劫持输入框/评论编辑器（contenteditable）/select/播放器原生控件/上层媒体查看器/登录浮窗；切位按钮点击不触发放大（事件不穿透到主体）；旧 split 分支 64px 常驻控件条（`SPLIT_MEDIA_CONTROLS_HEIGHT`）随 D1 退役。
+  - **面板断点对齐**：dialog 面板 `min-[960px]` 收居中面板（高 `min(92dvh,900px)`、**宽 = 内容推导**——顶层层上报的 `--overlay-shell-width`（媒体列 + 固定右列 440），未上报前 `fit-content`，上限 `min(1320px, 100%-2rem)`；圆角/边框/阴影随壳层），960–1023px 不再出现「全屏面板但内部已双栏」的几何缺口。
+  - **媒体列几何（内容推导壳宽 + 按内容冻结 + 阅读宽舞台档）**：左媒体列黑底直贴面板（宿主容器桌面零内边距）；右列固定宽 **440**（互动列）；壳宽上限 = **min(1320, 视口宽 − 2rem)**。规则：
+    - **按内容冻结**：冻结比例 = 媒体链**首 slide** 的 intrinsic 比例（封面恒首屏后即封面比例；缺尺寸回退 3:4，查看器族名义 3:4）——开窗即锁定，**内容内翻页零几何变化**（3:4/1:1/9:16 跨比例图在同一媒体列内 letterbox，contain 不裁切）；比例互不相同的媒体装不下处黑底 letterbox；长图按真实比例缩窄居中完整显示、无内部竖向滚动。
+    - **visual 档**（image/video/audio/fallback_download）：媒体列宽 = clamp(壳高 × 冻结比例, 280, 可用宽)（壳高 = min(92dvh,900px)；横图自然收窄、clamp 满可用宽）。
+    - **reading 档（阅读宽舞台）**（document/text_pdf/乐谱族/model3d）：开窗即宽——媒体列取满可用宽（受壳宽上限约束），文档/乐谱/3D 有可读排版宽度。
+    - **档位切换**：影像+文档混合内容翻页跨档时**一次 240ms** 宽度过渡（媒体列与 dialog 宽同程、缓动 `cubic-bezier(0.22,0.61,0.36,1)`）；同档内翻页宽度恒定、零上报。首帧宽度即终值（px，无百分比兜底→实测的跳变）；测量落地帧与关窗回源帧关闭过渡。
+    - 媒体链为空（loading/错误态）媒体列保持稳定黑底占位（双栏外壳不塌缩）。
+  - **媒体几何时序**：媒体链尺寸实测走共享有界就绪预算（`MEDIA_READY_BUDGET_MS`，须短于浮层 2s 入场保险）——已知尺寸直接就绪；未知尺寸在预算内探测（图片 = Image 规范变体探针，视频 = 附件正数尺寸或 `loadedmetadata` 实测）；超时按稳定 fallback 完成当前入场（视频保留真实 URL + 防御比例，不换占位图）。冻结窗口 = 入场转场起跑→落定，窗口内锁存起跑比例——迟到元数据不得在同次入场动画中改列宽；落定后的首项比例修正随一次 240ms 过渡平滑应用（宽度只依赖首 slide，后续位元数据不参与几何）。contain 完整呈现允许黑边，不以裁切消除黑边。
+  - **翻页控件（三件套）**：默认仅底部中央半透明圆点（触屏可发现入口）；hover 媒体区与 focus-within 显现左右半透明圆形箭头（垂直中位）+ 右上「N / M」胶囊徽标；触屏（`hover: none`）箭头与徽标恒显保证可发现；控件触控目标 44px；仅多项媒体显示（单项零控件）；**翻页 clamp 在内容边界、不循环——「下一页」绝不变成「下一篇内容」**：首页前翻/末页后翻均无操作，边界态 forbidden（箭头暗化不可点 `disabled`，键盘同样无操作）；键盘 ←/→ 切位且只作用于最顶层活动媒体区——不劫持输入框/评论编辑器（contenteditable）/select/播放器原生控件/上层媒体查看器/登录浮窗；切位按钮点击不触发放大（事件不穿透到主体）。
   - **视频行为（D2 #859，小红书式）**：弹窗内真实比例 contain（允许黑边）；当前活跃且可见的 video `autoPlay + muted + playsInline` 自动静音播放（`play()` 被浏览器策略拒绝时静默降级，controls 手动播放入口保留）；主体点击 = 单次切换播放/暂停（防双触发；用户主动暂停的意图在恢复激活时不被自动续播覆盖，切位换片视为轮播语义复位该意图）；原生 controls 条（44px 近似条内）点击不切播、不翻页、不进查看器；**视频不进 MediaViewer**（全屏用控制条原生全屏按钮），图片点击进查看器行为不变；挂起矩阵 = 切位/压入下一内容层/进入上层弹窗（媒体查看器、登录浮窗）/关闭详情时停止隐藏媒体，恢复激活仅当前项可续播，任何时刻至多一段声音；探针失败/超时保留真实视频 URL（可播放可重试，绝不换成图片占位或送进图片优化器预热）。
-  - **媒体列逐类型矩阵（D5 #862，spec §3.2）**：媒体链 = 逐附件 slide 序列（`selectOverlaySlides`）——image/video 沿用既有契约（`oss_key` 兜底、无前端扫描门）且不再限定内容类型（附件族内容的图/视附件参与混排）；audio/model3d/document 需签名 `oss_url` 且扫描门 clean/not_required（沿用 `isPreviewBlockedByScan` 语义）；model3d 的 .mtl 不进；text 仅持久化 MIME=application/pdf；sheet_music 逐附件（musicxml/midi/pdf 按 file_type 优先、持久化 MIME 兜底；mscz/mscx 留右栏下载行）；mod 永不进（固定包裹占位单卡）。顺序 = 后端稳定排序（sort_order ASC NULLS LAST、id ASC，0 有效），前端不重排；无可预览项回退链不变（封面 → 文字封面）。逐类型位形态：
+  - **媒体源装配（封面恒为首屏 + 全类型托底）与逐类型矩阵**：媒体链 = **有封面 → 封面 slide 0 + 附件序列**（上传者传了封面则第 1 屏恒为封面、翻页进具体内容；封面与图片附件为同一文件时去重保留封面位）；**无封面 → 附件序列 → 自动文字封面**（3:4 渐变字牌）兜底——article/prompt/other 等无媒体类 = 文字封面卡左列 + 右栏（全站形态统一）。附件序列 = 逐附件 slide（可预览族优先、不可预览族托底位，按附件稳定顺序混排）——任何 default 态内容打开舞台非空，绝不空舞台或 undefined。附件资格：image/video 沿用既有契约（`oss_key` 兜底、无前端扫描门）且不限定内容类型（附件族内容的图/视附件参与混排）；audio/model3d/document 需签名 `oss_url` 且扫描门 clean/not_required（沿用 `isPreviewBlockedByScan` 语义）；model3d 的 .mtl 不进；text 仅持久化 MIME=application/pdf；sheet_music 逐附件（musicxml/midi/pdf 按 file_type 优先、持久化 MIME 兜底）；不可预览附件（mscz/mscx/txt/mod 等）逐附件出 `fallback_download` 托底位。顺序 = 后端稳定排序（sort_order ASC NULLS LAST、id ASC，0 有效），前端不重排。封面 intrinsic 尺寸（cover 元数据缺失时）由预加载实测链路回填参与冻结比例推导。逐类型位形态：
     | 类型 | 左列轮播位形态 | 交互要点 |
     |---|---|---|
     | audio | audio 专属音符占位图（300×400）为底 + 底部悬浮 AudioPlayer 条 | 起播权在用户；挂起暂停、切位卸载停播释放 |
@@ -2594,12 +2614,14 @@ interface ContentDetailOverlayProps {
     | sheet_music_pdf | 原生 `<embed type="application/pdf">` 全高 | embed 原生能力；内容点击不绑定，无放大入口（仍属乐谱位） |
     | sheet_music_xml | OSMD 横滚容器 | 谱内横向滚动不被箭头拦截（箭头为悬浮小钮） |
     | sheet_music_midi | 乐谱占位图为底 + 底部 MIDI 回放条 | 起播权在用户；挂起暂停（midi 调度停走 + AudioContext 挂起，恢复不自动续播）、切位卸载即停（AudioContext 随组件清理） |
+    | fallback_download | 托底属性卡：底图 = 内容封面压暗衬底（无封面按附件族占位图）+ 族图标 + 文件名/大小 + 预览不可用提示 + 下载钮 | 下载许可 = allowCopy 与右栏下载行同源，动作走按需现签路径；名义几何 3:4（visual 档） |
+  - **预取与就绪交换（真实媒体延迟）**：**相邻内容 idle 预取** = default 态落定后对 contextList 前后项（next 优先、前后各 1）在空闲期预取详情 JSON + 封面 1080 规范变体（与浮窗首 slide 同址）——`requestIdleCallback`（timeout 3s 兜底）、并发 ≤2、TTL 与 OSS 展示签名对齐（240s 软过期）、失败静默不重试（预取是加速器不是就绪门）、已浏览内容不再回捞、页面隐藏硬取消在途、正式打开命中即认领（claim）消费内存缓存（网络层零新详情请求）；**就绪交换（hold-crossfade）** = 翻页时旧画面保持到新画面就绪再交换——未就绪期旧层满不透明、新层 opacity 0 被压在下（弱网零空白零闪烁），就绪或失败放行后才起跑 180ms 双层交叉淡出（见「开合转场」翻页条目）；**封面预热** = 卡片可见预热与相邻预取的 warmDetail 预热互补供给同一 1080 URL（去重后其一命中即入缓存），开窗不撞冷缓存。
     查看器族 slide 名义几何 300×400（3:4，无 intrinsic 宽高）；首项挂载即 settle（不等 2s 入场保险）；当前位才挂载重型查看器（切位/隐藏层停播并释放资源，首屏不抓全部附件正文）。**播放条让位**：当前位为 audio/midi 播放条形态时，底部圆点与混排类型角标上移到播放条上方（`bottom-32`），非播放条位保持默认贴底（`bottom-3`）。**指示器溢出**：slide 数 >9 隐藏底部圆点、只留 N/M 徽标 + 箭头（各类型无数量上限）；**混排角标**：slide 链含 ≥2 个 family 时逐 slide 左下角显示类型小角标（`content.attachmentPreview.familyLabel.*`，i18n 双语），同质链不显示；**右栏去重**：浮层语境（`ContentDetail mediaSlot="variant"`）下已迁入左列的族（document/model3d/audio 查看器、sheet_music 乐谱查看器）不再在右栏内联挂重复查看器，只保留文件名/大小/下载/扫描状态语义；独立详情页与移动布局渲染不变；**签名过期重试**：查看器位右下角「刷新预览」按钮 = 有限用户重试（重取详情刷新 300s 签名 URL，按附件 id 锚定保持当前位；禁止定时轮询/重复下载计数）。
   - **放大态（D6 #863，多类型化）**：可放大序列仅三类 = 真实图片（image）/ model3d / text 族 pdf（`overlay-media isEnlargeableSlide` 谓词；乐谱族 pdf 仍属乐谱位不放大，自动文字封面/音频背景封面/video poster 不算独立图片附件）。**自动文字封面不可放大**：article/prompt/other 无可预览项时合成文字封面会作为唯一 fallback image slide 进左列（`autoCover` 标记），无放大钮且主体点击无副作用不开查看器；真内容封面（`cover_image_url`）属真实图片，保持可放大。**入口**：image = 主体点击或右上放大钮（`data-slot="media-enlarge-button"`，与三件套同显隐语义：hover/focus-within 显现、触屏恒显、44px 触控目标；多项链中位于 N/M 徽标正下方）；model3d/text_pdf = 仅右上放大钮（画布/embed 点击交原生交互，不绑定）；audio/document/乐谱族/video 位无放大入口（视频全屏用控制条原生按钮）。**放大态内**：统一左右箭头 + 序号（序号独立于左列轮播，仅在可放大项间切换、边界 clamp）；左列 slide 序列与可放大序列以稳定附件 id 映射——在 3D/pdf 位打开即定位该项（不是首图）；关闭（×/Esc）返回最后所看项（左列轮播定位到该项）并恢复触发焦点；Esc 只关最上层；背景滚动锁与焦点可恢复语义照旧；查看器打开期间左列挂起（既有挂起矩阵）且浮层键盘 ←/→ 不劫持。MediaViewer 其他调用方（MediaGallery 等）传参不改，video 兼容渲染保留（详见 Component: MediaViewer）。
   - **× 与返回悬浮、滚动条贯通**：× 悬浮面板右上（半透明圆钮覆盖内容，无 pt-14 整行避让空带；右栏首块右上局部避让 = header 块 `pr-14` 预留关闭钮命中区）；返回钮悬浮媒体列左上，hover 与 aria-label 显示「返回到：XXX」（多层栈 = 上一层标题；栈底 = 来源入口名词）；右滚动列（`layer-scroller`）滚动条贴面板右缘全高贯通。
   - **右栏块序（钉死，全类型一致，各块单实例）**：创作者行（头像+昵称+关注，`ContentDetail` 的 `creatorFirst` 在 ≥960 视口将创作者行置于标题之前；移动 <960 保持「标题在上」既有契约）→ 标题 → 元信息行（fanwork 含「IP：名」）→ 来源归因（fanwork）→ 正文/附件语义区 → 关联块（⓪关联 IP 行 → ①关联的原创 → ②同系列跳转；无关联整块不渲染）→ 评论区 → 推荐区（衍生列表 + 相似推荐 = `RelatedContents`，复用层内 related-fanworks 合同；推荐区在 960–1099 同样可见——`minViewportPx=960` 下浮旧 1100 门，仅浮层路径，其余调用方缺省 1100 不变）。旧 variantTail 把衍生列表放在评论前的结构退役（`OverlayRelatedBlock` 不再含衍生列表）。
   - **ContentSidebar 退出桌面统一右栏**：创作者行来自 `ContentDetail` 头部，相关列表并入评论后推荐区；移动 <960 侧栏照旧渲染（CSS 自隐藏于 <lg，DOM 契约保持）。
-  - 动效锚点不变量（R3 契约挂点）：`data-slot="detail-cover"` 锚点盒不含翻页控件、仅在媒体链非空时渲染（空链不产出转场锚点，错误态维持居中缩淡降级）；媒体几何单一比例源 = 当前项 intrinsic。
+  - 动效锚点不变量（R3 契约挂点）：`data-slot="detail-cover"` 锚点盒不含翻页控件、仅在媒体链非空时渲染（空链不产出转场锚点，错误态维持居中缩淡降级）；morph 锚点 = `data-slot="variant-media-pane"` 媒体舞台；媒体几何单一比例源 = 媒体链**首 slide** intrinsic（内容冻结，与当前项无关）。
 - **移动单列（#89 权威，<960px 不回归）**：移动端全屏单列 + header 工具栏（返回/关闭/标题，与桌面 float 壳按断点切换）——媒体全宽 contain（行内画廊/CoverImage），信息在其下滚动；媒体集内翻页，最后一项继续上滑 = 沿触发上下文列表前进到下一篇；列表到底显示「已经到底」提示；不提供「上一篇」；查看器不参与内容级切换；长图折叠/就地展开与下载入口保持原契约。
 
 **唯一滚动模型**
@@ -2610,7 +2632,7 @@ interface ContentDetailOverlayProps {
 - loading：结构与真实详情一致的骨架屏；桌面保持稳定双栏外壳（媒体列黑底占位 + 右栏骨架），不以单列态闪现（D1 #858）。
 - default：完整公开内容详情。
 - forbidden/deleted/not-found/rate-limited：稳定本地化 EmptyState（桌面渲染于右栏、媒体列保持占位），不暴露原始后端错误。
-- closing：仅允许 opacity/transform 退场；reduced-motion 下立即或短淡出关闭。
+- closing：morphBack 反向收缩 + 整壳溶解（transform 与 opacity 同一 transition 400ms ease），关窗开始即解锁滚动锁、舞台瞬时回源首屏，右列与舞台 chrome 300ms 同步淡出；reduced-motion 下立即或短淡出关闭。
 
 **响应式与可访问性**
 - PC：详情层不超过可用视口，内部滚动，关闭按钮（悬浮右上）始终可达；双栏下媒体与信息区均不出界。
@@ -2626,12 +2648,12 @@ interface ContentDetailOverlayProps {
   - **刷新/新标签/分享/forward 到旧详情记录** = 规范路径宿主页直开（`/content/<id>`、`/original/<id>` 两条路由承载；forward 落在已关闭浮层的历史记录上时由全局接管者 replace 导航到该记录规范宿主页，地址与可见内容一致，不恢复已销毁组件的媒体状态）。
   - **不引入拦截路由（Intercepting Routes）重构**：浮层继续作为宿主页之上的共享组件，宿主直开与浮层深链共用同一规范 URL 空间。
 
-**Playwright 截图检查点（#64 Testing Decision 17 权威；D1 #858 更新）**
-- `screenshots/overlay-shared-motion-open.png` / `overlay-shared-motion-close.png`：可测量 source 下开合几何。
-- `screenshots/overlay-fallback-open.png`：source 不可用时居中缩放淡化。
-- `screenshots/overlay-loading.png` / `overlay-cover-error.png`：加载态（桌面双栏稳定壳）与封面失败占位（不回退全宽单列）。
-- `screenshots/overlay-two-panel-desktop.png`：桌面统一版式（左媒体列 + 右信息列，含 960–1023 面板对齐）。
-- `screenshots/overlay-single-column-mobile.png`：移动单列 + 连续浏览上滑。
+**Playwright 截图检查点（断言 rig = `frontend/overlay-xhs-verify.mjs`，本地栈 3000/8080 + psql 幂等造数 + 合成附件服务）**
+- `screenshots/e1-rig-*.png`：几何——混排跨比例翻页零变化、跨内容宽度不同、阅读宽舞台档、混合档位切换。
+- `screenshots/e2-rig-*.png`：动画——开窗 morph 起点/中点/复位、连按双层交叉淡出、关窗中点 scale/落地前透明度/即解锁、翻离首屏关窗瞬时回源。
+- `screenshots/e3-rig-*.png`：媒体源——封面恒首屏/去重、封面比例几何实测、无封面附件优先、托底属性卡、乐谱三分支、全类型九位混排逐位非空、边界 forbidden。
+- `screenshots/e4-rig-*.png`：预取——相邻 idle 预取、缓存命中零请求、弱网 hold-crossfade、弱网开窗 holdSrc、预取失败静默。
+- `screenshots/e5-*.png`：真 Chromium 验收清单（morph 手感/冻结 HUD/档位切换/封面首屏/托底/弱网 hold），存档见 `docs/working/` 验收清单文档。
 
 ## Component: MediaGallery 媒体集画廊（#80/#85 权威）
 
