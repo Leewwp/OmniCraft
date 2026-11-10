@@ -106,6 +106,11 @@ function installAudioContextStub() {
   class AudioContextStub {
     state = "running";
     resume() {}
+    /* E2 #954 交叉淡出：切位后旧 slide 以挂起态留场 240ms（停播防双声），
+       MIDIPlayer 挂起效果会调用 ctx.suspend()——stub 补齐 Promise 语义。 */
+    suspend() {
+      return Promise.resolve();
+    }
     close() {
       return Promise.resolve();
     }

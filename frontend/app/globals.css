@@ -367,40 +367,37 @@
   font-weight: 600;
 }
 
-/* 内容详情浮层共享元素转场（View Transitions 路径，#409 F1 单一时间轴）：
-   root 交叉淡化 = 壳层不透明度时间线，必须与命名封面组同帧起跑、同长结束、
-   同一缓动族（开 300ms / 关 240ms）——旧 180ms 档与壳层 160ms 先行淡入并存的
-   档位差是「浮窗与图片不同步」的直接根因，二者均已移除。关闭方向由
-   html[data-vt-close]（ContentDetailOverlay 关场起跑前设置）统一压到 240ms 档，
-   几何与缓动方向互逆（同一曲线族反向播放）。 */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 300ms;
-  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+/* 内容详情浮层开合动画（E2 #954 整容器封面 morph 口径，VT/FLIP 路径退役）：
+   开/关 = 壳层 transform 400ms ease（JS 驱动，见 lib/overlay-motion）；关窗
+   编排的右列/舞台 chrome 同步淡出与舞台 slide 双层交叉淡出在此承载。 */
+@keyframes overlay-slide-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-html[data-vt-close]::view-transition-old(root),
-html[data-vt-close]::view-transition-new(root) {
-  animation-duration: 240ms;
+@keyframes overlay-slide-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
-::view-transition-group(content-detail-cover) {
-  animation-duration: 300ms;
-  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-html[data-vt-close]::view-transition-group(content-detail-cover) {
-  animation-duration: 240ms;
-}
-
-::view-transition-old(content-detail-cover),
-::view-transition-new(content-detail-cover) {
-  animation-duration: 300ms;
-}
-
-html[data-vt-close]::view-transition-old(content-detail-cover),
-html[data-vt-close]::view-transition-new(content-detail-cover) {
-  animation-duration: 240ms;
+/* 关窗编排（原型规范第 8 条）：关窗开始（壳层 data-closing）后右列与舞台
+   chrome（箭头/圆点/角标/播放条让位件/放大/刷新/悬浮返回关闭钮）随收缩
+   ~300ms 同步淡出——实心残迹在整壳溶解前先退场，落地帧零可见变化；
+   !important 压过三件套 hover/focus-within 显现规则。 */
+[data-closing] [data-slot="layer-scroller"],
+[data-closing] [data-slot="variant-media-pane"] > [data-slot^="media-"],
+[data-closing] [data-slot="overlay-back-button"],
+[data-closing] [data-slot="overlay-close-button"] {
+  opacity: 0 !important;
+  transition: opacity 300ms ease;
 }
 
 /* #398 C3 快照纯净：浮层打开期间锁定触发卡片的 hover 缩放过渡——VT 旧快照

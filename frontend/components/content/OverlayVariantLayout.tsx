@@ -20,6 +20,7 @@ import {
   slideTierOf,
   type OverlayGeometrySpec,
 } from "@/lib/overlay-geometry";
+import { OVERLAY_MOTION } from "@/lib/overlay-motion";
 import { attemptPlay, clampIndex, toggleVideoSlideClick } from "@/lib/media-interaction";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
 
@@ -403,6 +404,7 @@ function HoverArrow({
   return (
     <button
       type="button"
+      data-slot="media-arrow"
       aria-label={side === "left" ? t("media.gallery.previous") : t("media.gallery.next")}
       onClick={onClick}
       disabled={disabled}
@@ -540,6 +542,9 @@ export interface OverlayVariantLayoutProps {
   /** #409 F1 几何稳定门：根区完成首次实测（ResizeObserver 回报）后回调一次，
       浮层据此放行入场转场（测量在几何稳定后进行）。 */
   onPaneMeasured?: () => void;
+  /** E2 #954 关窗回源令牌：递增时舞台瞬时回源（index→0 + 档位/宽度无过渡，
+      供关窗 morphBack 在稳定几何上测量；已回源则幂等）。 */
+  exitResetToken?: number;
   /** D2：本层是否为顶层活动层（键盘翻页/媒体挂起矩阵只作用于顶层；
       压入下一层、被上层弹窗覆盖时 false = 挂起）。 */
   active?: boolean;
@@ -562,6 +567,7 @@ export function OverlayVariantLayout({
   holdSrc,
   onGeometrySpec,
   onPaneMeasured,
+  exitResetToken = 0,
   active = true,
   onMediaDimensions,
   contentId,
@@ -578,6 +584,9 @@ export function OverlayVariantLayout({
   const measuredOnceRef = useRef(false);
   const viewerTriggerRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  /* E2 #954 淡出层独立 video ref：与当前位 videoRef 隔离，切位停旧播新不受
+     共享 ref 覆盖。 */
+  const exitVideoRef = useRef<HTMLVideoElement | null>(null);
   /* D2：用户主动暂停意图（切位换片时复位——换片是轮播语义，不是暂停意图）。 */
   const userPausedRef = useRef(false);
 
@@ -663,6 +672,59 @@ export function OverlayVariantLayout({
     if (!active || !geometryMeasured) return;
     onGeometrySpec?.({ tier, paneWidth, shellWidth });
   }, [active, geometryMeasured, tier, paneWidth, shellWidth, onGeometrySpec]);
+
+  /* ── E2 #954 舞台 slide 双层交叉淡出（规范第 1/2 条） ─────────────────────
+     翻页时旧 slide 保留为淡出层（180ms 真交叉淡出，新层淡入同时旧层淡出），
+     240ms 后移除；快速连按时已在淡出的层被最新切换立即接管替换（发号牌制：
+     仅最新切换持有旧层清理权，任意时刻舞台至多 2 层 = 1 新 + 1 淡出中）。 */
+  const [exitSlide, setExitSlide] = useState<{ item: MediaGalleryItem; index: number } | null>(null);
+  const exitOwnerRef = useRef(0);
+  const prevAtRef = useRef(clampIndex(0, media.length));
+  useEffect(() => {
+    const prevAt = prevAtRef.current;
+    prevAtRef.current = at;
+    if (prevAt === at) return;
+    const prevItem = media[prevAt];
+    if (!prevItem) {
+      setExitSlide(null);
+      return;
+    }
+    setExitSlide({ item: prevItem, index: prevAt });
+    const myToken = ++exitOwnerRef.current;
+    const timer = window.setTimeout(() => {
+      /* 发号牌：已有更新的切换接管清理权时本定时器作废，不误杀新淡出层。 */
+      if (exitOwnerRef.current !== myToken) return;
+      setExitSlide(null);
+    }, OVERLAY_MOTION.slideExitRemoveMs);
+    return () => window.clearTimeout(timer);
+  }, [at, media]);
+
+  /* ── E2 #954 关窗回源令牌 ──────────────────────────────────────────────────
+     关窗开始时递增：舞台瞬时回源（index→0、交叉淡回封面态、档位/宽度无过渡
+     ——过渡中的盒尺寸会让 morphBack 锚点/缩放测量漂移、落点对不齐卡片），
+     并按 slide 0 档位立即重报几何规格（关窗期 active=false，常规上报门已关）。 */
+  const [exitInstantWidth, setExitInstantWidth] = useState(false);
+  const exitTokenRef = useRef(0);
+  useEffect(() => {
+    if (exitResetToken === 0 || exitTokenRef.current === exitResetToken) return;
+    exitTokenRef.current = exitResetToken;
+    setExitInstantWidth(true);
+    setIndex(0);
+    const firstTier = media.length > 0 ? slideTierOf(media[0]) : "visual";
+    onGeometrySpec?.(
+      computeOverlayGeometry({
+        tier: firstTier,
+        frozenRatio,
+        shellHeight: measured ? (area?.h ?? estimateShellHeight()) : estimateShellHeight(),
+        viewportWidth,
+      }),
+    );
+    const handle = requestAnimationFrame(() =>
+      requestAnimationFrame(() => setExitInstantWidth(false)),
+    );
+    return () => cancelAnimationFrame(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exitResetToken]);
 
   /* D2 挂起矩阵：非顶层（压入下一层/被压）、上层查看器、登录浮窗任一成立即
      停止隐藏媒体；恢复时仅当前 slide（唯一挂载者）续播（用户主动暂停不覆盖）。 */
@@ -786,27 +848,40 @@ export function OverlayVariantLayout({
       {/* 媒体列（E1 #953）：宽 = 壳高 × 内容冻结比例（visual 档）/ 取满可用宽
           （reading 档 data-tier），黑底满幅贴边；同档翻页宽度恒定，档位切换一次
           240ms 过渡。媒体链为空（loading/错误态）保持稳定黑底占位——双栏外壳
-          不塌缩。首帧宽度即终值（px），测量落地帧无过渡。 */}
+          不塌缩。首帧宽度即终值（px），测量落地帧无过渡；E2 #954 关窗回源帧
+          同样无过渡（exitInstantWidth，防 morphBack 测量漂移）。 */}
       <div
         data-slot="variant-media-pane"
         data-tier={tier}
         className="group/media relative h-full shrink-0 overflow-hidden bg-black"
         style={{
           width: `${paneWidth}px`,
-          transition: geometrySettled ? OVERLAY_GEOMETRY_TRANSITION : "none",
+          transition:
+            geometrySettled && !exitInstantWidth ? OVERLAY_GEOMETRY_TRANSITION : "none",
         }}
       >
         {current && (
           <>
-            {/* 锚点盒（R3 契约）：不含翻页控件；#753 取消内部竖向滚动（长图随列宽
-                缩窄居中完整显示）。data-ultra-tall：长图当前项标记——浮层转场据此
-                退化居中缩淡（C2，卡片两档裁切 vs 面板 contain 取景无法统一）。
-                空链（错误态）不渲染锚点：浮层转场维持居中缩淡降级。 */}
+            {/* 当前层（R3 锚点契约）：不含翻页控件；#753 取消内部竖向滚动（长图
+                随列宽缩窄居中完整显示）。E2 #954：key 按 slide id——翻页时新层
+                重挂载触发 180ms 淡入（与旧层淡出构成真交叉淡出）；absolute 舞台
+                分层不改变几何（宽度在 pane 上，E1 冻结）。data-ultra-tall：长图
+                当前项标记——浮层转场据此退化居中缩淡（C2，卡片两档裁切 vs 面板
+                contain 取景无法统一）。空链（错误态）不渲染锚点：浮层转场维持
+                居中缩淡降级。 */}
             <div
+              key={current.id}
               data-slot="detail-cover"
               data-ultra-tall={tall ? "true" : undefined}
-              className="h-full w-full overflow-hidden"
+              className="absolute inset-0 overflow-hidden"
               onClick={handleCoverClick}
+              style={
+                exitSlide
+                  ? {
+                      animation: `overlay-slide-fade-in ${OVERLAY_MOTION.slideCrossfadeMs}ms ease both`,
+                    }
+                  : undefined
+              }
             >
               <MediaSlide
                 item={current}
@@ -822,6 +897,30 @@ export function OverlayVariantLayout({
                 allowCopy={allowCopy}
               />
             </div>
+            {/* E2 #954 淡出层（规范第 1/2 条）：旧 slide 覆盖其上 180ms 淡出，
+                240ms 后由发号牌定时器移除；挂起态（suspended 硬真）停播防双声。 */}
+            {exitSlide && (
+              <div
+                data-slot="slide-fade-out"
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 overflow-hidden"
+                style={{
+                  animation: `overlay-slide-fade-out ${OVERLAY_MOTION.slideCrossfadeMs}ms ease both`,
+                }}
+              >
+                <MediaSlide
+                  item={exitSlide.item}
+                  index={exitSlide.index}
+                  total={media.length}
+                  onSettle={settleFirstMedia}
+                  videoRef={exitVideoRef}
+                  suspended
+                  userPausedRef={userPausedRef}
+                  contentId={contentId}
+                  allowCopy={allowCopy}
+                />
+              </div>
+            )}
             {showControls && (
               <>
                 {/* #753：翻页由悬停/键盘聚焦可见的显式箭头承担；旧左右 1/3 隐形
