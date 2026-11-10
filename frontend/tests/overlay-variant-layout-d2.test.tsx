@@ -144,8 +144,9 @@ function LayoutHarness({
   onGeometrySpec,
   active,
   onMediaDimensions,
+  exitResetToken,
   children,
-}: LayoutProps & { active?: boolean }) {
+}: LayoutProps & { active?: boolean; exitResetToken?: number }) {
   return (
     <IntlProvider locale="en" messages={testMessages}>
       <div>
@@ -155,6 +156,7 @@ function LayoutHarness({
           active={active}
           onGeometrySpec={onGeometrySpec}
           onMediaDimensions={onMediaDimensions}
+          exitResetToken={exitResetToken}
         >
           {children ?? <p>d2 harness body</p>}
         </OverlayVariantLayout>
@@ -535,4 +537,114 @@ test("D2 键盘 ←/→：只作用于顶层活动媒体区，clamp 到边界，
   } finally {
     mediaStubs.restore();
   }
+});
+
+/* ── E2 #954：舞台 slide 双层交叉淡出 + 关窗回源令牌 ─────────────────────── */
+
+function stageLayerCount(): number {
+  return document.querySelectorAll(
+    '[data-slot="variant-media-pane"] > [data-slot="detail-cover"], [data-slot="variant-media-pane"] > [data-slot="slide-fade-out"]',
+  ).length;
+}
+
+function exitLayer(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="slide-fade-out"]');
+}
+
+test("E2 交叉淡出：翻页 = 1 新层 + 1 淡出层，240ms 后收敛回单层", async () => {
+  renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)] });
+  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  assert.equal(stageLayerCount(), 1, "初始舞台单层");
+
+  await act(async () => {
+    pressArrowKey("ArrowRight");
+  });
+  assert.equal(countBadgeText(), "2 / 3");
+  assert.equal(stageLayerCount(), 2, "翻页瞬间 = 新层 + 淡出层（双层真交叉淡出）");
+  const exit = exitLayer();
+  assert.ok(exit, "exit layer renders");
+  assert.equal(exit?.getAttribute("aria-hidden"), "true", "exit layer is aria-hidden");
+  assert.ok(exit?.className.includes("pointer-events-none"), "exit layer never intercepts interactions");
+  assert.ok(
+    (exit?.style.animation ?? "").includes("overlay-slide-fade-out"),
+    `exit layer plays the fade-out animation (got ${exit?.style.animation})`,
+  );
+  const current = document.querySelector<HTMLElement>('[data-slot="variant-media-pane"] > [data-slot="detail-cover"]');
+  assert.ok(
+    (current?.style.animation ?? "").includes("overlay-slide-fade-in"),
+    `incoming layer plays the fade-in animation (got ${current?.style.animation})`,
+  );
+  /* 旧层移除窗口 = 发号牌定时器（240ms）。 */
+  await waitFor(() => assert.equal(stageLayerCount(), 1, "fade-out layer is removed after the exit window"));
+  assert.equal(exitLayer(), null, "exit layer unmounts");
+});
+
+test("E2 快速连按：任意时刻舞台 ≤2 层，最新淡出层接管清理权，动画结束单层无残留", async () => {
+  renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)] });
+  await waitFor(() => assert.ok(countBadgeText() !== ""));
+
+  await act(async () => {
+    pressArrowKey("ArrowRight");
+    pressArrowKey("ArrowRight");
+  });
+  assert.equal(countBadgeText(), "3 / 3", "连按两步到位");
+  assert.ok(stageLayerCount() <= 2, `任意时刻至多 2 层（1 新 + 1 淡出中），got ${stageLayerCount()}`);
+  assert.equal(stageLayerCount(), 2, "最新一次切换的旧层仍在淡出");
+  /* 再连按回翻：第三次切换接管清理权，第一份淡出层立即被替换（无叠层残留）。 */
+  await act(async () => {
+    pressArrowKey("ArrowLeft");
+  });
+  assert.ok(stageLayerCount() <= 2, `中断再切换仍 ≤2 层，got ${stageLayerCount()}`);
+  await waitFor(() => assert.equal(stageLayerCount(), 1, "连按结束后舞台收敛单层"));
+  assert.equal(countBadgeText(), "2 / 3");
+});
+
+test("E2 关窗回源令牌：翻离首屏后 token 递增 → 瞬时回 slide 0 档位并重报几何（无 240ms 过渡）", async () => {
+  const docSlide: MediaGalleryItem = {
+    id: 90,
+    url: "https://bucket.example/e2/sheet.csv",
+    type: "document",
+    fileName: "sheet.csv",
+    width: 300,
+    height: 400,
+  };
+  const specs: Array<{ tier: string; paneWidth: number; shellWidth: number }> = [];
+  const view = renderLayout({
+    media: [imageItem(1, { width: 900, height: 1200 }), docSlide],
+    onGeometrySpec: (spec) => specs.push({ tier: spec.tier, paneWidth: spec.paneWidth, shellWidth: spec.shellWidth }),
+  });
+  await waitFor(() => assert.ok(paneWidth() !== ""));
+  assert.equal(paneWidth(), "600px", "开窗 visual 档（3:4）");
+
+  await act(async () => {
+    pressArrowKey("ArrowRight");
+  });
+  assert.equal(paneTier(), "reading", "翻到文档页 = reading 档");
+  assert.equal(paneWidth(), "880px", "宽舞台 880");
+
+  /* 关窗回源令牌：active 已关（关窗态），常规上报门关闭——重置路径必须自行
+     重报 slide 0 档位规格（morphBack 测量稳定）。 */
+  const reportsBefore = specs.length;
+  await act(async () => {
+    view.rerender(
+      <LayoutHarness
+        media={[imageItem(1, { width: 900, height: 1200 }), docSlide]}
+        active={false}
+        exitResetToken={1}
+        onGeometrySpec={(spec) => specs.push({ tier: spec.tier, paneWidth: spec.paneWidth, shellWidth: spec.shellWidth })}
+      />,
+    );
+  });
+  assert.equal(countBadgeText(), "1 / 2", "舞台瞬时回 slide 0");
+  assert.equal(paneTier(), "visual", "档位瞬时回源（reading → visual）");
+  assert.equal(paneWidth(), "600px", "宽度瞬时回源（无 240ms 档位动画，morphBack 测量稳定）");
+  assert.equal(stageLayerCount(), 2, "回源以交叉淡出呈现（封面态淡入、文档位淡出）");
+  assert.ok(specs.length > reportsBefore, "reset re-reports the geometry spec despite inactive");
+  const lastSpec = specs[specs.length - 1];
+  assert.equal(lastSpec.tier, "visual");
+  assert.equal(lastSpec.shellWidth, 1040, "重报壳宽 = 媒体列 600 + 固定右列 440");
+
+  /* 两帧后恢复常规宽度过渡。 */
+  await waitFor(() => assert.ok(paneTransition().startsWith("width 240ms"), "exit instant window ends"));
+  await view.unmount();
 });

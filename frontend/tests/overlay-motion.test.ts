@@ -2,61 +2,81 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   OVERLAY_MOTION,
-  computeFlipTransform,
-  flipTransformToCss,
+  computeShellMorph,
   measureSourceRect,
   nextFrame,
   rectHasArea,
   rectIntersectsViewport,
   reducedMotionEnabled,
   selectMotionPath,
-  viewTransitionAvailable,
+  shellMorphOriginToCss,
+  shellMorphToCss,
   type OverlayRect,
 } from "@/lib/overlay-motion";
 import { installDom } from "./runtime-test-helpers";
 
-/* ---------- 路径选择合同（原型 §5）：每次操作独立判定，不缓存 ---------- */
+/* ---------- 路径选择合同（E2 #954）：每次操作独立判定，不缓存 ---------- */
 
 test("selectMotionPath: reduced motion wins over every other path", () => {
-  assert.equal(selectMotionPath(true, { x: 0, y: 0, width: 100, height: 100 }, true), "fade");
-  assert.equal(selectMotionPath(true, null, false), "fade");
-  assert.equal(selectMotionPath(true, { x: 0, y: 0, width: 100, height: 100 }, false), "fade");
+  assert.equal(selectMotionPath(true, { x: 0, y: 0, width: 100, height: 100 }), "fade");
+  assert.equal(selectMotionPath(true, null), "fade");
 });
 
 test("selectMotionPath: missing or degenerate source rect falls back", () => {
-  assert.equal(selectMotionPath(false, null, true), "fallback");
-  assert.equal(selectMotionPath(false, { x: 0, y: 0, width: 0, height: 0 }, true), "fallback");
-  assert.equal(selectMotionPath(false, { x: 0, y: 0, width: 10, height: 0 }, false), "fallback");
+  assert.equal(selectMotionPath(false, null), "fallback");
+  assert.equal(selectMotionPath(false, { x: 0, y: 0, width: 0, height: 0 }), "fallback");
+  assert.equal(selectMotionPath(false, { x: 0, y: 0, width: 10, height: 0 }), "fallback");
 });
 
-test("selectMotionPath: VT is a progressive enhancement over FLIP", () => {
-  assert.equal(selectMotionPath(false, { x: 0, y: 0, width: 10, height: 10 }, true), "vt");
-  assert.equal(selectMotionPath(false, { x: 0, y: 0, width: 10, height: 10 }, false), "flip");
+test("selectMotionPath: measurable source takes the whole-shell morph path (VT/FLIP retired)", () => {
+  assert.equal(selectMotionPath(false, { x: 0, y: 0, width: 10, height: 10 }), "morph");
 });
 
-/* ---------- FLIP 几何（原型 §4.3：Invert 数学与方向不可反） ---------- */
+/* ---------- 整容器 morph 几何（E2 #954：等比锚定舞台左上角） ---------- */
 
-test("computeFlipTransform maps the target rect onto the source rect", () => {
-  const source: OverlayRect = { x: 0, y: 0, width: 100, height: 100 };
-  const target: OverlayRect = { x: 100, y: 50, width: 200, height: 200 };
-  assert.deepEqual(computeFlipTransform(source, target), {
-    x: -100,
-    y: -50,
-    scaleX: 0.5,
-    scaleY: 0.5,
+test("computeShellMorph maps the stage rect onto the card cover rect at equal ratio", () => {
+  const card: OverlayRect = { x: 20, y: 40, width: 200, height: 267 };
+  const stage: OverlayRect = { x: 0, y: 0, width: 600, height: 800 };
+  const shell: OverlayRect = { x: 0, y: 0, width: 1040, height: 800 };
+  assert.deepEqual(computeShellMorph(card, stage, shell), {
+    originX: 0,
+    originY: 0,
+    translateX: 20,
+    translateY: 40,
+    scale: 200 / 600,
   });
 });
 
-test("computeFlipTransform degrades to identity when the target has no area", () => {
-  const source: OverlayRect = { x: 0, y: 0, width: 100, height: 100 };
-  const target: OverlayRect = { x: 5, y: 5, width: 0, height: 0 };
-  assert.deepEqual(computeFlipTransform(source, target), { x: -5, y: -5, scaleX: 1, scaleY: 1 });
+test("computeShellMorph anchors the origin at the stage position inside a shifted shell", () => {
+  const card: OverlayRect = { x: 30, y: 50, width: 180, height: 240 };
+  const stage: OverlayRect = { x: 12, y: 8, width: 540, height: 720 };
+  const shell: OverlayRect = { x: 0, y: 0, width: 980, height: 720 };
+  const morph = computeShellMorph(card, stage, shell);
+  assert.equal(morph.originX, 12);
+  assert.equal(morph.originY, 8);
+  /* 舞台左上角经 transform 后精确落在卡片封面左上角。 */
+  assert.equal(stage.x + morph.translateX, card.x);
+  assert.equal(stage.y + morph.translateY, card.y);
 });
 
-test("flipTransformToCss emits translate + scale with pixel values", () => {
+test("computeShellMorph degrades scale to identity when the stage has no width", () => {
+  const card: OverlayRect = { x: 0, y: 0, width: 100, height: 100 };
+  const stage: OverlayRect = { x: 5, y: 5, width: 0, height: 0 };
+  assert.equal(computeShellMorph(card, stage, stage).scale, 1);
+});
+
+test("shellMorphToCss emits a uniform translate + scale; origin anchors the stage corner", () => {
+  const css = shellMorphToCss({
+    originX: 0,
+    originY: 0,
+    translateX: -100,
+    translateY: -50,
+    scale: 0.5,
+  });
+  assert.equal(css, "translate(-100px, -50px) scale(0.5)");
   assert.equal(
-    flipTransformToCss({ x: -100, y: -50, scaleX: 0.5, scaleY: 0.5 }),
-    "translate(-100px, -50px) scale(0.5, 0.5)",
+    shellMorphOriginToCss({ originX: 12, originY: 8, translateX: 0, translateY: 0, scale: 1 }),
+    "12px 8px",
   );
 });
 
@@ -141,29 +161,22 @@ test("reducedMotionEnabled reads prefers-reduced-motion from matchMedia", () => 
   window.matchMedia = original;
 });
 
-test("viewTransitionAvailable is feature-detected on the document", () => {
-  installDom();
-  assert.equal(viewTransitionAvailable(), false, "jsdom must not expose startViewTransition");
-  const original = document.startViewTransition;
-  document.startViewTransition = (() => ({})) as unknown as typeof document.startViewTransition;
-  assert.equal(viewTransitionAvailable(), true);
-  delete (document as Partial<Document>).startViewTransition;
-  assert.equal(viewTransitionAvailable(), false);
-  (document as Partial<Document>).startViewTransition = original;
-});
-
 test("nextFrame resolves through double rAF with a timeout safety net", async () => {
   installDom();
   await nextFrame();
   assert.ok(true);
 });
 
-test("motion timing constants match the confirmed overlay contract", () => {
-  assert.equal(OVERLAY_MOTION.openDuration, 300);
-  assert.equal(OVERLAY_MOTION.closeDuration, 240);
+test("motion timing constants match the xhs-measured morph contract (E2 #954)", () => {
+  assert.equal(OVERLAY_MOTION.openDuration, 400);
+  assert.equal(OVERLAY_MOTION.closeDuration, 400);
+  assert.equal(OVERLAY_MOTION.morphEasing, "ease");
   assert.equal(OVERLAY_MOTION.reducedDuration, 100);
-  assert.equal(OVERLAY_MOTION.easing, "cubic-bezier(0.22, 0.61, 0.36, 1)");
   assert.equal(OVERLAY_MOTION.fallbackScale, 0.96);
+  assert.equal(OVERLAY_MOTION.chromeFadeMs, 300);
+  assert.equal(OVERLAY_MOTION.closeHideDelayMs, 415);
+  assert.equal(OVERLAY_MOTION.slideCrossfadeMs, 180);
+  assert.equal(OVERLAY_MOTION.slideExitRemoveMs, 240);
 });
 
 /* ---------- #398 C1/C4 + #409 F1：三处同源渲染地址与预取 ---------- */

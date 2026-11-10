@@ -1,12 +1,14 @@
 // 遮罩同钟契约 browser verification rig（本地栈，Playwright Chromium）。
 // 2026-09-09 #408 验收反馈轮：遮罩视觉移出 ::backdrop（VT 快照期不可见 +
 // Safari 不执行 ::backdrop 动画 → 瞬现瞬消），改 dialog 外兄弟层
-// .content-detail-backdrop 与壳层/封面同一时钟 JS 驱动。断言：
-//   1) 点击后早期（≤180ms）遮罩 ≤ 反馈层 0.35 上浮余量（不得瞬到全黑）；
-//   2) 落定后遮罩=1 且壳层=1；
-//   3) 关闭期遮罩与壳层同帧下降（存在中间帧 <1 且 >0）；
-//   4) 完全退出后遮罩层随之卸载；
-//   5) VT 主路径与 FLIP 兜底（init script 删 startViewTransition）各过一遍。
+// .content-detail-backdrop 与壳层同一时钟 JS 驱动。断言：
+//   1) 落定后遮罩=1 且壳层=1；
+//   2) 关闭期遮罩与壳层同帧下降（存在中间帧 <1 且 >0）；
+//   3) 完全退出后遮罩层随之卸载。
+// E2 #954 整容器 morph 口径更新：VT/FLIP 双路径退役（单一 morph 路径，
+// 无快照层遮罩渐变——活元素读数即全貌）；「早期反馈层 ≤180ms 窗口」断言
+// 随媒体就绪门退场一并移除（入场在数据+几何就绪即起跑，反馈层窗口不再
+// 有保证下界），瞬时全黑防护由入场 morph 起跑帧壳层不透明承担。
 // 附带：浮窗内评论 Composer 发送钮两态截图（空=灰 / 有字=主题色）。
 // 运行：BASE=http://localhost:3000 node backdrop-sync-verify.mjs
 import { chromium } from "playwright";
@@ -38,9 +40,6 @@ const SAMPLER = () => {
         t: performance.now(),
         mask: backdrop ? getComputedStyle(backdrop).opacity : null,
         shell: shell ? getComputedStyle(shell).opacity : null,
-        /* VT 关闭档标记（globals.css html[data-vt-close] 把 root 交叉淡化压到
-           240ms）：VT 路径的遮罩渐变由快照层承载，活元素瞬时 0 属预期。 */
-        vtClose: document.documentElement.hasAttribute("data-vt-close"),
       });
       window.requestAnimationFrame(tick);
     };
@@ -66,52 +65,21 @@ async function openFirstCard(page) {
   await card.click();
 }
 
-async function runPass(browser, { label, killVt }) {
+async function runPass(browser, { label }) {
   console.log(`\n===== pass: ${label} =====`);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  if (killVt) {
-    await context.addInitScript(() => { delete Document.prototype.startViewTransition; });
-  } else {
-    /* VT 路径的遮罩渐变在快照层：活元素在回调内瞬时换值，活读数不作早期
-       断言。改为捕获 startViewTransition 调用瞬间（= 旧快照烘入值）的活
-       遮罩不透明度——开应处于反馈层、关应为全量。 */
-    await context.addInitScript(() => {
-      const orig = Document.prototype.startViewTransition;
-      Document.prototype.startViewTransition = function (cb) {
-        const b = document.querySelector(".content-detail-backdrop");
-        (window.__vtCaptures ??= []).push(b ? getComputedStyle(b).opacity : null);
-        return orig.call(this, cb);
-      };
-    });
-  }
   const page = await context.newPage();
   /* networkidle 在多 pass 后偶发不落定（服务器侧悬挂请求，非断言对象）——
      改 domcontentloaded + 各段自己的元素等待。 */
   await page.goto(`${BASE}${PAGE}`, { waitUntil: "domcontentloaded" });
   await page.evaluate(SAMPLER);
 
-  /* ── 开：早期反馈层 + 落定 ─────────────────────────────── */
+  /* ── 开：落定 ─────────────────────────────────────────── */
   const openSamples = await sampleAround(page, () => openFirstCard(page));
   const clickTime = openSamples[0]?.t ?? 0;
-  const early = openSamples.filter((s) => s.t - clickTime < 180 && s.mask !== null);
   const settled = openSamples.filter((s) => s.t - clickTime > 1100);
   const maskElPresent = openSamples.some((s) => s.mask !== null);
   check(`[${label}] backdrop layer exists`, maskElPresent);
-  const earlyMax = early.length ? Math.max(...early.map((s) => parseFloat(s.mask))) : null;
-  if (killVt) {
-    check(
-      `[${label}] early mask stays at feedback plateau (<0.55, no instant black)`,
-      earlyMax !== null && earlyMax < 0.55,
-      `earlyMax=${earlyMax}`,
-    );
-  } else {
-    const openCapture = await page.evaluate(() => (window.__vtCaptures ?? [])[0] ?? null);
-    check(
-      `[${label}] VT open snapshot bakes the feedback plateau (≤0.55)`,
-      openCapture !== null && parseFloat(openCapture) <= 0.55,
-      `openCapture=${openCapture}`,
-    );
-  }
   const settledMask = settled.length ? parseFloat(settled[settled.length - 1].mask) : null;
   const settledShell = settled.length ? parseFloat(settled[settled.length - 1].shell) : null;
   check(`[${label}] settled mask = 1`, settledMask !== null && settledMask > 0.99, `mask=${settledMask}`);
@@ -121,36 +89,19 @@ async function runPass(browser, { label, killVt }) {
   const closeSamples = await sampleAround(page, () =>
     page.keyboard.press("Escape"),
   );
-  const closeStart = closeSamples[0]?.t ?? 0;
   const closeOnes = closeSamples.filter((s) => s.mask !== null && parseFloat(s.mask) > 0.99);
   const closeMid = closeSamples.filter(
     (s) => s.mask !== null && parseFloat(s.mask) > 0.05 && parseFloat(s.mask) < 0.99,
   );
   const closeOnesAfterMid = closeOnes.filter((s) => closeMid.length && s.t > closeMid[0].t);
-  const vtCloseFrames = closeSamples.filter((s) => s.vtClose).length;
   const reachedZero = closeSamples.some((s) => s.mask !== null && parseFloat(s.mask) <= 0.05);
   check(`[${label}] close starts from full mask`, closeOnes.length > 0, `ones=${closeOnes.length}`);
-  if (killVt) {
-    check(
-      `[${label}] close has intermediate mask frames (live transition fade)`,
-      closeMid.length > 0,
-      `mid=${closeMid.length}`,
-    );
-  } else {
-    /* VT 路径：渐变在快照层（root 交叉淡化 240ms 档），活元素瞬时归零；
-       断言 240 档标记确实生效 + 活元素确已置 0（回调执行）。 */
-    check(`[${label}] close activates the 240ms VT root档 (data-vt-close)`, vtCloseFrames > 0, `frames=${vtCloseFrames}`);
-    check(`[${label}] live mask reaches 0 inside the VT callback window`, reachedZero);
-    const closeCapture = await page.evaluate(() => {
-      const caps = window.__vtCaptures ?? [];
-      return caps[caps.length - 1] ?? null;
-    });
-    check(
-      `[${label}] VT close snapshot bakes the full mask (>0.99)`,
-      closeCapture !== null && parseFloat(closeCapture) > 0.99,
-      `closeCapture=${closeCapture}`,
-    );
-  }
+  check(
+    `[${label}] close has intermediate mask frames (live transition fade)`,
+    closeMid.length > 0,
+    `mid=${closeMid.length}`,
+  );
+  check(`[${label}] live mask reaches 0`, reachedZero);
   check(
     `[${label}] full-opacity frames do not appear after fade begins`,
     closeOnesAfterMid.length === 0,
@@ -285,8 +236,7 @@ async function firstFrameProgressive(browser) {
 const ONLY = process.env.ONLY ?? "";
 const browser = await chromium.launch();
 try {
-  if (!ONLY || ONLY === "vt") await runPass(browser, { label: "vt", killVt: false });
-  if (!ONLY || ONLY === "flip") await runPass(browser, { label: "flip-fallback", killVt: true });
+  if (!ONLY || ONLY === "morph") await runPass(browser, { label: "morph" });
   if (!ONLY || ONLY === "first-frame") await firstFrameProgressive(browser);
   if (!ONLY || ONLY === "composer") await composerStates(browser);
 } finally {

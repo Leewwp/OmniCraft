@@ -53,6 +53,9 @@ interface ContentDetailOverlayLayerProps {
   /** E1 #953 内容推导壳宽：顶层活动层的几何规格（媒体链就绪且实测后）上浮，
       浮层壳层据此设 dialog 宽（跨内容一次 240ms 平滑重定）。 */
   onShellWidthChange?: (px: number) => void;
+  /** E2 #954 关窗回源令牌：关窗开始时递增，舞台瞬时回源（slide 0 + 无过渡
+      档位）供关窗 morphBack 在稳定几何上测量。 */
+  exitResetToken?: number;
   /** D2 #859：本层是否为顶层活动层（键盘翻页/媒体挂起矩阵只作用于顶层）。 */
   active?: boolean;
 }
@@ -78,6 +81,7 @@ export function ContentDetailOverlayLayer({
   onMotionReady,
   motionHoldSrc,
   onShellWidthChange,
+  exitResetToken,
   active = true,
 }: ContentDetailOverlayLayerProps) {
   const t = useTranslations();
@@ -510,6 +514,8 @@ export function ContentDetailOverlayLayer({
            跨内容一次 240ms 平滑重定；同档翻页零上报）。 */
         onGeometrySpec={handleGeometrySpec}
         onPaneMeasured={handlePaneMeasured}
+        /* E2 #954 关窗回源令牌（仅顶层活动层消费）。 */
+        exitResetToken={exitResetToken}
         active={active}
         onMediaDimensions={handleMediaDimensions}
       >
