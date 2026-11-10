@@ -9,7 +9,9 @@ interface ContentItem {
 }
 
 interface IPItem {
-  slug: string;
+  // /ips/:id 仅收数字 id（INVALID_ID 契约）且 /ip/[ipId] 参数直接透传——
+  // sitemap 与 canonical 同口径用数字 id，slug 形式站内不可达（#958）。
+  id: number;
   updated_at?: string;
 }
 
@@ -81,7 +83,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const ips = await fetchAllPages<IPItem>("/ips", "ips");
   for (const ip of ips) {
     entries.push({
-      url: absoluteUrl(`/ip/${ip.slug}`),
+      url: absoluteUrl(`/ip/${ip.id}`),
       lastModified: ip.updated_at ? new Date(ip.updated_at) : new Date(),
       changeFrequency: "weekly" as const,
       priority: 0.7,
