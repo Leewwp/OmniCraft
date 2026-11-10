@@ -159,7 +159,10 @@ async function currentGeometry() {
 }
 
 try {
-  await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "networkidle", timeout: 30000 });
+  /* dev server（长跑/重启后）下 image-guard 相对路径 fetch 404 重试链会让
+   networkidle 永不达成（环境噪声非被测行为）——改 domcontentloaded，
+   页面就绪由下方显式等待承担。 */
+await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(800);
 
   /* ── 1. 开窗 morph：等比起跑、中点收缩区间、400ms 复位 ─────────────────── */

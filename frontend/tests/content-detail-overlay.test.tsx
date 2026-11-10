@@ -294,13 +294,29 @@ async function pushRelatedLayer(view: ReturnType<typeof render>, relatedId: numb
   );
 }
 
-test.afterEach(() => {
+test.afterEach(async () => {
   cleanup();
   restoreApiMocks();
   routerPushes.length = 0;
   /* D3 #860：history 会话是模块级单例——卸载 abort 的复活窗口（StrictMode）
-     会跨测试泄漏，显式复位。 */
+     会跨测试泄漏，显式复位。
+     E2 #954：jsdom 的 history 遍历任务（SessionHistory._historyTraversalQueue，
+     逐个 setTimeout 链）在触发时按【当时】游标计算 delta——Node 20 事件循环
+     下上一测试在途的 back()/go() 可落进下一测试已推入新记录的栈上，产生
+     记录/会话恰好匹配的错位 popstate（被当作原生返回 sync/exit，僵尸关窗
+     吞掉后续动作）。先复位模块（listeners 清空，迟到事件无人订阅），再轮询
+     jsdom 内部遍历队列至空：在途遍历全部落定、其事件被空模块消化后，下一
+     测试从静默队列起跑（内部 API 不可达或 1s 死线时跳过等待，退化为旧行为）。 */
   __resetOverlayHistoryForTests();
+  const sessionHistory = (
+    window as unknown as { _sessionHistory?: { _historyTraversalQueue?: { size: number } } }
+  )._sessionHistory;
+  if (sessionHistory?._historyTraversalQueue) {
+    const deadline = Date.now() + 1000;
+    while (sessionHistory._historyTraversalQueue.size > 0 && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+  }
 });
 
 test("opens a modal dialog, locks background scroll, and focuses the accessible title", async () => {
@@ -325,8 +341,12 @@ test("backdrop click exits the whole stack and restores trigger focus", async ()
     fireEvent.click(dialog);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
-  await waitFor(() => assert.ok(document.activeElement === trigger));
+  await waitFor(() => {
+    if (view.queryByRole("dialog") !== null) throw new Error("dialog still mounted after close");
+  });
+  await waitFor(() => {
+    if (document.activeElement !== trigger) throw new Error("focus not restored to trigger");
+  });
   assert.equal(document.body.style.overflow, "");
 });
 
@@ -341,8 +361,12 @@ test("close button exits the entire stack from any depth", async () => {
     fireEvent.click(view.getByRole("button", { name: "Close content detail" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
-  await waitFor(() => assert.ok(document.activeElement === trigger));
+  await waitFor(() => {
+    if (view.queryByRole("dialog") !== null) throw new Error("dialog still mounted after close");
+  });
+  await waitFor(() => {
+    if (document.activeElement !== trigger) throw new Error("focus not restored to trigger");
+  });
 });
 
 test("related content pushes onto the stack; back button pops and returns focus to the trigger", async () => {
@@ -382,8 +406,12 @@ test("Esc pops one layer at a time and exits at depth 1", async () => {
     dialog.dispatchEvent(new window.Event("cancel", { cancelable: true }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
-  await waitFor(() => assert.ok(document.activeElement === trigger));
+  await waitFor(() => {
+    if (view.queryByRole("dialog") !== null) throw new Error("dialog still mounted after close");
+  });
+  await waitFor(() => {
+    if (document.activeElement !== trigger) throw new Error("focus not restored to trigger");
+  });
 });
 
 test("per-layer scroll memory restores on pop and new layers start at the top", async () => {
@@ -507,8 +535,12 @@ test("browser back pops layers and exits at the root with focus restored", async
       window.addEventListener("popstate", () => resolve(), { once: true });
     });
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
-  await waitFor(() => assert.ok(document.activeElement === trigger));
+  await waitFor(() => {
+    if (view.queryByRole("dialog") !== null) throw new Error("dialog still mounted after close");
+  });
+  await waitFor(() => {
+    if (document.activeElement !== trigger) throw new Error("focus not restored to trigger");
+  });
   assert.equal(window.location.pathname, "/", "栈底后退回到来源记录");
 });
 
@@ -560,7 +592,13 @@ test("close button unwinds history back to the origin URL", async () => {
       window.addEventListener("popstate", () => resolve(), { once: true });
     });
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
+  await waitFor(() => {
+    /* E2 #954：收尾窗口内的失败轮询禁用 node:assert——Node 20 的 assert 错误
+       格式化（findColumn 用 acorn 把 TSX 当 JS 解析）单次烧数秒 CPU，waitFor
+       每 50ms 失败一轮即饿死 475ms 收尾定时器（70s CPU 风暴实测）；廉价 throw
+       由 RTL 捕获重试，超时才浮出。 */
+    if (view.queryByRole("dialog") !== null) throw new Error("dialog still mounted after close");
+  });
   assert.equal(window.location.pathname, "/", "× 全退到会话来源记录");
 });
 
@@ -669,7 +707,9 @@ test("host wires the fanwork detail page related entry to the overlay", async ()
     fireEvent.click(view.getByRole("button", { name: "Close content detail" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
+  await waitFor(() => {
+    if (view.queryByRole("dialog") !== null) throw new Error("dialog still mounted after close");
+  });
   await waitFor(() => assert.ok(document.activeElement === entryButton));
 });
 

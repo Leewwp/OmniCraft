@@ -600,7 +600,12 @@ export function ContentDetailOverlay({
     const backdrop = backdropRef.current;
     const finish = (delay: number) => {
       /* 关窗定时器总是收尾（重开路径在打开瞬间已 clearTimeout 本定时器，
-         不存在误杀新会话的窗口）。 */
+         不存在误杀新会话的窗口）。清 beginExit 兜底档换装精确档（fade
+         100ms 等提前收尾；两次 finalize 幂等，迟到的兜底已自清）。 */
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
       closeTimerRef.current = window.setTimeout(finalizeClose, delay);
     };
     const runFallbackClose = () => {
@@ -677,7 +682,19 @@ export function ContentDetailOverlay({
     document.body.style.paddingRight = "";
     setShellWidthSnap(true);
     setExitResetToken((token) => token + 1);
-  }, [cancelActiveMotion]);
+    /* 收尾兜底：关窗视觉链（closing 效应 2×rAF → runCloseMotion）不是
+       finalize 的唯一路径——组件在视觉链中途卸载（宿主路由跳转/unmount）或
+       rAF 链被打断时，兜底定时器保证 finalizeClose 必达（history 会话正常
+       终结、栈清空、closing 复位），杜绝关窗卡死与会话泄漏污染后续会话。
+       runCloseMotion 的 finish() 会清兜底换装精确档（fade 等提前收尾）；
+       重开路径（open 效应）已作废本定时器，快速关-开不误杀新会话。 */
+    if (closeTimerRef.current === null) {
+      closeTimerRef.current = window.setTimeout(() => {
+        closeTimerRef.current = null;
+        finalizeClose();
+      }, OVERLAY_MOTION.closeHideDelayMs + 60);
+    }
+  }, [cancelActiveMotion, finalizeClose]);
 
   /* 关窗编排时序：closing 提交（舞台回源重置已随之提交）→ 两帧后几何稳定 →
      runCloseMotion 测量并起跑 morphBack；隐藏（finalizeClose）贴动画结束
