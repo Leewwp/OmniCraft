@@ -120,3 +120,34 @@ test("unbound variable named like a translator is not treated as one", () => {
   };
   assert.deepEqual(validateI18nKeyReferences(sources, CATALOG, CATALOG), []);
 });
+
+test("#967 scanner traps: comments, strings, receivers, optional chains, templates", () => {
+  const sources = {
+    "components/traps.tsx": [
+      '// const t = useTranslations("auth"); t("auth.missing");',
+      'const t = useTranslations("auth");',
+      'const note = \'t("auth.missing")\';',
+      't?.("login");',
+      't?.raw("settings.reputation");',
+      't.has("login");',
+      'obj.t("missing");',
+      't(`login`);',
+      't.rich(count);',
+    ].join("\n"),
+  };
+  const { resolved, unresolved } = collectI18nKeyReferences(sources);
+  assert.deepEqual(
+    resolved.map(({ line, key, allowNonLeaf }) => ({ line, key, allowNonLeaf })),
+    [
+      { line: 4, key: "auth.login", allowNonLeaf: false },
+      { line: 5, key: "auth.settings.reputation", allowNonLeaf: true },
+      { line: 8, key: "auth.login", allowNonLeaf: false },
+    ],
+  );
+  assert.deepEqual(unresolved, [{ filePath: "components/traps.tsx", line: 9 }]);
+  // 注释/字符串里的假引用与非枚举成员不产出错误；真实命中按目录校验
+  // （auth.settings.reputation 是命名空间前缀路径，目录中不存在 → 报缺失）。
+  assert.deepEqual(validateI18nKeyReferences(sources, CATALOG, CATALOG), [
+    "components/traps.tsx:5 missing i18n key auth.settings.reputation (zh+en)",
+  ]);
+});

@@ -19,13 +19,40 @@ async function read(relativePath: string) {
 }
 
 
-test("editor wrapper is client-only and pins milkdown exact versions", async () => {
+// #967：milkdown 三包必须严格同版（跨包版本错位才是真风险），并守住
+// 已验证基线 7.22.1 下限；组升级（7.23.0+）不再被精确版本断言卡死。
+const MILKDOWN_PACKAGES = ["@milkdown/crepe", "@milkdown/kit", "@milkdown/react"];
+const MILKDOWN_BASELINE = [7, 22, 1];
+
+function parseSemver(version: string): number[] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  return match ? match.slice(1, 4).map(Number) : null;
+}
+
+function compareSemver(a: number[], b: number[]): number {
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return 0;
+}
+
+test("editor wrapper is client-only; milkdown packages uniform and >= baseline", async () => {
   const source = await read("components/markdown/MilkdownEditor.tsx");
   assert.match(source, /^"use client"/);
   const pkg = JSON.parse(await read("package.json"));
-  assert.equal(pkg.dependencies["@milkdown/crepe"], "7.22.1");
-  assert.equal(pkg.dependencies["@milkdown/react"], "7.22.1");
-  assert.equal(pkg.dependencies["@milkdown/kit"], "7.22.1");
+  const versions = MILKDOWN_PACKAGES.map((name) => {
+    assert.ok(typeof pkg.dependencies[name] === "string", `${name} 缺失于 dependencies`);
+    return pkg.dependencies[name];
+  });
+  // 三包同版：crepe/react/kit 版本错位会破坏编辑器组装。
+  assert.ok(versions.every((v) => v === versions[0]), `milkdown 版本错位: ${versions.join(", ")}`);
+  // 下限断言：低于已验证基线须先过人工回归再降。
+  const parsed = parseSemver(versions[0]);
+  assert.ok(parsed, `无法解析版本号: ${versions[0]}`);
+  assert.ok(
+    compareSemver(parsed, MILKDOWN_BASELINE) >= 0,
+    `milkdown ${versions[0]} 低于基线 7.22.1`,
+  );
 });
 
 test("replaceAll discipline: only setMarkdown/restoreDraft call replaceAll, never on input", async () => {
