@@ -7,8 +7,6 @@ All parsing/synthesis here is stdlib-only (Python 3.9+) and fully offline:
 - Source reuse: the 16 real JPGs under frontend/public/seed-media/real/covers
   (NOTE: seed-media/real/gallery holds SVG placeholders, covers/ holds the
   real JPGs) and the two real MP4s under .../videos/fitness-{1,2}.mp4.
-  fitness-3.mp4 is a mislabelled JPEG (ffd8 magic, 3456x4608) and is
-  deliberately NOT used as a video source.
 - Synthesis: WAV audio (pure-Python PCM; ffmpeg MP3 path used only when an
   ffmpeg binary is detected), MIDI sheet music, binary STL, mod zip, OPC
   docx, csv, spec-shaped PDF 1.4 (text family), plain-text notes.
@@ -47,8 +45,8 @@ SEED_MEDIA_REAL = os.path.join(REPO_ROOT, "frontend", "public", "seed-media", "r
 COVERS_DIR = os.path.join(SEED_MEDIA_REAL, "covers")
 VIDEOS_DIR = os.path.join(SEED_MEDIA_REAL, "videos")
 
-# Real MP4 sources only. fitness-3.mp4 is a JPEG with a .mp4 name -- it can
-# never satisfy the video/* presign + mvhd parsing contract.
+# Real MP4 sources only: every entry must satisfy the video/* presign +
+# mvhd parsing contract.
 VIDEO_SOURCES = ["fitness-1.mp4", "fitness-2.mp4"]
 
 # Mirrors backend upload_families.go audioMagicSignatures (prefix check).
@@ -659,7 +657,7 @@ def ensure_demo_assets(workdir: str, use_ffmpeg: bool = True) -> Dict[str, List[
             "width": meta["width"], "height": meta["height"],
         })
     # 3-video special needs a third real MP4: reuse fitness-1 bytes under a
-    # distinct upload name (fitness-3.mp4 on disk is a mislabelled JPEG).
+    # distinct upload name.
     extra = dict(library["video"][0])
     extra["name"] = "fitness-1-take2.mp4"
     library["video"].append(extra)
