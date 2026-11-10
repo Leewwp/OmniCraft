@@ -571,7 +571,8 @@ test("#397 clicking the media (pane center) opens MediaViewer above the overlay"
   assert.ok(document.querySelector('[data-slot="variant-media-pane"] img'), "pane media still rendered underneath");
 });
 
-/* ── #398 R3 动效契约（壳层）：motion-lock 生命周期 / VT 命名落 <img> / 超高图退化 ── */
+/* ── #398 R3 / E2 #954 动效契约（壳层）：motion-lock 生命周期 / 整容器
+   morph 开窗（VT/封面级 FLIP 退役）/ 超高图退化 ── */
 
 function installVtStub() {
   const captured: Array<() => void> = [];
@@ -608,10 +609,10 @@ test("#398 C3: motion lock covers the trigger card during open and clears after 
   await waitFor(() => assert.equal(trigger.getAttribute("data-overlay-motion-lock"), null), { timeout: 3000 });
 });
 
-test("#398 C1: VT naming lands on the cover <img> on both ends (not the boxes)", async () => {
+test("E2 #954: entrance is a whole-shell morph anchored at the media pane (VT/FLIP retired)", async () => {
   installApiMock();
   /* jsdom 无布局：source 测量门与锚点可见性判定都依赖 rect，给全元素桩非零
-     矩形，让路径选择走到 vt 分支。 */
+     矩形，让路径选择走到 morph 分支。 */
   const proto = window.HTMLElement.prototype as HTMLElement & {
     getBoundingClientRect: () => DOMRect;
     getClientRects: () => DOMRect[];
@@ -620,47 +621,53 @@ test("#398 C1: VT naming lands on the cover <img> on both ends (not the boxes)",
   const originalGCR = proto.getClientRects;
   const stubRect = () => ({ x: 10, y: 10, width: 120, height: 160, top: 10, left: 10, right: 130, bottom: 170, toJSON: () => ({}) }) as unknown as DOMRect;
   proto.getBoundingClientRect = stubRect;
-  /* 真浏览器里 display:none 元素 getClientRects 为空——getTopCover 据此跳过
-     行内隐藏锚点；jsdom 无布局，用「祖先带 hidden 类」近似 display:none。 */
   proto.getClientRects = function (this: HTMLElement) {
     return this.closest('[class*=":hidden"], [class~="hidden"]') ? [] : [stubRect()];
   } as unknown as typeof proto.getClientRects;
   try {
-  const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, true);
-  const vt = installVtStub();
-  const trigger = view.getByRole("button", { name: "Open overlay" });
-  await act(async () => {
-    fireEvent.click(trigger);
-    await Promise.resolve();
-  });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  /* decode 门在 jsdom 走 load-event 兜底，150ms 上限后起跑 → 捕获 startViewTransition。 */
-  await waitFor(() => assert.ok(vt.captured.length >= 1, "VT open must start"), { timeout: 3000 });
-  const pane = document.querySelector('[data-slot="variant-media-pane"]');
-  const paneImg = pane?.querySelector("img") ?? null;
-  assert.ok(paneImg, "pane image must exist before VT starts");
-  const cardCover = trigger.querySelector('[data-slot="card-cover"]');
-  const cardImg = cardCover?.querySelector("img") ?? null;
-  assert.ok(cardImg);
-  assert.equal(
-    (cardImg as HTMLElement).style.getPropertyValue("view-transition-name"),
-    "content-detail-cover",
-    "card side names the img",
-  );
-  /* 执行 VT 回调：浮窗侧换名、卡片侧除名。 */
-  await act(async () => {
-    vt.captured[0]();
-    await Promise.resolve();
-  });
-  assert.equal((paneImg as HTMLElement).style.getPropertyValue("view-transition-name"), "content-detail-cover");
-  assert.equal((cardImg as HTMLElement).style.getPropertyValue("view-transition-name"), "");
+    const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, true);
+    const vt = installVtStub();
+    const trigger = view.getByRole("button", { name: "Open overlay" });
+    await act(async () => {
+      fireEvent.click(trigger);
+      await Promise.resolve();
+    });
+    await waitFor(() => assert.ok(view.getByRole("dialog")));
+    /* 入场在安全保险时限内起跑（jsdom 无 ResizeObserver，motionGate 悬挂）；
+       断言壳层 morph 的稳定签名：transform-only 过渡 + origin 锚舞台角 + 整壳
+       不透明，且 VT 从未被调用（路径退役）。 */
+    await waitFor(
+      () => {
+        const shell = getShell();
+        assert.ok(
+          shell.style.transition.startsWith("transform "),
+          `morph plays a transform-only transition (got ${shell.style.transition})`,
+        );
+      },
+      { timeout: 3000 },
+    );
+    const shell = getShell();
+    assert.ok(shell.style.transformOrigin.includes("px"), `transform-origin anchors a stage corner (got ${shell.style.transformOrigin})`);
+    assert.ok(shell.style.opacity === "1", "start frame is fully opaque (flash covered by the card)");
+    assert.equal(vt.captured.length, 0, "VT path must never start (retired)");
+    assert.equal(
+      (document.querySelector('[data-slot="variant-media-pane"] img') as HTMLElement | null)?.style.getPropertyValue("view-transition-name") ?? "",
+      "",
+      "no residual view-transition naming",
+    );
   } finally {
     proto.getBoundingClientRect = originalGBCR;
     proto.getClientRects = originalGCR;
   }
 });
 
-test("#398 C2: ultra-tall first item degrades to fallback (no shared-element VT)", async () => {
+function getShell(): HTMLElement {
+  const shell = document.querySelector("dialog[open] > div") as HTMLElement | null;
+  assert.ok(shell, "overlay shell must render");
+  return shell;
+}
+
+test("#398 C2: ultra-tall first item degrades to fallback (no shared-element morph)", async () => {
   installApiMock();
   const view = renderOverlay(<OverlayHarness entryId={26} zone="original" />, true);
   const vt = installVtStub();
@@ -673,8 +680,20 @@ test("#398 C2: ultra-tall first item degrades to fallback (no shared-element VT)
   await waitFor(() => assert.ok(document.querySelector('[data-slot="variant-media-pane"]')));
   const anchor = document.querySelector('[data-slot="detail-cover"]');
   assert.equal(anchor?.getAttribute("data-ultra-tall"), "true", "tall anchor tags itself");
-  /* 等过 decode 门窗口（150ms 上限）+ 余量：不应有 VT 捕获。 */
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  /* 等过安全保险窗口 + 余量：fallback = 居中 scale(0.96) 缩淡（opacity+transform
+     双属性过渡、无舞台 origin 锚定 = morph 签名缺席），无 VT。 */
+  await waitFor(
+    () => {
+      const shell = getShell();
+      assert.ok(
+        shell.style.transition.includes("opacity") && shell.style.transition.includes("transform"),
+        `fallback plays opacity+transform (got ${shell.style.transition})`,
+      );
+    },
+    { timeout: 3000 },
+  );
+  const shell = getShell();
+  assert.equal(shell.style.transformOrigin, "", "no stage anchor for the fallback path");
   assert.equal(vt.captured.length, 0, "tall first item must not start a shared-element transition");
   const paneImg = document.querySelector('[data-slot="variant-media-pane"] img') as HTMLElement | null;
   assert.equal(paneImg?.style.getPropertyValue("view-transition-name") ?? "", "");

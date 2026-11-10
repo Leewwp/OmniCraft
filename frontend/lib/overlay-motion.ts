@@ -1,10 +1,12 @@
 /**
- * 内容详情浮层共享元素转场核心（#67 原型 §5 契约 / #64 决策 7-10）。
+ * 内容详情浮层开合转场核心（E2 #954，整容器封面 morph 口径）。
  *
- * FLIP 几何为可靠核心，View Transition API 是渐进增强；路径选择、测量门、
- * 时序与缓动常量全部在此收敛，组件只负责把这些纯函数接到 DOM 生命周期上。
- * 浏览器级几何断言在 e2e/Playwright 层做（Testing Decision 5），组件测试
- * 只验证纯函数与状态机行为。
+ * 开窗 = 整个弹窗容器从被点卡片封面做 shared-element morph（等比缩放锚定
+ * 媒体舞台左上角，400ms 缓动 ease，小红书 2026-11 实测参数）；关窗 = 镜像
+ * morphBack（transform 与 opacity 同一 transition，落地即透明）。VT/封面级
+ * FLIP 双路径已退役收敛为单一整容器 morph 路径；路径选择、测量门、时序与
+ * 缓动常量全部在此收敛，组件只负责把这些纯函数接到 DOM 生命周期上。
+ * 浏览器级几何断言在 e2e/Playwright 层做，组件测试只验证纯函数与状态机行为。
  */
 
 export interface OverlayRect {
@@ -14,27 +16,35 @@ export interface OverlayRect {
   height: number;
 }
 
-export type OverlayMotionPath = "fade" | "fallback" | "vt" | "flip";
+export type OverlayMotionPath = "fade" | "fallback" | "morph";
 
 export const OVERLAY_MOTION = {
-  openDuration: 300,
-  closeDuration: 240,
+  /** 开/关 morph：整容器 transform，400ms，缓动 ease（小红书实测）。 */
+  openDuration: 400,
+  closeDuration: 400,
+  morphEasing: "ease",
   reducedDuration: 100,
-  easing: "cubic-bezier(0.22, 0.61, 0.36, 1)",
   fallbackScale: 0.96,
   /** 遮罩按压反馈层（2026-09-09 遮罩同钟契约）：点击后先淡到该不透明度
-      （时长 backdropFeedbackMs），入场动效起跑时再随壳层/封面同钟升至 1——
+      （时长 backdropFeedbackMs），入场动效起跑时再随壳层同钟升至 1——
       避免数据未就绪期全黑遮罩先到位的突兀感，同时保留即时点击反馈。 */
   backdropFeedbackOpacity: 0.35,
   backdropFeedbackMs: 160,
+  /** 关窗编排：右列与舞台 chrome 随收缩同步淡出（原型规范第 8 条）。 */
+  chromeFadeMs: 300,
+  /** 关窗隐藏时机贴动画结束（400ms + 余量，消灭静止死帧）。 */
+  closeHideDelayMs: 415,
+  /** 舞台 slide 双层交叉淡出（规范第 1 条）与旧层移除延迟（240ms）。 */
+  slideCrossfadeMs: 180,
+  slideExitRemoveMs: 240,
 } as const;
 
-/** 浮层封面容器 data-slot（FLIP/VT 的目标锚点）。 */
+/** 浮层媒体舞台容器 data-slot（morph 锚点：transform-origin = 舞台左上角）。 */
+export const OVERLAY_STAGE_SLOT = "variant-media-pane";
+/** 浮层封面容器 data-slot（移动单列/兜底锚点）。 */
 export const OVERLAY_COVER_SLOT = "detail-cover";
 /** 触发卡片封面 data-slot（source 视觉锚点，缺省回退到整卡）。 */
 export const OVERLAY_CARD_COVER_SLOT = "card-cover";
-/** VT 快照内的共享命名，快照结束后必须清除。 */
-export const OVERLAY_VT_NAME = "content-detail-cover";
 
 export function rectHasArea(rect: OverlayRect | null): boolean {
   return Boolean(rect && rect.width > 0 && rect.height > 0);
@@ -54,39 +64,53 @@ export function rectIntersectsViewport(
 }
 
 /**
- * 路径选择顺序（原型 §5）：每次操作独立判定，不缓存：
- * reducedMotion() ? fade : (!sourceRect ? fallback : (vtEnabled() ? vt : flip))
+ * 路径选择顺序（E2 #954）：每次操作独立判定，不缓存：
+ * reducedMotion() ? fade : (!sourceRect ? fallback : morph)
+ * 测量失败由实现层兜底为居中缩淡（spec 裁决 1：不实现 A 降级链）。
  */
 export function selectMotionPath(
   reducedMotion: boolean,
   sourceRect: OverlayRect | null,
-  vtAvailable: boolean,
 ): OverlayMotionPath {
   if (reducedMotion) return "fade";
   if (!rectHasArea(sourceRect)) return "fallback";
-  return vtAvailable ? "vt" : "flip";
+  return "morph";
 }
 
-export interface FlipTransform {
-  x: number;
-  y: number;
-  scaleX: number;
-  scaleY: number;
+export interface ShellMorph {
+  /** transform-origin（壳内坐标）：媒体舞台左上角（E1 后媒体列贴壳左缘 ≈ 0 0）。 */
+  originX: number;
+  originY: number;
+  translateX: number;
+  translateY: number;
+  /** 等比缩放 = 卡片封面宽 ÷ 媒体舞台宽（杜绝非等比压扁，原型规范第 4 条）。 */
+  scale: number;
 }
 
-/** Invert 数学：把 target 矩形（元素自然位姿）映射回 source 矩形（触发卡片封面）。 */
-export function computeFlipTransform(source: OverlayRect, target: OverlayRect): FlipTransform {
+/**
+ * 整容器 morph 数学（原型 C 变体 morphTransform/morphBack 同源）：把壳内
+ * stage 矩形（自然位姿）映射到 source 矩形（触发卡片封面）——translate 使
+ * 舞台左上角对齐封面左上角，scale = 封面宽/舞台宽，origin 锚舞台左上角，
+ * 右列随行。开窗从该位姿收敛到 identity；关窗反向（morphBack，独立计算，
+ * 不复用开窗 FLIP——先瞬移再放大回来会造成二次闪现）。
+ */
+export function computeShellMorph(source: OverlayRect, stage: OverlayRect, shell: OverlayRect): ShellMorph {
   return {
-    x: source.x - target.x,
-    y: source.y - target.y,
-    scaleX: target.width > 0 ? source.width / target.width : 1,
-    scaleY: target.height > 0 ? source.height / target.height : 1,
+    originX: stage.x - shell.x,
+    originY: stage.y - shell.y,
+    translateX: source.x - stage.x,
+    translateY: source.y - stage.y,
+    scale: stage.width > 0 ? source.width / stage.width : 1,
   };
 }
 
-/** 必须配合 transform-origin: 0 0 使用，比例才围绕元素左上角计算。 */
-export function flipTransformToCss(transform: FlipTransform): string {
-  return `translate(${transform.x}px, ${transform.y}px) scale(${transform.scaleX}, ${transform.scaleY})`;
+/** transform 值（必须配合 shellMorphOriginToCss 的 origin 使用）。 */
+export function shellMorphToCss(morph: ShellMorph): string {
+  return `translate(${morph.translateX}px, ${morph.translateY}px) scale(${morph.scale})`;
+}
+
+export function shellMorphOriginToCss(morph: ShellMorph): string {
+  return `${morph.originX}px ${morph.originY}px`;
 }
 
 export function readElementRect(el: Element): OverlayRect {
@@ -116,12 +140,6 @@ export function reducedMotionEnabled(): boolean {
   return (
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
-
-export function viewTransitionAvailable(): boolean {
-  return (
-    typeof document !== "undefined" && typeof document.startViewTransition === "function"
   );
 }
 
@@ -181,7 +199,7 @@ export function prefetchCoverVariant(url: string, width = OVERLAY_COVER_VARIANT_
   }
 }
 
-/** 双 rAF + 120ms setTimeout 双保险（原型 §4.2：避免 VT 期间 rAF 挂起）。 */
+/** 双 rAF + 120ms setTimeout 双保险（确保 invert 位姿已绘制再起跑过渡）。 */
 export function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
     let settled = false;
