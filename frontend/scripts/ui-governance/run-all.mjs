@@ -1,12 +1,12 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import ts from "typescript";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { I18N_NAMESPACES, validateI18nParity } from "./check-i18n-parity.mjs";
 import { validateI18nKeyReferences } from "./check-i18n-keys.mjs";
 import { checkRawErrorPolicy, measureSourcePolicy } from "./check-source-policy.mjs";
 import { validateTokenContract } from "./check-tokens.mjs";
+import { maskedRegions, lineAt } from "./source-scan.mjs";
 
 // Production source set governed by the UI gates. Root-level dev files such as
 // proxy.ts (Next dev-time proxy) and types/ declarations are intentionally
@@ -16,9 +16,6 @@ export const PRODUCTION_ROOTS = ["app", "components", "contexts", "lib", "i18n"]
 // Runtime CSS custom properties injected by frameworks (Tailwind v4, Base UI)
 // that are not declared in app/globals.css source.
 const RUNTIME_TOKEN_PREFIXES = ["--tw-", "--base-ui-"];
-
-const NATIVE_DIALOG_NAMES = new Set(["confirm", "prompt", "alert"]);
-const GLOBAL_HOLDERS = new Set(["window", "globalThis"]);
 
 export async function discoverProductionSources(frontendRoot) {
   const files = [];
@@ -43,56 +40,40 @@ export async function discoverProductionSources(frontendRoot) {
   return files.sort();
 }
 
-// Detects direct native-dialog call sites. Deliberate limitations: an alias
-// capture (`const c = window.confirm; c()`) or a shadowed local function named
-// `confirm`/`prompt`/`alert` would escape or falsely trip the gate; both are
-// documented as intentional exceptions of this strict call-site scan.
+// 三形态（与 AST 版 dialogKind 逐点对齐）：裸标识符 `confirm(`（后瞻排除
+// 成员接收者）、`window|globalThis.(?.)confirm(`、`window|globalThis["confirm"](`。
+const NATIVE_DIALOG_BARE =
+  /(?<![\w$.])(confirm|prompt|alert)\s*\(/g;
+const NATIVE_DIALOG_MEMBER =
+  /(?<![\w$])(window|globalThis)\s*\??\.\s*(confirm|prompt|alert)\s*\(/g;
+const NATIVE_DIALOG_BRACKET =
+  /(?<![\w$])(window|globalThis)\s*\[\s*["'](confirm|prompt|alert)["']\s*\]\s*\(/g;
+
 export function checkNativeDialogs(sourceByPath) {
   const findings = [];
   for (const [filePath, source] of Object.entries(sourceByPath)) {
-    const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-    // getStart() requires parent pointers on this TypeScript version, so
-    // setParentNodes stays enabled even though the traversal itself only
-    // reads child nodes.
-    const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind);
-
-    function visit(node) {
-      if (ts.isCallExpression(node)) {
-        const kind = dialogKind(node.expression);
-        if (kind) {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-          findings.push({ filePath, line: line + 1, kind });
-        }
-      }
-      ts.forEachChild(node, visit);
+    // 原始源码上扫描，命中起点落在注释/字符串掩码区内的丢弃（文案与
+    // 注释里的 "confirm(" 不误报；`window['confirm'](` 起点在掩码外保留）。
+    const masked = maskedRegions(source);
+    const inMask = (index) =>
+      masked.some(([start, end]) => index >= start && index < end);
+    const hits = [];
+    for (const match of source.matchAll(NATIVE_DIALOG_BARE)) {
+      if (!inMask(match.index)) hits.push({ index: match.index, kind: match[1] });
     }
-    visit(sourceFile);
+    for (const match of source.matchAll(NATIVE_DIALOG_MEMBER)) {
+      if (!inMask(match.index)) hits.push({ index: match.index, kind: match[2] });
+    }
+    for (const match of source.matchAll(NATIVE_DIALOG_BRACKET)) {
+      if (!inMask(match.index)) hits.push({ index: match.index, kind: match[2] });
+    }
+    // 文档序输出，与 AST 版遍历顺序一致。
+    hits.sort((a, b) => a.index - b.index);
+    for (const { index, kind } of hits) {
+      findings.push({ filePath, line: lineAt(source, index), kind });
+    }
   }
   return findings;
-}
-
-function dialogKind(callee) {
-  if (ts.isIdentifier(callee) && NATIVE_DIALOG_NAMES.has(callee.text)) {
-    return callee.text;
-  }
-  if (
-    ts.isPropertyAccessExpression(callee) &&
-    ts.isIdentifier(callee.expression) &&
-    GLOBAL_HOLDERS.has(callee.expression.text) &&
-    NATIVE_DIALOG_NAMES.has(callee.name.text)
-  ) {
-    return callee.name.text;
-  }
-  if (
-    ts.isElementAccessExpression(callee) &&
-    ts.isIdentifier(callee.expression) &&
-    GLOBAL_HOLDERS.has(callee.expression.text) &&
-    ts.isStringLiteral(callee.argumentExpression) &&
-    NATIVE_DIALOG_NAMES.has(callee.argumentExpression.text)
-  ) {
-    return callee.argumentExpression.text;
-  }
-  return null;
 }
 
 export function definedCustomProperties(css) {

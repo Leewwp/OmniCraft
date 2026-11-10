@@ -202,6 +202,22 @@ cp docs/deploy/docker-compose.single-server.yml docker-compose.single-server.yml
 cp docs/deploy/nginx.omnicraft.single-server.conf nginx/omnicraft.single-server.conf
 ```
 
+The repo templates use placeholder domains (`app.example.com` /
+`api.example.com`). The server-local nginx copy must carry the real domains
+and point both vhosts' `ssl_certificate` paths at the real certbot live
+directory (section 5). A `git archive` deploy that re-copies the nginx
+template **overwrites that customization** — without the substitution below
+nginx crash-loops on a missing `app.example.com` certificate. After every
+re-copy of the nginx template, restore the server-local domains:
+
+```bash
+# Substitute the real server domains and unify both vhosts on the real
+# certbot live directory (single-cert hosts):
+sed -i "s|app\.example\.com|<real-app-domain>|g; s|api\.example\.com|<real-api-domain>|g;
+  s|/etc/letsencrypt/live/<real-api-domain>/|/etc/letsencrypt/live/<real-app-domain>/|g" \
+  nginx/omnicraft.single-server.conf
+```
+
 ### 6.1 Full production profile
 
 The committed single-server compose defines 17 services: six resident Web
