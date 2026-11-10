@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { IntlProvider } from "use-intl";
 import enMessages from "@/messages/en.json";
 import { api, ApiRequestError } from "@/lib/api";
+import { __resetOverlayPrefetchForTests } from "@/lib/overlay-prefetch";
 import { act, cleanup, fireEvent, installDom, render, waitFor } from "./runtime-test-helpers";
 
 /* Native <dialog> showModal/close are not implemented in jsdom; stub the modal
@@ -183,8 +184,18 @@ const originalGet = api.get;
 const originalPost = api.post;
 
 let detailCallCount = 0;
+let restoreVisibleDocument: (() => void) | null = null;
 function installApiMock() {
   detailCallCount = 0;
+  /* E4 #956 相邻 idle 预取与会话级缓存隔离：每个用例从干净缓存起步。
+     jsdom 文档默认 prerender（hidden=true）会把预取门控整体关掉——按真实
+     可见页语义补桩 hidden=false。 */
+  __resetOverlayPrefetchForTests();
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+  restoreVisibleDocument = () => {
+    delete (document as Partial<Document> & { hidden?: boolean }).hidden;
+    restoreVisibleDocument = null;
+  };
   api.get = async function mockedGet<T>(requestPath: string): Promise<T> {
     if (requestPath.includes("/related-fanworks")) {
       return { contents: [], total: 0 } as T;
@@ -319,6 +330,7 @@ function currentMediaSrc(): string | null {
 test.afterEach(() => {
   cleanup();
   restoreApiMocks();
+  restoreVisibleDocument?.();
 });
 
 test("#89 AC1: trigger entries thread contextList/contextIndex into the overlay (via the shared hook)", async () => {
@@ -362,8 +374,9 @@ test("#89 AC2: last-media upward swipe switches to the next context item and res
   assert.equal(overlayScroller.scrollTop, 0, "info scroll resets after switching content");
   assert.ok(view.getByText("C body"));
 
-  /* 连续浏览不压栈、不重复取数：A/B/C 各取一次 detail。 */
-  assert.equal(detailCallCount, 3, "detail fetched once per switched content");
+  /* 连续浏览不压栈、不重复取数：A 直取 + 相邻预取 B/C 各一轮，切篇消费
+     E4 预取缓存不重复拉取（总数仍 = 每内容一次）。 */
+  assert.equal(detailCallCount, 3, "detail fetched once per content (direct or prefetched)");
 });
 
 test("#89 AC3: at the end of the context list the end hint shows and no switch fires", async () => {
@@ -373,12 +386,14 @@ test("#89 AC3: at the end of the context list the end hint shows and no switch f
   await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context C" })));
   await waitFor(() => assert.equal(currentMediaSrc(), "/seed-media/gallery/c-1.svg"));
 
-  /* 列表最后一项：持续上滑只提示「已经到底了」，不切换内容。 */
+  /* 列表最后一项：持续上滑只提示「已经到底了」，不切换内容。
+     E4 相邻预取：打开 C 的空闲期对前项 B 预取一轮（B 从未再被打开）。 */
+  await waitFor(() => assert.equal(detailCallCount, 2, "adjacent prev prefetched once"), { timeout: 2000 });
   swipeUpOnMedia();
   await waitFor(() => assert.ok(view.getByText("You've reached the end")));
   swipeUpOnMedia();
   await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context C" })));
-  assert.equal(detailCallCount, 1, "no refetch when the list is exhausted");
+  assert.equal(detailCallCount, 2, "no refetch when the list is exhausted");
 });
 
 test("#89 AC4: desktop (>=1100px) never triggers continuous browsing", async () => {
@@ -387,10 +402,12 @@ test("#89 AC4: desktop (>=1100px) never triggers continuous browsing", async () 
   await openContext(view, 0);
   await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context A" })));
 
-  /* 桌面端：左栏媒体列（首个 detail-cover）上滑也不触发切篇。 */
+  /* 桌面端：左栏媒体列（首个 detail-cover）上滑也不触发切篇。
+     E4 相邻预取与视口无关（加速器非导航）：空闲期对 B 预取一轮即止。 */
+  await waitFor(() => assert.equal(detailCallCount, 2, "adjacent prefetch warms B once"), { timeout: 2000 });
   swipeUpOnMedia("first");
   await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context A" })));
-  assert.equal(detailCallCount, 1, "desktop must not switch content");
+  assert.equal(detailCallCount, 2, "desktop must not switch content");
   /* #89 移动连续浏览的到底提示（media-continue-end）不得出现在桌面端；
      #90 桌面相关内容块的「已经到底了」由 RelatedContents 承载，语义不同。 */
   assert.ok(document.querySelector('[data-slot="media-continue-end"]') === null);

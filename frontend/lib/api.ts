@@ -239,7 +239,9 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  /** options.signal：调用方取消在途请求（E4 #956 相邻预取取消；无缓存层，
+      每次调用都是裸 fetch——预取去重由 lib/overlay-prefetch 内存 Map 承担）。 */
+  get: <T>(path: string, options?: Pick<RequestInit, "signal">) => request<T>(path, options),
   post: <T>(path: string, body: unknown, options?: { headers?: Record<string, string> }) =>
     request<T>(path, {
       method: "POST",

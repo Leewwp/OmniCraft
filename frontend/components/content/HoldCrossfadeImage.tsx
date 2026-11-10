@@ -50,13 +50,7 @@ export function HoldCrossfadeImage({
   const [canonicalReady, setCanonicalReady] = useState(false);
   const [holdGone, setHoldGone] = useState(false);
 
-  /* 缓存命中时 React 可能挂上 onLoad 前图片已 complete（不触发 onLoad）——
-     ref 回调里补查一次，保底不卡淡出。 */
   const canonicalRef = useRef<HTMLImageElement | null>(null);
-  useEffect(() => {
-    const el = canonicalRef.current;
-    if (el?.complete && el.naturalWidth > 0 && !canonicalReady) setCanonicalReady(true);
-  });
 
   const holding = Boolean(holdSrc);
   const heldUrl = lastHoldRef.current;
@@ -81,6 +75,17 @@ export function HoldCrossfadeImage({
     else settleError.current = true;
     onSettle?.(state);
   };
+
+  /* 缓存命中时 React 可能挂上 onLoad 前图片已 complete（不触发 onLoad）——
+     每渲染补查一次，保底不卡淡出；无保持层时同步补发 settle（E4 #956 就绪
+     交换门以 settle 为图片就绪信号，缓存秒开不能缺位）。 */
+  useEffect(() => {
+    const el = canonicalRef.current;
+    if (el?.complete && el.naturalWidth > 0) {
+      if (!canonicalReady) setCanonicalReady(true);
+      if (!heldUrl) handleSettle("ready");
+    }
+  });
 
   const canonicalClass = flowLayout
     ? imgClassName

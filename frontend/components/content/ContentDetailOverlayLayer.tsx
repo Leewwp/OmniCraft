@@ -28,6 +28,14 @@ import { RelatedContents } from "@/components/content/RelatedContents";
 import { DeferredMount } from "@/components/content/DeferredMount";
 import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
 import { useOverlayMedia } from "@/lib/overlay-media";
+import { prefetchCoverVariant } from "@/lib/overlay-motion";
+import {
+  adjacentContextNeighborIds,
+  claimPrefetchedDetail,
+  markContentViewed,
+  prefetchAdjacentContentDetails,
+  type AdjacentPrefetchHandle,
+} from "@/lib/overlay-prefetch";
 
 export type OverlaySource = "recommendation" | "zone-page" | "ip-page" | "agent-citation";
 
@@ -186,37 +194,61 @@ export function ContentDetailOverlayLayer({
     setCoverReady(undefined);
     setDimOverrides({});
 
-    api
-      .get(`/api/v1/contents/${entry.contentId}`)
-      .then((raw) => {
-        if (cancelled) return;
-        const normalized = normalizeContentDetailResponse(raw);
-        if (!normalized.content) {
-          setStatus("not-found");
-          return;
-        }
-        if (normalized.content.status === "banned") {
-          setStatus("forbidden");
-          return;
-        }
-        setDetail(normalized);
-        onTitleChangeRef.current(normalized.content.title);
-        setStatus("default");
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        if (error instanceof ApiRequestError && error.status === 404) {
-          setStatus("not-found");
-        } else if (error instanceof ApiRequestError && error.status === 403) {
-          setStatus("forbidden");
-        } else if (error instanceof ApiRequestError && error.status === 429) {
-          /* #400：429 曾被误渲染成网络错误——限流有自己的语义（稍后重试即可），
-             详情打开时一次爆发 10+ 请求很容易触顶（dev StrictMode 翻倍）。 */
-          setStatus("rate-limited");
-        } else {
-          setStatus("error");
-        }
-      });
+    /* 详情落定共用管线（预取认领与常规拉取同一套归一化/状态判定）。 */
+    const applyDetailRaw = (raw: unknown) => {
+      const normalized = normalizeContentDetailResponse(raw);
+      if (!normalized.content) {
+        setStatus("not-found");
+        return;
+      }
+      if (normalized.content.status === "banned") {
+        setStatus("forbidden");
+        return;
+      }
+      /* E4 #956：登记已浏览（相邻预取不回捞刚看过的内容）。 */
+      markContentViewed(normalized.content.id);
+      setDetail(normalized);
+      onTitleChangeRef.current(normalized.content.title);
+      setStatus("default");
+    };
+    const fetchDetail = () => {
+      api
+        .get(`/api/v1/contents/${entry.contentId}`)
+        .then((raw) => {
+          if (!cancelled) applyDetailRaw(raw);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          if (error instanceof ApiRequestError && error.status === 404) {
+            setStatus("not-found");
+          } else if (error instanceof ApiRequestError && error.status === 403) {
+            setStatus("forbidden");
+          } else if (error instanceof ApiRequestError && error.status === 429) {
+            /* #400：429 曾被误渲染成网络错误——限流有自己的语义（稍后重试即可），
+               详情打开时一次爆发 10+ 请求很容易触顶（dev StrictMode 翻倍）。 */
+            setStatus("rate-limited");
+          } else {
+            setStatus("error");
+          }
+        });
+    };
+    /* E4 #956 预取认领：相邻 idle 预取命中（未认领/未过期）时直接消费缓存
+       promise——网络层零新详情请求；未命中/预取失败（null）走常规拉取，
+       入场不被预取阻塞（预取是加速器不是就绪门）。 */
+    const prefetched = claimPrefetchedDetail(entry.contentId);
+    if (prefetched) {
+      prefetched
+        .then((raw) => {
+          if (cancelled) return;
+          if (raw == null) fetchDetail();
+          else applyDetailRaw(raw);
+        })
+        .catch(() => {
+          if (!cancelled) fetchDetail();
+        });
+    } else {
+      fetchDetail();
+    }
 
     api
       .get<{ contents?: unknown[]; total?: number }>(
@@ -240,6 +272,40 @@ export function ContentDetailOverlayLayer({
       cancelled = true;
     };
   }, [entry.contentId, attempt]);
+
+  /* E4 #956 相邻内容 idle 预取：default 态落定后对 contextList 前后项（next
+     优先）在空闲期预取详情 JSON + 封面规范变体（1080，与浮窗首 slide 同址）。
+     详情走既有 api 客户端（同 cookie/CSRF 语义 + abort signal）；失败静默、
+     不重试。生命周期：层内换篇（entry 变化）= 软释放——取消未起跑调度、保留
+     在途预取（新内容层马上认领，abort 掉反而重复拉取）；层卸载（浮窗关闭）=
+     硬取消未认领在途；页面隐藏由模块内 visibilitychange 硬取消。无
+     contextList（浮层内关联内容压栈等）不预取——推荐位作预取源属后续增量。 */
+  const prefetchHandlesRef = useRef<Set<AdjacentPrefetchHandle>>(new Set());
+  useEffect(() => {
+    if (status !== "default" || !entry.contextList || entry.contextList.length === 0) return;
+    const neighbors = adjacentContextNeighborIds(entry.contextList, entry.contextIndex);
+    if (neighbors.length === 0) return;
+    const handle = prefetchAdjacentContentDetails({
+      ids: neighbors,
+      fetchDetail: (id, signal) => api.get(`/api/v1/contents/${id}`, { signal }),
+      warmDetail: (id, raw) => {
+        const cover = normalizeContentDetailResponse(raw).content?.cover_image_url;
+        if (cover && cover !== "") prefetchCoverVariant(cover);
+      },
+    });
+    prefetchHandlesRef.current.add(handle);
+    return () => {
+      handle.release();
+      prefetchHandlesRef.current.delete(handle);
+    };
+  }, [status, entry]);
+  useEffect(() => {
+    const handles = prefetchHandlesRef.current;
+    return () => {
+      for (const handle of handles) handle.cancel();
+      handles.clear();
+    };
+  }, []);
 
   /* #89 连续浏览：媒体集最后一项继续上滑 → 切换上下文列表下一篇（仅移动端，
      pcTier 订阅值承载旧事件时同步查询的 <1100 语义）；上下文列表到底时不再
