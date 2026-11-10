@@ -43,7 +43,7 @@ import { SourceAttribution, type SourceSummary } from "@/components/content/Sour
 import { RelatedFanworks } from "@/components/content/RelatedFanworks";
 import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
 import { useOverlayViewport } from "@/components/content/use-overlay-viewport";
-import { overlaySlideFromAttachment } from "@/lib/overlay-media";
+import { overlayFallbackSlideFromAttachment, overlaySlideFromAttachment } from "@/lib/overlay-media";
 import { RelatedContents } from "@/components/content/RelatedContents";
 import type { ContentCardData } from "@/components/content/ContentCard";
 import type { AttachmentData, ContentDetailData } from "@/lib/content";
@@ -460,7 +460,10 @@ export function ContentDetail({
           {downloadItems
             .filter((att) => viewerFamily(att.file_type))
             .map((att) =>
-              overlayVariant && overlaySlideFromAttachment(att) ? (
+              /* E3 #955：已进左列舞台的附件（可预览 slide 或托底位）右栏只留
+                 下载行——托底位与可预览位同判（overlayFallbackSlideFromAttachment
+                 资格 = 过扫描门且非 .mtl）。 */
+              overlayVariant && (overlaySlideFromAttachment(att) ?? overlayFallbackSlideFromAttachment(att)) ? (
                 /* D5 #862：该附件已是左列轮播位 slide——右栏只留下载行
                    （扫描门已过，无需再挂扫描卡/入口卡）。 */
                 <div

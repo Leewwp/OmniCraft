@@ -36,7 +36,8 @@ export interface OverlayGeometrySpec {
 /**
  * 逐 slide 档位判定：文档族（document / text_pdf / 乐谱族 / model3d，对齐
  * 原型 READING 集与生产 MediaSlideType）= reading 宽舞台；image/video/audio
- * = visual 比例定宽。default = 编译期穷尽检查（slideFamilyKey 同款）。
+ * 与托底位（fallback_download，名义 3:4 属性卡）= visual 比例定宽。
+ * default = 编译期穷尽检查（slideFamilyKey 同款）。
  */
 export function slideTierOf(item: MediaGalleryItem): OverlayStageTier {
   switch (item.type) {
@@ -50,6 +51,7 @@ export function slideTierOf(item: MediaGalleryItem): OverlayStageTier {
     case "image":
     case "video":
     case "audio":
+    case "fallback_download":
       return "visual";
     default: {
       const _exhaustive: never = item.type;
@@ -60,8 +62,9 @@ export function slideTierOf(item: MediaGalleryItem): OverlayStageTier {
 
 /**
  * 内容冻结比例 = 媒体链首 slide 的 intrinsic 比例（itemAspectRatio 语义：
- * 缺尺寸回退 3/4 防御比例，查看器族为名义 3:4）。开窗即锁定，内容内翻页
- * 零重算；E3 封面恒首屏落地后首 slide 自然变为封面。
+ * 缺尺寸回退 3/4 防御比例，查看器族为名义 3:4）。有封面内容首 slide =
+ * 封面（E3 #955 封面恒为首屏）——封面比例即冻结比例；开窗即锁定，内容内
+ * 翻页零重算。
  */
 export function contentFrozenRatio(media: MediaGalleryItem[]): number {
   return itemAspectRatio(media[0]);

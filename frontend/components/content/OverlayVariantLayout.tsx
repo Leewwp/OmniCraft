@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, Maximize2, RefreshCw } from "lucide-react";
+import { AudioLines, Box, ChevronLeft, ChevronRight, FileText, Maximize2, Music, Package, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { coverRenderSrc } from "@/lib/overlay-motion";
 import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
+import { DownloadButton } from "@/components/content/DownloadButton";
 import { SlideViewer, asViewerSlide } from "@/components/content/SlideViewer";
 import { MIDIPlayer, OSMDRenderer } from "@/components/content/SheetMusicViewer";
 import type { MediaGalleryItem, MediaSlideType } from "@/components/content/MediaGallery";
@@ -61,13 +62,17 @@ import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
  *   触控目标 44px；键盘 ←/→ 只作用于顶层活动媒体区，不劫持输入框/评论编辑器/
  *   播放器控件/上层查看器/登录浮窗；切位按钮点击不触发放大。
  *
- * D5 #862 可预览媒体链与逐类型轮播位（spec §9.6/§3.2）：
- * - 媒体链 = 逐附件 slide 序列（overlay-media selectOverlaySlides）：audio/
- *   model3d/document/text-pdf/sheet_music（musicxml/midi/pdf）逐附件进链，
- *   image/video 既有契约不变；无可预览项回退封面→文字封面。
+ * D5 #862 可预览媒体链与逐类型轮播位（spec §9.6/§3.2）+ E3 #955 封面恒为
+ * 首屏与全类型托底：
+ * - 媒体链（lib/overlay-media buildOverlayMedia）：有封面 → 封面 slide 0 +
+ *   附件序列；无封面 → 附件序列 → 自动文字封面兜底。附件序列 = 逐附件
+ *   slide（可预览族 audio/model3d/document/text-pdf/sheet_music 与
+ *   image/video 混排；不可预览族 mscz/txt/mod 等出 fallback_download
+ *   托底位）——任何 default 态内容舞台非空。
  * - 逐类型位：audio = 占位图为底 + 底部 AudioPlayer 条；model3d/document =
  *   对应查看器（懒分块 + 预算/消毒语义不变）；pdf = 原生 embed；乐谱 =
- *   OSMD 横滚 / midi 回放条（箭头悬浮层不拦截谱内滚动）。audio/midi 播放条
+ *   OSMD 横滚 / midi 回放条（箭头悬浮层不拦截谱内滚动）；fallback_download
+ *   = 封面/占位图为底 + 文件名/大小 + 下载钮属性卡。audio/midi 播放条
  *   位挂起暂停（恢复不自动续播）、切位卸载停播；当前位为播放条形态时底部
  *   圆点/类型角标上移让位。当前位才挂载重型查看器，首屏不抓全部附件正文；
  *   查看器族名义几何 300×400（3:4），首项挂载即 settle。
@@ -224,6 +229,72 @@ function PdfSlide({ item }: SlideViewerContext) {
   );
 }
 
+/** E3 #955 托底位（fallback_download）：不可预览附件的属性卡——底图 = 有
+ *  内容封面用封面图（压暗衬底）/ 无封面按附件族占位图；前景 = 族图标 +
+ *  文件名/大小 + 预览不可用提示 + 下载钮（下载许可 = allowCopy 与右栏下载
+ *  行同源语义，动作复用 DownloadButton 按需现签路径）。任何内容打开舞台
+ *  非空的兜底形态。 */
+function FallbackSlide({ item, contentId, allowCopy }: SlideViewerContext) {
+  const t = useTranslations();
+  const family = item.fallbackFamily ?? "";
+  const backdrop = item.url
+    ? coverRenderSrc(item.url) || item.url
+    : getCoverPlaceholder(fallbackPlaceholderType(family));
+  const Icon = fallbackFamilyIcon(family);
+  const size =
+    item.fileSize == null ? null : item.fileSize >= 1024 * 1024
+      ? `${(item.fileSize / 1024 / 1024).toFixed(2)} MB`
+      : `${(item.fileSize / 1024).toFixed(1)} KB`;
+  return (
+    <div className="relative h-full w-full bg-black" data-slot="slide-fallback">
+      {/* eslint-disable-next-line @next/next/no-img-element -- 装饰底图（SVG/data: 占位直通，不走图片优化器） */}
+      <img
+        src={backdrop}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover opacity-40"
+      />
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur">
+          <Icon className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <div className="max-w-full rounded-lg bg-black/45 px-4 py-3 backdrop-blur">
+          <p className="truncate text-sm font-medium text-white" title={item.fileName ?? undefined}>
+            {item.fileName || t("content.attachmentUnknownType")}
+          </p>
+          {size && <p className="mt-0.5 text-xs tabular-nums text-white/70">{size}</p>}
+          <p className="mt-1.5 text-xs text-white/70">{t("content.attachmentPreview.fallbackHint")}</p>
+          {allowCopy && contentId != null && (
+            <div className="mt-3 flex justify-center">
+              <DownloadButton
+                contentId={contentId}
+                attachmentId={item.id}
+                contentType={family}
+                size="sm"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 托底位附件族 → 类型占位图（无封面底图兜底；getCoverPlaceholder 键位）。 */
+function fallbackPlaceholderType(family: string): string {
+  if (family.startsWith("sheet_music")) return "sheet_music";
+  return family || "other";
+}
+
+/** 托底位附件族 → 前景图标。 */
+function fallbackFamilyIcon(family: string): typeof FileText {
+  if (family.startsWith("sheet_music")) return Music;
+  if (family === "mod") return Package;
+  if (family === "model3d") return Box;
+  if (family === "audio") return AudioLines;
+  return FileText;
+}
+
 /** 混排链逐 slide 类型角标的 family 键（content.attachmentPreview.familyLabel.*）。
     default = 编译期穷尽检查：新增 MediaSlideType 而漏配 family 时，never 赋值
     在此编译红，不再静默回落。 */
@@ -245,6 +316,8 @@ function slideFamilyKey(type: MediaSlideType): string {
     case "sheet_music_midi":
     case "sheet_music_pdf":
       return "sheetMusic";
+    case "fallback_download":
+      return "fallback";
     default: {
       const _exhaustive: never = type;
       return _exhaustive;
@@ -351,8 +424,9 @@ function MediaSlide({
   }
 
   /* D5 #862 逐类型位分发：查看器族复用既有组件（预算/消毒/动态加载语义
-     不变）；image 走既有图片分支（video 已于上方早返回）。default = 编译期
-     穷尽检查：新增 MediaSlideType 而漏配渲染位时，never 赋值在此编译红。 */
+     不变）；image 走既有图片分支（video 已于上方早返回）；E3 #955 不可
+     预览附件走托底位（FallbackSlide 属性卡）。default = 编译期穷尽检查：
+     新增 MediaSlideType 而漏配渲染位时，never 赋值在此编译红。 */
   const viewerContext: SlideViewerContext = { item, contentId, allowCopy, suspended };
   switch (item.type) {
     case "image":
@@ -382,6 +456,8 @@ function MediaSlide({
     case "sheet_music_pdf":
     case "text_pdf":
       return <PdfSlide {...viewerContext} />;
+    case "fallback_download":
+      return <FallbackSlide {...viewerContext} />;
     default: {
       const _exhaustive: never = item.type;
       return _exhaustive;
@@ -638,7 +714,11 @@ export function OverlayVariantLayout({
   const viewerItems = media.filter(isEnlargeableSlide);
   const mixedFamilies = new Set(media.map((item) => slideFamilyKey(item.type))).size > 1;
   const showDots = media.length > 1 && media.length <= MAX_DOT_ITEMS;
-  const isViewerSlide = current ? current.type !== "image" && current.type !== "video" : false;
+  /* 托底位（fallback_download）无签名 URL 可刷新（下载按需现签）——不提供
+     「刷新预览」钮。 */
+  const isViewerSlide = current
+    ? current.type !== "image" && current.type !== "video" && current.type !== "fallback_download"
+    : false;
   /* D5 #862：当前位为播放条形态（audio/midi）——底部圆点/类型角标上移让位。 */
   const playerBarSlide = current?.type === "audio" || current?.type === "sheet_music_midi";
 

@@ -141,37 +141,26 @@ test("D5 sheet_music 子类型分派：file_type 优先、MIME 兜底（audio/mi
 
 /* ── 回退链不回归 ────────────────────────────────────────────────────────── */
 
-test("D5 回退链不变：无可预览附件 → 内容封面；无封面 → 自动文字封面；mod 保持包裹占位", () => {
-  const withCover = buildOverlayMedia(
-    detailOf("template", [attachment({ id: 61, file_type: "text", mime_type: "text/plain", oss_url: "https://oss/x.txt", scan_status: "clean" })], {
-      cover_image_url: "/seed/cover.svg",
-      cover_width: 600,
-      cover_height: 800,
-    }),
-  );
-  assert.equal(withCover.length, 1);
-  assert.equal(withCover[0].type, "image");
-  assert.equal(withCover[0].url, "/seed/cover.svg");
-  assert.ok(withCover[0].id < 0, "cover fallback keeps the synthetic negative id");
-
+test("D5 回退链不变：无附件无封面 → 自动文字封面；封面优先级语义见 E3 矩阵（overlay-media-e3）", () => {
   const textCover = buildOverlayMedia(detailOf("article", []));
   assert.equal(textCover.length, 1);
   assert.equal(textCover[0].type, "image");
   assert.ok(String(textCover[0].url).startsWith("data:image/svg+xml"), "text cover placeholder chain feeds the pane");
-
-  const modChain = buildOverlayMedia(detailOf("mod", [attachment({ id: 62, file_type: "mod", oss_url: "https://oss/m.zip", scan_status: "clean" })]));
-  assert.equal(modChain.length, 1, "mod never joins the carousel (fixed package placeholder card)");
-  assert.ok(String(modChain[0].url).startsWith("data:image/svg+xml"));
 });
 
-test("D5 buildOverlayMedia：附件族内容首选项 = slide 链（不再直接落文字封面）", () => {
+test("D5 buildOverlayMedia：无可预览附件且无封面时 mod 出托底位（不再只落文字封面）", () => {
+  const modChain = buildOverlayMedia(detailOf("mod", [attachment({ id: 62, file_type: "mod", oss_url: "https://oss/m.zip", original_file_name: "m.zip", scan_status: "clean" })]));
+  assert.equal(modChain.length, 1, "mod joins the stage as the E3 fallback slide (non-empty stage)");
+  assert.equal(modChain[0].type, "fallback_download");
+  assert.equal(modChain[0].id, 62, "fallback slide keeps the stable attachment id (download anchor)");
+});
+
+test("D5 buildOverlayMedia：附件族内容无封面时首选项 = slide 链（不直接落文字封面）", () => {
   const media = buildOverlayMedia(
-    detailOf("audio", [attachment({ id: 71, file_type: "audio", oss_url: "https://oss/a.wav", original_file_name: "a.wav", scan_status: "clean" })], {
-      cover_image_url: "/seed/cover.svg",
-    }),
+    detailOf("audio", [attachment({ id: 71, file_type: "audio", oss_url: "https://oss/a.wav", original_file_name: "a.wav", scan_status: "clean" })]),
   );
   assert.equal(media.length, 1);
-  assert.equal(media[0].type, "audio", "the signed audio attachment outranks the content cover");
+  assert.equal(media[0].type, "audio", "the signed audio attachment is the first slide without a cover");
 });
 
 /* ── useOverlayMedia：新类型不进探针集合，立即可就绪 ─────────────────────── */

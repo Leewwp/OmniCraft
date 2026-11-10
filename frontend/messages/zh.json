@@ -374,8 +374,10 @@
         "image": "图片",
         "video": "视频",
         "pdf": "PDF",
-        "sheetMusic": "乐谱"
+        "sheetMusic": "乐谱",
+        "fallback": "文件"
       },
+      "fallbackHint": "该格式暂不支持在线预览，可下载后查看",
       "scanStatus": {
         "pending": "附件安全扫描排队中，暂不可预览",
         "scanning": "附件安全扫描进行中，暂不可预览",
