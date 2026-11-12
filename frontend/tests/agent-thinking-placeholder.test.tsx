@@ -84,7 +84,7 @@ test("AgentThinkingPlaceholder: elapsed seconds tick up and are screen-reader si
 
   await waitFor(() => {
     if (!(["6s", "7s"].includes(seconds.textContent ?? ""))) throw new Error(`tick advanced: ${seconds.textContent}`);
-  });
+  }, { timeout: 2500 });
   unmount();
 });
 

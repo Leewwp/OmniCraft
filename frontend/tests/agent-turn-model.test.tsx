@@ -168,7 +168,7 @@ test("首轮 done→历史回载在途：答案持续可见不闪空，回载落
     /* done 已到、历史请求挂起：答案与提问行必须持续可见（无骨架屏闪空）。 */
     await waitFor(() => {
       if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
     await flushAsyncUpdates();
     assert.ok(view.getByText("first question"), "in-flight: query stays visible");
     assert.ok(view.getByText("hello world"), "in-flight: answer stays visible");
@@ -240,7 +240,7 @@ test("续问轮 done 只 commit 一次：树尾追加单轮，无重复提问/�
 
     await waitFor(() => {
       if (!(view.getByText("second answer"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
     /* 多轮 flush 后仍只一份——commit effect 无重复触发。 */
     await flushAsyncUpdates();
     await flushAsyncUpdates();

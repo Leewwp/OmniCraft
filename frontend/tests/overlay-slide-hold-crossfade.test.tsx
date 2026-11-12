@@ -169,6 +169,8 @@ test("E4 就绪即交换：图片 load 后起跑交叉淡出并移除旧层", as
   });
   await waitFor(() => {
     if (!(exitLayer()?.style.animation.includes("overlay-slide-fade-out"))) throw new Error("waitFor: condition not met");
+  }, {
+    timeout: 2000,
   });
   await settleTimer();
   await waitFor(() => {

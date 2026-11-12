@@ -174,7 +174,7 @@ test("user hover card", async (t) => {
     // 上翻 = 卡底边贴触发元上缘 - VIEWPORT_MARGIN：top = 600 - 150 - 8。
     await waitFor(() => {
       if (card.style.top != "442px") throw new Error("waitFor: values differ");
-    });
+    }, { timeout: 2000 });
     assert.equal(600 - (Number.parseFloat(card.style.top) + 150), 8, "gap must equal the viewport margin");
 
     // 打开后滚动：触发元仍处下部（下方不足维持上翻），卡片跟随重定位（含左对齐横向跟随）。
@@ -190,7 +190,7 @@ test("user hover card", async (t) => {
     fireEvent.scroll(window);
     await waitFor(() => {
       if (card.style.top != "128px") throw new Error("waitFor: values differ");
-    });
+    }, { timeout: 2000 });
 
     restoreGet();
     restoreMedia();

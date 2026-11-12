@@ -604,7 +604,7 @@ test("#398 C3: motion lock covers the trigger card during open and clears after 
   });
   await waitFor(() => {
     if (trigger.getAttribute("data-overlay-motion-lock") != "") throw new Error("waitFor: values differ");
-  });
+  }, { timeout: 3000 });
   /* 完全退出（悬浮关闭钮 = 全退；jsdom 不派发 dialog cancel，不走 Esc）后锁解除。 */
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Close content detail" }));

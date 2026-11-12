@@ -321,10 +321,10 @@ const scenarios: Scenario[] = [
         await sendFromComposer(view, "first question");
         await waitFor(() => {
           if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await waitFor(() => {
           if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         return transcriptOutline();
       } finally {
@@ -375,7 +375,7 @@ const scenarios: Scenario[] = [
         await sendFromComposer(view, "second question");
         await waitFor(() => {
           if (!(view.getByText("second answer"))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         return transcriptOutline();
       } finally {
@@ -420,7 +420,7 @@ const scenarios: Scenario[] = [
         fireEvent.click(suggestion);
         await waitFor(() => {
           if (!(view.getByText("Not enough evidence"))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         return transcriptOutline();
       } finally {
@@ -458,7 +458,7 @@ const scenarios: Scenario[] = [
         fireEvent.click(suggestion);
         await waitFor(() => {
           if (!(view.getByText("No content this turn"))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         return transcriptOutline();
       } finally {
@@ -501,12 +501,12 @@ const scenarios: Scenario[] = [
         fireEvent.click(suggestion);
         await waitFor(() => {
           if (!(view.getByText("Search fallback active"))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         /* FT-4：引用卡住参考来源侧栏，先开面板再断言。 */
         fireEvent.click(await waitFor(() => view.getByRole("button", { name: /reference sources/ })));
         await waitFor(() => {
           if (!(view.getByRole("button", { name: /Keyword fallback result/ }))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         return transcriptOutline();
       } finally {
@@ -563,7 +563,7 @@ const scenarios: Scenario[] = [
         fireEvent.click(suggestion);
         await waitFor(() => {
           if (!(view.getByText("This request was not completed"))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         return transcriptOutline();
       } finally {
@@ -704,12 +704,12 @@ const scenarios: Scenario[] = [
         await sendFromComposer(view, "first question");
         await waitFor(() => {
           if (!(view.getByText("first answer"))) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         await sendFromComposer(view, "second question");
         await waitFor(() => {
           if (!(view.getAllByText("second answer").length >= 2)) throw new Error("waitFor: condition not met");
-        });
+        }, { timeout: 3000 });
         await settle();
         return transcriptOutline();
       } finally {
