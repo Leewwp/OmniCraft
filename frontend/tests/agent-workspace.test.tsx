@@ -632,12 +632,16 @@ test("workspace lists conversations and loads messages on select", async () => {
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("Today")));
+  await waitFor(() => {
+    if (!(view.getByText("Today"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText("Yesterday"));
   assert.ok(view.getByRole("button", { name: "Conversation #1" }));
 
   fireEvent.click(view.getByRole("button", { name: "Conversation #2" }));
-  await waitFor(() => assert.ok(view.getByText("where can I find mod guides")));
+  await waitFor(() => {
+    if (!(view.getByText("where can I find mod guides"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText("the usage guide is on the mod page"));
   assert.ok(calls.some((call) => call.path.includes("/api/v1/agent/conversations/2")));
 });
@@ -646,7 +650,9 @@ test("empty conversation list shows the empty state", async () => {
   installDom();
   installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("No conversations yet")));
+  await waitFor(() => {
+    if (!(view.getByText("No conversations yet"))) throw new Error("waitFor: condition not met");
+  });
 });
 
 /* ---------- AgentWorkspace：新对话 / 清空历史生命周期（§4.6） ---------- */
@@ -666,12 +672,18 @@ test("start new conversation resets the transcript without confirmation", async 
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Conversation #1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Conversation #1" }))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
-  await waitFor(() => assert.ok(view.getByText("old question")));
+  await waitFor(() => {
+    if (!(view.getByText("old question"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Start new conversation" }));
-  await waitFor(() => assert.equal(view.queryByText("old question"), null));
+  await waitFor(() => {
+    if (view.queryByText("old question") != null) throw new Error("waitFor: values differ");
+  });
   assert.equal(view.queryByRole("dialog"), null, "new conversation must not open a confirm dialog");
   assert.ok(view.getByText("Start researching from site content"));
 });
@@ -700,17 +712,25 @@ test("clear history asks for confirmation; cancel sends no DELETE request", asyn
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Conversation #1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Conversation #1" }))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
-  await waitFor(() => assert.ok(view.getByText("to be cleared")));
+  await waitFor(() => {
+    if (!(view.getByText("to be cleared"))) throw new Error("waitFor: condition not met");
+  });
 
   const deleteItem = await openConversationMenu(view);
   fireEvent.click(deleteItem);
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText("Delete this conversation?"));
 
   fireEvent.click(view.getByRole("button", { name: "Cancel" }));
-  await waitFor(() => assert.equal(view.queryByRole("dialog"), null));
+  await waitFor(() => {
+    if (view.queryByRole("dialog") != null) throw new Error("waitFor: values differ");
+  });
   assert.equal(calls.filter((call) => call.path.includes("/conversations/1")).length, 1, "cancel must not send DELETE");
   assert.ok(view.getByText("to be cleared"), "messages survive cancel");
 });
@@ -731,9 +751,13 @@ test("clear history success (204) empties the transcript and focuses the input",
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Conversation #1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Conversation #1" }))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
-  await waitFor(() => assert.ok(view.getByText("to be cleared")));
+  await waitFor(() => {
+    if (!(view.getByText("to be cleared"))) throw new Error("waitFor: condition not met");
+  });
 
   const deleteItem = await openConversationMenu(view);
   fireEvent.click(deleteItem);
@@ -743,20 +767,17 @@ test("clear history success (204) empties the transcript and focuses the input",
   fireEvent.click(confirmButton);
   await flushAsyncUpdates();
 
-  await waitFor(() => assert.equal(view.queryByText("to be cleared"), null), { timeout: 3000 });
+  await waitFor(() => {
+    if (view.queryByText("to be cleared") != null) throw new Error("waitFor: values differ");
+  });
   const deletes = calls.filter(
     (call) => call.path.includes("/api/v1/agent/conversations/1") && !call.path.includes("messages"),
   );
   assert.ok(deletes.length >= 1, "confirmed clear must call the owner-scoped DELETE");
   assert.ok(view.getByText("Start researching from site content"));
-  await waitFor(
-    () =>
-      assert.equal(
-        document.activeElement,
-        view.getByRole("textbox", { name: "Ask the agent" }),
-      ),
-    { timeout: 3000 },
-  );
+  await waitFor(() => {
+    if (document.activeElement != view.getByRole("textbox", { name: "Ask the agent" })) throw new Error("waitFor: values differ");
+  });
 });
 
 test("clear history failure keeps messages and shows the localized error", async () => {
@@ -778,9 +799,13 @@ test("clear history failure keeps messages and shows the localized error", async
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Conversation #1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Conversation #1" }))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
-  await waitFor(() => assert.ok(view.getByText("keep me")));
+  await waitFor(() => {
+    if (!(view.getByText("keep me"))) throw new Error("waitFor: condition not met");
+  });
 
   const deleteItem = await openConversationMenu(view);
   fireEvent.click(deleteItem);
@@ -789,8 +814,12 @@ test("clear history failure keeps messages and shows the localized error", async
   );
   fireEvent.click(confirmButton);
   await flushAsyncUpdates();
-  await waitFor(() => assert.ok(view.getByText("keep me"), "failed clear must keep messages"), { timeout: 3000 });
-  await waitFor(() => assert.ok(view.getByText("Delete failed, please try again later")), { timeout: 3000 });
+  await waitFor(() => {
+    if (!(view.getByText("keep me"))) throw new Error("failed clear must keep messages");
+  });
+  await waitFor(() => {
+    if (!(view.getByText("Delete failed, please try again later"))) throw new Error("waitFor: condition not met");
+  });
 });
 
 /* ---------- AgentWorkspace：流式回答与引用浮窗（复用 Ticket 02 底座） ---------- */
@@ -827,16 +856,15 @@ test("grounded done with follow_ups renders chips; click fills composer without 
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
+    });
 
     /* 追问药丸：chips 由 done 事件副作用挂载（晚于 delta 流出的正文）——
        必须等副作用生效，不能在正文出现后同步查询（node:test+RTL 已知陷阱）。 */
     const chip = await waitFor(
       () => {
-        assert.ok(
-          view.getByRole("group", { name: "Suggested follow-ups" }),
-          "chips group labelled via next-intl",
-        );
+                if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("chips group labelled via next-intl");
         return view.getByRole("button", { name: /Show watercolor tutorials/ });
       },
       { timeout: 3000 },
@@ -857,10 +885,9 @@ test("grounded done with follow_ups renders chips; click fills composer without 
       .filter((node) => node.closest("button") === null);
     assert.equal(inTranscript.length, 0, "chip click must not append a user bubble");
     /* 历史重载（done 后 activeId 触发）不得冲掉当前轮 chips（轮级态）。 */
-    await waitFor(
-      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" }), "chips survive the history reload"),
-      { timeout: 3000 },
-    );
+    await waitFor(() => {
+      if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("chips survive the history reload");
+    });
   } finally {
     stub.restore();
   }
@@ -897,10 +924,9 @@ test("first-round follow-ups survive the FT-3 route remount via the terminal sta
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(
-      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" })),
-      { timeout: 8000 },
-    );
+    await waitFor(() => {
+      if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(
       routerReplaces.slice(replacesBefore).includes("/agent/c/7"),
       "first-round done replaced into the conversation URL",
@@ -910,7 +936,9 @@ test("first-round follow-ups survive the FT-3 route remount via the terminal sta
        重挂载实例只能靠历史回放 + 模块级 stash 重建终态。 */
     view.unmount();
     const remounted = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
-    await waitFor(() => assert.ok(remounted.getByText("hello world")), { timeout: 8000 });
+    await waitFor(() => {
+      if (!(remounted.getByText("hello world"))) throw new Error("waitFor: condition not met");
+    });
     const chip = await waitFor(
       () => remounted.getByRole("button", { name: /Show watercolor tutorials/ }),
       { timeout: 8000 },
@@ -927,7 +955,9 @@ test("first-round follow-ups survive the FT-3 route remount via the terminal sta
     /* stash 消费一次即失效：再次重挂载回归历史轮终态缺省（落库契约）。 */
     remounted.unmount();
     const third = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
-    await waitFor(() => assert.ok(third.getByText("hello world")), { timeout: 8000 });
+    await waitFor(() => {
+      if (!(third.getByText("hello world"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(
       third.queryByRole("group", { name: "Suggested follow-ups" }),
       null,
@@ -990,10 +1020,9 @@ test("first-round done saves the handover record before router.replace fires (#7
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(
-      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" })),
-      { timeout: 8000 },
-    );
+    await waitFor(() => {
+      if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(routerReplaces.includes("/agent/c/7"), "first-round done replaced into the conversation URL");
     const probeTurns = probe.turns;
     assert.ok(probeTurns, "probe ran synchronously inside router.replace");
@@ -1037,15 +1066,19 @@ test("workspace streams an answer and renders citation cards", async () => {
     );
     fireEvent.click(suggestion);
 
-    await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
+    });
     await openCitationsPanel(view);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 8000 });
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: /Cited content/ }))) throw new Error("waitFor: condition not met");
+    });
     /* 工具步骤区完成后自动折叠（A-06）：先展开再断言步骤明细。 */
     /* settle 竞态防护：轮终局重渲染会换掉展开按钮，点击与断言放同一 waitFor
        内重试（陈旧点击不抛错、断言失败重点）。 */
     await waitFor(() => {
       fireEvent.click(view.getByRole("button", { name: "1 tool steps" }));
-      assert.ok(view.getByText("Searched site content"));
+            if (!(view.getByText("Searched site content"))) throw new Error("waitFor: condition not met");
     });
     assert.ok(view.getByText("Original"), "citation card exposes the zone label");
     assert.match(stub.calls[0], /\/api\/v1\/agent\/chat\/stream$/);
@@ -1124,7 +1157,9 @@ test("degraded stream hides the model summary and shows fallback references", as
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("Search fallback active")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("Search fallback active"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(view.queryByText("model summary that must stay hidden"), null);
     await openCitationsPanel(view);
     assert.ok(view.getByRole("button", { name: /Fallback result/ }));
@@ -1167,13 +1202,9 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
 
   const dialog = await waitFor(() => view.getByRole("dialog"));
   assert.ok(view.getByText("Back to conversation"), "overlay must use the agent-citation return label");
-  await waitFor(
-    () =>
-      assert.ok(
-        within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1,
-        "overlay shows the cited content title",
-      ),
-  );
+  await waitFor(() => {
+    if (!(within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1)) throw new Error("overlay shows the cited content title");
+  });
 });
 
 /* ---------- AgentWorkspace：引用随消息持久化与行内角标直开浮窗（2026-09-06 实测修复） ---------- */
@@ -1242,12 +1273,16 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     fireEvent.change(composer, { target: { value: "first question" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("first answer"))) throw new Error("waitFor: condition not met");
+    });
 
     fireEvent.change(composer, { target: { value: "second question" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("second answer"))) throw new Error("waitFor: condition not met");
+    });
 
     /* FT-4：引用随答案持久化为各自入口按钮（面板一次展示一条回答的引用）。
         第二轮完成后两条入口都在；点第一轮入口仍能打开第一轮的引用卡。 */
@@ -1255,10 +1290,14 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     assert.ok(entries.length >= 2, "both answers keep their reference-sources entries");
     /* 点第一轮入口 → 面板展示第一轮引用；再点第二轮入口 → 换为第二轮引用。 */
     fireEvent.click(entries[0]);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 8000 });
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: /Cited content/ }))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(view.queryByRole("button", { name: /Second reference/ }), null, "panel shows the clicked answer's citations only");
     fireEvent.click(entries[1]);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Second reference/ })), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: /Second reference/ }))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getAllByRole("button", { name: /Second reference/ }).length >= 1, "turn-two citation card renders");
   } finally {
     globalThis.fetch = originalFetch;
@@ -1310,13 +1349,17 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     fireEvent.change(composer, { target: { value: "find me a guide" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText(/see this/)), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText(/see this/))) throw new Error("waitFor: condition not met");
+    });
 
     /* 等引用卡片出现 = done 事件已结算（角标按钮只在 done 后可点）。此后 done 触发的
        会话历史回放仍可能把整棵消息树原子替换，点击落在 detached 节点上即静默失效
        （CI 闪断形态，同 copy 点击反模式）：轮询补点兜底，点击前重查新鲜节点。 */
     await openCitationsPanel(view);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 8000 });
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: /Cited content/ }))) throw new Error("waitFor: condition not met");
+    });
     let dialog: HTMLElement | undefined;
     for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
       try {
@@ -1327,14 +1370,9 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
       dialog = await waitFor(() => view.getByRole("dialog"), { timeout: 600 }).catch(() => undefined);
     }
     assert.ok(dialog, "inline badge click must open the content overlay directly");
-    await waitFor(
-      () =>
-        assert.ok(
-          within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1,
-          "opened overlay must render the cited content heading",
-        ),
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      if (!(within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1)) throw new Error("opened overlay must render the cited content heading");
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1395,7 +1433,9 @@ test("gap-numbered citations keep badge alignment by turn-global number", async 
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "find me a guide" } });
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText(/第一/)), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText(/第一/))) throw new Error("waitFor: condition not met");
+    });
 
     /* #719 展示号：可见列表 [1,3] 连续映射——角标 [3] 文字/读屏用展示号 2，
        小卡标题仍按原全局编号命中（Third numbered，非数组第 3 项）。 */
@@ -1419,19 +1459,18 @@ test("gap-numbered citations keep badge alignment by turn-global number", async 
       dialog = await waitFor(() => view.getByRole("dialog"), { timeout: 600 }).catch(() => undefined);
     }
     assert.ok(dialog, "numbered badge click must open the overlay");
-    await waitFor(
-      () => assert.ok(within(dialog).getAllByRole("heading", { name: "Third numbered" }).length >= 1),
-      { timeout: 2000 },
-    );
+    await waitFor(() => {
+      if (!(within(dialog).getAllByRole("heading", { name: "Third numbered" }).length >= 1)) throw new Error("waitFor: condition not met");
+    });
 
     /* 侧栏卡片：展示号按可见列表顺序连续（01 / 02，无空洞），id 仍键控
        原全局编号（目标查找与存储不变）。 */
     await openCitationsPanel(view);
     await waitFor(() => {
-      assert.ok(view.container.querySelector("#agent-citation-1"), "card id keyed by turn-global number");
-      assert.ok(view.container.querySelector("#agent-citation-3"));
-      assert.ok(!view.container.querySelector("#agent-citation-2"), "dropped number leaves no card");
-      assert.ok(view.getByText("02"), "sidebar shows consecutive display numbers");
+            if (!(view.container.querySelector("#agent-citation-1"))) throw new Error("card id keyed by turn-global number");
+            if (!(view.container.querySelector("#agent-citation-3"))) throw new Error("waitFor: condition not met");
+            if (view.container.querySelector("#agent-citation-2")) throw new Error("dropped number leaves no card");
+            if (!(view.getByText("02"))) throw new Error("sidebar shows consecutive display numbers");
     }, { timeout: 8000 });
   } finally {
     globalThis.fetch = originalFetch;
@@ -1485,13 +1524,17 @@ test("stream error shows a localized banner and retry resends", async () => {
     fireEvent.click(suggestion);
     await flushAsyncUpdates();
 
-    await waitFor(() => assert.ok(view.getByText("This request was not completed")));
+    await waitFor(() => {
+      if (!(view.getByText("This request was not completed"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(attempt, 1);
 
     const composer = view.getByRole("textbox", { name: "Ask the agent" }) as HTMLTextAreaElement;
     fireEvent.change(composer, { target: { value: "extra input typed after the failure" } });
     fireEvent.click(view.getByRole("button", { name: "Resend" }));
-    await waitFor(() => assert.ok(view.getByText("recovered answer")));
+    await waitFor(() => {
+      if (!(view.getByText("recovered answer"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(attempt, 2, "retry must issue a second stream request");
     assert.equal(
       composer.value,
@@ -1529,7 +1572,9 @@ test("provider error falls back to ordinary keyword results without showing the 
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("Search fallback active")));
+    await waitFor(() => {
+      if (!(view.getByText("Search fallback active"))) throw new Error("waitFor: condition not met");
+    });
     await openCitationsPanel(view);
     assert.ok(view.getByRole("button", { name: /Keyword fallback result/ }));
     assert.equal(view.queryByText("This request was not completed"), null);
@@ -1545,7 +1590,9 @@ test("sidebar collapse persists to localStorage and expands back", async () => {
   installDom();
   installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("No conversations yet")));
+  await waitFor(() => {
+    if (!(view.getByText("No conversations yet"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Collapse sidebar" }));
   assert.equal(window.localStorage.getItem("agentSidebarCollapsed"), "collapsed");
@@ -1560,13 +1607,19 @@ test("mobile conversation drawer opens from the menu button and closes on Escape
   installDom();
   installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("No conversations yet")));
+  await waitFor(() => {
+    if (!(view.getByText("No conversations yet"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Open conversation list" }));
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.keyDown(document, { key: "Escape" });
-  await waitFor(() => assert.equal(view.queryByRole("dialog"), null));
+  await waitFor(() => {
+    if (view.queryByRole("dialog") != null) throw new Error("waitFor: values differ");
+  });
 });
 
 /* #752：移动抽屉高度链——面板 flex 化后 aside 获得受限高度，nav 是唯一
@@ -1598,7 +1651,9 @@ test("mobile drawer panel stretches the sidebar so nav is the only scrolling lis
     },
   ]);
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByRole("button", { name: /conv-earlier-6/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: /conv-earlier-6/ }))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Open conversation list" }));
   const dialog = await waitFor(() => view.getByRole("dialog"));
@@ -1662,7 +1717,9 @@ test("workspace page gate shows fallback while web_agent_enabled=false", async (
         <p>WORKSPACE-BLOCK</p>
       </AgentFeatureGate>,
     );
-    await waitFor(() => assert.ok(view.getByText("FALLBACK-BLOCK")));
+    await waitFor(() => {
+      if (!(view.getByText("FALLBACK-BLOCK"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(view.queryByText("WORKSPACE-BLOCK"), null);
   } finally {
     globalThis.fetch = originalFetch;
@@ -1695,7 +1752,9 @@ test("workspace page gate renders children while web_agent_enabled=true", async 
         <p>WORKSPACE-BLOCK</p>
       </AgentFeatureGate>,
     );
-    await waitFor(() => assert.ok(view.getByText("WORKSPACE-BLOCK")));
+    await waitFor(() => {
+      if (!(view.getByText("WORKSPACE-BLOCK"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(view.queryByText("FALLBACK-BLOCK"), null);
   } finally {
     globalThis.fetch = originalFetch;
@@ -1726,7 +1785,9 @@ test("empty state suggestions send the suggested question directly", async () =>
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("hello world")));
+    await waitFor(() => {
+      if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getByText("Find beginner-friendly furniture mods"), "suggestion is sent as the user message");
     assert.match(stub.calls[0], /\/api\/v1\/agent\/chat\/stream$/);
   } finally {
@@ -1744,13 +1805,19 @@ test("stop aborts the stream, keeps partial content and shows the stopped notice
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("partial answer")));
+    await waitFor(() => {
+      if (!(view.getByText("partial answer"))) throw new Error("waitFor: condition not met");
+    });
 
     fireEvent.click(view.getByRole("button", { name: "Stop generating" }));
-    await waitFor(() => assert.ok(view.getByText("Stopped generating")));
+    await waitFor(() => {
+      if (!(view.getByText("Stopped generating"))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getByText("partial answer"), "partial content is preserved after stop");
     const textbox = view.getByRole("textbox", { name: "Ask the agent" }) as HTMLTextAreaElement;
-    await waitFor(() => assert.equal(textbox.disabled, false), { timeout: 3000 });
+    await waitFor(() => {
+      if (textbox.disabled != false) throw new Error("waitFor: values differ");
+    });
   } finally {
     stub.restore();
   }
@@ -1836,19 +1903,20 @@ test("Header hides the /agent entry when web_agent_enabled=false but keeps keywo
   const stub = installPublicConfigFetch({ web_agent_enabled: false });
   try {
     const view = renderWithIntl(<Header />);
-    await waitFor(() => assert.ok(stub.configFetches.length >= 1, "Header must consult the feature config"));
-    await waitFor(() => assert.equal(view.queryByRole("link", { name: "AI Agent" }), null));
+    await waitFor(() => {
+      if (!(stub.configFetches.length >= 1)) throw new Error("Header must consult the feature config");
+    });
+    await waitFor(() => {
+      if (view.queryByRole("link", { name: "AI Agent" }) != null) throw new Error("waitFor: values differ");
+    });
     assert.equal(view.queryByRole("button", { name: /agent/i }), null, "no Agent mode switch anywhere in Header");
 
     const searchbox = view.getByRole("combobox");
     fireEvent.change(searchbox, { target: { value: "mod guide" } });
     fireEvent.submit(searchbox.closest("form") as HTMLFormElement);
-    await waitFor(() =>
-      assert.ok(
-        routerPushes.some((path) => path.includes("/search?q=mod%20guide")),
-        "keyword search must still navigate to /search",
-      ),
-    );
+    await waitFor(() => {
+      if (!(routerPushes.some((path) => path.includes("/search?q=mod%20guide")))) throw new Error("keyword search must still navigate to /search");
+    });
   } finally {
     stub.restore();
   }
@@ -1861,7 +1929,9 @@ test("Header shows the /agent entry only for a verified user when the feature is
   const stub = installPublicConfigFetch({ web_agent_enabled: true });
   try {
     const view = renderWithIntl(<Header />);
-    await waitFor(() => assert.ok(view.getByRole("link", { name: "AI Agent" })));
+    await waitFor(() => {
+      if (!(view.getByRole("link", { name: "AI Agent" }))) throw new Error("waitFor: condition not met");
+    });
   } finally {
     stub.restore();
   }
@@ -1874,8 +1944,12 @@ test("anonymous users get no /agent entry and the protected route redirects to l
   const stub = installPublicConfigFetch({ web_agent_enabled: true });
   try {
     const view = renderWithIntl(<Header />);
-    await waitFor(() => assert.ok(stub.configFetches.length >= 1));
-    await waitFor(() => assert.equal(view.queryByRole("link", { name: "AI Agent" }), null));
+    await waitFor(() => {
+      if (!(stub.configFetches.length >= 1)) throw new Error("waitFor: condition not met");
+    });
+    await waitFor(() => {
+      if (view.queryByRole("link", { name: "AI Agent" }) != null) throw new Error("waitFor: values differ");
+    });
   } finally {
     stub.restore();
   }
@@ -1895,16 +1969,18 @@ test("Header search is keyword-only via GlobalSearchInput with no Agent mode tog
   const stub = installPublicConfigFetch({ web_agent_enabled: true });
   try {
     const view = renderWithIntl(<Header />);
-    await waitFor(() => assert.ok(view.getByRole("link", { name: "AI Agent" })));
+    await waitFor(() => {
+      if (!(view.getByRole("link", { name: "AI Agent" }))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(view.getAllByRole("combobox").length, 1, "exactly one keyword search box");
     assert.equal(view.queryByRole("button", { name: /agent mode|AI 助手|keyword search/i }), null);
 
     const searchbox = view.getByRole("combobox");
     fireEvent.change(searchbox, { target: { value: "furniture mods" } });
     fireEvent.submit(searchbox.closest("form") as HTMLFormElement);
-    await waitFor(() =>
-      assert.ok(routerPushes.some((path) => path.includes("/search?q=furniture%20mods"))),
-    );
+    await waitFor(() => {
+      if (!(routerPushes.some((path) => path.includes("/search?q=furniture%20mods")))) throw new Error("waitFor: condition not met");
+    });
   } finally {
     stub.restore();
   }
@@ -2082,12 +2158,14 @@ test("malformed citation objects are never clickable", async () => {
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("answer text")));
+    await waitFor(() => {
+      if (!(view.getByText("answer text"))) throw new Error("waitFor: condition not met");
+    });
 
     /* 轮 settle 后入口可能重挂载（activeTurn→树内轮），循环点击直至面板出现。 */
     await waitFor(() => {
       fireEvent.click(view.getAllByRole("button", { name: /reference sources/ })[0]);
-      assert.ok(view.getByRole("button", { name: /Valid ref/ }));
+            if (!(view.getByRole("button", { name: /Valid ref/ }))) throw new Error("waitFor: condition not met");
     }, { timeout: 3000 });
     assert.equal(view.queryByRole("button", { name: /Bad zone/ }), null, "invalid citation must never be interactive");
     assert.equal(view.queryByRole("button", { name: /Reference unavailable/ }), null);
@@ -2111,12 +2189,18 @@ test("starting a new conversation preserves the old conversation's server histor
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Conversation #1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Conversation #1" }))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Conversation #1" }));
-  await waitFor(() => assert.ok(view.getByText("old server question")));
+  await waitFor(() => {
+    if (!(view.getByText("old server question"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Start new conversation" }));
-  await waitFor(() => assert.equal(view.queryByText("old server question"), null));
+  await waitFor(() => {
+    if (view.queryByText("old server question") != null) throw new Error("waitFor: values differ");
+  });
   assert.ok(
     view.getByRole("button", { name: "Conversation #1" }),
     "the old conversation must stay listed after starting a new one",
@@ -2164,7 +2248,9 @@ test("no-evidence turn shows the notice without fabricating an answer", async ()
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("Not enough evidence")));
+    await waitFor(() => {
+      if (!(view.getByText("Not enough evidence"))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getByText("No public content supports this answer."));
     assert.equal(view.queryByText("I did not find enough material."), null);
     const searchLink = view.getByRole("link", { name: "Search site content" });
@@ -2210,7 +2296,9 @@ test("empty no-evidence turn with zero tools shows the dedicated empty-turn copy
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("No content this turn")));
+    await waitFor(() => {
+      if (!(view.getByText("No content this turn"))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getByText("This turn completed no search or tool and produced no answer."));
     assert.equal(view.queryByText("Not enough evidence"), null, "empty turn must not show the retrieval-miss copy");
     assert.equal(view.queryByText("Sure, here is another one in portrait."), null, "gate-cleared body must stay hidden");
@@ -2254,7 +2342,9 @@ test("no-evidence turn whose tools all errored also shows the empty-turn copy", 
       view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
     );
     fireEvent.click(suggestion);
-    await waitFor(() => assert.ok(view.getByText("No content this turn")));
+    await waitFor(() => {
+      if (!(view.getByText("No content this turn"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(view.queryByText("Not enough evidence"), null);
   } finally {
     stub.restore();
@@ -2296,7 +2386,9 @@ test("closing the citation overlay restores citation focus and the transcript sc
     const anchorBefore = transcript.scrollTop;
 
     fireEvent.click(citation);
-    await waitFor(() => assert.ok(view.getByRole("dialog")));
+    await waitFor(() => {
+      if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+    });
 
     const backButton = await waitFor(() => view.getByRole("button", { name: "Back to conversation" }));
     fireEvent.click(backButton);
@@ -2359,7 +2451,9 @@ test("chat requests use the A-01 continuation body and carry conversation_id on 
     fireEvent.change(composer, { target: { value: "first question" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("first answer"))) throw new Error("waitFor: condition not met");
+    });
 
     assert.equal(stub.bodies.length, 1);
     assert.equal(stub.bodies[0].message, "first question");
@@ -2405,21 +2499,23 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     fireEvent.change(composer, { target: { value: "最近有点 emo" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText("这是带思考过程的回答。")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("这是带思考过程的回答。"))) throw new Error("waitFor: condition not met");
+    });
 
     /* 思考折叠区：完成后自动折叠，可重新展开。done→activeId→历史回载会交换
        折叠块实例（流式块→服务端 think 行），点击可能落在交换窗口——轮询展开。 */
     await waitFor(() => {
       const toggle = view.getByRole("button", { name: /Thought process/ });
-      assert.equal(toggle.getAttribute("aria-expanded"), "false", "thinking must auto-collapse on done");
+            if (toggle.getAttribute("aria-expanded") != "false") throw new Error("thinking must auto-collapse on done");
       fireEvent.click(toggle);
-      assert.ok(view.getByText(/先把口语化需求扩展为检索词/));
+            if (!(view.getByText(/先把口语化需求扩展为检索词/))) throw new Error("waitFor: condition not met");
     }, { timeout: 3000 });
 
     /* 工具步骤区：折叠态展示计数，展开可见参数摘要与命中数。 */
     await waitFor(() => {
       fireEvent.click(view.getByRole("button", { name: "1 tool steps" }));
-      assert.ok(view.getByText("Searched site content"));
+            if (!(view.getByText("Searched site content"))) throw new Error("waitFor: condition not met");
     }, { timeout: 3000 });
     assert.ok(view.getByText(/治愈 素材/), "args summary incl. expansion terms is visible");
     assert.ok(view.getByText("3 hits"), "hit count is visible");
@@ -2468,7 +2564,9 @@ test("turn details pill: single button trigger, aria-expanded tracks content, ad
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "any question" } });
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText("answer body")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("answer body"))) throw new Error("waitFor: condition not met");
+    });
 
     /* 默认折叠：单一 button 触发（无 summary 嵌套），usage 不可见。 */
     const trigger = await waitFor(() => view.getByRole("button", { name: "Turn details" }));
@@ -2529,7 +2627,9 @@ test("model selector renders for multi-model registries and rides the request bo
     const composer = view.getByRole("textbox", { name: "Ask the agent" }) as HTMLTextAreaElement;
     fireEvent.change(composer, { target: { value: "用 deepseek 回答" } });
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(stub.bodies.length >= 1));
+    await waitFor(() => {
+      if (!(stub.bodies.length >= 1)) throw new Error("waitFor: condition not met");
+    });
     assert.equal(stub.bodies[0].model, "deepseek", "selected model rides the request body");
     assert.equal(window.localStorage.getItem("agentModelPref"), "deepseek", "preference persists");
   } finally {
@@ -2567,13 +2667,15 @@ test("deep-think toggle defaults off, flips, and rides the chat request body", a
 
     fireEvent.change(composer, { target: { value: "开启深度思考问一句" } });
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(stub.bodies.length >= 1));
+    await waitFor(() => {
+      if (!(stub.bodies.length >= 1)) throw new Error("waitFor: condition not met");
+    });
     assert.equal(stub.bodies[0].deep_think, false, "default turn sends deep_think=false");
 
     /* 首轮后空态 Composer 卸载换停靠态：重新查询当前挂载的开关节点。 */
     const liveToggle = await waitFor(() => {
       const btn = view.getByRole("button", { name: "Deep think" });
-      assert.equal(btn.getAttribute("aria-pressed"), "false");
+            if (btn.getAttribute("aria-pressed") != "false") throw new Error("waitFor: values differ");
       return btn;
     });
     fireEvent.click(liveToggle);
@@ -2581,7 +2683,9 @@ test("deep-think toggle defaults off, flips, and rides the chat request body", a
     const liveComposer = view.getByRole("textbox", { name: "Ask the agent" }) as HTMLTextAreaElement;
     fireEvent.change(liveComposer, { target: { value: "再问一句" } });
     fireEvent.keyDown(liveComposer, { key: "Enter" });
-    await waitFor(() => assert.ok(stub.bodies.length >= 2));
+    await waitFor(() => {
+      if (!(stub.bodies.length >= 2)) throw new Error("waitFor: condition not met");
+    });
     assert.equal(stub.bodies[stub.bodies.length - 1].deep_think, true, "enabled turn sends deep_think=true");
   } finally {
     stub.restore();
@@ -2606,15 +2710,23 @@ test("conversation history replays persisted think rows as collapsed thinking bl
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Conversation #5" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Conversation #5" }))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Conversation #5" }));
-  await waitFor(() => assert.ok(view.getByText("history question")));
-  await waitFor(() => assert.ok(view.getByText("历史正式回答")));
+  await waitFor(() => {
+    if (!(view.getByText("history question"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByText("历史正式回答"))) throw new Error("waitFor: condition not met");
+  });
 
   const thinkToggle = view.getByRole("button", { name: /Thought process/ });
   assert.equal(thinkToggle.getAttribute("aria-expanded"), "false", "replayed thinking starts collapsed");
   fireEvent.click(thinkToggle);
-  await waitFor(() => assert.ok(view.getByText("历史思考内容")));
+  await waitFor(() => {
+    if (!(view.getByText("历史思考内容"))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("sidebar ⋯ menu renames via PATCH and shows the pinned group first", async () => {
@@ -2638,7 +2750,9 @@ test("sidebar ⋯ menu renames via PATCH and shows the pinned group first", asyn
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("旧标题")));
+  await waitFor(() => {
+    if (!(view.getByText("旧标题"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText("Pinned"), "pinned group label renders");
   const todayLabel = view.getByText("Today");
   const pinnedTitle = view.getByText("旧标题");
@@ -2653,7 +2767,9 @@ test("sidebar ⋯ menu renames via PATCH and shows the pinned group first", asyn
   fireEvent.keyDown(renameInput, { key: "Enter" });
   await flushAsyncUpdates();
 
-  await waitFor(() => assert.ok(view.getByText("新标题")));
+  await waitFor(() => {
+    if (!(view.getByText("新标题"))) throw new Error("waitFor: condition not met");
+  });
   const patch = calls.find((call) => call.method === "PATCH");
   assert.ok(patch, "rename must call PATCH");
   assert.deepEqual(patch?.body, { title: "新标题" });
@@ -2679,7 +2795,9 @@ test("sidebar ⋯ menu pin toggle PATCHes pinned state and refreshes the list", 
   ]);
 
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("待置顶")));
+  await waitFor(() => {
+    if (!(view.getByText("待置顶"))) throw new Error("waitFor: condition not met");
+  });
   const menuTriggers = await waitFor(() => view.getAllByRole("button", { name: "Conversation actions" }));
   fireEvent.click(menuTriggers[0]);
   fireEvent.click(await waitFor(() => view.getByRole("menuitem", { name: "Pin" })));
@@ -2724,7 +2842,9 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
     fireEvent.change(composer, { target: { value: "复制我" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText("可复制的回答。")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("可复制的回答。"))) throw new Error("waitFor: condition not met");
+    });
 
     /* 操作行只在 !streaming 且历史回载完成后出现（done→activeId→回载存在
        中间窗口）：waitFor 等按钮；但回载交换窗口内点击可能落在已卸载元素
@@ -2735,11 +2855,13 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
         if (writes.length === 0) {
           fireEvent.click(view.getByRole("button", { name: "Copy response" }));
         }
-        assert.equal(writes[0], "可复制的回答。");
+                if (writes[0] != "可复制的回答。") throw new Error("waitFor: values differ");
       },
       { timeout: 8000 },
     );
-    await waitFor(() => assert.ok(view.getByText("Copied to clipboard")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("Copied to clipboard"))) throw new Error("waitFor: condition not met");
+    });
   } finally {
     stub.restore();
   }
@@ -2777,7 +2899,9 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
     fireEvent.change(composer, { target: { value: "重新生成我" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
-    await waitFor(() => assert.ok(view.getByText("第一版回答")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("第一版回答"))) throw new Error("waitFor: condition not met");
+    });
 
     await waitFor(() =>
       view.getByRole("button", { name: "Regenerate" }),
@@ -2786,7 +2910,9 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
     /* done→activeId→历史回载交换窗口内点击可能落在已卸载元素：先稳定再重查点击。 */
     await new Promise((resolve) => setTimeout(resolve, 300));
     fireEvent.click(view.getByRole("button", { name: "Regenerate" }));
-    await waitFor(() => assert.ok(view.getByText("第二版回答")), { timeout: 8000 });
+    await waitFor(() => {
+      if (!(view.getByText("第二版回答"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(view.queryByText("第一版回答"), null, "old answer rows are dropped");
     assert.ok(view.getByText("重新生成我"), "the user message stays");
     assert.equal(bodies[1].message, "重新生成我");
@@ -2821,7 +2947,9 @@ test("#416 empty state hides the header title and centers the composer (FT-2 uni
   installDom();
   installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("Start researching from site content")));
+  await waitFor(() => {
+    if (!(view.getByText("Start researching from site content"))) throw new Error("waitFor: condition not met");
+  });
 
   // 空态主区不渲染标题（固定「New conversation」文案退出主区；侧栏按钮仍在）
   assert.equal(view.queryByRole("heading", { name: /New conversation/i }), null);
@@ -2847,10 +2975,14 @@ test("#416 conversation state docks the one-row composer and shows the sourced t
     },
   ]);
   const view = renderWithIntl(<AgentWorkspace />);
-  await waitFor(() => assert.ok(view.getByText("星尘设定集")));
+  await waitFor(() => {
+    if (!(view.getByText("星尘设定集"))) throw new Error("waitFor: condition not met");
+  });
   // 选中会话后：标题与左侧列表条目同源同名
   fireEvent.click(view.getByRole("button", { name: /星尘设定集/ }));
-  await waitFor(() => assert.ok(view.getByText("已有一轮对话")));
+  await waitFor(() => {
+    if (!(view.getByText("已有一轮对话"))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.getAllByText("星尘设定集").length >= 2, true, "title appears in list and header from one source");
   const composer = view.getByLabelText("Ask the agent");
   assert.equal(composer.getAttribute("rows"), "3", "#725: docked variant keeps the regular bottom form (3 rows)");
@@ -2874,7 +3006,9 @@ test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blan
   const view = renderWithIntl(<AgentWorkspace />);
   await waitFor(() => view.getByRole("button", { name: /原标题/ }));
   fireEvent.click(view.getByRole("button", { name: /原标题/ }));
-  await waitFor(() => assert.ok(view.getByText("消息体")));
+  await waitFor(() => {
+    if (!(view.getByText("消息体"))) throw new Error("waitFor: condition not met");
+  });
   const title = await waitFor(() => view.getByRole("heading", { name: "原标题" }));
   fireEvent.click(title);
 
@@ -2884,7 +3018,9 @@ test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blan
 
   // Esc 取消：不发 PATCH
   fireEvent.keyDown(editBox, { key: "Escape" });
-  await waitFor(() => assert.ok(view.getByRole("heading", { name: "原标题" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { name: "原标题" }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(calls.filter((call) => call.method === "PATCH").length, 0);
 
   // 空白不保存：恢复原标题
@@ -2892,7 +3028,9 @@ test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blan
   const editBox2 = await waitFor(() => view.getByLabelText("Edit conversation title"));
   fireEvent.change(editBox2, { target: { value: "   " } });
   fireEvent.keyDown(editBox2, { key: "Enter" });
-  await waitFor(() => assert.ok(view.getByRole("heading", { name: "原标题" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { name: "原标题" }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(calls.filter((call) => call.method === "PATCH").length, 0);
 
   // Enter 保存：走既有 PATCH 重命名端点（≤50 截断复用后端契约）
@@ -2900,7 +3038,9 @@ test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blan
   const editBox3 = await waitFor(() => view.getByLabelText("Edit conversation title"));
   fireEvent.change(editBox3, { target: { value: "新标题" } });
   fireEvent.keyDown(editBox3, { key: "Enter" });
-  await waitFor(() => assert.ok(view.getByRole("heading", { name: "新标题" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { name: "新标题" }))) throw new Error("waitFor: condition not met");
+  });
   const patch = calls.find((call) => call.method === "PATCH");
   assert.ok(patch, "rename PATCH sent");
   assert.deepEqual(patch?.body, { title: "新标题" });

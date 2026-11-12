@@ -220,7 +220,9 @@ test("E1 按内容冻结：混排比例内容翻页宽度零变化（3:4/1:1/9:1
     imageItem(3, { width: 720, height: 1280 }),
   ];
   renderLayout({ media });
-  await waitFor(() => assert.ok(paneWidth() !== "", "pane measured"));
+  await waitFor(() => {
+    if (!(paneWidth() !== "")) throw new Error("pane measured");
+  });
   assert.equal(paneWidth(), "600px", "冻结比例 = 首 slide 3:4（800×0.75）");
   assert.equal(paneTier(), "visual", "image 位 = visual 档");
 
@@ -249,7 +251,9 @@ test("E1 阅读宽舞台档：文档族 slide 取满可用宽，档位切换一�
     height: 400,
   };
   renderLayout({ media: [imageItem(1, { width: 900, height: 1200 }), docSlide] });
-  await waitFor(() => assert.ok(paneWidth() !== ""));
+  await waitFor(() => {
+    if (!(paneWidth() !== "")) throw new Error("waitFor: condition not met");
+  });
   assert.equal(paneWidth(), "600px", "首 slide 3:4 → visual 档 600px");
   assert.equal(paneTier(), "visual");
 
@@ -268,16 +272,22 @@ test("E1 阅读宽舞台档：文档族 slide 取满可用宽，档位切换一�
 
 test("E1 首帧宽度即终值（px 无百分比兜底）+ 宽度过渡常量与测量落地帧语义", async () => {
   renderLayout({ media: [imageItem(1, { width: 900, height: 1200 })] });
-  await waitFor(() => assert.ok(paneWidth() !== "", "first frame already carries px width"));
+  await waitFor(() => {
+    if (!(paneWidth() !== "")) throw new Error("first frame already carries px width");
+  });
   assert.equal(paneWidth(), "600px", "测量落地帧即终值（无 58% 兜底路径）");
   /* 测量落地帧关闭过渡（亚像素修正不产生动画），随后启用 240ms SP-12 过渡
      （rAF 定时器由 act 异步泵送）。 */
-  await waitFor(() => assert.ok(paneTransition().startsWith("width 240ms"), "settled frames enable the 240ms width transition"));
+  await waitFor(() => {
+    if (!(paneTransition().startsWith("width 240ms"))) throw new Error("settled frames enable the 240ms width transition");
+  });
 });
 
 test("E1 首项迟到回填：宽度随新冻结比例一次修正（后续位回填不参与几何）", async () => {
   const view = renderLayout({ media: [videoItem()] });
-  await waitFor(() => assert.ok(paneWidth() !== "", "pane measured"));
+  await waitFor(() => {
+    if (!(paneWidth() !== "")) throw new Error("pane measured");
+  });
   assert.equal(paneWidth(), "600px", "dims-less video holds the defensive 3:4 geometry");
 
   /* 首 slide 元数据迟到回填（探针超时后的 loadedmetadata 修正）：按新冻结
@@ -307,7 +317,9 @@ test("E1 几何规格上报：壳宽 = 媒体列 + 固定右列 440，同档翻�
     media: [imageItem(1, { width: 900, height: 1200 }), imageItem(2, { width: 720, height: 1280 })],
     onGeometrySpec: (spec) => specs.push({ tier: spec.tier, paneWidth: spec.paneWidth, shellWidth: spec.shellWidth }),
   });
-  await waitFor(() => assert.ok(specs.length >= 1, "geometry spec reported once measured"));
+  await waitFor(() => {
+    if (!(specs.length >= 1)) throw new Error("geometry spec reported once measured");
+  });
   assert.equal(specs[0].tier, "visual");
   assert.equal(specs[0].paneWidth, 600);
   assert.equal(specs[0].shellWidth, 1040, "shell width = pane + 440");
@@ -349,7 +361,9 @@ function setupLifecycleTest() {
 test("D2 活跃可见视频：muted + playsInline + autoPlay 且挂载即自动播放", async () => {
   const { mediaStubs, video } = setupLifecycleTest();
   try {
-    await waitFor(() => assert.ok(mediaStubs.calls.some((c) => c.op === "play")));
+    await waitFor(() => {
+      if (!(mediaStubs.calls.some((c) => c.op === "play"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(video.muted, true, "autoplay must be muted (browser policy compliant)");
     assert.equal(video.hasAttribute("playsinline"), true, "playsinline keeps inline playback");
     assert.equal(video.hasAttribute("autoplay"), true, "active video autoplays");
@@ -366,7 +380,9 @@ test("D2 活跃可见视频：muted + playsInline + autoPlay 且挂载即自动�
 test("D2 挂起矩阵：非顶层压层停播，恢复仅当前项续播（不自动起播多次）", async () => {
   const { mediaStubs, view } = setupLifecycleTest();
   try {
-    await waitFor(() => assert.ok(mediaStubs.calls.some((c) => c.op === "play")));
+    await waitFor(() => {
+      if (!(mediaStubs.calls.some((c) => c.op === "play"))) throw new Error("waitFor: condition not met");
+    });
     await act(async () => {
       view.rerender(<LayoutHarness media={[videoItem({ width: 1600, height: 900 })]} active={false} />);
     });
@@ -390,7 +406,9 @@ test("D2 挂起矩阵：非顶层压层停播，恢复仅当前项续播（不�
 test("D2 主体点击单次切播；controls 条区域点击不切播；视频不进查看器", async () => {
   const { mediaStubs, video } = setupLifecycleTest();
   try {
-    await waitFor(() => assert.ok(mediaStubs.calls.some((c) => c.op === "play")));
+    await waitFor(() => {
+      if (!(mediaStubs.calls.some((c) => c.op === "play"))) throw new Error("waitFor: condition not met");
+    });
     const opsAfterMount = mediaStubs.calls.length;
 
     await act(async () => {
@@ -446,7 +464,9 @@ test("D2 视频挂载元数据回填：onMediaDimensions 回调上报真实尺�
   await act(async () => {
     fireEvent.loadedMetadata(video);
   });
-  await waitFor(() => assert.ok(reported.length === 1));
+  await waitFor(() => {
+    if (!(reported.length === 1)) throw new Error("waitFor: condition not met");
+  });
   assert.deepEqual(reported[0], { id: 1, width: 1280, height: 720 });
 });
 
@@ -454,7 +474,9 @@ test("D2 视频挂载元数据回填：onMediaDimensions 回调上报真实尺�
 
 test("D2 三件套：多项显示、边界 clamp 不循环、hover/focus-within 可见、触控 44px", async () => {
   const view = renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)] });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
 
   const previous = document.querySelector<HTMLButtonElement>('button[aria-label="Previous media"]');
   const next = document.querySelector<HTMLButtonElement>('button[aria-label="Next media"]');
@@ -490,7 +512,9 @@ test("D2 三件套：多项显示、边界 clamp 不循环、hover/focus-within 
 
 test("D2 单项媒体不渲染任何翻页控件", async () => {
   renderLayout({ media: [imageItem(1)] });
-  await waitFor(() => assert.ok(document.querySelector('[data-slot="detail-cover"]')));
+  await waitFor(() => {
+    if (!(document.querySelector('[data-slot="detail-cover"]'))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(document.querySelectorAll('button[aria-label="Previous media"]').length, 0);
   assert.equal(document.querySelectorAll('button[aria-label="Next media"]').length, 0);
   assert.equal(document.querySelector('[data-slot="media-count-badge"]'), null, "no badge for a single item");
@@ -500,7 +524,9 @@ test("D2 键盘 ←/→：只作用于顶层活动媒体区，clamp 到边界，
   const mediaStubs = installMediaElementStubs();
   try {
     const view = renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)] });
-    await waitFor(() => assert.ok(countBadgeText() !== ""));
+    await waitFor(() => {
+      if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+    });
 
     pressArrowKey("ArrowRight");
     assert.equal(countBadgeText(), "2 / 3", "ArrowRight pages forward");
@@ -524,7 +550,9 @@ test("D2 键盘 ←/→：只作用于顶层活动媒体区，clamp 到边界，
     await act(async () => {
       fireEvent.click(cover);
     });
-    await waitFor(() => assert.ok(viewerDialogCount() === 1, "image click still opens the viewer"));
+    await waitFor(() => {
+      if (!(viewerDialogCount() === 1)) throw new Error("image click still opens the viewer");
+    });
     pressArrowKey("ArrowRight");
     assert.equal(countBadgeText(), "1 / 3", "arrow keys must not page the pane while the viewer is open");
 
@@ -566,7 +594,9 @@ async function loadCurrentImage() {
 
 test("E2 交叉淡出：翻页 = 1 新层 + 1 淡出层，240ms 后收敛回单层", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)] });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   assert.equal(stageLayerCount(), 1, "初始舞台单层");
 
   await act(async () => {
@@ -596,13 +626,17 @@ test("E2 交叉淡出：翻页 = 1 新层 + 1 淡出层，240ms 后收敛回单�
     `incoming layer plays the fade-in animation (got ${current?.style.animation})`,
   );
   /* 旧层移除窗口 = 发号牌定时器（240ms）。 */
-  await waitFor(() => assert.equal(stageLayerCount(), 1, "fade-out layer is removed after the exit window"));
+  await waitFor(() => {
+    if (stageLayerCount() != 1) throw new Error("fade-out layer is removed after the exit window");
+  });
   assert.equal(exitLayer(), null, "exit layer unmounts");
 });
 
 test("E2 快速连按：任意时刻舞台 ≤2 层，最新淡出层接管清理权，动画结束单层无残留", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)] });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
 
   await act(async () => {
     pressArrowKey("ArrowRight");
@@ -618,7 +652,9 @@ test("E2 快速连按：任意时刻舞台 ≤2 层，最新淡出层接管清�
   assert.ok(stageLayerCount() <= 2, `中断再切换仍 ≤2 层，got ${stageLayerCount()}`);
   /* E4 就绪门：最新位图片就绪后交换收敛（jsdom 由 load 驱动）。 */
   await loadCurrentImage();
-  await waitFor(() => assert.equal(stageLayerCount(), 1, "连按结束后舞台收敛单层"));
+  await waitFor(() => {
+    if (stageLayerCount() != 1) throw new Error("连按结束后舞台收敛单层");
+  });
   assert.equal(countBadgeText(), "2 / 3");
 });
 
@@ -636,7 +672,9 @@ test("E2 关窗回源令牌：翻离首屏后 token 递增 → 瞬时回 slide 0
     media: [imageItem(1, { width: 900, height: 1200 }), docSlide],
     onGeometrySpec: (spec) => specs.push({ tier: spec.tier, paneWidth: spec.paneWidth, shellWidth: spec.shellWidth }),
   });
-  await waitFor(() => assert.ok(paneWidth() !== ""));
+  await waitFor(() => {
+    if (!(paneWidth() !== "")) throw new Error("waitFor: condition not met");
+  });
   assert.equal(paneWidth(), "600px", "开窗 visual 档（3:4）");
 
   await act(async () => {
@@ -668,6 +706,8 @@ test("E2 关窗回源令牌：翻离首屏后 token 递增 → 瞬时回 slide 0
   assert.equal(lastSpec.shellWidth, 1040, "重报壳宽 = 媒体列 600 + 固定右列 440");
 
   /* 两帧后恢复常规宽度过渡。 */
-  await waitFor(() => assert.ok(paneTransition().startsWith("width 240ms"), "exit instant window ends"));
+  await waitFor(() => {
+    if (!(paneTransition().startsWith("width 240ms"))) throw new Error("exit instant window ends");
+  });
   await view.unmount();
 });

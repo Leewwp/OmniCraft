@@ -59,7 +59,9 @@ test("AuthContext.refresh and refreshSession share one refresh pipeline", async 
 
   try {
     render(React.createElement(AuthProvider, null, React.createElement(Probe)));
-    await waitFor(() => assert.ok(ctxRef, "AuthProvider should restore the user"));
+    await waitFor(() => {
+      if (!(ctxRef)) throw new Error("AuthProvider should restore the user");
+    });
     // 等挂载期 fetchMe 自己的 refresh 结算完，只统计其后的调用
     const settleIndex = calls.length;
 

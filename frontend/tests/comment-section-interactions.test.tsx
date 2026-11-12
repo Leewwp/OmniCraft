@@ -226,7 +226,9 @@ function validAccessToken() {
 test("reply button posts a comment carrying parent_id", async () => {
   const calls = installCommentMocks([topLevelComment], 1);
   const view = renderCommentSection();
-  await waitFor(() => assert.ok(view.getByText("top level body")));
+  await waitFor(() => {
+    if (!(view.getByText("top level body"))) throw new Error("waitFor: condition not met");
+  });
   await login(view);
 
   fireEvent.click(view.getByRole("button", { name: /^Reply/ }));
@@ -239,26 +241,34 @@ test("reply button posts a comment carrying parent_id", async () => {
 
   await waitFor(() => {
     const replyPost = calls.post.find((c) => c.path === "/api/v1/social/comments" && (c.body as { parent_id?: number }).parent_id === 1001);
-    assert.ok(replyPost, "expected a comment post carrying parent_id=1001");
-    assert.equal((replyPost!.body as { body: string }).body, "a nested reply");
+        if (!(replyPost)) throw new Error("expected a comment post carrying parent_id=1001");
+        if ((replyPost!.body as { body: string }).body != "a nested reply") throw new Error("waitFor: values differ");
   });
 });
 
 test("show-replies lazily fetches children and renders them", async () => {
   const calls = installCommentMocks([topLevelComment], 1);
   const view = renderCommentSection();
-  await waitFor(() => assert.ok(view.getByText("top level body")));
+  await waitFor(() => {
+    if (!(view.getByText("top level body"))) throw new Error("waitFor: condition not met");
+  });
   await login(view);
 
   fireEvent.click(view.getByRole("button", { name: "Show replies" }));
-  await waitFor(() => assert.ok(calls.get.some((p) => p.includes("parent_id=1001"))));
-  await waitFor(() => assert.ok(view.getByText("child reply body")));
+  await waitFor(() => {
+    if (!(calls.get.some((p) => p.includes("parent_id=1001")))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByText("child reply body"))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("own comment edit goes through PATCH and re-renders the new body", async () => {
   installCommentMocks([topLevelComment], 1);
   const view = renderCommentSection();
-  await waitFor(() => assert.ok(view.getByText("top level body")));
+  await waitFor(() => {
+    if (!(view.getByText("top level body"))) throw new Error("waitFor: condition not met");
+  });
   await login(view);
 
   fireEvent.click(view.getByRole("button", { name: "Edit" }));
@@ -269,7 +279,9 @@ test("own comment edit goes through PATCH and re-renders the new body", async ()
     await Promise.resolve();
   });
 
-  await waitFor(() => assert.ok(view.queryByRole("button", { name: "Save" }) === null));
+  await waitFor(() => {
+    if (!(view.queryByRole("button", { name: "Save" }) === null)) throw new Error("waitFor: condition not met");
+  });
   assert.ok(
     view.getByText("edited body"),
     "edited body should replace the old text after PATCH round-trip",
@@ -279,7 +291,9 @@ test("own comment edit goes through PATCH and re-renders the new body", async ()
 test("delete asks for confirmation, then DELETEs and removes the comment", async () => {
   const calls = installCommentMocks([topLevelComment], 1);
   const view = renderCommentSection();
-  await waitFor(() => assert.ok(view.getByText("top level body")));
+  await waitFor(() => {
+    if (!(view.getByText("top level body"))) throw new Error("waitFor: condition not met");
+  });
   await login(view);
 
   fireEvent.click(view.getByRole("button", { name: "Delete" }));
@@ -289,14 +303,20 @@ test("delete asks for confirmation, then DELETEs and removes the comment", async
     await Promise.resolve();
   });
 
-  await waitFor(() => assert.ok(calls.delete.includes("/api/v1/social/comments/1001")));
-  await waitFor(() => assert.ok(view.queryByText("top level body") === null));
+  await waitFor(() => {
+    if (!(calls.delete.includes("/api/v1/social/comments/1001"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.queryByText("top level body") === null)) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("load-more appends the next page when total exceeds the first page", async () => {
   const calls = installCommentMocks([topLevelComment], 2);
   const view = renderCommentSection();
-  await waitFor(() => assert.ok(view.getByText("top level body")));
+  await waitFor(() => {
+    if (!(view.getByText("top level body"))) throw new Error("waitFor: condition not met");
+  });
 
   const more = view.getByRole("button", { name: "Load more comments" });
   await act(async () => {
@@ -304,8 +324,12 @@ test("load-more appends the next page when total exceeds the first page", async 
     await Promise.resolve();
   });
 
-  await waitFor(() => assert.ok(calls.get.some((p) => p.includes("page=2"))));
-  await waitFor(() => assert.ok(view.getByText("second page body")));
+  await waitFor(() => {
+    if (!(calls.get.some((p) => p.includes("page=2")))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByText("second page body"))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("report submits with a reason and a repeat 409 shows the already-reported notice", async () => {
@@ -328,7 +352,9 @@ test("report submits with a reason and a repeat 409 shows the already-reported n
   }) as typeof api.post;
 
   const view = renderCommentSection();
-  await waitFor(() => assert.ok(view.getByText("top level body")));
+  await waitFor(() => {
+    if (!(view.getByText("top level body"))) throw new Error("waitFor: condition not met");
+  });
   await login(view);
 
   /* 第一次举报：选预设 chip（垃圾广告）+ 可选补充提交 → 已举报态（#844） */
@@ -342,10 +368,12 @@ test("report submits with a reason and a repeat 409 shows the already-reported n
   });
   await waitFor(() => {
     const reportPost = calls.post.find((c) => c.path === "/api/v1/social/comments/1001/report");
-    assert.ok(reportPost, "report POST should fire");
-    assert.equal((reportPost!.body as { reason: string }).reason, "Spam or advertising: spam");
+        if (!(reportPost)) throw new Error("report POST should fire");
+        if ((reportPost!.body as { reason: string }).reason != "Spam or advertising: spam") throw new Error("waitFor: values differ");
   });
-  await waitFor(() => assert.ok(view.getAllByText("Reported").length >= 1, "reported state should render (toast and/or button state)"));
+  await waitFor(() => {
+    if (!(view.getAllByText("Reported").length >= 1)) throw new Error("reported state should render (toast and/or button state)");
+  });
 
   /* 409 之后按钮进入已举报态，不再可发起 */
   assert.ok(view.queryByRole("button", { name: "Report" }) === null, "report button should be replaced by the reported state");

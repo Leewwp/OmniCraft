@@ -85,10 +85,10 @@ test("profile collections tab", async (t) => {
     const view = renderProfileClient(7, "Ada", "collections");
 
     await waitFor(() => {
-      assert.ok(view.getByText("Private research"));
-      assert.ok(view.getByText("Public shelf"));
-      assert.ok(view.getByRole("button", { name: "New collection" }));
-      assert.ok(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"));
+            if (!(view.getByText("Private research"))) throw new Error("waitFor: condition not met");
+            if (!(view.getByText("Public shelf"))) throw new Error("waitFor: condition not met");
+            if (!(view.getByRole("button", { name: "New collection" }))) throw new Error("waitFor: condition not met");
+            if (!(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"))) throw new Error("waitFor: condition not met");
     });
   });
 
@@ -103,9 +103,9 @@ test("profile collections tab", async (t) => {
     const view = renderProfileClient(7, "Ada", "collections");
 
     await waitFor(() => {
-      assert.ok(view.getByText("Public shelf"));
-      assert.equal(view.queryByText("Private research"), null);
-      assert.equal(view.queryByRole("button", { name: "New collection" }), null);
+            if (!(view.getByText("Public shelf"))) throw new Error("waitFor: condition not met");
+            if (view.queryByText("Private research") != null) throw new Error("waitFor: values differ");
+            if (view.queryByRole("button", { name: "New collection" }) != null) throw new Error("waitFor: values differ");
     });
   });
 
@@ -118,9 +118,9 @@ test("profile collections tab", async (t) => {
     const view = renderProfileClient(7, "Ada", "collections");
 
     await waitFor(() => {
-      assert.ok(view.getByText("Public shelf"));
-      assert.equal(view.queryByRole("button", { name: "New collection" }), null);
-      assert.ok(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"));
+            if (!(view.getByText("Public shelf"))) throw new Error("waitFor: condition not met");
+            if (view.queryByRole("button", { name: "New collection" }) != null) throw new Error("waitFor: values differ");
+            if (!(calls.get.some((call) => call.path === "/api/v1/collections?owner_id=7"))) throw new Error("waitFor: condition not met");
     });
   });
 
@@ -135,8 +135,8 @@ test("profile collections tab", async (t) => {
     const view = renderProfileClient(7, "Ada", "collections");
 
     await waitFor(() => {
-      assert.ok(view.getByText("No collections yet"));
-      assert.ok(view.getAllByRole("button", { name: "New collection" }).length >= 1);
+            if (!(view.getByText("No collections yet"))) throw new Error("waitFor: condition not met");
+            if (!(view.getAllByRole("button", { name: "New collection" }).length >= 1)) throw new Error("waitFor: condition not met");
     });
   });
 
@@ -147,8 +147,8 @@ test("profile collections tab", async (t) => {
     const view = renderProfileClient(7, "Ada", "collections");
 
     await waitFor(() => {
-      assert.ok(view.getByText("No public collections"));
-      assert.equal(view.queryByRole("button", { name: "New collection" }), null);
+            if (!(view.getByText("No public collections"))) throw new Error("waitFor: condition not met");
+            if (view.queryByRole("button", { name: "New collection" }) != null) throw new Error("waitFor: values differ");
     });
   });
 
@@ -162,7 +162,7 @@ test("profile collections tab", async (t) => {
 
     await waitFor(() => {
       const cardLink = view.getByRole("link", { name: /Public shelf/ });
-      assert.equal(cardLink.getAttribute("href"), "/collections/123");
+            if (cardLink.getAttribute("href") != "/collections/123") throw new Error("waitFor: values differ");
     });
   });
 
@@ -176,7 +176,7 @@ test("profile collections tab", async (t) => {
     const view = renderProfileClient(7, "Ada", "contents");
 
     await waitFor(() => {
-      assert.ok(view.getByText("Piano score"));
+            if (!(view.getByText("Piano score"))) throw new Error("waitFor: condition not met");
     });
 
     const collectionsTab = view.getByRole("tab", { name: "Collections" });
@@ -184,7 +184,7 @@ test("profile collections tab", async (t) => {
       collectionsTab.click();
     });
     await waitFor(() => {
-      assert.ok(view.getByText("Public shelf"), "collections grid must render in-page after tab switch");
+            if (!(view.getByText("Public shelf"))) throw new Error("collections grid must render in-page after tab switch");
     });
     assert.equal(
       window.location.search,
@@ -197,7 +197,7 @@ test("profile collections tab", async (t) => {
       discussionsTab.click();
     });
     await waitFor(() => {
-      assert.equal(window.location.search, "?tab=discussions");
+            if (window.location.search != "?tab=discussions") throw new Error("waitFor: values differ");
     });
   });
 });

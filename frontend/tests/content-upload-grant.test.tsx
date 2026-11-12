@@ -89,7 +89,9 @@ test("FileUploader stores grant_id from upload token response and passes it thro
     const file = new File(["fake-image"], "test.png", { type: "image/png" });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    await waitFor(() => assert.equal(uploadedAssets.length, 1, "onUploaded should be called with one asset"));
+    await waitFor(() => {
+      if (uploadedAssets.length != 1) throw new Error("onUploaded should be called with one asset");
+    });
 
     assert.equal(uploadedAssets[0].grantId, "grant-abc-123", "grantId should match token response grant_id");
     assert.equal(uploadedAssets[0].ossKey, "uploads/user42/test.png", "ossKey should match token response");
@@ -140,7 +142,9 @@ test("FileUploader handles missing grant_id gracefully (grantId is undefined)", 
     const file = new File(["fake-image"], "test.png", { type: "image/png" });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    await waitFor(() => assert.equal(uploadedAssets.length, 1, "onUploaded should still be called"));
+    await waitFor(() => {
+      if (uploadedAssets.length != 1) throw new Error("onUploaded should still be called");
+    });
 
     assert.equal(uploadedAssets[0].grantId, undefined, "grantId should be undefined when missing from token response");
     assert.equal(uploadedAssets[0].ossKey, "uploads/user42/test.png", "ossKey should still be populated");
@@ -212,7 +216,9 @@ test("media FileUploader rejects a selection that exceeds the public count contr
     },
   });
 
-  await waitFor(() => assert.match(view.container.textContent ?? "", /up to 2 media files/));
+  await waitFor(() => {
+    if (!(/up to 2 media files/.test(view.container.textContent ?? ""))) throw new Error("waitFor: pattern check failed: /up to 2 media files/");
+  });
 });
 
 test("media FileUploader localizes client-side validation errors", async () => {
@@ -229,6 +235,8 @@ test("media FileUploader localizes client-side validation errors", async () => {
     target: { files: [new File(["image"], "still.png", { type: "image/png" })] },
   });
 
-  await waitFor(() => assert.match(view.container.textContent ?? "", /Choose a file matching the content type/));
+  await waitFor(() => {
+    if (!(/Choose a file matching the content type/.test(view.container.textContent ?? ""))) throw new Error("waitFor: pattern check failed: /Choose a file matching the content type/");
+  });
   assert.doesNotMatch(view.container.textContent ?? "", /wrongType/);
 });

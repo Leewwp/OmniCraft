@@ -87,8 +87,8 @@ test("register blocks aliyun_v2 submission when captcha token is empty", async (
     fireEvent.click(view.getByRole("button", { name: "Create account" }));
 
     await waitFor(() => {
-      assert.equal(postCalls.length, 0);
-      assert.match(view.container.textContent ?? "", /Captcha required/);
+            if (postCalls.length != 0) throw new Error("waitFor: values differ");
+            if (!(/Captcha required/.test(view.container.textContent ?? ""))) throw new Error("waitFor: pattern check failed: /Captcha required/");
     });
   } finally {
     apiModule.api.post = originalPost;

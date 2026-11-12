@@ -83,7 +83,9 @@ test("unauthenticated redirect preserves the query string", async () => {
     </IntlProvider>,
   );
 
-  await waitFor(() => assert.ok(state.replaces.length > 0, "replace must be called"));
+  await waitFor(() => {
+    if (!(state.replaces.length > 0)) throw new Error("replace must be called");
+  });
   assert.equal(
     state.replaces[0],
     `/login?redirect=${encodeURIComponent("/settings?tab=notifications&sort=asc")}`,
@@ -108,7 +110,9 @@ test("unauthenticated redirect without query keeps the plain path", async () => 
     </IntlProvider>,
   );
 
-  await waitFor(() => assert.ok(state.replaces.length > 0));
+  await waitFor(() => {
+    if (!(state.replaces.length > 0)) throw new Error("waitFor: condition not met");
+  });
   assert.equal(state.replaces[0], `/login?redirect=${encodeURIComponent("/appeals")}`);
   cleanup();
 });

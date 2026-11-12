@@ -117,11 +117,15 @@ test("picker searches users by username and calls exactly GET /api/v1/users/sear
   const input = view.getByRole("combobox", { name: enMessages.collabUserPicker.label });
   fireEvent.change(input, { target: { value: "Lumi" } });
 
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(apiCalls[0].url, "/api/v1/users/search?q=Lumi&limit=8");
 
   apiCalls[0].resolve({ users: [searchUser(1, "Luminary", "https://cdn.example/1.png")], total: 1 });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Luminary/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Luminary/ }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("picker result normalization keeps only id, username, and avatarUrl", async () => {
@@ -130,7 +134,9 @@ test("picker result normalization keeps only id, username, and avatarUrl", async
   const { view, selections } = await renderPicker();
 
   fireEvent.change(view.getByRole("combobox"), { target: { value: "Lumi" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   apiCalls[0].resolve({
     users: [searchUser(1, "Luminary", "https://cdn.example/1.png")].map((user) => ({
       ...user,
@@ -142,7 +148,9 @@ test("picker result normalization keeps only id, username, and avatarUrl", async
   const option = await waitFor(() => view.getByRole("option", { name: /Luminary/ }));
   fireEvent.click(option);
 
-  await waitFor(() => assert.equal(selections.length, 1));
+  await waitFor(() => {
+    if (selections.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(selections[0], [{ id: 1, username: "Luminary", avatarUrl: "https://cdn.example/1.png" }]);
   assert.equal("reputation" in selections[0][0]!, false, "reputation must not leak into the selection");
   assert.equal("role" in selections[0][0]!, false, "role must not leak into the selection");
@@ -154,7 +162,9 @@ test("picker drops results without numeric id or non-empty username", async () =
   const { view } = await renderPicker();
 
   fireEvent.change(view.getByRole("combobox"), { target: { value: "Mix" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   apiCalls[0].resolve({
     users: [
       searchUser(11, "Valid User"),
@@ -165,7 +175,9 @@ test("picker drops results without numeric id or non-empty username", async () =
     ],
     total: 5,
   });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Valid User/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Valid User/ }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByRole("option", { name: /String Id/ }), null);
   assert.equal(view.queryByRole("option", { name: "" }), null);
 });
@@ -180,7 +192,9 @@ test("selected collaborators can be removed", async () => {
   const removeLabel = enMessages.collabUserPicker.a11y.removeUser.replace("{username}", "Luminary");
   fireEvent.click(view.getByRole("button", { name: removeLabel }));
 
-  await waitFor(() => assert.equal(selections.length, 1));
+  await waitFor(() => {
+    if (selections.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(selections[0], []);
 });
 
@@ -192,7 +206,9 @@ test("duplicate selected users cannot be added and render a localized disabled s
   });
 
   fireEvent.change(view.getByRole("combobox"), { target: { value: "Lumi" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   apiCalls[0].resolve({ users: [searchUser(1, "Luminary")], total: 1 });
   const option = await waitFor(() => view.getByRole("option", { name: /Luminary/ }));
 
@@ -215,13 +231,17 @@ test("no more than maxSelected users can be selected and the limit message is lo
   for (const [index, username] of ["Alice", "Bob"].entries()) {
     const input = view.getByRole("combobox") as HTMLInputElement;
     fireEvent.change(input, { target: { value: username } });
-    await waitFor(() => assert.equal(apiCalls.length, index + 1));
+    await waitFor(() => {
+      if (apiCalls.length != index + 1) throw new Error("waitFor: values differ");
+    });
     apiCalls[index].resolve({ users: [searchUser(index + 1, username)], total: 1 });
     const option = await waitFor(() => view.getByRole("option", { name: new RegExp(username) }));
     fireEvent.click(option);
   }
 
-  await waitFor(() => assert.equal(selections.length, 2));
+  await waitFor(() => {
+    if (selections.length != 2) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(selections[1], [
     { id: 1, username: "Alice" },
     { id: 2, username: "Bob" },
@@ -245,13 +265,17 @@ test("CollabUserPicker receives the public value as maxSelected", async () => {
     const username = `User${index + 1}`;
     const input = view.getByRole("combobox") as HTMLInputElement;
     fireEvent.change(input, { target: { value: username } });
-    await waitFor(() => assert.equal(apiCalls.length, index + 1));
+    await waitFor(() => {
+      if (apiCalls.length != index + 1) throw new Error("waitFor: values differ");
+    });
     apiCalls[index].resolve({ users: [searchUser(index + 1, username)], total: 1 });
     const option = await waitFor(() => view.getByRole("option", { name: new RegExp(username) }));
     fireEvent.click(option);
   }
 
-  await waitFor(() => assert.equal(selections.length, 5));
+  await waitFor(() => {
+    if (selections.length != 5) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(selections[4], Array.from({ length: 5 }, (_, index) => ({ id: index + 1, username: `User${index + 1}` })));
 });
 
@@ -275,19 +299,31 @@ test("loading, empty, and error states render localized text", async () => {
   const input = view.getByRole("combobox");
 
   fireEvent.change(input, { target: { value: "Wait" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.ok(view.getByText(enMessages.collabUserPicker.search.loading));
   apiCalls[0].resolve({ users: [], total: 0 });
-  await waitFor(() => assert.ok(view.getByText(enMessages.collabUserPicker.search.empty)));
+  await waitFor(() => {
+    if (!(view.getByText(enMessages.collabUserPicker.search.empty))) throw new Error("waitFor: condition not met");
+  });
 
   failNextSearch = true;
   fireEvent.change(input, { target: { value: "Fail" } });
-  await waitFor(() => assert.equal(apiCalls.length, 2));
-  await waitFor(() => assert.ok(view.getByText(enMessages.collabUserPicker.error.searchFailed)));
+  await waitFor(() => {
+    if (apiCalls.length != 2) throw new Error("waitFor: values differ");
+  });
+  await waitFor(() => {
+    if (!(view.getByText(enMessages.collabUserPicker.error.searchFailed))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: enMessages.collabUserPicker.error.retry }));
-  await waitFor(() => assert.equal(apiCalls.length, 3));
+  await waitFor(() => {
+    if (apiCalls.length != 3) throw new Error("waitFor: values differ");
+  });
   apiCalls[2].resolve({ users: [searchUser(9, "Recovered")], total: 1 });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Recovered/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Recovered/ }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("disabled picker disables the search input and chip removal", async () => {
@@ -487,7 +523,9 @@ async function renderOriginalPage() {
 async function pickIp(view: View, mock: PublishMockState) {
   const before = mock.getCalls.length;
   fireEvent.change(view.getByPlaceholderText("Search and select IP..."), { target: { value: "Star" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, before + 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != before + 1) throw new Error("waitFor: values differ");
+  });
   mock.getCalls[before]!.resolve({ ips: [{ id: 42, name: "Star Rail" }] });
   const option = await waitFor(() => view.getByRole("button", { name: "Star Rail" }));
   fireEvent.click(option);
@@ -496,7 +534,9 @@ async function pickIp(view: View, mock: PublishMockState) {
 async function pickOriginalSource(view: View, mock: PublishMockState) {
   const before = mock.getCalls.length;
   fireEvent.change(view.getByPlaceholderText("Search original content title..."), { target: { value: "Original" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, before + 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != before + 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[before]!.url, "/api/v1/contents/search?zone=original&q=Original&limit=8");
   mock.getCalls[before]!.resolve({ items: [{ id: 77, title: "Original Lightcone", zone: "original", status: "published" }] });
   const option = await waitFor(() => view.getByRole("option", { name: /Original Lightcone/ }));
@@ -507,7 +547,9 @@ async function pickCollabUser(view: View, mock: PublishMockState, id: number, us
   const input = collabPicker(view);
   const before = mock.getCalls.length;
   fireEvent.change(input, { target: { value: username } });
-  await waitFor(() => assert.equal(mock.getCalls.length, before + 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != before + 1) throw new Error("waitFor: values differ");
+  });
   const call = mock.getCalls[before]!;
   assert.ok(call.url.startsWith("/api/v1/users/search"), `expected user search, got ${call.url}`);
   call.resolve({ users: [{ id, username }], total: 1 });
@@ -523,17 +565,24 @@ test("publish flow: after content creation succeeds one invite POST is sent per 
   await pickCollabUser(view, mock, 2, "Lumina");
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0]!.path, "/api/v1/contents");
   assert.equal(mock.posts[0]!.body.zone, "fanwork");
   mock.posts[0]!.resolve({ content: { id: 999 } });
 
-  await waitFor(() => assert.equal(invitePosts(mock).length, 2));
+  await waitFor(() => {
+    if (invitePosts(mock).length != 2) throw new Error("waitFor: values differ");
+  });
   assert.ok(invitePosts(mock).every((post) => post.path === "/api/v1/contents/999/collab-invites"));
   assert.deepEqual(invitePosts(mock).map((post) => post.body), [{ invitee_id: 1 }, { invitee_id: 2 }]);
 
   for (const post of invitePosts(mock)) post.resolve({ invite: { id: 0 } });
-  await waitFor(() => assert.deepEqual(routerPushes, ["/studio/contents"]));
+  await waitFor(() => {
+    if (routerPushes.length !== 1) throw new Error("waitFor: expected exactly one router push");
+  });
+  assert.deepEqual(routerPushes, ["/studio/contents"]);
 });
 
 test("publish flow: invite failure shows a warning toast without marking the publish itself failed", async () => {
@@ -543,19 +592,28 @@ test("publish flow: invite failure shows a warning toast without marking the pub
   await pickCollabUser(view, mock, 1, "Luminary");
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   mock.posts[0]!.resolve({ content: { id: 999 } });
-  await waitFor(() => assert.equal(invitePosts(mock).length, 1));
+  await waitFor(() => {
+    if (invitePosts(mock).length != 1) throw new Error("waitFor: values differ");
+  });
   invitePosts(mock)[0]!.reject(new Error("INVITE_BLOCKED"));
 
-  await waitFor(() => assert.ok(view.getByText(enMessages.studio.publish.success)));
+  await waitFor(() => {
+    if (!(view.getByText(enMessages.studio.publish.success))) throw new Error("waitFor: condition not met");
+  });
   await waitFor(() => {
     const warning = enMessages.studio.publish.collab.inviteFailed
       .replace("{usernames}", "Luminary")
       .replace("{url}", "/content/999");
-    assert.ok(view.getByText(warning), "warning toast must list the failed username and the content link");
+        if (!(view.getByText(warning))) throw new Error("warning toast must list the failed username and the content link");
   });
-  await waitFor(() => assert.deepEqual(routerPushes, ["/studio/contents"]));
+  await waitFor(() => {
+    if (routerPushes.length !== 1) throw new Error("waitFor: expected exactly one router push");
+  });
+  assert.deepEqual(routerPushes, ["/studio/contents"]);
 });
 
 test("publish flow: duplicate selected collaborators cannot be added and only unique invites are sent", async () => {
@@ -567,7 +625,9 @@ test("publish flow: duplicate selected collaborators cannot be added and only un
   const input = collabPicker(view);
   const before = mock.getCalls.length;
   fireEvent.change(input, { target: { value: "Lumi" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, before + 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != before + 1) throw new Error("waitFor: values differ");
+  });
   mock.getCalls[before]!.resolve({ users: [{ id: 1, username: "Luminary" }], total: 1 });
   const duplicate = await waitFor(() => view.getByRole("option", { name: /Luminary/ }));
   assert.equal(duplicate.getAttribute("aria-disabled"), "true", "duplicate option must be disabled");
@@ -576,12 +636,19 @@ test("publish flow: duplicate selected collaborators cannot be added and only un
   assert.equal(view.queryAllByRole("button", { name: removeLabel }).length, 1, "duplicate click must not add a second chip");
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   mock.posts[0]!.resolve({ content: { id: 999 } });
-  await waitFor(() => assert.equal(invitePosts(mock).length, 1));
+  await waitFor(() => {
+    if (invitePosts(mock).length != 1) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(invitePosts(mock).map((post) => post.body), [{ invitee_id: 1 }]);
   invitePosts(mock)[0]!.resolve({ invite: { id: 0 } });
-  await waitFor(() => assert.deepEqual(routerPushes, ["/studio/contents"]));
+  await waitFor(() => {
+    if (routerPushes.length !== 1) throw new Error("waitFor: expected exactly one router push");
+  });
+  assert.deepEqual(routerPushes, ["/studio/contents"]);
 });
 
 test("publish flow: original publish also supports selected collaborators and sends invites", async () => {
@@ -591,15 +658,22 @@ test("publish flow: original publish also supports selected collaborators and se
   await pickCollabUser(view, mock, 1, "Luminary");
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0]!.path, "/api/v1/contents");
   assert.equal(mock.posts[0]!.body.zone, "original");
   mock.posts[0]!.resolve({ content: { id: 999 } });
 
-  await waitFor(() => assert.equal(invitePosts(mock).length, 1));
+  await waitFor(() => {
+    if (invitePosts(mock).length != 1) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(invitePosts(mock).map((post) => post.body), [{ invitee_id: 1 }]);
   invitePosts(mock)[0]!.resolve({ invite: { id: 0 } });
-  await waitFor(() => assert.deepEqual(routerPushes, ["/studio/contents"]));
+  await waitFor(() => {
+    if (routerPushes.length !== 1) throw new Error("waitFor: expected exactly one router push");
+  });
+  assert.deepEqual(routerPushes, ["/studio/contents"]);
 });
 
 test("publish flow: source-linkage fields still submit exactly one source id with collaborators selected", async () => {
@@ -610,7 +684,9 @@ test("publish flow: source-linkage fields still submit exactly one source id wit
   await pickCollabUser(view, mock, 2, "Lumina");
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   const body = mock.posts[0]!.body;
   assert.equal(body.source_original_id, 77);
   assert.equal("source_fanwork_id" in body, false, "fanwork source must stay cleared");
@@ -618,9 +694,14 @@ test("publish flow: source-linkage fields still submit exactly one source id wit
   assert.equal("collaborators" in body, false, "collaborators must not leak into the contents payload");
   assert.equal("invitee_ids" in body, false, "invitees must not leak into the contents payload");
   mock.posts[0]!.resolve({ content: { id: 999 } });
-  await waitFor(() => assert.equal(invitePosts(mock).length, 2));
+  await waitFor(() => {
+    if (invitePosts(mock).length != 2) throw new Error("waitFor: values differ");
+  });
   for (const post of invitePosts(mock)) post.resolve({ invite: { id: 0 } });
-  await waitFor(() => assert.deepEqual(routerPushes, ["/studio/contents"]));
+  await waitFor(() => {
+    if (routerPushes.length !== 1) throw new Error("waitFor: expected exactly one router push");
+  });
+  assert.deepEqual(routerPushes, ["/studio/contents"]);
 });
 
 test("publish flow: collaborator picker sits after the fanwork source fields and before submit actions in both zones", async () => {
@@ -654,18 +735,27 @@ test("publish flow: invite requests run at most three concurrently", async () =>
   }
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   mock.posts[0]!.resolve({ content: { id: 999 } });
 
-  await waitFor(() => assert.equal(invitePosts(mock).length, 3));
+  await waitFor(() => {
+    if (invitePosts(mock).length != 3) throw new Error("waitFor: values differ");
+  });
   assert.equal(invitePosts(mock).length, 3, "batch one must not exceed three concurrent invites");
   for (const post of invitePosts(mock)) post.resolve({ invite: { id: post.body.invitee_id as number } });
 
-  await waitFor(() => assert.equal(invitePosts(mock).length, 4));
+  await waitFor(() => {
+    if (invitePosts(mock).length != 4) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(invitePosts(mock).map((post) => post.body.invitee_id).sort(), [1, 2, 3, 4]);
   invitePosts(mock)
     .filter((post) => post.body.invitee_id === 4)[0]!
     .resolve({ invite: { id: 4 } });
 
-  await waitFor(() => assert.deepEqual(routerPushes, ["/studio/contents"]));
+  await waitFor(() => {
+    if (routerPushes.length !== 1) throw new Error("waitFor: expected exactly one router push");
+  });
+  assert.deepEqual(routerPushes, ["/studio/contents"]);
 });

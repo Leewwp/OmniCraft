@@ -91,18 +91,24 @@ test("failed OSS screenshot upload does not retain a screenshot grant for feedba
     const screenshot = new File(["img"], "failure.png", { type: "image/png" });
     fireEvent.change(fileInput!, { target: { files: [screenshot] } });
 
-    await waitFor(() => assert.match(view.container.textContent ?? "", /Screenshot upload failed/));
+    await waitFor(() => {
+      if (!(/Screenshot upload failed/.test(view.container.textContent ?? ""))) throw new Error("waitFor: pattern check failed: /Screenshot upload failed/");
+    });
     assert.equal(postCalls[0]?.path, "/api/v1/feedback/attachments/presign");
     assert.equal(view.queryByText("failure.png"), null);
 
     fireEvent.click(view.getByRole("button", { name: "solve captcha" }));
-    await waitFor(() => assert.equal(view.getByRole("button", { name: "Submit feedback" }).hasAttribute("disabled"), false));
+    await waitFor(() => {
+      if (view.getByRole("button", { name: "Submit feedback" }).hasAttribute("disabled") != false) throw new Error("waitFor: values differ");
+    });
 
     const form = view.container.querySelector("form");
     assert.ok(form, "feedback form should exist");
     fireEvent.submit(form);
 
-    await waitFor(() => assert.equal(postCalls.length, 2));
+    await waitFor(() => {
+      if (postCalls.length != 2) throw new Error("waitFor: values differ");
+    });
     assert.equal(postCalls[1]?.path, "/api/v1/feedback");
     assert.deepEqual(postCalls[1]?.body.attachment_grants, []);
   } finally {

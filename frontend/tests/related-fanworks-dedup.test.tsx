@@ -71,7 +71,7 @@ test("initialData 直供时不发自拉请求，并回报 onData", async () => {
     />,
   );
   await waitFor(() => {
-    assert.ok(document.querySelector('[data-slot="related-fanworks"]'));
+        if (!(document.querySelector('[data-slot="related-fanworks"]'))) throw new Error("waitFor: condition not met");
   });
   assert.match(document.body.textContent ?? "", /Related A/);
   assert.deepEqual(calls, []);
@@ -101,7 +101,7 @@ test("无 initialData 时自拉一次并渲染", async () => {
     />,
   );
   await waitFor(() => {
-    assert.ok(document.querySelector('[data-slot="related-fanworks"]'));
+        if (!(document.querySelector('[data-slot="related-fanworks"]'))) throw new Error("waitFor: condition not met");
   });
   assert.deepEqual(calls, [RELATED_ENDPOINT]);
 });
@@ -124,10 +124,8 @@ test("initialData total=0 时隐藏整行且不发请求", async () => {
   );
   await waitFor(() => {
     /* 骨架先在（loading 态）后消失，才证明直供 effect 已跑、确为落定后隐藏。 */
-    assert.ok(
-      document.querySelector('[data-slot="related-fanworks"], [data-slot="related-fanworks-loading"]') ===
-        null,
-    );
+        if (!(document.querySelector('[data-slot="related-fanworks"], [data-slot="related-fanworks-loading"]') ===
+        null)) throw new Error("waitFor: condition not met");
   });
   assert.deepEqual(calls, []);
 });

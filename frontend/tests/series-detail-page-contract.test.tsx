@@ -40,18 +40,20 @@ test("public series detail uses backend count and preserves backend item order",
   const view = await renderSeriesDetailPage("7");
 
   await waitFor(() => {
-    assert.ok(view.getByRole("heading", { name: "Mountain chapters" }));
-    assert.ok(view.getByText("9 items"));
-    const links = view.getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/original/"));
-    assert.deepEqual(links.map((link) => link.textContent?.trim()), ["Item 1First chapterOriginal", "Item 2Second chapterOriginal"]);
+    if (!(view.getByRole("heading", { name: "Mountain chapters" }))) throw new Error("waitFor: condition not met");
+    if (!(view.getByText("9 items"))) throw new Error("waitFor: condition not met");
   });
+  const links = view.getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/original/"));
+  assert.deepEqual(links.map((link) => link.textContent?.trim()), ["Item 1First chapterOriginal", "Item 2Second chapterOriginal"]);
 });
 
 test("public series detail renders empty and not-found states without authentication", async (t) => {
   await t.test("empty", async () => {
     api.get = (async <T,>() => seriesResponse({ itemCount: 0, items: [] }) as T) as typeof api.get;
     const view = await renderSeriesDetailPage("7");
-    await waitFor(() => assert.ok(view.getByText("No public content")));
+    await waitFor(() => {
+      if (!(view.getByText("No public content"))) throw new Error("waitFor: condition not met");
+    });
     cleanup();
   });
 
@@ -60,7 +62,9 @@ test("public series detail renders empty and not-found states without authentica
       throw new ApiRequestError("SERIES_NOT_FOUND", "missing", 404);
     }) as typeof api.get;
     const view = await renderSeriesDetailPage("404");
-    await waitFor(() => assert.ok(view.getByText("Series unavailable")));
+    await waitFor(() => {
+      if (!(view.getByText("Series unavailable"))) throw new Error("waitFor: condition not met");
+    });
   });
 });
 

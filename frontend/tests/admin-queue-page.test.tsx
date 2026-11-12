@@ -112,7 +112,7 @@ test("renders topic rows from the backend contract with real names and per-colum
   const { view, consoleErrors } = await renderQueuePage();
 
   await waitFor(() => {
-    assert.equal(view.getAllByRole("row").length, 6); // header + 5 topics
+        if (view.getAllByRole("row").length != 6) throw new Error("waitFor: values differ"); // header + 5 topics
   });
 
   const expectedRows: Array<[string, string, string, string]> = [
@@ -145,7 +145,7 @@ test("shows the empty state when the backend reports no topics", async () => {
   const { view } = await renderQueuePage();
 
   await waitFor(() => {
-    assert.ok(view.getByText(intlMessages.admin.queue.noStats));
+        if (!(view.getByText(intlMessages.admin.queue.noStats))) throw new Error("waitFor: condition not met");
   });
   assert.equal(view.queryAllByRole("row").length, 0);
 });

@@ -230,7 +230,7 @@ async function midiPlayButton(): Promise<HTMLButtonElement> {
       const btn = document.querySelector<HTMLButtonElement>(
         '[data-slot="slide-sheet-music"] button[aria-label]',
       );
-      assert.ok(btn, "midi playback bar play button mounts after init");
+            if (!(btn)) throw new Error("midi playback bar play button mounts after init");
       return btn;
     },
     { timeout: 4000 },
@@ -297,7 +297,9 @@ test("D5 audio 位：占位图为底 + 底部悬浮 AudioPlayer 条，新类型�
       onFirstMediaSettled: (state) => settled.push(state),
     });
     const pane = paneElement();
-    await waitFor(() => assert.ok(pane.querySelector('[data-testid="audio-player"]'), "floating AudioPlayer bar mounts"));
+    await waitFor(() => {
+      if (!(pane.querySelector('[data-testid="audio-player"]'))) throw new Error("floating AudioPlayer bar mounts");
+    });
     assert.ok(pane.querySelector("img"), "audio placeholder art renders as the slide backdrop");
     assert.ok(
       pane.querySelector("audio")?.getAttribute("src")?.includes("audio-1"),
@@ -318,7 +320,9 @@ test("D5 audio 挂起（非顶层）暂停播放；切位卸载停播释放", as
       allowCopy: false,
     });
     const pane = paneElement();
-    await waitFor(() => assert.ok(pane.querySelector('[data-testid="audio-player"]')));
+    await waitFor(() => {
+      if (!(pane.querySelector('[data-testid="audio-player"]'))) throw new Error("waitFor: condition not met");
+    });
 
     /* 用户起播后挂起（压层）：暂停。 */
     const playButton = pane.querySelector<HTMLButtonElement>('[data-testid="audio-play-button"]');
@@ -357,7 +361,9 @@ test("D5 audio 挂起（非顶层）暂停播放；切位卸载停播释放", as
     await act(async () => {
       fireEvent.load(incomingImg);
     });
-    await waitFor(() => assert.ok(!pane.querySelector('[data-testid="audio-player"]'), "switching slides unmounts the player"));
+    await waitFor(() => {
+      if (pane.querySelector('[data-testid="audio-player"]')) throw new Error("switching slides unmounts the player");
+    });
     assert.equal(pane.querySelectorAll("audio").length, 0, "audio element is released on slide switch");
   } finally {
     mediaStubs.restore();
@@ -372,14 +378,9 @@ test("D5 document / pdf 位：对应查看器挂载且互斥（当前位单挂�
   });
   const pane = paneElement();
   /* document 位：DocumentViewer 动态加载，落定为 loading / 解析结果任一形态。 */
-  await waitFor(
-    () =>
-      assert.ok(
-        document.querySelector('[data-testid^="document-viewer-"]'),
-        "DocumentViewer mounts in the slide",
-      ),
-    { timeout: 4000 },
-  );
+  await waitFor(() => {
+    if (!(document.querySelector('[data-testid^="document-viewer-"]'))) throw new Error("DocumentViewer mounts in the slide");
+  });
   assert.ok(!document.querySelector("embed"), "document slide renders no embed");
 
   /* 切到 text_pdf 位：文档查看器卸载，embed 进场。 */
@@ -388,7 +389,9 @@ test("D5 document / pdf 位：对应查看器挂载且互斥（当前位单挂�
   await act(async () => {
     fireEvent.click(next);
   });
-  await waitFor(() => assert.ok(!document.querySelector('[data-testid^="document-viewer-"]'), "previous viewer unmounts on switch"));
+  await waitFor(() => {
+    if (document.querySelector('[data-testid^="document-viewer-"]')) throw new Error("previous viewer unmounts on switch");
+  });
   const embed = document.querySelector("embed");
   assert.ok(embed, "pdf slide renders the native embed");
   assert.equal(embed.getAttribute("type"), "application/pdf");
@@ -412,15 +415,19 @@ test("D5 sheet_music 位：musicxml → OSMD 容器、midi → 回放条位、sh
     await act(async () => {
       fireEvent.click(next()!);
     });
-    await waitFor(() => assert.ok(!pane.querySelector(".osmd-container"), "OSMD unmounts on slide switch"));
-    await waitFor(
-      () => assert.ok(pane.querySelector("img"), "midi slide shows the score placeholder backdrop while the playback bar loads"),
-    );
+    await waitFor(() => {
+      if (pane.querySelector(".osmd-container")) throw new Error("OSMD unmounts on slide switch");
+    });
+    await waitFor(() => {
+      if (!(pane.querySelector("img"))) throw new Error("midi slide shows the score placeholder backdrop while the playback bar loads");
+    });
 
     await act(async () => {
       fireEvent.click(next()!);
     });
-    await waitFor(() => assert.ok(document.querySelector('embed[type="application/pdf"]'), "sheet music pdf renders the embed"));
+    await waitFor(() => {
+      if (!(document.querySelector('embed[type="application/pdf"]'))) throw new Error("sheet music pdf renders the embed");
+    });
     void view;
   } finally {
     audioCtx.restore();
@@ -432,7 +439,9 @@ test("D5 sheet_music 位：musicxml → OSMD 容器、midi → 回放条位、sh
 test("D5 >9 项隐藏圆点（N/M 徽标与箭头保留）；≤9 多项圆点照常", async () => {
   const tenImages = Array.from({ length: 10 }, (_, i) => imageItem(i + 1));
   const view = renderLayout({ media: tenImages });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   assert.equal(countBadgeText(), "1 / 10", "count badge keeps working past the dot cap");
   assert.ok(document.querySelector('button[aria-label="Next media"]'), "arrows stay available");
   assert.equal(document.querySelector('[data-slot="media-paging-dots"]'), null, "dots hide when media exceeds 9 items");
@@ -440,13 +449,17 @@ test("D5 >9 项隐藏圆点（N/M 徽标与箭头保留）；≤9 多项圆点�
   await act(async () => {
     view.rerender(<LayoutHarness media={tenImages.slice(0, 9)} />);
   });
-  await waitFor(() => assert.ok(document.querySelector('[data-slot="media-paging-dots"]'), "dots render for 9 items"));
+  await waitFor(() => {
+    if (!(document.querySelector('[data-slot="media-paging-dots"]'))) throw new Error("dots render for 9 items");
+  });
   assert.equal(countBadgeText(), "1 / 9");
 });
 
 test("D5 混排链 slide 角落显示类型小角标；同质链不显示", async () => {
   const view = renderLayout({ media: [imageItem(1), slideItem(2, "document")] });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   const badge = document.querySelector<HTMLElement>('[data-slot="media-type-badge"]');
   assert.ok(badge, "mixed chain renders the per-slide type badge");
   assert.ok(badge.textContent && badge.textContent.length > 0, "badge carries the localized family label");
@@ -461,7 +474,9 @@ test("D5 混排链 slide 角落显示类型小角标；同质链不显示", asyn
 
 test("D5 MediaViewer 只收 image slides：图片位点击开查看器，查看器位点击不开", async () => {
   const view = renderLayout({ media: [imageItem(1), slideItem(2, "document")] });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
 
   const cover = document.querySelector<HTMLElement>('[data-slot="detail-cover"]');
   assert.ok(cover);
@@ -469,7 +484,9 @@ test("D5 MediaViewer 只收 image slides：图片位点击开查看器，查看�
     fireEvent.click(cover);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(document.querySelector("dialog[open]"), "image slide click opens the viewer"));
+  await waitFor(() => {
+    if (!(document.querySelector("dialog[open]"))) throw new Error("image slide click opens the viewer");
+  });
 
   const close = document.querySelector<HTMLButtonElement>('dialog[open] button[aria-label="Close viewer"]');
   assert.ok(close);
@@ -477,14 +494,18 @@ test("D5 MediaViewer 只收 image slides：图片位点击开查看器，查看�
     fireEvent.click(close);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(!document.querySelector("dialog[open]")));
+  await waitFor(() => {
+    if (document.querySelector("dialog[open]")) throw new Error("waitFor: condition not met");
+  });
 
   const next = document.querySelector<HTMLButtonElement>('button[aria-label="Next media"]');
   assert.ok(next);
   await act(async () => {
     fireEvent.click(next);
   });
-  await waitFor(() => assert.ok(document.querySelector('[data-testid^="document-viewer-"]'), "document slide is current"));
+  await waitFor(() => {
+    if (!(document.querySelector('[data-testid^="document-viewer-"]'))) throw new Error("document slide is current");
+  });
   const documentCover = document.querySelector<HTMLElement>('[data-slot="detail-cover"]');
   assert.ok(documentCover);
   await act(async () => {
@@ -508,7 +529,9 @@ test("D5 查看器位「刷新预览」：onMediaRefresh 回调触发且按附�
     allowCopy: false,
     onMediaRefresh,
   });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
 
   /* 图片位不显示刷新钮（图片有既有加载语义）。 */
   assert.equal(document.querySelector('[data-slot="media-refresh-preview"]'), null, "image slide has no refresh control");
@@ -520,7 +543,7 @@ test("D5 查看器位「刷新预览」：onMediaRefresh 回调触发且按附�
   });
   const refresh = await waitFor(() => {
     const el = document.querySelector<HTMLButtonElement>('[data-slot="media-refresh-preview"]');
-    assert.ok(el, "viewer slide offers the refresh control");
+        if (!(el)) throw new Error("viewer slide offers the refresh control");
     return el;
   });
   await act(async () => {
@@ -539,12 +562,16 @@ test("D5 查看器位「刷新预览」：onMediaRefresh 回调触发且按附�
       />,
     );
   });
-  await waitFor(() => assert.equal(countBadgeText(), "2 / 2", "position stays anchored to the attachment id after the refresh rebuild"));
+  await waitFor(() => {
+    if (countBadgeText() != "2 / 2") throw new Error("position stays anchored to the attachment id after the refresh rebuild");
+  });
 });
 
 test("D5 未提供 onMediaRefresh 时不渲染刷新钮（独立调用方不承担重试语义）", async () => {
   renderLayout({ media: [slideItem(1, "document")], contentId: 9001, allowCopy: false });
-  await waitFor(() => assert.ok(document.querySelector('[data-testid^="document-viewer-"]')));
+  await waitFor(() => {
+    if (!(document.querySelector('[data-testid^="document-viewer-"]'))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(document.querySelector('[data-slot="media-refresh-preview"]'), null);
 });
 
@@ -618,13 +645,17 @@ test("D5 midi 位挂起（非顶层）暂停回放：AudioContext 挂起 + 播�
 
 test("D5 播放条形态位：底部圆点与类型角标上移让位（几何不遮播放条）", async () => {
   const view = renderLayout({ media: [imageItem(1), slideItem(2, "audio")] });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   const next = () => document.querySelector<HTMLButtonElement>('button[aria-label="Next media"]');
   assert.ok(next());
   await act(async () => {
     fireEvent.click(next()!);
   });
-  await waitFor(() => assert.ok(document.querySelector('[data-slot="slide-audio"]'), "audio slide is current"));
+  await waitFor(() => {
+    if (!(document.querySelector('[data-slot="slide-audio"]'))) throw new Error("audio slide is current");
+  });
 
   const dots = document.querySelector<HTMLElement>('[data-slot="media-paging-dots"]');
   assert.ok(dots, "dots render for the mixed chain");
@@ -646,7 +677,9 @@ test("D5 播放条形态位：底部圆点与类型角标上移让位（几何�
   await act(async () => {
     fireEvent.load(backImg);
   });
-  await waitFor(() => assert.ok(!document.querySelector('[data-slot="slide-audio"]'), "back on the image slide"));
+  await waitFor(() => {
+    if (document.querySelector('[data-slot="slide-audio"]')) throw new Error("back on the image slide");
+  });
   const dotsDefault = document.querySelector<HTMLElement>('[data-slot="media-paging-dots"]');
   assert.ok(dotsDefault, "dots still render on the image slide");
   assert.ok(dotsDefault.classList.contains("bottom-3"), "dots keep the default bottom geometry on non-player-bar slides");

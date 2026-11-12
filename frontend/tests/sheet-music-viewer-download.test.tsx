@@ -149,7 +149,9 @@ test("attachments with only oss_key still render a download CTA that calls the a
 
   fireEvent.click(view.getByRole("button", { name: "Download Sheet Music" }));
 
-  await waitFor(() => assert.equal(fetchCalls.length, 1));
+  await waitFor(() => {
+    if (fetchCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(fetchCalls[0], "http://localhost:8080/api/v1/contents/12/download?attachment_id=101");
   assert.deepEqual(openCalls[0], ["https://downloads.example/sheet-only", "_blank", "noopener,noreferrer"]);
 
@@ -186,7 +188,9 @@ test("previewable pdf attachments keep an authorized download CTA instead of a d
 
   fireEvent.click(view.getByRole("button", { name: "Download Sheet Music" }));
 
-  await waitFor(() => assert.equal(fetchCalls.length, 1));
+  await waitFor(() => {
+    if (fetchCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(fetchCalls[0], "http://localhost:8080/api/v1/contents/45/download?attachment_id=202");
 
   dom.window.close();
@@ -228,7 +232,9 @@ test("mixed preview and download-only attachments each render usable download CT
   fireEvent.click(buttons[0]!);
   fireEvent.click(buttons[1]!);
 
-  await waitFor(() => assert.equal(fetchCalls.length, 2));
+  await waitFor(() => {
+    if (fetchCalls.length != 2) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(fetchCalls, [
     "http://localhost:8080/api/v1/contents/77/download?attachment_id=301",
     "http://localhost:8080/api/v1/contents/77/download?attachment_id=302",

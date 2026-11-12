@@ -196,7 +196,7 @@ test("ConversationList calls the message center conversation endpoint", async ()
   renderMessagesComponent(<ConversationList onSelect={() => {}} />);
 
   await waitFor(() => {
-    assert.ok(calls.get.some((call) => call.path === "/api/v1/messages"));
+        if (!(calls.get.some((call) => call.path === "/api/v1/messages"))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -207,7 +207,7 @@ test("ChatWindow loads messages from the message center detail endpoint", async 
   renderMessagesComponent(<ChatWindow conversation={conversation} />);
 
   await waitFor(() => {
-    assert.ok(calls.get.some((call) => call.path === "/api/v1/messages/42"));
+        if (!(calls.get.some((call) => call.path === "/api/v1/messages/42"))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -219,16 +219,21 @@ test("ChatWindow sends replies through the message center send endpoint", async 
 
   const input = await findReplyInput(view.container);
   fireEvent.change(input, { target: { value: "hello back" } });
-  await waitFor(() => assert.equal(input.value, "hello back"));
+  await waitFor(() => {
+    if (input.value != "hello back") throw new Error("waitFor: values differ");
+  });
 
   const sendButton = view.getByLabelText(intlMessages.messages.chat.send);
   fireEvent.click(sendButton);
 
   await waitFor(() => {
-    const sendCall = calls.post.find((call) => call.path === "/api/v1/messages");
-    assert.ok(sendCall, `expected POST /api/v1/messages, got ${JSON.stringify(calls.post)}`);
-    assert.deepEqual(sendCall.body, { recipient_id: 2, text: "hello back" });
+    if (!calls.post.find((call) => call.path === "/api/v1/messages")) {
+      throw new Error(`expected POST /api/v1/messages, got ${JSON.stringify(calls.post)}`);
+    }
   });
+  const sendCall = calls.post.find((call) => call.path === "/api/v1/messages");
+  assert.ok(sendCall, "expected POST /api/v1/messages");
+  assert.deepEqual(sendCall.body, { recipient_id: 2, text: "hello back" });
 });
 
 test("ChatWindow blocks duplicate sends while the first send is pending", async () => {
@@ -243,7 +248,9 @@ test("ChatWindow blocks duplicate sends while the first send is pending", async 
 
   const input = await findReplyInput(view.container);
   fireEvent.change(input, { target: { value: "hello back" } });
-  await waitFor(() => assert.equal(input.value, "hello back"));
+  await waitFor(() => {
+    if (input.value != "hello back") throw new Error("waitFor: values differ");
+  });
 
   const sendButton = view.getByLabelText(intlMessages.messages.chat.send) as HTMLButtonElement;
   fireEvent.click(sendButton);
@@ -251,8 +258,8 @@ test("ChatWindow blocks duplicate sends while the first send is pending", async 
 
   await waitFor(() => {
     const sendCalls = calls.post.filter((call) => call.path === "/api/v1/messages");
-    assert.equal(sendCalls.length, 1, `expected one pending send, got ${JSON.stringify(sendCalls)}`);
-    assert.equal(sendButton.disabled, true, "send button should be disabled while pending");
+        if (sendCalls.length != 1) throw new Error(`expected one pending send, got ${JSON.stringify(sendCalls)}`);
+        if (sendButton.disabled != true) throw new Error("send button should be disabled while pending");
   });
 
   await act(async () => {
@@ -273,17 +280,16 @@ test("ChatWindow keeps the draft when the DM reply guard rejects the send", asyn
 
   const input = await findReplyInput(view.container);
   fireEvent.change(input, { target: { value: "second ping" } });
-  await waitFor(() => assert.equal(input.value, "second ping"));
+  await waitFor(() => {
+    if (input.value != "second ping") throw new Error("waitFor: values differ");
+  });
 
   const sendButton = view.getByLabelText(intlMessages.messages.chat.send);
   fireEvent.click(sendButton);
 
   await waitFor(() => {
-    assert.ok(
-      document.body.textContent?.includes(intlMessages.messages.dmReplyRequired),
-      "localized DM reply toast should render",
-    );
-    assert.equal(input.value, "second ping", "draft should remain after rejected send");
+        if (!(document.body.textContent?.includes(intlMessages.messages.dmReplyRequired))) throw new Error("localized DM reply toast should render");
+        if (input.value != "second ping") throw new Error("draft should remain after rejected send");
   });
 });
 
@@ -302,9 +308,9 @@ test("ChatWindow renders loaded messages in chronological order", async () => {
     const text = view.container.textContent ?? "";
     const oldestIndex = text.indexOf("oldest");
     const newestIndex = text.indexOf("newest");
-    assert.ok(oldestIndex >= 0, "oldest message should render");
-    assert.ok(newestIndex >= 0, "newest message should render");
-    assert.ok(oldestIndex < newestIndex, "oldest message should render before newest message");
+        if (!(oldestIndex >= 0)) throw new Error("oldest message should render");
+        if (!(newestIndex >= 0)) throw new Error("newest message should render");
+        if (!(oldestIndex < newestIndex)) throw new Error("oldest message should render before newest message");
   });
 });
 
@@ -318,16 +324,15 @@ test("ChatWindow shows a localized toast when the backend requires a DM reply", 
 
   const input = await findReplyInput(view.container);
   fireEvent.change(input, { target: { value: "second ping" } });
-  await waitFor(() => assert.equal(input.value, "second ping"));
+  await waitFor(() => {
+    if (input.value != "second ping") throw new Error("waitFor: values differ");
+  });
 
   const sendButton = view.getByLabelText(intlMessages.messages.chat.send);
   fireEvent.click(sendButton);
 
   await waitFor(() => {
-    assert.ok(
-      document.body.textContent?.includes(intlMessages.messages.dmReplyRequired),
-      "localized DM reply toast should render",
-    );
+        if (!(document.body.textContent?.includes(intlMessages.messages.dmReplyRequired))) throw new Error("localized DM reply toast should render");
   });
 });
 
@@ -338,7 +343,7 @@ test("ChatWindow mobile back control uses only localized text", async () => {
   const view = renderMessagesComponent(<ChatWindow conversation={conversation} onBack={() => undefined} />);
 
   await waitFor(() => {
-    assert.ok(view.getByRole("button", { name: intlMessages.common.back }));
+        if (!(view.getByRole("button", { name: intlMessages.common.back }))) throw new Error("waitFor: condition not met");
   });
   assert.equal(view.container.textContent?.includes("鈫"), false);
 });
@@ -363,7 +368,7 @@ test("NotificationDetailList renders broadcast title, safe Markdown body, and un
 
   const item = await waitFor(() => {
     const element = view.getByLabelText("Maintenance window");
-    assert.ok(element.className.includes("bg-accent-subtle"), "unread items must carry the unread tint");
+        if (!(element.className.includes("bg-accent-subtle"))) throw new Error("unread items must carry the unread tint");
     return element;
   });
 
@@ -396,7 +401,7 @@ test("NotificationDetailList renders the target reference block as the only navi
 
   const ref = await waitFor(() => {
     const link = view.container.querySelector("a[href=\"/content/100\"]") as HTMLAnchorElement;
-    assert.ok(link, "reference block link must render for decorated targets");
+        if (!(link)) throw new Error("reference block link must render for decorated targets");
     return link;
   });
   assert.ok(ref.textContent?.includes("Release notes target"));
@@ -423,7 +428,9 @@ test("NotificationDetailList offers no navigation when the backend sends no targ
 
   const view = renderMessagesComponent(<NotificationDetailList channel="broadcast" title="Broadcast" />);
 
-  await waitFor(() => assert.ok(view.getByText("Broken target")));
+  await waitFor(() => {
+    if (!(view.getByText("Broken target"))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.container.querySelector("a[href^=\"/content/\"]"), null, "no summary must mean no navigation surface");
 });
 
@@ -457,15 +464,15 @@ test("NotificationDetailList marks items read on demand and recalibrates badges"
   );
 
   await waitFor(() => {
-    assert.ok(view.getByText("Unread broadcast"));
-    assert.ok(view.container.textContent?.includes(intlMessages.messages.markAllRead), "unread items must surface mark-all-read");
+        if (!(view.getByText("Unread broadcast"))) throw new Error("waitFor: condition not met");
+        if (!(view.container.textContent?.includes(intlMessages.messages.markAllRead))) throw new Error("unread items must surface mark-all-read");
   });
   fireEvent.click(view.getByRole("button", { name: intlMessages.messages.detail.markRead }));
 
   await waitFor(() => {
-    assert.ok(readCalls === 1, "PATCH read endpoint must be called exactly once");
-    assert.equal(countsChanged.at(-1), 1, "onCountsChanged must fire after the read settles");
-    assert.equal(view.container.textContent?.includes(intlMessages.messages.markAllRead), false, "no unread left must hide mark-all-read");
+        if (!(readCalls === 1)) throw new Error("PATCH read endpoint must be called exactly once");
+        if (countsChanged.at(-1) != 1) throw new Error("onCountsChanged must fire after the read settles");
+        if (view.container.textContent?.includes(intlMessages.messages.markAllRead) != false) throw new Error("no unread left must hide mark-all-read");
   });
 });
 
@@ -521,7 +528,7 @@ test("NotificationDetailList ignores stale responses from earlier channel loads"
     </IntlProvider>,
   );
   await waitFor(() => {
-    assert.ok(view.getByText("Fresh broadcast"));
+        if (!(view.getByText("Fresh broadcast"))) throw new Error("waitFor: condition not met");
   });
 
   await act(async () => {
@@ -543,8 +550,8 @@ test("NotificationDetailList ignores stale responses from earlier channel loads"
   });
 
   await waitFor(() => {
-    assert.equal(view.queryByText("Stale reply"), null);
-    assert.ok(view.getByText("Fresh broadcast"));
+        if (view.queryByText("Stale reply") != null) throw new Error("waitFor: values differ");
+        if (!(view.getByText("Fresh broadcast"))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -647,7 +654,7 @@ function setValidAccessToken() {
 
 async function findReplyInput(container: HTMLElement): Promise<HTMLTextAreaElement> {
   await waitFor(() => {
-    assert.ok(container.querySelector('textarea[placeholder="Type a message..."]'), "reply input should render");
+        if (!(container.querySelector('textarea[placeholder="Type a message..."]'))) throw new Error("reply input should render");
   });
   return container.querySelector('textarea[placeholder="Type a message..."]') as HTMLTextAreaElement;
 }

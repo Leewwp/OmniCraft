@@ -55,58 +55,84 @@ test("studio series creates a public series through the API", async () => {
   const calls = installSeriesApiMocks();
   const view = await renderStudioSeriesPage();
 
-  await waitFor(() => assert.ok(view.getAllByText("Mountain chapters").length >= 1));
+  await waitFor(() => {
+    if (!(view.getAllByText("Mountain chapters").length >= 1)) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Create series" }));
   fireEvent.change(view.getAllByLabelText("Series title")[0], { target: { value: "Coastal chapters" } });
   fireEvent.click(view.getByRole("button", { name: "Create" }));
 
   await waitFor(() => {
-    const create = calls.post.find((call) => call.path === "/api/v1/series");
-    assert.deepEqual(create?.body, { title: "Coastal chapters", description: "", zone: "original" });
+    if (!calls.post.find((call) => call.path === "/api/v1/series")) {
+      throw new Error("waitFor: expected POST /api/v1/series");
+    }
   });
+  const create = calls.post.find((call) => call.path === "/api/v1/series");
+  assert.deepEqual(create?.body, { title: "Coastal chapters", description: "", zone: "original" });
 });
 
 test("studio series edits, adds, reorders, removes, and deletes with exact payloads", async () => {
   const calls = installSeriesApiMocks();
   const view = await renderStudioSeriesPage();
 
-  await waitFor(() => assert.ok(view.getByDisplayValue("Mountain chapters")));
+  await waitFor(() => {
+    if (!(view.getByDisplayValue("Mountain chapters"))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.change(view.getByLabelText("Series title"), { target: { value: "Mountain chapters revised" } });
   fireEvent.click(view.getByRole("button", { name: "Save changes" }));
   await waitFor(() => {
-    const update = calls.put.find((call) => call.path === "/api/v1/series/7");
-    assert.deepEqual(update?.body, {
-      title: "Mountain chapters revised",
-      description: "Ordered field notes",
-      cover_content_id: null,
-    });
+    if (!calls.put.find((call) => call.path === "/api/v1/series/7")) {
+      throw new Error("waitFor: expected PUT /api/v1/series/7");
+    }
+  });
+  const update = calls.put.find((call) => call.path === "/api/v1/series/7");
+  assert.deepEqual(update?.body, {
+    title: "Mountain chapters revised",
+    description: "Ordered field notes",
+    cover_content_id: null,
   });
 
   fireEvent.change(view.getByLabelText("Search content to add"), { target: { value: "Third" } });
-  await waitFor(() => assert.ok(view.getByText("Third chapter")));
+  await waitFor(() => {
+    if (!(view.getByText("Third chapter"))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Add" }));
   await waitFor(() => {
-    assert.deepEqual(calls.post.find((call) => call.path === "/api/v1/series/7/items")?.body, { content_item_id: 503 });
-    assert.ok(!view.getByRole("button", { name: "Move Second chapter up" }).hasAttribute("disabled"));
+    if (!calls.post.find((call) => call.path === "/api/v1/series/7/items")) {
+      throw new Error("waitFor: expected POST /api/v1/series/7/items");
+    }
+    if (!(view.getByRole("button", { name: "Move Second chapter up" }).hasAttribute("disabled"))) {
+      throw new Error("waitFor: Move up stays disabled for the first item");
+    }
   });
+  assert.deepEqual(calls.post.find((call) => call.path === "/api/v1/series/7/items")?.body, { content_item_id: 503 });
 
   fireEvent.click(view.getByRole("button", { name: "Move Second chapter up" }));
   await waitFor(() => {
-    assert.deepEqual(calls.put.find((call) => call.path === "/api/v1/series/7/items/reorder")?.body, { item_ids: [102, 101] });
-    assert.ok(!view.getByRole("button", { name: "Remove Second chapter from series" }).hasAttribute("disabled"));
+    if (!calls.put.find((call) => call.path === "/api/v1/series/7/items/reorder")) {
+      throw new Error("waitFor: expected PUT /api/v1/series/7/items/reorder");
+    }
+    if (!(view.getByRole("button", { name: "Remove Second chapter from series" }).hasAttribute("disabled"))) {
+      throw new Error("waitFor: Remove stays disabled during reorder");
+    }
   });
+  assert.deepEqual(calls.put.find((call) => call.path === "/api/v1/series/7/items/reorder")?.body, { item_ids: [102, 101] });
 
   fireEvent.click(view.getByRole("button", { name: "Remove Second chapter from series" }));
   await waitFor(() => {
-    assert.ok(calls.delete.some((call) => call.path === "/api/v1/series/7/items/102"));
-    assert.ok(!view.getByRole("button", { name: "Delete series" }).hasAttribute("disabled"));
+        if (!(calls.delete.some((call) => call.path === "/api/v1/series/7/items/102"))) throw new Error("waitFor: condition not met");
+        if (view.getByRole("button", { name: "Delete series" }).hasAttribute("disabled")) throw new Error("waitFor: condition not met");
   });
 
   fireEvent.click(view.getByRole("button", { name: "Delete series" }));
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   const confirmButtons = view.getAllByRole("button", { name: "Delete series" });
   fireEvent.click(confirmButtons[confirmButtons.length - 1]);
-  await waitFor(() => assert.ok(calls.delete.some((call) => call.path === "/api/v1/series/7")));
+  await waitFor(() => {
+    if (!(calls.delete.some((call) => call.path === "/api/v1/series/7"))) throw new Error("waitFor: condition not met");
+  });
 });
 
 async function renderStudioSeriesPage() {

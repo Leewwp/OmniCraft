@@ -152,10 +152,10 @@ test("discussion submission announces a missing title and focuses the title fiel
   fireEvent.click(view.getByRole("button", { name: messages.common.submit }));
 
   await waitFor(() => {
-    assert.equal(title.getAttribute("aria-invalid"), "true");
-    assert.equal(title.getAttribute("aria-describedby"), "discussion-title-error");
-    assert.equal(document.activeElement, title);
-    assert.equal(view.getByRole("alert").textContent, messages.discussion.titleRequired);
+        if (title.getAttribute("aria-invalid") != "true") throw new Error("waitFor: values differ");
+        if (title.getAttribute("aria-describedby") != "discussion-title-error") throw new Error("waitFor: values differ");
+        if (document.activeElement != title) throw new Error("waitFor: values differ");
+        if (view.getByRole("alert").textContent != messages.discussion.titleRequired) throw new Error("waitFor: values differ");
   });
 });
 
@@ -175,7 +175,9 @@ test("tag-group and category forms expose runtime names and first-error focus", 
         <TagGroupsPage />
       </IntlProvider>,
     );
-    await waitFor(() => assert.ok(tagView.getByRole("button", { name: /new group/i })));
+    await waitFor(() => {
+      if (!(tagView.getByRole("button", { name: /new group/i }))) throw new Error("waitFor: condition not met");
+    });
     fireEvent.click(tagView.getByRole("button", { name: /new group/i }));
     assert.ok(tagView.getByRole("dialog", { name: /new group/i }));
     assert.ok(tagView.getByRole("textbox", { name: /group name/i }));
@@ -184,9 +186,9 @@ test("tag-group and category forms expose runtime names and first-error focus", 
     fireEvent.click(tagView.getByRole("button", { name: /^save$/i }));
     await waitFor(() => {
       const name = tagView.getByRole("textbox", { name: /group name/i });
-      assert.equal(document.activeElement, name);
-      assert.equal(name.getAttribute("aria-invalid"), "true");
-      assert.ok(tagView.getByRole("alert"));
+            if (document.activeElement != name) throw new Error("waitFor: values differ");
+            if (name.getAttribute("aria-invalid") != "true") throw new Error("waitFor: values differ");
+            if (!(tagView.getByRole("alert"))) throw new Error("waitFor: condition not met");
     });
     tagView.unmount();
 
@@ -195,7 +197,9 @@ test("tag-group and category forms expose runtime names and first-error focus", 
         <CategoriesPage />
       </IntlProvider>,
     );
-    await waitFor(() => assert.ok(categoryView.getByRole("button", { name: /new category/i })));
+    await waitFor(() => {
+      if (!(categoryView.getByRole("button", { name: /new category/i }))) throw new Error("waitFor: condition not met");
+    });
     fireEvent.click(categoryView.getByRole("button", { name: /new category/i }));
     assert.ok(categoryView.getByRole("textbox", { name: /chinese name/i }));
     assert.ok(categoryView.getByRole("textbox", { name: /english name/i }));
@@ -203,9 +207,9 @@ test("tag-group and category forms expose runtime names and first-error focus", 
     fireEvent.click(categoryView.getByRole("button", { name: /^create$/i }));
     await waitFor(() => {
       const name = categoryView.getByRole("textbox", { name: /chinese name/i });
-      assert.equal(document.activeElement, name);
-      assert.equal(name.getAttribute("aria-invalid"), "true");
-      assert.ok(categoryView.getByRole("alert"));
+            if (document.activeElement != name) throw new Error("waitFor: values differ");
+            if (name.getAttribute("aria-invalid") != "true") throw new Error("waitFor: values differ");
+            if (!(categoryView.getByRole("alert"))) throw new Error("waitFor: condition not met");
     });
   } finally {
     api.get = originalGet;
@@ -291,7 +295,9 @@ test("system config exposes a label for every field and switch", async () => {
         <ConfigPage />
       </IntlProvider>,
     );
-    await waitFor(() => assert.equal(view.getAllByRole("switch").length, 3));
+    await waitFor(() => {
+      if (view.getAllByRole("switch").length != 3) throw new Error("waitFor: values differ");
+    });
     const fields = view.getAllByRole("spinbutton") as HTMLInputElement[];
     // #688: +3 (audio/document/model3d caps join the same runtime mechanism).
     assert.equal(fields.length, 22);
@@ -316,7 +322,9 @@ test("system config shows retry state without form when config is incomplete", a
         <ConfigPage />
       </IntlProvider>,
     );
-    await waitFor(() => assert.ok(view.getByRole("alert")));
+    await waitFor(() => {
+      if (!(view.getByRole("alert"))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getByRole("button", { name: /retry/i }));
     assert.equal(view.queryAllByRole("switch").length, 0);
     assert.equal(view.queryAllByRole("spinbutton").length, 0);

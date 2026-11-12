@@ -120,7 +120,7 @@ test("AuthContext fails closed when the login response omits capabilities", asyn
   });
 
   await waitFor(() => {
-    assert.equal(view.getByTestId("interaction-capability").textContent, "blocked:AUTH_STATUS_UNAVAILABLE");
+        if (view.getByTestId("interaction-capability").textContent != "blocked:AUTH_STATUS_UNAVAILABLE") throw new Error("waitFor: values differ");
   });
 });
 
@@ -146,7 +146,7 @@ test("AuthContext keeps a server-derived can_interact capability after login", a
   });
 
   await waitFor(() => {
-    assert.equal(view.getByTestId("interaction-capability").textContent, "allowed");
+        if (view.getByTestId("interaction-capability").textContent != "allowed") throw new Error("waitFor: values differ");
   });
 });
 
@@ -172,7 +172,7 @@ test("AuthContext exposes the server denial reason for a blocked login", async (
   });
 
   await waitFor(() => {
-    assert.equal(view.getByTestId("interaction-capability").textContent, "blocked:INSUFFICIENT_REPUTATION");
+        if (view.getByTestId("interaction-capability").textContent != "blocked:INSUFFICIENT_REPUTATION") throw new Error("waitFor: values differ");
   });
 });
 
@@ -186,9 +186,9 @@ test("ReactionBar disables interaction buttons with a localized reason when bloc
     const actionButtons = view.container.querySelectorAll<HTMLButtonElement>(
       'button[title="Insufficient reputation to perform this action."]',
     );
-    assert.equal(actionButtons.length, 3);
+        if (actionButtons.length != 3) throw new Error("waitFor: values differ");
     for (const button of actionButtons) {
-      assert.equal(button.disabled, true);
+            if (button.disabled != true) throw new Error("waitFor: values differ");
     }
   });
 });
@@ -213,11 +213,14 @@ test("ReactionBar report uses preset ReportModal chips and submits on success", 
   });
 
   await waitFor(() => {
-    assert.equal(view.queryByRole("dialog"), null);
-    const reportCall = calls.post.find((call) => call.path === "/api/v1/contents/5/report");
-    assert.ok(reportCall, "expected POST /api/v1/contents/5/report");
-    assert.deepEqual(reportCall.body, { reason: `${intlMessages.social.reportCategorySpam}: spam` });
+    if (view.queryByRole("dialog") != null) throw new Error("waitFor: dialog still mounted");
+    if (!calls.post.find((call) => call.path === "/api/v1/contents/5/report")) {
+      throw new Error("expected POST /api/v1/contents/5/report");
+    }
   });
+  const reportCall = calls.post.find((call) => call.path === "/api/v1/contents/5/report");
+  assert.ok(reportCall, "expected POST /api/v1/contents/5/report");
+  assert.deepEqual(reportCall.body, { reason: `${intlMessages.social.reportCategorySpam}: spam` });
   assert.ok(view.getByRole("button", { name: "Reported" }));
 });
 

@@ -106,7 +106,9 @@ test("register remounts captcha after a failed submit consumes a one-time ticket
 
     fireEvent.click(view.getByRole("button", { name: "Create account" }));
 
-    await waitFor(() => assert.equal(getMountCount(), 2));
+    await waitFor(() => {
+      if (getMountCount() != 2) throw new Error("waitFor: values differ");
+    });
   } finally {
     apiModule.api.post = originalPost;
     globalThis.fetch = originalFetch;
@@ -135,7 +137,9 @@ test("forgot-password remounts captcha after a failed submission consumes a one-
 
     fireEvent.click(view.getByRole("button", { name: "Send reset link" }));
 
-    await waitFor(() => assert.equal(getMountCount(), 2));
+    await waitFor(() => {
+      if (getMountCount() != 2) throw new Error("waitFor: values differ");
+    });
   } finally {
     apiModule.api.post = originalPost;
   }
@@ -163,7 +167,9 @@ test("settings resend verification remounts captcha after resend attempt", async
 
     fireEvent.click(view.getByRole("button", { name: "Resend verification" }));
 
-    await waitFor(() => assert.equal(getMountCount(), 2));
+    await waitFor(() => {
+      if (getMountCount() != 2) throw new Error("waitFor: values differ");
+    });
   } finally {
     apiModule.api.post = originalPost;
   }
@@ -194,13 +200,17 @@ test("anonymous feedback remounts captcha after a failed ticket submission", asy
     await typeInto(view.getByRole("combobox") as HTMLSelectElement, "other");
     fireEvent.click(view.getByRole("button", { name: "solve captcha" }));
     assert.equal(getMountCount(), 1);
-    await waitFor(() => assert.equal(view.getByRole("button", { name: "Submit feedback" }).hasAttribute("disabled"), false));
+    await waitFor(() => {
+      if (view.getByRole("button", { name: "Submit feedback" }).hasAttribute("disabled") != false) throw new Error("waitFor: values differ");
+    });
 
     const form = view.container.querySelector("form");
     assert.ok(form, "feedback form should exist");
     fireEvent.submit(form);
 
-    await waitFor(() => assert.equal(getMountCount(), 2));
+    await waitFor(() => {
+      if (getMountCount() != 2) throw new Error("waitFor: values differ");
+    });
   } finally {
     apiModule.api.post = originalPost;
   }

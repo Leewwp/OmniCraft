@@ -81,7 +81,9 @@ test("entry state machine: default renders entry card only, click mounts the pla
   assert.equal(container.querySelector("audio"), null, "no audio element mounted before click (no byte request)");
 
   fireEvent.click(getByTestId("attachment-preview-button"));
-  await waitFor(() => assert.ok(getByTestId("audio-player"), "player mounts after click"));
+  await waitFor(() => {
+    if (!(getByTestId("audio-player"))) throw new Error("player mounts after click");
+  });
   assert.equal(container.querySelector("audio")?.getAttribute("src"), "https://example.com/a.mp3");
   assert.equal(queryByTestId("attachment-preview-entry"), null, "entry card is replaced by the viewer");
 });
@@ -140,7 +142,7 @@ test("audio player: duration renders after loadedmetadata, keyboard seek updates
     Object.defineProperty(audio, "duration", { value: 125, configurable: true });
     fireEvent(audio, new window.Event("loadedmetadata"));
     await waitFor(() => {
-      assert.ok(getByTestId("audio-time").textContent?.includes("2:05"), "duration shows as 2:05");
+            if (!(getByTestId("audio-time").textContent?.includes("2:05"))) throw new Error("duration shows as 2:05");
     });
 
     fireEvent.click(getByTestId("audio-play-button"));
@@ -271,10 +273,12 @@ test("document entry（#920 护栏）：宿主挂载即取的公开配置注入�
     );
     /* 「挂载→点击」窗口内配置先落定（现实时序：配置请求毫秒级返回，
        用户点击在其后）——注入预算在点击时就位。 */
-    await waitFor(() =>
-      assert.ok(fetchStub.requested.some((url) => url.includes(CONFIG_URL)), "host fetched the public config on mount"),
-    );
-    await waitFor(() => assert.ok(getByTestId("attachment-preview-entry")));
+    await waitFor(() => {
+      if (!(fetchStub.requested.some((url) => url.includes(CONFIG_URL)))) throw new Error("host fetched the public config on mount");
+    });
+    await waitFor(() => {
+      if (!(getByTestId("attachment-preview-entry"))) throw new Error("waitFor: condition not met");
+    });
     fireEvent.click(getByTestId("attachment-preview-button"));
     await waitForTestid("document-viewer-degraded", "host-fetched config budget degrades the over-limit document");
     assert.equal(

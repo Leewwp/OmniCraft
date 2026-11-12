@@ -74,11 +74,15 @@ test("sheet music empty state is stable and verdict error/success states are act
       <VerdictDetail caseId={7} />
     </IntlProvider>,
   );
-  await waitFor(() => assert.ok(errorView.getByRole("alert")));
+  await waitFor(() => {
+    if (!(errorView.getByRole("alert"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(errorView.getByText("Failed to load verdict"));
   const retry = errorView.getByRole("button", { name: "Retry" });
   fireEvent.click(retry);
-  await waitFor(() => assert.equal(calls, 2));
+  await waitFor(() => {
+    if (calls != 2) throw new Error("waitFor: values differ");
+  });
   cleanup();
 
   api.get = async function successGet<T>() {
@@ -92,7 +96,9 @@ test("sheet music empty state is stable and verdict error/success states are act
       <VerdictDetail caseId={7} />
     </IntlProvider>,
   );
-  await waitFor(() => assert.ok(successView.getByText("Clear")));
+  await waitFor(() => {
+    if (!(successView.getByText("Clear"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(successView.getByRole("button", { name: "Like" }));
   assert.ok(successView.getByRole("button", { name: "Dislike" }));
   api.get = originalGet;

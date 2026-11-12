@@ -82,10 +82,9 @@ test("AgentThinkingPlaceholder: elapsed seconds tick up and are screen-reader si
   const root = getByTestId("agent-thinking-placeholder");
   assert.equal(root.getAttribute("role"), null, "placeholder itself carries no role=status (transcript already live)");
 
-  await waitFor(
-    () => assert.ok(["6s", "7s"].includes(seconds.textContent ?? ""), `tick advanced: ${seconds.textContent}`),
-    { timeout: 2500 },
-  );
+  await waitFor(() => {
+    if (!(["6s", "7s"].includes(seconds.textContent ?? ""))) throw new Error(`tick advanced: ${seconds.textContent}`);
+  });
   unmount();
 });
 

@@ -385,9 +385,13 @@ async function openOverlay(view: ReturnType<typeof render>, expectedTitle?: stri
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   if (expectedTitle) {
-    await waitFor(() => assert.ok(view.getByRole("heading", { level: 1, name: expectedTitle })));
+    await waitFor(() => {
+      if (!(view.getByRole("heading", { level: 1, name: expectedTitle }))) throw new Error("waitFor: condition not met");
+    });
   }
   return trigger;
 }
@@ -460,9 +464,9 @@ test("right column order is pinned: creator row → title → relations → comm
   /* #430 挂载分帧：关联块/评论区/推荐区经 DeferredMount 延后一拍，先等落定。 */
   const scroller = await waitFor(() => {
     const el = document.querySelector('[data-slot="overlay-related-block"]');
-    assert.ok(el, "related block renders when relations exist");
+        if (!(el)) throw new Error("related block renders when relations exist");
     const contents = document.querySelector('[data-slot="related-contents"]');
-    assert.ok(contents, "recommendation section renders after comments");
+        if (!(contents)) throw new Error("recommendation section renders after comments");
     return document.querySelector<HTMLElement>('[data-slot="layer-scroller"]');
   });
   assert.ok(scroller, "layer-scroller present");
@@ -520,12 +524,12 @@ test("derivatives list leaves the related block and joins the recommendation sec
 
   const block = await waitFor(() => {
     const el = document.querySelector('[data-slot="overlay-related-block"]');
-    assert.ok(el, "related block renders");
+        if (!(el)) throw new Error("related block renders");
     return el as HTMLElement;
   });
   const recommendations = await waitFor(() => {
     const el = document.querySelector('[data-slot="related-contents"]');
-    assert.ok(el, "recommendation section renders");
+        if (!(el)) throw new Error("recommendation section renders");
     return el as HTMLElement;
   });
 
@@ -537,17 +541,11 @@ test("derivatives list leaves the related block and joins the recommendation sec
   /* 衍生列表由层内 related 数据经 DeferredMount + RelatedContents 两级异步落定，
      与下方 Similar One 同 idiom：等落定再断言（CI 负载下同步断言实测竞态）。 */
   await waitFor(() => {
-    assert.ok(
-      recommendations.textContent?.includes("Derivative One"),
-      "derivatives render in the post-comment recommendation section",
-    );
+        if (!(recommendations.textContent?.includes("Derivative One"))) throw new Error("derivatives render in the post-comment recommendation section");
   });
   /* 相似行为异步拉取（RelatedContents 挂载后请求 list 合同），等落定再断言。 */
   await waitFor(() => {
-    assert.ok(
-      recommendations.textContent?.includes("Similar One"),
-      "similar recommendations share the recommendation section",
-    );
+        if (!(recommendations.textContent?.includes("Similar One"))) throw new Error("similar recommendations share the recommendation section");
   });
 });
 
@@ -569,7 +567,9 @@ test("error state keeps the two-column shell and never falls back to full-width 
   installApiMock({ failAll: true });
   const view = renderOverlay(<OverlayHarness entryId={62} zone="original" />, true);
   await openOverlay(view);
-  await waitFor(() => assert.ok(view.getByText("Content detail failed to load")));
+  await waitFor(() => {
+    if (!(view.getByText("Content detail failed to load"))) throw new Error("waitFor: condition not met");
+  });
 
   assert.ok(document.querySelector('[data-slot="variant-media-pane"]'), "media pane stays mounted on error");
   const scroller = document.querySelector('[data-slot="layer-scroller"]');
@@ -588,13 +588,10 @@ test("recommendation section is visible at 960–1099 (old 1100 gate retired for
   await openOverlay(view, "Fanwork Relations Work");
 
   await waitFor(() => {
-    assert.ok(document.querySelector('[data-slot="related-contents"]'), "recommendation section renders below 1100");
+        if (!(document.querySelector('[data-slot="related-contents"]'))) throw new Error("recommendation section renders below 1100");
   });
   await waitFor(() => {
-    assert.ok(
-      document.querySelector('[data-slot="related-contents-similar"]'),
-      "similar row renders with data at 960–1099",
-    );
+        if (!(document.querySelector('[data-slot="related-contents-similar"]'))) throw new Error("similar row renders with data at 960–1099");
   });
 });
 
@@ -611,7 +608,7 @@ test("mobile (<960) keeps the single-column contract: header, inline media, side
   /* 移动侧栏经 DeferredMount 延后一拍（双 rAF + startTransition，挂载前渲染
      null）——同步断言在 CI 负载下实测竞态，等落定再断言。 */
   await waitFor(() => {
-    assert.ok(document.querySelector("aside"), "ContentSidebar stays in the mobile tree");
+        if (!(document.querySelector("aside"))) throw new Error("ContentSidebar stays in the mobile tree");
   });
   assert.ok(document.querySelector('[data-slot="overlay-scroller"]'), "single column scrolls in overlay-scroller");
   /* 行内画廊（detail-cover 行内锚点）存在于单列流。 */
@@ -628,7 +625,9 @@ test("D5 audio in the unified pane: left column owns the player, right rail keep
 
   const pane = document.querySelector('[data-slot="variant-media-pane"]');
   assert.ok(pane, "unified pane renders for audio content");
-  await waitFor(() => assert.ok(pane.querySelector('[data-testid="audio-player"]'), "audio player lives in the pane slide"));
+  await waitFor(() => {
+    if (!(pane.querySelector('[data-testid="audio-player"]'))) throw new Error("audio player lives in the pane slide");
+  });
   assert.ok(pane.querySelector("img"), "audio placeholder art is the slide backdrop");
 
   const scroller = document.querySelector('[data-slot="layer-scroller"]') as HTMLElement;
@@ -652,7 +651,9 @@ test("D5 sheet music in the unified pane: OSMD slide owns preview, mscz stays a 
 
   const pane = document.querySelector('[data-slot="variant-media-pane"]');
   assert.ok(pane);
-  await waitFor(() => assert.ok(pane.querySelector(".osmd-container"), "musicxml renders as the OSMD pane slide"));
+  await waitFor(() => {
+    if (!(pane.querySelector(".osmd-container"))) throw new Error("musicxml renders as the OSMD pane slide");
+  });
 
   const scroller = document.querySelector('[data-slot="layer-scroller"]') as HTMLElement;
   assert.ok(scroller);
@@ -677,10 +678,7 @@ test("D5 mobile overlay keeps the inline attachment preview (variant-only suppre
   await openOverlay(view, "Audio Narration Work");
 
   await waitFor(() => {
-    assert.ok(
-      document.querySelector('[data-testid="attachment-preview-entry"]'),
-      "mobile overlay keeps the inline preview entry card (mediaSlot=inline)",
-    );
+        if (!(document.querySelector('[data-testid="attachment-preview-entry"]'))) throw new Error("mobile overlay keeps the inline preview entry card (mediaSlot=inline)");
   });
   assert.equal(
     document.querySelector('[data-slot="variant-media-pane"]'),

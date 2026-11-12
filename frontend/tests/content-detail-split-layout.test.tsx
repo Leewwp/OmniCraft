@@ -263,12 +263,18 @@ async function openOverlay(view: ReturnType<typeof render>, entryId: number, exp
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   /* 桌面视口下 #90 相关内容块会额外渲染标题行（h2），等待时必须按名称区分。 */
   if (expectedTitle) {
-    await waitFor(() => assert.ok(view.getByRole("heading", { level: 1, name: expectedTitle })));
+    await waitFor(() => {
+      if (!(view.getByRole("heading", { level: 1, name: expectedTitle }))) throw new Error("waitFor: condition not met");
+    });
   } else {
-    await waitFor(() => assert.ok(view.getByRole("heading", { level: 2 })));
+    await waitFor(() => {
+      if (!(view.getByRole("heading", { level: 2 }))) throw new Error("waitFor: condition not met");
+    });
   }
   return trigger;
 }
@@ -313,23 +319,27 @@ test("#858 unified scroll memory routes to the layer-scroller and restores on po
 
   /* related 推荐区经 DeferredMount 延后挂载；关联行 = RelatedFanworks 卡片
      （ContentCard 可访问名 = 标题本体，不同于旧侧栏行的 open-detail 标签）。 */
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Related 101" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Related 101" }))) throw new Error("waitFor: condition not met");
+  });
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Related 101" }));
     await Promise.resolve();
   });
-  await waitFor(() =>
-    assert.ok(view.getByRole("heading", { level: 2, name: "Related 101" })),
-  );
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Related 101" }))) throw new Error("waitFor: condition not met");
+  });
 
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Back to: Gallery Image Work" }));
     await Promise.resolve();
   });
-  await waitFor(() =>
-    assert.ok(view.getByRole("heading", { level: 1, name: "Gallery Image Work" })),
-  );
-  await waitFor(() => assert.equal(layerScroller.scrollTop, 120));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 1, name: "Gallery Image Work" }))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (layerScroller.scrollTop != 120) throw new Error("waitFor: values differ");
+  });
 });
 
 test("#858 legacy image content without a media set joins the unified layout via the cover chain", async () => {

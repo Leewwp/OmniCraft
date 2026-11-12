@@ -186,10 +186,9 @@ function countBadgeCurrent(): number {
 }
 
 async function waitForViewerModel3d() {
-  await waitFor(
-    () => assert.ok(document.querySelector('[data-testid="model-viewer-error"], [data-testid="model-viewer-loading"]'), "fullscreen ModelViewer mounts"),
-    { timeout: 4000 },
-  );
+  await waitFor(() => {
+    if (!(document.querySelector('[data-testid="model-viewer-error"], [data-testid="model-viewer-loading"]'))) throw new Error("fullscreen ModelViewer mounts");
+  });
 }
 
 async function flushRaf() {
@@ -210,7 +209,9 @@ test.afterEach(() => {
 
 test("D6 3D 位右上放大钮：打开后当前项 = 该 3D（稳定 id 映射，不是首图）", async () => {
   renderLayout({ media: mixedChain(), contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   await goToSlide(3);
   assert.equal(countBadgeText(), "3 / 6", "model3d slide is current in the pane");
 
@@ -228,7 +229,9 @@ test("D6 3D 位右上放大钮：打开后当前项 = 该 3D（稳定 id 映射�
 
 test("D6 pdf 位放大钮：打开即定位该 pdf（3/3）；image 位也有放大钮（双入口）", async () => {
   renderLayout({ media: mixedChain(), contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   await goToSlide(4);
   assert.equal(countBadgeText(), "4 / 6", "text_pdf slide is current");
 
@@ -238,7 +241,9 @@ test("D6 pdf 位放大钮：打开即定位该 pdf（3/3）；image 位也有放
     fireEvent.click(pdfButton);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(viewerDialog().querySelector("embed"), "fullscreen embed mounts"));
+  await waitFor(() => {
+    if (!(viewerDialog().querySelector("embed"))) throw new Error("fullscreen embed mounts");
+  });
   assert.equal(viewerPosition(), "3 / 3", "viewer opens directly at the pdf position");
 
   /* 关闭后回到 image 位：双入口（放大钮 + 主体点击）都在。 */
@@ -248,14 +253,20 @@ test("D6 pdf 位放大钮：打开即定位该 pdf（3/3）；image 位也有放
     fireEvent.click(close);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(!document.querySelector("dialog[open]")));
-  await waitFor(() => assert.equal(countBadgeText(), "4 / 6", "close returns the pane to the last viewed item"));
+  await waitFor(() => {
+    if (document.querySelector("dialog[open]")) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (countBadgeText() != "4 / 6") throw new Error("close returns the pane to the last viewed item");
+  });
   assert.ok(enlargeButton(), "image slide keeps the enlarge button entry");
 });
 
 test("D6 无放大入口位：audio/乐谱 pdf/video 无放大钮、主体点击不开查看器", async () => {
   renderLayout({ media: mixedChain(), contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
 
   /* audio 位（2/6）。 */
   await goToSlide(2);
@@ -285,7 +296,9 @@ test("D6 无放大入口位：audio/乐谱 pdf/video 无放大钮、主体点击
 
 test("D6 无可放大项的链：整链无放大钮、不挂 MediaViewer", async () => {
   renderLayout({ media: [slideItem(1, "audio"), slideItem(2, "document")], contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(document.querySelector('[data-testid^="document-viewer-"], [data-slot="slide-audio"]')));
+  await waitFor(() => {
+    if (!(document.querySelector('[data-testid^="document-viewer-"], [data-slot="slide-audio"]'))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(enlargeButton(), null);
   assert.ok(!document.querySelector("dialog"), "viewer stays unmounted when no enlargeable item exists");
 });
@@ -294,7 +307,9 @@ test("D6 无可放大项的链：整链无放大钮、不挂 MediaViewer", async
 
 test("D6 自动文字封面链：无放大钮、主体点击无副作用不开查看器", async () => {
   renderLayout({ media: [imageItem(21, { autoCover: true })], contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(coverElement()));
+  await waitFor(() => {
+    if (!(coverElement())) throw new Error("waitFor: condition not met");
+  });
   assert.equal(Boolean(enlargeButton()), false, "synthesized auto text cover has no enlarge entry");
   const coverImg = coverElement().querySelector("img");
   assert.ok(coverImg, "auto cover renders an img element");
@@ -308,7 +323,9 @@ test("D6 自动文字封面链：无放大钮、主体点击无副作用不开�
 
 test("D6 真内容封面链：有放大钮、主体点击开查看器 1/1（真实图片保持可放大）", async () => {
   renderLayout({ media: [imageItem(22)], contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(enlargeButton(), "real content cover keeps the enlarge button"));
+  await waitFor(() => {
+    if (!(enlargeButton())) throw new Error("real content cover keeps the enlarge button");
+  });
   const coverImg = coverElement().querySelector("img");
   assert.ok(coverImg);
   assert.equal(coverImg.className.includes("cursor-zoom-in"), true, "real image keeps the zoom-in cursor (body click opens the viewer)");
@@ -316,7 +333,9 @@ test("D6 真内容封面链：有放大钮、主体点击开查看器 1/1（真�
     fireEvent.click(coverElement());
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(document.querySelector("dialog[open]")));
+  await waitFor(() => {
+    if (!(document.querySelector("dialog[open]"))) throw new Error("waitFor: condition not met");
+  });
   const position = document.querySelector('[data-slot="viewer-position"]')?.textContent ?? "";
   assert.equal(position, "1 / 1", "viewer opens at the only (real cover) item");
 });
@@ -325,14 +344,18 @@ test("D6 真内容封面链：有放大钮、主体点击开查看器 1/1（真�
 
 test("D6 独立计数：image→model3d→text_pdf 之间切换，序号独立于左列轮播", async () => {
   renderLayout({ media: mixedChain(), contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
 
   /* image 位主体点击开查看器（既有入口），1/3。 */
   await act(async () => {
     fireEvent.click(coverElement());
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(document.querySelector("dialog[open]")));
+  await waitFor(() => {
+    if (!(document.querySelector("dialog[open]"))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(viewerPosition(), "1 / 3", "viewer sequence = enlargeable items only (skips audio)");
 
   /* 查看器内 next：直接到 model3d（跳过 audio 位）。 */
@@ -351,7 +374,9 @@ test("D6 独立计数：image→model3d→text_pdf 之间切换，序号独立�
   await act(async () => {
     fireEvent.click(nextAgain);
   });
-  await waitFor(() => assert.ok(viewerDialog().querySelector("embed")));
+  await waitFor(() => {
+    if (!(viewerDialog().querySelector("embed"))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(viewerPosition(), "3 / 3");
   const nextAtEnd = viewerDialog().querySelector<HTMLButtonElement>('button[aria-label="Next media"]');
   assert.ok(nextAtEnd);
@@ -362,7 +387,9 @@ test("D6 独立计数：image→model3d→text_pdf 之间切换，序号独立�
 
 test("D6 关闭回最后所看项：查看器内翻到 pdf 后关闭，左列定位 pdf 位并恢复触发焦点", async () => {
   renderLayout({ media: mixedChain(), contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   await goToSlide(3);
   const button = enlargeButton();
   assert.ok(button);
@@ -378,27 +405,37 @@ test("D6 关闭回最后所看项：查看器内翻到 pdf 后关闭，左列定
   await act(async () => {
     fireEvent.click(viewerNext);
   });
-  await waitFor(() => assert.ok(viewerDialog().querySelector("embed")));
+  await waitFor(() => {
+    if (!(viewerDialog().querySelector("embed"))) throw new Error("waitFor: condition not met");
+  });
   const close = viewerDialog().querySelector<HTMLButtonElement>('button[aria-label="Close viewer"]');
   assert.ok(close);
   await act(async () => {
     fireEvent.click(close);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(!document.querySelector("dialog[open]")));
-  await waitFor(() => assert.equal(countBadgeText(), "4 / 6", "pane lands on the last viewed (pdf) slide"));
+  await waitFor(() => {
+    if (document.querySelector("dialog[open]")) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (countBadgeText() != "4 / 6") throw new Error("pane lands on the last viewed (pdf) slide");
+  });
   await flushRaf();
   assert.equal(document.activeElement, button, "focus returns to the enlarge trigger button");
 });
 
 test("D6 Esc 关闭同样回最后所看项（Esc 只关最上层，浮层本体不退层）", async () => {
   renderLayout({ media: mixedChain(), contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   await act(async () => {
     fireEvent.click(coverElement());
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(document.querySelector("dialog[open]")));
+  await waitFor(() => {
+    if (!(document.querySelector("dialog[open]"))) throw new Error("waitFor: condition not met");
+  });
   /* image → model3d。 */
   const viewerNext = viewerDialog().querySelector<HTMLButtonElement>('button[aria-label="Next media"]');
   assert.ok(viewerNext);
@@ -409,20 +446,28 @@ test("D6 Esc 关闭同样回最后所看项（Esc 只关最上层，浮层本体
   await act(async () => {
     fireEvent.keyDown(window, { key: "Escape" });
   });
-  await waitFor(() => assert.ok(!document.querySelector("dialog[open]"), "Esc closes only the viewer"));
-  await waitFor(() => assert.equal(countBadgeText(), "3 / 6", "pane lands on the last viewed (model3d) slide"));
+  await waitFor(() => {
+    if (document.querySelector("dialog[open]")) throw new Error("Esc closes only the viewer");
+  });
+  await waitFor(() => {
+    if (countBadgeText() != "3 / 6") throw new Error("pane lands on the last viewed (model3d) slide");
+  });
 });
 
 /* ---------- 键盘语义保持 ---------- */
 
 test("D6 查看器打开期间浮层键盘翻页不劫持（←/→ 不动左列）", async () => {
   renderLayout({ media: mixedChain(), contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   await act(async () => {
     fireEvent.click(coverElement());
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(document.querySelector("dialog[open]")));
+  await waitFor(() => {
+    if (!(document.querySelector("dialog[open]"))) throw new Error("waitFor: condition not met");
+  });
   await act(async () => {
     fireEvent.keyDown(window, { key: "ArrowRight" });
   });
@@ -434,7 +479,9 @@ test("D6 查看器打开期间浮层键盘翻页不劫持（←/→ 不动左列
 
 test("D6 混排链仅一个可放大项：查看器内无翻页控件", async () => {
   renderLayout({ media: [slideItem(1, "audio"), slideItem(2, "model3d")], contentId: 9101, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText() !== ""));
+  await waitFor(() => {
+    if (!(countBadgeText() !== "")) throw new Error("waitFor: condition not met");
+  });
   await goToSlide(2);
   const button = enlargeButton();
   assert.ok(button, "the only enlargeable item still exposes the button");

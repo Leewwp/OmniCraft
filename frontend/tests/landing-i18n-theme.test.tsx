@@ -123,7 +123,7 @@ test("theme switcher exposes the three-state product menu and only switches on i
   // 菜单展开后三态可达（Globe/主题两个菜单复用产品 DropdownMenu）
   const darkItem = await waitFor(() => {
     const item = view.getByText(en.nav.themeDark);
-    assert.ok(item);
+        if (!(item)) throw new Error("waitFor: condition not met");
     return item;
   });
   await act(async () => {

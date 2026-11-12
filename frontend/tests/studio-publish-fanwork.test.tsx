@@ -114,11 +114,15 @@ test("sourceKind=original searches GET /api/v1/contents/search?zone=original&q=<
   const input = view.getByRole("combobox", { name: enMessages.sourceContentPicker.original.label });
   fireEvent.change(input, { target: { value: "Original" } });
 
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(apiCalls[0].url, "/api/v1/contents/search?zone=original&q=Original&limit=8");
 
   apiCalls[0].resolve({ items: [publishedItem(1, "Original Post", "original")] });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Original Post/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Original Post/ }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("sourceKind=fanwork searches GET /api/v1/contents/search?zone=fanwork&q=<query>&limit=8", async () => {
@@ -129,11 +133,15 @@ test("sourceKind=fanwork searches GET /api/v1/contents/search?zone=fanwork&q=<qu
   const input = view.getByRole("combobox", { name: enMessages.sourceContentPicker.fanwork.label });
   fireEvent.change(input, { target: { value: "Fan" } });
 
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(apiCalls[0].url, "/api/v1/contents/search?zone=fanwork&q=Fan&limit=8");
 
   apiCalls[0].resolve({ items: [publishedItem(2, "Fanwork Post", "fanwork")] });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Fanwork Post/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Fanwork Post/ }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("anonymous and authenticated searches render the same source-selectable published subset", async () => {
@@ -142,28 +150,36 @@ test("anonymous and authenticated searches render the same source-selectable pub
 
   const { view: anonView } = await renderPicker({ sourceKind: "original" });
   fireEvent.change(anonView.getByRole("combobox"), { target: { value: "Mix" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   apiCalls[0].resolve({
     items: [
       publishedItem(1, "Visible Original", "original"),
       { id: 2, title: "Banned Row", zone: "original", status: "banned" },
     ],
   });
-  await waitFor(() => assert.ok(anonView.getByRole("option", { name: /Visible Original/ })));
+  await waitFor(() => {
+    if (!(anonView.getByRole("option", { name: /Visible Original/ }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(anonView.queryByRole("option", { name: /Banned Row/ }), null);
   anonView.unmount();
 
   setAccessToken("test-access-token");
   const { view: authView } = await renderPicker({ sourceKind: "original" });
   fireEvent.change(authView.getByRole("combobox"), { target: { value: "Mix" } });
-  await waitFor(() => assert.equal(apiCalls.length, 2));
+  await waitFor(() => {
+    if (apiCalls.length != 2) throw new Error("waitFor: values differ");
+  });
   apiCalls[1].resolve({
     items: [
       publishedItem(1, "Visible Original", "original"),
       { id: 2, title: "Banned Row", zone: "original", status: "banned" },
     ],
   });
-  await waitFor(() => assert.ok(authView.getByRole("option", { name: /Visible Original/ })));
+  await waitFor(() => {
+    if (!(authView.getByRole("option", { name: /Visible Original/ }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(authView.queryByRole("option", { name: /Banned Row/ }), null);
 });
 
@@ -173,7 +189,9 @@ test("banned, author-deleted, soft-deleted, and under-review rows never appear a
   const { view } = await renderPicker({ sourceKind: "original" });
 
   fireEvent.change(view.getByRole("combobox"), { target: { value: "Mix" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   apiCalls[0].resolve({
     items: [
       publishedItem(1, "Selectable Original", "original"),
@@ -184,7 +202,9 @@ test("banned, author-deleted, soft-deleted, and under-review rows never appear a
       { id: 6, title: "Banned Author", zone: "original", status: "published", author: { is_banned: true } },
     ],
   });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Selectable Original/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Selectable Original/ }))) throw new Error("waitFor: condition not met");
+  });
   for (const title of ["Banned Status", "Under Review", "Soft Deleted", "Author Deleted", "Banned Author"]) {
     assert.equal(view.queryByRole("option", { name: new RegExp(title) }), null, title);
   }
@@ -196,7 +216,9 @@ test("result rows require numeric id, non-empty title, and matching zone", async
   const { view } = await renderPicker({ sourceKind: "fanwork" });
 
   fireEvent.change(view.getByRole("combobox"), { target: { value: "Mix" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   apiCalls[0].resolve({
     items: [
       publishedItem(11, "Valid Fanwork", "fanwork"),
@@ -206,7 +228,9 @@ test("result rows require numeric id, non-empty title, and matching zone", async
       publishedItem(15, "Wrong Zone", "original"),
     ],
   });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Valid Fanwork/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Valid Fanwork/ }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByRole("option", { name: /String Id/ }), null);
   assert.equal(view.queryByRole("option", { name: /Wrong Zone/ }), null);
 });
@@ -217,16 +241,20 @@ test("selecting a result emits the selected content summary", async () => {
   const { view, selections } = await renderPicker({ sourceKind: "original" });
 
   fireEvent.change(view.getByRole("combobox"), { target: { value: "Lumi" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   apiCalls[0].resolve({ items: [publishedItem(42, "Luminary", "original")] });
   const option = await waitFor(() => view.getByRole("option", { name: /Luminary/ }));
   fireEvent.click(option);
 
-  await waitFor(() => assert.equal(selections.length, 1));
+  await waitFor(() => {
+    if (selections.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.deepEqual(selections[0], { id: 42, title: "Luminary", zone: "original" });
-  await waitFor(() =>
-    assert.ok(view.getByRole("button", { name: enMessages.sourceContentPicker.selected.clear })),
-  );
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: enMessages.sourceContentPicker.selected.clear }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("clearing the selection emits undefined", async () => {
@@ -238,7 +266,9 @@ test("clearing the selection emits undefined", async () => {
   });
 
   fireEvent.click(view.getByRole("button", { name: enMessages.sourceContentPicker.selected.clear }));
-  await waitFor(() => assert.equal(selections.length, 1));
+  await waitFor(() => {
+    if (selections.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(selections[0], undefined);
 });
 
@@ -249,19 +279,31 @@ test("loading, empty, and error states render localized text", async () => {
   const input = view.getByRole("combobox");
 
   fireEvent.change(input, { target: { value: "Wait" } });
-  await waitFor(() => assert.equal(apiCalls.length, 1));
+  await waitFor(() => {
+    if (apiCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.ok(view.getByText(enMessages.sourceContentPicker.search.loading));
   apiCalls[0].resolve({ items: [] });
-  await waitFor(() => assert.ok(view.getByText(enMessages.sourceContentPicker.search.empty)));
+  await waitFor(() => {
+    if (!(view.getByText(enMessages.sourceContentPicker.search.empty))) throw new Error("waitFor: condition not met");
+  });
 
   failNextSearch = true;
   fireEvent.change(input, { target: { value: "Fail" } });
-  await waitFor(() => assert.equal(apiCalls.length, 2));
-  await waitFor(() => assert.ok(view.getByText(enMessages.sourceContentPicker.error.searchFailed)));
+  await waitFor(() => {
+    if (apiCalls.length != 2) throw new Error("waitFor: values differ");
+  });
+  await waitFor(() => {
+    if (!(view.getByText(enMessages.sourceContentPicker.error.searchFailed))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: enMessages.sourceContentPicker.error.retry }));
-  await waitFor(() => assert.equal(apiCalls.length, 3));
+  await waitFor(() => {
+    if (apiCalls.length != 3) throw new Error("waitFor: values differ");
+  });
   apiCalls[2].resolve({ items: [publishedItem(9, "Recovered", "original")] });
-  await waitFor(() => assert.ok(view.getByRole("option", { name: /Recovered/ })));
+  await waitFor(() => {
+    if (!(view.getByRole("option", { name: /Recovered/ }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("disabled picker disables the search input and clear control", async () => {
@@ -405,14 +447,20 @@ test("publish fanwork with IP only sends ip_id and no source ids", async () => {
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "IP only fanwork" } });
   fireEvent.change(view.getByPlaceholderText("Search and select IP..."), { target: { value: "Star" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[0].url, "/api/v1/ips?q=Star");
   mock.getCalls[0].resolve({ ips: [{ id: 42, name: "Star Rail" }] });
-  await waitFor(() => assert.ok(view.getByRole("button", { name: "Star Rail" })));
+  await waitFor(() => {
+    if (!(view.getByRole("button", { name: "Star Rail" }))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Star Rail" }));
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].path, "/api/v1/contents");
   assert.equal(mock.posts[0].body.zone, "fanwork");
   assert.equal(mock.posts[0].body.content_type, "article");
@@ -426,14 +474,18 @@ test("publish fanwork with source original only sends source_original_id", async
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "Original source fanwork" } });
   fireEvent.change(view.getByPlaceholderText("Search original content title..."), { target: { value: "Original" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[0].url, "/api/v1/contents/search?zone=original&q=Original&limit=8");
   mock.getCalls[0].resolve({ items: [publishedItem(77, "Original Lightcone", "original")] });
   const option = await waitFor(() => view.getByRole("option", { name: /Original Lightcone/ }));
   fireEvent.click(option);
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].body.source_original_id, 77);
   assert.equal("ip_id" in mock.posts[0].body, false);
   assert.equal("source_fanwork_id" in mock.posts[0].body, false);
@@ -444,14 +496,18 @@ test("publish fanwork with source fanwork only sends source_fanwork_id", async (
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "Fanwork source fanwork" } });
   fireEvent.change(view.getByPlaceholderText("Search fanwork content title..."), { target: { value: "Fan" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[0].url, "/api/v1/contents/search?zone=fanwork&q=Fan&limit=8");
   mock.getCalls[0].resolve({ items: [publishedItem(88, "Fanwork Piece", "fanwork")] });
   const option = await waitFor(() => view.getByRole("option", { name: /Fanwork Piece/ }));
   fireEvent.click(option);
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].body.source_fanwork_id, 88);
   assert.equal("ip_id" in mock.posts[0].body, false);
   assert.equal("source_original_id" in mock.posts[0].body, false);
@@ -465,7 +521,9 @@ test("submit with no IP/source is blocked before API call and shows localized va
   const submit = publishButton(view);
   assert.equal(submit.hasAttribute("disabled"), true);
   fireEvent.click(submit);
-  await waitFor(() => assert.equal(mock.posts.length, 0));
+  await waitFor(() => {
+    if (mock.posts.length != 0) throw new Error("waitFor: values differ");
+  });
   assert.ok(view.getByText(enMessages.studio.publish.fanwork.validation.sourceRequired));
 });
 
@@ -474,22 +532,32 @@ test("selecting source original clears source fanwork before submit", async () =
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "Mutual exclusion" } });
   fireEvent.change(view.getByPlaceholderText("Search fanwork content title..."), { target: { value: "Fan" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   mock.getCalls[0].resolve({ items: [publishedItem(88, "Fanwork Piece", "fanwork")] });
   const fanworkOption = await waitFor(() => view.getByRole("option", { name: /Fanwork Piece/ }));
   fireEvent.click(fanworkOption);
-  await waitFor(() => assert.ok(view.getByText("Fanwork Piece")));
+  await waitFor(() => {
+    if (!(view.getByText("Fanwork Piece"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.change(view.getByPlaceholderText("Search original content title..."), { target: { value: "Original" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 2));
+  await waitFor(() => {
+    if (mock.getCalls.length != 2) throw new Error("waitFor: values differ");
+  });
   mock.getCalls[1].resolve({ items: [publishedItem(77, "Original Lightcone", "original")] });
   const originalOption = await waitFor(() => view.getByRole("option", { name: /Original Lightcone/ }));
   fireEvent.click(originalOption);
-  await waitFor(() => assert.equal(view.queryByText("Fanwork Piece"), null));
+  await waitFor(() => {
+    if (view.queryByText("Fanwork Piece") != null) throw new Error("waitFor: values differ");
+  });
   assert.ok(view.getByText("Original Lightcone"));
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].body.source_original_id, 77);
   assert.equal("source_fanwork_id" in mock.posts[0].body, false);
 });
@@ -499,22 +567,32 @@ test("selecting source fanwork clears source original before submit", async () =
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "Mutual exclusion" } });
   fireEvent.change(view.getByPlaceholderText("Search original content title..."), { target: { value: "Original" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   mock.getCalls[0].resolve({ items: [publishedItem(77, "Original Lightcone", "original")] });
   const originalOption = await waitFor(() => view.getByRole("option", { name: /Original Lightcone/ }));
   fireEvent.click(originalOption);
-  await waitFor(() => assert.ok(view.getByText("Original Lightcone")));
+  await waitFor(() => {
+    if (!(view.getByText("Original Lightcone"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.change(view.getByPlaceholderText("Search fanwork content title..."), { target: { value: "Fan" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 2));
+  await waitFor(() => {
+    if (mock.getCalls.length != 2) throw new Error("waitFor: values differ");
+  });
   mock.getCalls[1].resolve({ items: [publishedItem(88, "Fanwork Piece", "fanwork")] });
   const fanworkOption = await waitFor(() => view.getByRole("option", { name: /Fanwork Piece/ }));
   fireEvent.click(fanworkOption);
-  await waitFor(() => assert.equal(view.queryByText("Original Lightcone"), null));
+  await waitFor(() => {
+    if (view.queryByText("Original Lightcone") != null) throw new Error("waitFor: values differ");
+  });
   assert.ok(view.getByText("Fanwork Piece"));
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].body.source_fanwork_id, 88);
   assert.equal("source_original_id" in mock.posts[0].body, false);
 });
@@ -523,14 +601,20 @@ test("query prefill ?source_original_id loads the original source summary", asyn
   const { view, mock } = await renderPublishPage("source_original_id=77");
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "Prefill fanwork" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[0].url, "/api/v1/contents/77");
   mock.getCalls[0].resolve(publishedContentDetail(77, "Original Lightcone", "original"));
-  await waitFor(() => assert.ok(view.getByText("Original Lightcone")));
+  await waitFor(() => {
+    if (!(view.getByText("Original Lightcone"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText(enMessages.sourceContentPicker.selected.label));
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].body.source_original_id, 77);
   assert.equal("source_fanwork_id" in mock.posts[0].body, false);
 });
@@ -539,14 +623,20 @@ test("query prefill ?source_fanwork_id loads the fanwork source summary", async 
   const { view, mock } = await renderPublishPage("source_fanwork_id=88");
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "Prefill fanwork" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[0].url, "/api/v1/contents/88");
   mock.getCalls[0].resolve(publishedContentDetail(88, "Fanwork Piece", "fanwork"));
-  await waitFor(() => assert.ok(view.getByText("Fanwork Piece")));
+  await waitFor(() => {
+    if (!(view.getByText("Fanwork Piece"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText(enMessages.sourceContentPicker.selected.label));
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].body.source_fanwork_id, 88);
   assert.equal("source_original_id" in mock.posts[0].body, false);
 });
@@ -555,17 +645,23 @@ test("query prefill with both IDs keeps source_original_id, clears source_fanwor
   const { view, mock } = await renderPublishPage("source_original_id=77&source_fanwork_id=88");
 
   fireEvent.change(view.getByPlaceholderText("Enter work title"), { target: { value: "Prefill fanwork" } });
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[0].url, "/api/v1/contents/77");
   mock.getCalls[0].resolve(publishedContentDetail(77, "Original Lightcone", "original"));
-  await waitFor(() => assert.ok(view.getByText("Original Lightcone")));
+  await waitFor(() => {
+    if (!(view.getByText("Original Lightcone"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText(enMessages.studio.publish.fanwork.prefill.bothSources));
 
   assert.equal(mock.getCalls.length, 1);
   assert.equal(view.queryByText("Fanwork Piece"), null);
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 1));
+  await waitFor(() => {
+    if (mock.posts.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.posts[0].body.source_original_id, 77);
   assert.equal("source_fanwork_id" in mock.posts[0].body, false);
 });
@@ -573,27 +669,39 @@ test("query prefill with both IDs keeps source_original_id, clears source_fanwor
 test("invalid query prefill id shows a localized non-blocking warning and leaves the picker empty", async () => {
   const { view, mock } = await renderPublishPage("source_original_id=abc");
 
-  await waitFor(() => assert.equal(mock.getCalls.length, 0));
+  await waitFor(() => {
+    if (mock.getCalls.length != 0) throw new Error("waitFor: values differ");
+  });
   assert.ok(view.getByText(enMessages.studio.publish.fanwork.prefill.invalidId));
   assert.equal(view.queryByText(enMessages.sourceContentPicker.selected.label), null);
 
   const dismiss = view.getByRole("button", { name: enMessages.studio.publish.fanwork.a11y.dismissWarning });
   fireEvent.click(dismiss);
-  await waitFor(() => assert.equal(view.queryByText(enMessages.studio.publish.fanwork.prefill.invalidId), null));
+  await waitFor(() => {
+    if (view.queryByText(enMessages.studio.publish.fanwork.prefill.invalidId) != null) throw new Error("waitFor: values differ");
+  });
 });
 
 test("prefill source that cannot be loaded shows a dismissible inline error and leaves the picker empty", async () => {
   const { view, mock } = await renderPublishPage("source_original_id=404");
 
-  await waitFor(() => assert.equal(mock.getCalls.length, 1));
+  await waitFor(() => {
+    if (mock.getCalls.length != 1) throw new Error("waitFor: values differ");
+  });
   assert.equal(mock.getCalls[0].url, "/api/v1/contents/404");
   mock.getCalls[0].reject(new Error("not found"));
-  await waitFor(() => assert.ok(view.getByText(enMessages.studio.publish.fanwork.prefill.loadFailed)));
+  await waitFor(() => {
+    if (!(view.getByText(enMessages.studio.publish.fanwork.prefill.loadFailed))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByText(enMessages.sourceContentPicker.selected.label), null);
 
   fireEvent.click(view.getByRole("button", { name: enMessages.studio.publish.fanwork.a11y.dismissWarning }));
-  await waitFor(() => assert.equal(view.queryByText(enMessages.studio.publish.fanwork.prefill.loadFailed), null));
+  await waitFor(() => {
+    if (view.queryByText(enMessages.studio.publish.fanwork.prefill.loadFailed) != null) throw new Error("waitFor: values differ");
+  });
 
   fireEvent.click(publishButton(view));
-  await waitFor(() => assert.equal(mock.posts.length, 0));
+  await waitFor(() => {
+    if (mock.posts.length != 0) throw new Error("waitFor: values differ");
+  });
 });

@@ -172,21 +172,25 @@ test("user hover card", async (t) => {
 
     fireEvent.scroll(window);
     // 上翻 = 卡底边贴触发元上缘 - VIEWPORT_MARGIN：top = 600 - 150 - 8。
-    await waitFor(() => assert.equal(card.style.top, "442px"), { timeout: 2000 });
+    await waitFor(() => {
+      if (card.style.top != "442px") throw new Error("waitFor: values differ");
+    });
     assert.equal(600 - (Number.parseFloat(card.style.top) + 150), 8, "gap must equal the viewport margin");
 
     // 打开后滚动：触发元仍处下部（下方不足维持上翻），卡片跟随重定位（含左对齐横向跟随）。
     rect = { top: 590, bottom: 610, left: 60, right: 220, width: 160, height: 20 };
     fireEvent.scroll(window);
     await waitFor(() => {
-      assert.equal(card.style.top, "432px", "card must follow the trigger on scroll");
-      assert.equal(card.style.left, "60px", "card must keep left alignment with the trigger");
+            if (card.style.top != "432px") throw new Error("card must follow the trigger on scroll");
+            if (card.style.left != "60px") throw new Error("card must keep left alignment with the trigger");
     }, { timeout: 2000 });
 
     // 上部触发元维持下方展开（实测高度参与下方判定，不再只按估算上翻）。
     rect = { top: 100, bottom: 120, left: 60, right: 220, width: 160, height: 20 };
     fireEvent.scroll(window);
-    await waitFor(() => assert.equal(card.style.top, "128px"), { timeout: 2000 });
+    await waitFor(() => {
+      if (card.style.top != "128px") throw new Error("waitFor: values differ");
+    });
 
     restoreGet();
     restoreMedia();
@@ -211,7 +215,7 @@ test("user hover card", async (t) => {
       } catch {
         gone = true;
       }
-      assert.ok(gone, "card must close on Escape");
+            if (!(gone)) throw new Error("card must close on Escape");
     });
     assert.ok(document.activeElement === link, "focus must return to the trigger");
     assert.ok(card, "card was open before Escape");

@@ -105,7 +105,7 @@ test.afterEach(() => {
 
 async function awaitLoadedUser(view: ReturnType<typeof renderWithIntl>) {
   await waitFor(() => {
-    assert.ok(view.container.querySelector('input[value="alice"]'), "user profile should load before interacting");
+        if (!(view.container.querySelector('input[value="alice"]'))) throw new Error("user profile should load before interacting");
   });
 }
 
@@ -116,7 +116,7 @@ test("collaboration switch initializes from user.accept_collab_invites", async (
 
   const toggle = await waitFor(() => {
     const element = view.getByRole("switch") as HTMLButtonElement;
-    assert.equal(element.getAttribute("aria-checked"), "true", "switch should reflect accept_collab_invites=true");
+        if (element.getAttribute("aria-checked") != "true") throw new Error("switch should reflect accept_collab_invites=true");
     return element;
   });
   assert.ok(toggle, "collaboration switch should render");
@@ -132,10 +132,13 @@ test("toggling the collaboration switch sends PATCH with only accept_collab_invi
   fireEvent.click(toggle);
 
   await waitFor(() => {
-    const patch = calls.patch.find((call) => call.path === "/api/v1/users/1");
-    assert.ok(patch, `expected PATCH /api/v1/users/1, got ${JSON.stringify(calls.patch)}`);
-    assert.deepEqual(patch.body, { accept_collab_invites: false });
+    if (!calls.patch.find((call) => call.path === "/api/v1/users/1")) {
+      throw new Error(`expected PATCH /api/v1/users/1, got ${JSON.stringify(calls.patch)}`);
+    }
   });
+  const patch = calls.patch.find((call) => call.path === "/api/v1/users/1");
+  assert.ok(patch, "expected PATCH /api/v1/users/1");
+  assert.deepEqual(patch.body, { accept_collab_invites: false });
 });
 
 test("successful collaboration save refreshes the user from /auth/me", async () => {
@@ -148,12 +151,8 @@ test("successful collaboration save refreshes the user from /auth/me", async () 
   fireEvent.click(toggle);
 
   await waitFor(() => {
-    assert.equal(
-      calls.get.filter((call) => call.path === "/api/v1/auth/me").length,
-      2,
-      "refreshUser should fetch /auth/me again after a successful save",
-    );
-    assert.ok(view.getByText(intlMessages.settings.collaboration.toast.saved), "success toast should render");
+        if (calls.get.filter((call) => call.path === "/api/v1/auth/me").length != 2) throw new Error("refreshUser should fetch /auth/me again after a successful save");
+        if (!(view.getByText(intlMessages.settings.collaboration.toast.saved))) throw new Error("success toast should render");
   });
 });
 
@@ -171,7 +170,9 @@ test("failed collaboration save rolls back the switch and shows toast plus inlin
   assert.equal(toggle.getAttribute("aria-checked"), "true");
   fireEvent.click(toggle);
 
-  await waitFor(() => assert.equal(toggle.getAttribute("aria-checked"), "false", "switch should optimistically toggle"));
+  await waitFor(() => {
+    if (toggle.getAttribute("aria-checked") != "false") throw new Error("switch should optimistically toggle");
+  });
 
   await act(async () => {
     rejectPatch(new ApiRequestError("DB_ERROR", "database error", 500));
@@ -179,12 +180,9 @@ test("failed collaboration save rolls back the switch and shows toast plus inlin
   });
 
   await waitFor(() => {
-    assert.equal(toggle.getAttribute("aria-checked"), "true", "switch should roll back to the server value after failure");
-    assert.ok(
-      view.container.querySelector('[role="alert"]')?.textContent?.includes(intlMessages.settings.collaboration.error.save),
-      "inline error should render",
-    );
-    assert.ok(document.body.textContent?.includes(intlMessages.settings.collaboration.toast.failed), "error toast should render");
+        if (toggle.getAttribute("aria-checked") != "true") throw new Error("switch should roll back to the server value after failure");
+        if (!(view.container.querySelector('[role="alert"]')?.textContent?.includes(intlMessages.settings.collaboration.error.save))) throw new Error("inline error should render");
+        if (!(document.body.textContent?.includes(intlMessages.settings.collaboration.toast.failed))) throw new Error("error toast should render");
   });
 });
 
@@ -206,7 +204,9 @@ test("password and delete controls stay enabled while the collaboration switch i
 
   fireEvent.click(toggle);
 
-  await waitFor(() => assert.equal(toggle.disabled, true, "collaboration switch should be disabled while saving"));
+  await waitFor(() => {
+    if (toggle.disabled != true) throw new Error("collaboration switch should be disabled while saving");
+  });
   assert.equal(passwordButton.disabled, passwordDisabledBefore, "password controls must not be locked by the collaboration save");
   assert.equal(deleteButton.disabled, deleteDisabledBefore, "delete-account controls must not be locked by the collaboration save");
 
@@ -221,7 +221,9 @@ test("collaboration switch has an explicit visible label", async () => {
   installSettingsApiMocks();
   const view = renderSettings();
 
-  await waitFor(() => assert.ok(view.getByText(intlMessages.settings.collaboration.acceptInvites.label)));
+  await waitFor(() => {
+    if (!(view.getByText(intlMessages.settings.collaboration.acceptInvites.label))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByText(intlMessages.settings.collaboration.acceptInvites.help));
   assert.ok(view.getByText(intlMessages.settings.collaboration.title));
 });

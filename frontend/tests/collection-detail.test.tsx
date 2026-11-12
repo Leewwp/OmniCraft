@@ -67,11 +67,11 @@ test("public collection detail renders for logged-out users", async () => {
   const view = await renderCollectionDetailPage("9");
 
   await waitFor(() => {
-    assert.ok(view.getByText("Public references"));
-    assert.ok(view.getByText("A careful shelf"));
-    assert.ok(view.getAllByText("Ada").length >= 1);
-    assert.ok(view.getByText("Story board"));
-    assert.equal(calls.get.find((call) => call.path.startsWith("/api/v1/collections/9"))?.path, "/api/v1/collections/9?page=1&page_size=20");
+        if (!(view.getByText("Public references"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("A careful shelf"))) throw new Error("waitFor: condition not met");
+        if (!(view.getAllByText("Ada").length >= 1)) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("Story board"))) throw new Error("waitFor: condition not met");
+        if (calls.get.find((call) => call.path.startsWith("/api/v1/collections/9"))?.path != "/api/v1/collections/9?page=1&page_size=20") throw new Error("waitFor: values differ");
   });
 });
 
@@ -84,8 +84,8 @@ test("collection detail not found state does not leak private titles", async () 
   const view = await renderCollectionDetailPage("404");
 
   await waitFor(() => {
-    assert.ok(view.getByText("Collection unavailable"));
-    assert.equal(view.queryByText("Private strategy board"), null);
+        if (!(view.getByText("Collection unavailable"))) throw new Error("waitFor: condition not met");
+        if (view.queryByText("Private strategy board") != null) throw new Error("waitFor: values differ");
   });
 });
 
@@ -107,12 +107,12 @@ test("CollectionInfoCard shows summary metadata and owner-only disabled default 
   const view = await renderCollectionDetailPage("9");
 
   await waitFor(() => {
-    assert.ok(view.getByText("Default originals"));
-    assert.ok(view.getByText("Private"));
-    assert.ok(view.getByText("Original"));
-    assert.ok(view.getByText("2 items"));
-    assert.ok(view.getByRole("button", { name: "Edit collection" }));
-    assert.equal((view.getByRole("button", { name: "Delete collection" }) as HTMLButtonElement).disabled, true);
+        if (!(view.getByText("Default originals"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("Private"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("Original"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("2 items"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByRole("button", { name: "Edit collection" }))) throw new Error("waitFor: condition not met");
+        if ((view.getByRole("button", { name: "Delete collection" }) as HTMLButtonElement).disabled != true) throw new Error("waitFor: values differ");
   });
 });
 
@@ -123,13 +123,15 @@ test("ContentTypeFilter updates the content_type query and refetches", async () 
   });
 
   const view = await renderCollectionDetailPage("9");
-  await waitFor(() => assert.ok(view.getByText("Public references")));
+  await waitFor(() => {
+    if (!(view.getByText("Public references"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Video" }));
 
   await waitFor(() => {
-    assert.ok(window.location.search.includes("content_type=video"));
-    assert.ok(calls.get.some((call) => call.path === "/api/v1/collections/9?page=1&page_size=20&content_type=video"));
+        if (!(window.location.search.includes("content_type=video"))) throw new Error("waitFor: condition not met");
+        if (!(calls.get.some((call) => call.path === "/api/v1/collections/9?page=1&page_size=20&content_type=video"))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -149,9 +151,9 @@ test("non-owner does not see owner controls", async () => {
   const view = await renderCollectionDetailPage("9");
 
   await waitFor(() => {
-    assert.ok(view.getByText("Shared references"));
-    assert.equal(view.queryByRole("button", { name: "Edit collection" }), null);
-    assert.equal(view.queryByRole("button", { name: "Delete collection" }), null);
+        if (!(view.getByText("Shared references"))) throw new Error("waitFor: condition not met");
+        if (view.queryByRole("button", { name: "Edit collection" }) != null) throw new Error("waitFor: values differ");
+        if (view.queryByRole("button", { name: "Delete collection" }) != null) throw new Error("waitFor: values differ");
   });
 });
 
