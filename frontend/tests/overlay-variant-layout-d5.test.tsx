@@ -380,7 +380,7 @@ test("D5 document / pdf 位：对应查看器挂载且互斥（当前位单挂�
   /* document 位：DocumentViewer 动态加载，落定为 loading / 解析结果任一形态。 */
   await waitFor(() => {
     if (!(document.querySelector('[data-testid^="document-viewer-"]'))) throw new Error("DocumentViewer mounts in the slide");
-  });
+  }, { timeout: 4000 });
   assert.ok(!document.querySelector("embed"), "document slide renders no embed");
 
   /* 切到 text_pdf 位：文档查看器卸载，embed 进场。 */

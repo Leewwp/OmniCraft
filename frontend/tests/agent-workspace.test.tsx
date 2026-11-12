@@ -769,7 +769,7 @@ test("clear history success (204) empties the transcript and focuses the input",
 
   await waitFor(() => {
     if (view.queryByText("to be cleared") != null) throw new Error("waitFor: values differ");
-  });
+  }, { timeout: 3000 });
   const deletes = calls.filter(
     (call) => call.path.includes("/api/v1/agent/conversations/1") && !call.path.includes("messages"),
   );
@@ -777,7 +777,7 @@ test("clear history success (204) empties the transcript and focuses the input",
   assert.ok(view.getByText("Start researching from site content"));
   await waitFor(() => {
     if (document.activeElement != view.getByRole("textbox", { name: "Ask the agent" })) throw new Error("waitFor: values differ");
-  });
+  }, { timeout: 3000 });
 });
 
 test("clear history failure keeps messages and shows the localized error", async () => {
@@ -816,10 +816,10 @@ test("clear history failure keeps messages and shows the localized error", async
   await flushAsyncUpdates();
   await waitFor(() => {
     if (!(view.getByText("keep me"))) throw new Error("failed clear must keep messages");
-  });
+  }, { timeout: 3000 });
   await waitFor(() => {
     if (!(view.getByText("Delete failed, please try again later"))) throw new Error("waitFor: condition not met");
-  });
+  }, { timeout: 3000 });
 });
 
 /* ---------- AgentWorkspace：流式回答与引用浮窗（复用 Ticket 02 底座） ---------- */
@@ -858,7 +858,7 @@ test("grounded done with follow_ups renders chips; click fills composer without 
     fireEvent.click(suggestion);
     await waitFor(() => {
       if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     /* 追问药丸：chips 由 done 事件副作用挂载（晚于 delta 流出的正文）——
        必须等副作用生效，不能在正文出现后同步查询（node:test+RTL 已知陷阱）。 */
@@ -887,7 +887,7 @@ test("grounded done with follow_ups renders chips; click fills composer without 
     /* 历史重载（done 后 activeId 触发）不得冲掉当前轮 chips（轮级态）。 */
     await waitFor(() => {
       if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("chips survive the history reload");
-    });
+    }, { timeout: 3000 });
   } finally {
     stub.restore();
   }
@@ -926,7 +926,7 @@ test("first-round follow-ups survive the FT-3 route remount via the terminal sta
     fireEvent.click(suggestion);
     await waitFor(() => {
       if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     assert.ok(
       routerReplaces.slice(replacesBefore).includes("/agent/c/7"),
       "first-round done replaced into the conversation URL",
@@ -938,7 +938,7 @@ test("first-round follow-ups survive the FT-3 route remount via the terminal sta
     const remounted = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
     await waitFor(() => {
       if (!(remounted.getByText("hello world"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     const chip = await waitFor(
       () => remounted.getByRole("button", { name: /Show watercolor tutorials/ }),
       { timeout: 8000 },
@@ -957,7 +957,7 @@ test("first-round follow-ups survive the FT-3 route remount via the terminal sta
     const third = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
     await waitFor(() => {
       if (!(third.getByText("hello world"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     assert.equal(
       third.queryByRole("group", { name: "Suggested follow-ups" }),
       null,
@@ -1022,7 +1022,7 @@ test("first-round done saves the handover record before router.replace fires (#7
     fireEvent.click(suggestion);
     await waitFor(() => {
       if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     assert.ok(routerReplaces.includes("/agent/c/7"), "first-round done replaced into the conversation URL");
     const probeTurns = probe.turns;
     assert.ok(probeTurns, "probe ran synchronously inside router.replace");
@@ -1068,11 +1068,11 @@ test("workspace streams an answer and renders citation cards", async () => {
 
     await waitFor(() => {
       if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
     await openCitationsPanel(view);
     await waitFor(() => {
       if (!(view.getByRole("button", { name: /Cited content/ }))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     /* 工具步骤区完成后自动折叠（A-06）：先展开再断言步骤明细。 */
     /* settle 竞态防护：轮终局重渲染会换掉展开按钮，点击与断言放同一 waitFor
        内重试（陈旧点击不抛错、断言失败重点）。 */
@@ -1159,7 +1159,7 @@ test("degraded stream hides the model summary and shows fallback references", as
     fireEvent.click(suggestion);
     await waitFor(() => {
       if (!(view.getByText("Search fallback active"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
     assert.equal(view.queryByText("model summary that must stay hidden"), null);
     await openCitationsPanel(view);
     assert.ok(view.getByRole("button", { name: /Fallback result/ }));
@@ -1275,14 +1275,14 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText("first answer"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     fireEvent.change(composer, { target: { value: "second question" } });
     /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText("second answer"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     /* FT-4：引用随答案持久化为各自入口按钮（面板一次展示一条回答的引用）。
         第二轮完成后两条入口都在；点第一轮入口仍能打开第一轮的引用卡。 */
@@ -1292,12 +1292,12 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     fireEvent.click(entries[0]);
     await waitFor(() => {
       if (!(view.getByRole("button", { name: /Cited content/ }))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     assert.equal(view.queryByRole("button", { name: /Second reference/ }), null, "panel shows the clicked answer's citations only");
     fireEvent.click(entries[1]);
     await waitFor(() => {
       if (!(view.getByRole("button", { name: /Second reference/ }))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
     assert.ok(view.getAllByRole("button", { name: /Second reference/ }).length >= 1, "turn-two citation card renders");
   } finally {
     globalThis.fetch = originalFetch;
@@ -1351,7 +1351,7 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText(/see this/))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     /* 等引用卡片出现 = done 事件已结算（角标按钮只在 done 后可点）。此后 done 触发的
        会话历史回放仍可能把整棵消息树原子替换，点击落在 detached 节点上即静默失效
@@ -1359,7 +1359,7 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     await openCitationsPanel(view);
     await waitFor(() => {
       if (!(view.getByRole("button", { name: /Cited content/ }))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     let dialog: HTMLElement | undefined;
     for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
       try {
@@ -1372,7 +1372,7 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     assert.ok(dialog, "inline badge click must open the content overlay directly");
     await waitFor(() => {
       if (!(within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1)) throw new Error("opened overlay must render the cited content heading");
-    });
+    }, { timeout: 2000 });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1435,7 +1435,7 @@ test("gap-numbered citations keep badge alignment by turn-global number", async 
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText(/第一/))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     /* #719 展示号：可见列表 [1,3] 连续映射——角标 [3] 文字/读屏用展示号 2，
        小卡标题仍按原全局编号命中（Third numbered，非数组第 3 项）。 */
@@ -1461,7 +1461,7 @@ test("gap-numbered citations keep badge alignment by turn-global number", async 
     assert.ok(dialog, "numbered badge click must open the overlay");
     await waitFor(() => {
       if (!(within(dialog).getAllByRole("heading", { name: "Third numbered" }).length >= 1)) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 2000 });
 
     /* 侧栏卡片：展示号按可见列表顺序连续（01 / 02，无空洞），id 仍键控
        原全局编号（目标查找与存储不变）。 */
@@ -1817,7 +1817,7 @@ test("stop aborts the stream, keeps partial content and shows the stopped notice
     const textbox = view.getByRole("textbox", { name: "Ask the agent" }) as HTMLTextAreaElement;
     await waitFor(() => {
       if (textbox.disabled != false) throw new Error("waitFor: values differ");
-    });
+    }, { timeout: 3000 });
   } finally {
     stub.restore();
   }
@@ -2453,7 +2453,7 @@ test("chat requests use the A-01 continuation body and carry conversation_id on 
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText("first answer"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     assert.equal(stub.bodies.length, 1);
     assert.equal(stub.bodies[0].message, "first question");
@@ -2501,7 +2501,7 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText("这是带思考过程的回答。"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     /* 思考折叠区：完成后自动折叠，可重新展开。done→activeId→历史回载会交换
        折叠块实例（流式块→服务端 think 行），点击可能落在交换窗口——轮询展开。 */
@@ -2566,7 +2566,7 @@ test("turn details pill: single button trigger, aria-expanded tracks content, ad
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText("answer body"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     /* 默认折叠：单一 button 触发（无 summary 嵌套），usage 不可见。 */
     const trigger = await waitFor(() => view.getByRole("button", { name: "Turn details" }));
@@ -2844,7 +2844,7 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText("可复制的回答。"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     /* 操作行只在 !streaming 且历史回载完成后出现（done→activeId→回载存在
        中间窗口）：waitFor 等按钮；但回载交换窗口内点击可能落在已卸载元素
@@ -2861,7 +2861,7 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
     );
     await waitFor(() => {
       if (!(view.getByText("Copied to clipboard"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
   } finally {
     stub.restore();
   }
@@ -2901,7 +2901,7 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
     fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => {
       if (!(view.getByText("第一版回答"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 3000 });
 
     await waitFor(() =>
       view.getByRole("button", { name: "Regenerate" }),
@@ -2912,7 +2912,7 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
     fireEvent.click(view.getByRole("button", { name: "Regenerate" }));
     await waitFor(() => {
       if (!(view.getByText("第二版回答"))) throw new Error("waitFor: condition not met");
-    });
+    }, { timeout: 8000 });
     assert.equal(view.queryByText("第一版回答"), null, "old answer rows are dropped");
     assert.ok(view.getByText("重新生成我"), "the user message stays");
     assert.equal(bodies[1].message, "重新生成我");

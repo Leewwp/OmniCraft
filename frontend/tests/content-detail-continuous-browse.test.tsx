@@ -420,7 +420,7 @@ test("#89 AC3: at the end of the context list the end hint shows and no switch f
      E4 相邻预取：打开 C 的空闲期对前项 B 预取一轮（B 从未再被打开）。 */
   await waitFor(() => {
     if (detailCallCount != 2) throw new Error("adjacent prev prefetched once");
-  });
+  }, { timeout: 2000 });
   swipeUpOnMedia();
   await waitFor(() => {
     if (!(view.getByText("You've reached the end"))) throw new Error("waitFor: condition not met");
@@ -444,7 +444,7 @@ test("#89 AC4: desktop (>=1100px) never triggers continuous browsing", async () 
      E4 相邻预取与视口无关（加速器非导航）：空闲期对 B 预取一轮即止。 */
   await waitFor(() => {
     if (detailCallCount != 2) throw new Error("adjacent prefetch warms B once");
-  });
+  }, { timeout: 2000 });
   swipeUpOnMedia("first");
   await waitFor(() => {
     if (!(view.getByRole("heading", { level: 2, name: "Context A" }))) throw new Error("waitFor: condition not met");

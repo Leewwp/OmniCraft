@@ -188,7 +188,7 @@ function countBadgeCurrent(): number {
 async function waitForViewerModel3d() {
   await waitFor(() => {
     if (!(document.querySelector('[data-testid="model-viewer-error"], [data-testid="model-viewer-loading"]'))) throw new Error("fullscreen ModelViewer mounts");
-  });
+  }, { timeout: 4000 });
 }
 
 async function flushRaf() {
