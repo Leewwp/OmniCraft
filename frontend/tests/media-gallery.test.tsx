@@ -238,7 +238,8 @@ function parseAspectRatio(scroller: HTMLElement): number {
 
 test("MediaGallery derives container geometry from the first item and keeps it stable", () => {
   const wideFirst = renderGallery({ items: [makeItem(1, { width: 1600, height: 900 }), makeItem(2)] });
-  assert.equal(parseAspectRatio(mediaScroller(wideFirst.container)), 16 / 9);
+  /* jsdom 31 读回 aspectRatio 按 5 位小数舍入（1.77778）——非整除比例按数值容差比较。 */
+  assert.ok(Math.abs(parseAspectRatio(mediaScroller(wideFirst.container)) - 16 / 9) < 1e-4);
   cleanup();
   const portraitFirst = renderGallery({ items: [makeItem(1, { width: 750, height: 1000 }), makeItem(2)] });
   assert.equal(parseAspectRatio(mediaScroller(portraitFirst.container)), 3 / 4);
@@ -427,7 +428,7 @@ test("MediaGallery geometry follows the current item across aspect ratios", () =
   ];
   const { container } = renderGallery({ items: mixed });
   const scroller = mediaScroller(container);
-  assert.equal(parseAspectRatio(scroller), 1600 / 900, "first item geometry initially");
+  assert.ok(Math.abs(parseAspectRatio(scroller) - 1600 / 900) < 1e-4, "first item geometry initially");
   const next = container.querySelector('button[aria-label="Next media"]') as HTMLButtonElement;
   fireEvent.click(next);
   const secondScroller = mediaScroller(container);
