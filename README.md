@@ -128,7 +128,7 @@ A **single-server production deployment is complete** ([app.leeppp.online](https
 | Tool | Version | Notes |
 |------|---------|------|
 | Go | 1.26+ | backend API (CI pins exactly 1.26.8, see `.github/workflows/ci.yml`) |
-| Node.js | 20+ | frontend Next.js (CI pins Node 20; `engines` declares the minimum-version policy) |
+| Node.js | 22+ | frontend Next.js (CI pins Node 22; `engines` declares the minimum-version policy) |
 | pnpm | 9+ (or npm 10+) | frontend package manager |
 | PostgreSQL | 16+ | requires pgvector ≥ 0.7 |
 | Redis | 7+ | cache and sessions |

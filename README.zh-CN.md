@@ -125,7 +125,7 @@ Agent 答案实测（同冻结语料，2026-08-29，63 case 真实工具循环�
 | 工具 | 版本要求 | 说明 |
 |------|---------|------|
 | Go | 1.26+ | 后端 API 服务（CI 精确固定 1.26.8，见 `.github/workflows/ci.yml`） |
-| Node.js | 20+ | 前端 Next.js（CI 固定 Node 20；`engines` 声明最低版本策略） |
+| Node.js | 22+ | 前端 Next.js（CI 固定 Node 22；`engines` 声明最低版本策略） |
 | pnpm | 9+ (或 npm 10+) | 前端包管理 |
 | PostgreSQL | 16+ | 需 pgvector ≥ 0.7 |
 | Redis | 7+ | 缓存与会话 |
