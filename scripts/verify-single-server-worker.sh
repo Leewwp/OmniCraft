@@ -41,6 +41,13 @@ pass() { echo "PASS  $*"; }
 
 DOTENV="$ROOT/.env"
 
+# 部署主机上仓库根就是 /opt/omnicraft：那里的 .env 是真实密钥文件（runbook §3）。
+# 本脚本只为 compose 的 env_file: .env 生成 dummy——已有文件时立即中止，绝不触碰。
+if [ -e "$DOTENV" ]; then
+  echo "REFUSE $DOTENV 已存在（部署主机密钥文件？）——本脚本只可在无根 .env 的开发检出上运行" >&2
+  exit 1
+fi
+
 check_static() {
   # env_file: .env 在 config 校验时也须存在——临时 dummy，退出即清。
   : > "$DOTENV"

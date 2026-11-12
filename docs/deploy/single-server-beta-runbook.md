@@ -433,8 +433,9 @@ docker compose --env-file .env -f docker-compose.single-server.yml ps worker   #
 docker compose --env-file .env -f docker-compose.single-server.yml logs --tail=100 backend
 # Notification consumption is live (bell/activity feeds): after any
 # notification-generating action the consumer group lag must return to 0.
+# (The password is read inside the redis container's own environment.)
 docker compose --env-file .env -f docker-compose.single-server.yml exec redis \
-  redis-cli -a "$REDIS_PASSWORD" xinfo groups omnicraft:notification.create
+  sh -c 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning xinfo groups omnicraft:notification.create'
 ```
 
 Expected public config posture:
