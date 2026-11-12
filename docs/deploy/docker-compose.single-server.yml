@@ -3,8 +3,8 @@
 #   docker compose --env-file .env -f docker-compose.single-server.yml up -d --build
 #
 # Only nginx publishes host ports (80/443). PostgreSQL, Redis, backend,
-# frontend, Prometheus, Loki and Alloy stay on the Docker network. The
-# metrics/readiness endpoints on backend:9091 are internal-only; operator
+# worker, frontend, Prometheus, Loki and Alloy stay on the Docker network.
+# The metrics/readiness endpoints on backend:9091 are internal-only; operator
 # access to Loki goes through loki-gate bound to 127.0.0.1:13100 (SSH tunnel).
 #
 # Variables (beyond .env): OBS_GATE_TOKEN (operator token, required),
@@ -154,6 +154,51 @@ services:
       resources:
         limits:
           memory: 768m
+
+  # Standalone async worker (ADR 0005, issue #138): the only place queue
+  # consumers and the outbox relay run. Without it the notification/review
+  # topics are never consumed (bells and activity feeds silently stall), so
+  # it belongs in the base stack, not only in an override.
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_DSN: "host=pgbouncer port=5432 user=${POSTGRES_USER:-omnicraft} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-omnicraft} sslmode=disable"
+      # The worker runs the same release config gate as backend since #671;
+      # pgbouncer is an unexposed internal host and needs the same explicit
+      # TLS-negotiation exemption backend already carries.
+      OMNICRAFT_PRIVATE_DB_HOSTS: "pgbouncer"
+      REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      CONFIG_OVERRIDE_PATH: /app/config_override.yaml
+    volumes:
+      - /var/lib/omnicraft/config_override.yaml:/app/config_override.yaml:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # The worker has no listening port: liveness = the process itself.
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep worker || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    command: ["./worker"]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   frontend:
     build:

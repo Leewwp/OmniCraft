@@ -9,9 +9,10 @@
 #   - defers the ten resident observability/alerting services behind the
 #     "full-observability" profile; start them only on >= 8 GiB hosts or when
 #     observability is hosted separately;
-#   - adds the standalone worker (ADR 0005): the API server never starts
-#     async consumers, so without it the outbox relay and the review/
-#     notification queue topics are never consumed;
+#   - tightens the standalone worker's memory cap (the worker itself is
+#     defined in the base file since #988: the API server never starts async
+#     consumers, so without the worker the outbox relay and the review/
+#     notification queue topics are never consumed);
 #   - caps aggregate resident memory limits at <= 2.6 GiB. Caps are sized
 #     from measured idle RSS on the lean host (2026-08-31: redis 6 MiB,
 #     backend 7 MiB, postgres 39 MiB, pgbouncer 5 MiB, nginx 17 MiB,
@@ -79,38 +80,8 @@ services:
           memory: 256m
 
   worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DB_DSN: "host=pgbouncer port=5432 user=${POSTGRES_USER:-omnicraft} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-omnicraft} sslmode=disable"
-      # The worker runs the same release config gate as backend since #671;
-      # pgbouncer is an unexposed internal host and needs the same explicit
-      # TLS-negotiation exemption backend already carries.
-      OMNICRAFT_PRIVATE_DB_HOSTS: "pgbouncer"
-      REDIS_ADDR: "redis:6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
-      REDIS_DB: ${REDIS_DB:-0}
-      CONFIG_OVERRIDE_PATH: /app/config_override.yaml
-    volumes:
-      - /var/lib/omnicraft/config_override.yaml:/app/config_override.yaml:ro
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
-      pgbouncer:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: ["./worker"]
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    # Full worker definition lives in the base file (#988); the lean profile
+    # only tightens the memory cap for the 3.6 GiB host.
     deploy:
       resources:
         limits:
