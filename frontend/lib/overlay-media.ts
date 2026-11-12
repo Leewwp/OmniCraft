@@ -27,8 +27,8 @@ export const OVERLAY_DEFAULT_RATIO = 3 / 4;
 /** 共享有界就绪预算（D2 #859）：未知尺寸探测的上限。必须短于浮层入场保险
  * （ContentDetailOverlay ENTRANCE_SAFETY_MS=2000）——保证 chainReady 在入场
  * 保险之前落定（超时按稳定 fallback 完成当前入场）；预算窗口之后才到达的
- * 迟到元数据由统一版式冻结窗口（OverlayVariantLayout freezeGeometry 锁比例）
- * 挡在入场动画之外，落定后随切位/回填平滑调整。 */
+ * 迟到元数据不参与入场（几何按内容冻结，E1 #953 lib/overlay-geometry
+ * contentFrozenRatio 消费首 slide），落定后按 240ms 平滑修正。 */
 export const MEDIA_READY_BUDGET_MS = 1500;
 /** 自动文字封面名义几何（getCoverPlaceholder 3:4 渐变字牌）。 */
 const PLACEHOLDER_WIDTH = 300;
