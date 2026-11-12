@@ -296,7 +296,9 @@ async function arrowDisabled(side) {
 }
 
 try {
-  await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "networkidle", timeout: 30000 });
+  /* domcontentloaded：Playwright 1.65 起 networkidle 把 dev server 的 HMR
+   WebSocket 计入开放连接，对 dev 栈永不落定；后续断言自带显式等待。 */
+  await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(800);
 
   /* ── 1. 封面恒首屏 + 封面=首图去重 + 边界 clamp ──────────────────────── */

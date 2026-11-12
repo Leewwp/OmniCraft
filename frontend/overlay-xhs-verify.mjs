@@ -15,8 +15,9 @@
 // / e4 预取就绪——各持独立夹具段与合成附件服务端口 18083~18085，互不冲突），
 // 之后在本进程跑「补遗组」：原型断言矩阵中未被 e1~e4 覆盖的条目 + 终态补强
 // （无 console/page 错误、中间张双侧箭头可用、跨比例 letterbox contain 形态、
-// 关窗退场完成）。子 rig 保留为历史 seam（各票验证证据的可独立复跑单元），
-// 本文件是常规验证门的唯一入口：全绿 = 断言矩阵全过。
+// 关窗退场完成）与「F4 组」（#989：带 sort/q 参数开浮窗的 URL 记录透传/浮窗
+// 存活/背景不重拉不重挂/关窗回源恢复 query）。子 rig 保留为历史 seam（各票
+// 验证证据的可独立复跑单元），本文件是常规验证门的唯一入口：全绿 = 断言矩阵全过。
 // 截图 ../screenshots/e{1,2,3,4}-rig-*.png 与 e5-matrix-*.png。
 import { spawn } from "node:child_process";
 import { chromium } from "@playwright/test";
@@ -73,7 +74,7 @@ async function residualGroup() {
     if (m.type() === "error") pageErrors.push(m.text());
   });
   try {
-    await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForTimeout(800);
 
     const card = page.locator(`text=${MIXED_TITLE}`).first();
@@ -132,10 +133,81 @@ async function residualGroup() {
   }
 }
 
+/** F4 #989：IP hub 带 sort/q 参数开浮窗——会话记录 URL 透传来源 search、
+ *  浮窗存活、背景列表不重拉不重挂、关窗回源恢复原 query（复用 e4 隔离 IP
+ *  99209 夹具：恰三篇，newest 序下三张均在首屏）。 */
+async function f4UrlSearchGroup() {
+  console.log("\n════ F4 组（sort/q 参数浮窗 URL 回写——#989）════");
+  const browser = await chromium.launch();
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const ORIGIN_SEARCH = "?tab=share&sort=newest";
+  let listRequests = 0;
+  page.on("request", (req) => {
+    if (/\/api\/v1\/ips\/99209\/contents/.test(req.url())) listRequests += 1;
+  });
+  try {
+    await page.goto(`${BASE}/ip/99209${ORIGIN_SEARCH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(600);
+    const card = page.locator("text=【E4验证】相邻次篇").first();
+    await card.waitFor({ state: "visible", timeout: 10000 });
+    await card.evaluate((el) => {
+      el.setAttribute("data-f4-probe", "alive");
+      window.__f4DocMarker = 1;
+    });
+    await page.evaluate((el) => el.scrollIntoView({ block: "center" }), await card.elementHandle());
+    await page.waitForTimeout(150);
+    const requestsBeforeClick = listRequests;
+
+    await card.click({ timeout: 10000 });
+    await page.locator("dialog[open]").waitFor({ state: "visible", timeout: 12000 });
+    await page.waitForTimeout(1500);
+
+    check(
+      "F4 浮窗 1.5s 后仍存活（带 sort 参数开浮窗不自杀）",
+      (await page.locator("dialog[open]").count()) === 1,
+    );
+    const url = new URL(page.url());
+    check(
+      "F4 记录 URL = 规范路径 + 来源 search 原样透传",
+      url.pathname === "/content/99122" && url.search === ORIGIN_SEARCH,
+      `url=${url.pathname}${url.search}`,
+    );
+    check(
+      "F4 背景列表不重拉（点击后零新 /ips/99209/contents 请求）",
+      listRequests === requestsBeforeClick,
+      `before=${requestsBeforeClick} after=${listRequests}`,
+    );
+    const identity = await page.evaluate(() => ({
+      doc: window.__f4DocMarker === 1,
+      grid: Boolean(document.querySelector("[data-f4-probe='alive']")),
+    }));
+    check(
+      "F4 无文档卸载且背景网格不重挂（window/卡片 DOM 探针存活）",
+      identity.doc && identity.grid,
+      `doc=${identity.doc} grid=${identity.grid}`,
+    );
+    await page.screenshot({ path: `${SHOTS}/e5-matrix-f4-url-search.png` });
+
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(900);
+    const afterClose = new URL(page.url());
+    check(
+      "F4 关窗回源恢复原 query（来源记录 search 原样）",
+      afterClose.pathname === "/ip/99209" && afterClose.search === ORIGIN_SEARCH,
+      `url=${afterClose.pathname}${afterClose.search}`,
+    );
+  } finally {
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
+  }
+}
+
 for (const rig of SUB_RIGS) {
   await runSubRig(rig);
 }
 await residualGroup();
+await f4UrlSearchGroup();
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed === 0 ? "ALL PASS" : failed + " FAILED"} (${results.length} checks)`);
