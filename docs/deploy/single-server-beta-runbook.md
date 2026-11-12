@@ -220,11 +220,12 @@ sed -i "s|app\.example\.com|<real-app-domain>|g; s|api\.example\.com|<real-api-d
 
 ### 6.1 Full production profile
 
-The committed single-server compose defines 17 services: six resident Web
-core services, the one-shot `migrate` release gate, and ten resident
-observability/alerting services. Its declared resident memory limits total
-about 5.7 GiB before Ubuntu, Docker and filesystem cache, so it must not be
-started as a full stack on the current 3.6 GiB lean host.
+The committed single-server compose defines 18 services: seven resident Web
+core services (including the standalone `worker`, ADR 0005 — the API server
+never starts async consumers), the one-shot `migrate` release gate, and ten
+resident observability/alerting services. Its declared resident memory
+limits total about 6.1 GiB before Ubuntu, Docker and filesystem cache, so it
+must not be started as a full stack on the current 3.6 GiB lean host.
 
 On a host with sufficient capacity (8 GiB minimum is the current operational
 target, or when observability is hosted separately), start the full profile:
@@ -238,8 +239,8 @@ docker compose --env-file .env -f docker-compose.single-server.yml ps
 
 The Web-only lean host uses this explicit service boundary:
 
-- resident Web core: `postgres`, `redis`, `pgbouncer`, `backend`, `frontend`,
-  `nginx`;
+- resident Web core: `postgres`, `redis`, `pgbouncer`, `backend`, `worker`,
+  `frontend`, `nginx`;
 - release-time one-shot gate: `migrate`;
 - resident application metrics: `prometheus`, with a dedicated lean config
   that scrapes only `backend:9091`;
@@ -266,11 +267,12 @@ deployment (`docker compose ... config`):
 
 - `docs/deploy/docker-compose.lean.yml` — Compose override that
   defers the ten observability/alerting services behind the
-  `full-observability` profile, adds the standalone `worker` (ADR 0005: the
-  API server never starts async consumers), and caps the resident limits of
-  the remaining services at ~2.5 GiB (postgres 512m, redis 256m, pgbouncer
+  `full-observability` profile and caps the resident limits of the
+  remaining services at ~2.5 GiB (postgres 512m, redis 256m, pgbouncer
   128m, backend 512m, frontend 512m, nginx 64m, prometheus 256m, worker
-  256m, plus the one-shot `migrate` at 256m). Caps are sized from measured
+  256m — the worker itself is defined in the base file since #988, ADR 0005:
+  the API server never starts async consumers — plus the one-shot `migrate`
+  at 256m). Caps are sized from measured
   idle RSS on this host (2026-08-31: redis 6 MiB, backend 7 MiB, postgres
   39 MiB, pgbouncer 5 MiB, nginx 17 MiB, frontend 90 MiB) with headroom for
   light traffic.
@@ -427,7 +429,13 @@ why the list must stay minimal. The release preflight
 curl -I https://app.example.com
 curl https://api.example.com/healthz
 curl https://api.example.com/api/v1/config/public
+docker compose --env-file .env -f docker-compose.single-server.yml ps worker   # worker: Up (healthy)
 docker compose --env-file .env -f docker-compose.single-server.yml logs --tail=100 backend
+# Notification consumption is live (bell/activity feeds): after any
+# notification-generating action the consumer group lag must return to 0.
+# (The password is read inside the redis container's own environment.)
+docker compose --env-file .env -f docker-compose.single-server.yml exec redis \
+  sh -c 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning xinfo groups omnicraft:notification.create'
 ```
 
 Expected public config posture:
