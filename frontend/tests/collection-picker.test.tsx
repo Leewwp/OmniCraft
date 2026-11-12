@@ -176,7 +176,9 @@ test("CollectionPicker lists same-zone collections with content item state from 
 
   const view = renderPicker();
 
-  await waitFor(() => assert.equal(calls.get.at(-1)?.path, "/api/v1/collections?zone=original&content_item_id=42"));
+  await waitFor(() => {
+    if (calls.get.at(-1)?.path != "/api/v1/collections?zone=original&content_item_id=42") throw new Error("waitFor: values differ");
+  });
   assert.ok(await view.findByText("Original default"));
   assert.ok(await view.findByText("Already in"));
   assert.ok(!view.queryByText("Fanwork shelf"));
@@ -208,7 +210,9 @@ test("CollectionPicker removes already-added content using backend item_id", asy
 
   fireEvent.click(await view.findByRole("button", { name: "Remove from Already in" }));
 
-  await waitFor(() => assert.equal(calls.delete.at(-1)?.path, "/api/v1/collections/2/items/991"));
+  await waitFor(() => {
+    if (calls.delete.at(-1)?.path != "/api/v1/collections/2/items/991") throw new Error("waitFor: values differ");
+  });
   assert.equal(calls.post.length, 0);
 });
 
@@ -230,14 +234,15 @@ test("CollectionPicker creates a collection inline and adds the current item", a
   fireEvent.click(view.getByRole("button", { name: "Create and add" }));
 
   await waitFor(() => {
-    assert.deepEqual(calls.post.at(-2), {
-      path: "/api/v1/collections",
-      body: { title: "Research", description: "", zone: "original", is_public: false },
-    });
-    assert.deepEqual(calls.post.at(-1), {
-      path: "/api/v1/collections/77/items",
-      body: { content_item_id: 42 },
-    });
+    if (calls.post.length < 2) throw new Error("waitFor: expected both POST calls captured");
+  });
+  assert.deepEqual(calls.post.at(-2), {
+    path: "/api/v1/collections",
+    body: { title: "Research", description: "", zone: "original", is_public: false },
+  });
+  assert.deepEqual(calls.post.at(-1), {
+    path: "/api/v1/collections/77/items",
+    body: { content_item_id: 42 },
   });
 });
 
@@ -301,7 +306,9 @@ test("CollectionPicker blocks backdrop and Escape close while an add request is 
   const addButton = await view.findByRole("button", { name: "Add" });
   fireEvent.click(addButton);
 
-  await waitFor(() => assert.ok(addButton.getAttribute("disabled") !== null));
+  await waitFor(() => {
+    if (!(addButton.getAttribute("disabled") !== null)) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByRole("button", { name: "Close" }).getAttribute("disabled") !== null, "close disabled while busy");
 
   fireEvent.keyDown(document, { key: "Escape" });
@@ -312,7 +319,9 @@ test("CollectionPicker blocks backdrop and Escape close while an add request is 
   assert.ok(view.queryByRole("dialog"), "backdrop click does not close while busy");
 
   releaseAdd?.();
-  await waitFor(() => assert.ok(view.queryByText(/Added to collection/)));
+  await waitFor(() => {
+    if (!(view.queryByText(/Added to collection/))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("CollectionPicker shows in-modal notices on add success and failure and auto-dismisses them", async () => {
@@ -407,12 +416,20 @@ test("#74 CollectionPicker reports membership after add and after removing from 
   assert.equal(view.getByLabelText("membership state").textContent, "false", "initial load does not touch detail state");
 
   fireEvent.click(view.getByRole("button", { name: "Remove from First shelf" }));
-  await waitFor(() => assert.equal(calls.delete.at(-1)?.path, "/api/v1/collections/1/items/11"));
-  await waitFor(() => assert.equal(view.getByLabelText("membership state").textContent, "true", "still member of second collection"));
+  await waitFor(() => {
+    if (calls.delete.at(-1)?.path != "/api/v1/collections/1/items/11") throw new Error("waitFor: values differ");
+  });
+  await waitFor(() => {
+    if (view.getByLabelText("membership state").textContent != "true") throw new Error("still member of second collection");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Remove from Second shelf" }));
-  await waitFor(() => assert.equal(calls.delete.at(-1)?.path, "/api/v1/collections/2/items/22"));
-  await waitFor(() => assert.equal(view.getByLabelText("membership state").textContent, "false", "last membership removed"));
+  await waitFor(() => {
+    if (calls.delete.at(-1)?.path != "/api/v1/collections/2/items/22") throw new Error("waitFor: values differ");
+  });
+  await waitFor(() => {
+    if (view.getByLabelText("membership state").textContent != "false") throw new Error("last membership removed");
+  });
 });
 
 test("#74 CollectionPicker reports membership true when adding to an empty shelf", async () => {
@@ -426,8 +443,12 @@ test("#74 CollectionPicker reports membership true when adding to an empty shelf
   const view = renderPicker();
 
   fireEvent.click(await view.findByRole("button", { name: "Add" }));
-  await waitFor(() => assert.equal(calls.post.at(-1)?.path, "/api/v1/collections/1/items"));
-  await waitFor(() => assert.equal(view.getByLabelText("membership state").textContent, "true"));
+  await waitFor(() => {
+    if (calls.post.at(-1)?.path != "/api/v1/collections/1/items") throw new Error("waitFor: values differ");
+  });
+  await waitFor(() => {
+    if (view.getByLabelText("membership state").textContent != "true") throw new Error("waitFor: values differ");
+  });
 });
 
 test("ContentDetail derives favorited label from isFavorited and reuses the membership callback", () => {

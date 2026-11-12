@@ -110,9 +110,9 @@ test("history page prefers items and still renders legacy history content_item",
   const view = await renderHistoryPage();
 
   await waitFor(() => {
-    assert.ok(view.getByText("New item title"));
-    assert.equal(view.queryByText("Legacy title"), null);
-    assert.ok(view.getByText("Showing records from the last 7 days."));
+        if (!(view.getByText("New item title"))) throw new Error("waitFor: condition not met");
+        if (view.queryByText("Legacy title") != null) throw new Error("waitFor: values differ");
+        if (!(view.getByText("Showing records from the last 7 days."))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -133,9 +133,9 @@ test("history page falls back to legacy history and renders unavailable placehol
   const view = await renderHistoryPage();
 
   await waitFor(() => {
-    assert.ok(view.getByText("Legacy title"));
-    assert.ok(view.getByText("Content unavailable"));
-    assert.ok(view.getByText("Showing recent browsing records."));
+        if (!(view.getByText("Legacy title"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("Content unavailable"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("Showing recent browsing records."))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -146,17 +146,19 @@ test("history filters call the API with content type and date query", async () =
   });
 
   const view = await renderHistoryPage();
-  await waitFor(() => assert.ok(view.getByText("Article title")));
+  await waitFor(() => {
+    if (!(view.getByText("Article title"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Article" }));
   await waitFor(() => {
-    assert.ok(calls.get.some((call) => call.path.includes("content_type=article")));
+        if (!(calls.get.some((call) => call.path.includes("content_type=article")))) throw new Error("waitFor: condition not met");
   });
 
   fireEvent.change(view.getByLabelText("Start date"), { target: { value: "2026-07-01" } });
   fireEvent.change(view.getByLabelText("End date"), { target: { value: "2026-07-02" } });
   await waitFor(() => {
-    assert.ok(calls.get.some((call) => call.path.includes("start_date=2026-07-01") && call.path.includes("end_date=2026-07-02")));
+        if (!(calls.get.some((call) => call.path.includes("start_date=2026-07-01") && call.path.includes("end_date=2026-07-02")))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -169,10 +171,10 @@ test("history page initializes filters from URL query", async () => {
   const view = await renderHistoryPage();
 
   await waitFor(() => {
-    assert.ok(view.getByText("Video title"));
-    assert.ok(calls.get[0].path.includes("content_type=video"));
-    assert.ok(calls.get[0].path.includes("start_date=2026-07-01"));
-    assert.ok(calls.get[0].path.includes("end_date=2026-07-02"));
+        if (!(view.getByText("Video title"))) throw new Error("waitFor: condition not met");
+        if (!(calls.get[0].path.includes("content_type=video"))) throw new Error("waitFor: condition not met");
+        if (!(calls.get[0].path.includes("start_date=2026-07-01"))) throw new Error("waitFor: condition not met");
+        if (!(calls.get[0].path.includes("end_date=2026-07-02"))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -182,17 +184,21 @@ test("history page rejects invalid date ranges without requesting", async () => 
     response: { items: [historyItem(1, "Stable title", "article")], history: [], total: 1, page: 1, page_size: 20, retention_days: 7 },
   });
   const view = await renderHistoryPage();
-  await waitFor(() => assert.ok(view.getByText("Stable title")));
+  await waitFor(() => {
+    if (!(view.getByText("Stable title"))) throw new Error("waitFor: condition not met");
+  });
 
   fireEvent.change(view.getByLabelText("End date"), { target: { value: "2026-07-02" } });
-  await waitFor(() => assert.ok(calls.get.some((call) => call.path.includes("end_date=2026-07-02"))));
+  await waitFor(() => {
+    if (!(calls.get.some((call) => call.path.includes("end_date=2026-07-02")))) throw new Error("waitFor: condition not met");
+  });
   const validRangeCalls = calls.get.length;
 
   fireEvent.change(view.getByLabelText("Start date"), { target: { value: "2026-07-03" } });
 
   await waitFor(() => {
-    assert.ok(view.getByText("Start date must be before end date."));
-    assert.equal(calls.get.length, validRangeCalls);
+        if (!(view.getByText("Start date must be before end date."))) throw new Error("waitFor: condition not met");
+        if (calls.get.length != validRangeCalls) throw new Error("waitFor: values differ");
   });
 });
 
@@ -210,18 +216,21 @@ test("history batch delete sends selected ids in a DELETE body", async () => {
   });
   const view = await renderHistoryPage();
 
-  await waitFor(() => assert.ok(view.getByText("First title")));
+  await waitFor(() => {
+    if (!(view.getByText("First title"))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Batch manage" }));
   fireEvent.click(view.getByLabelText("Select First title"));
   fireEvent.click(view.getByRole("button", { name: "Delete selected (1)" }));
   fireEvent.click(await findDialogConfirmButton(view));
 
   await waitFor(() => {
-    assert.deepEqual(calls.deleteWithBody.at(-1), {
-      path: "/api/v1/users/me/history",
-      body: { ids: [1] },
-    });
-    assert.ok(document.body.textContent?.includes("Browsing history updated."));
+    if (calls.deleteWithBody.length < 1) throw new Error("waitFor: expected a DELETE call");
+    if (!(document.body.textContent?.includes("Browsing history updated."))) throw new Error("waitFor: condition not met");
+  });
+  assert.deepEqual(calls.deleteWithBody.at(-1), {
+    path: "/api/v1/users/me/history",
+    body: { ids: [1] },
   });
 });
 
@@ -239,7 +248,9 @@ test("history clear-all waits for confirmation and sends the explicit clear tag"
   });
   const view = await renderHistoryPage();
 
-  await waitFor(() => assert.ok(view.getByText("Protected title")));
+  await waitFor(() => {
+    if (!(view.getByText("Protected title"))) throw new Error("waitFor: condition not met");
+  });
   fireEvent.click(view.getByRole("button", { name: "Clear all" }));
 
   assert.equal(calls.deleteWithBody.length, 0, "opening the confirmation must not delete history");
@@ -247,10 +258,11 @@ test("history clear-all waits for confirmation and sends the explicit clear tag"
   fireEvent.click(await findDialogConfirmButton(view));
 
   await waitFor(() => {
-    assert.deepEqual(calls.deleteWithBody.at(-1), {
-      path: "/api/v1/users/me/history",
-      body: { clear_all: true },
-    });
+    if (calls.deleteWithBody.length < 1) throw new Error("waitFor: expected a DELETE call");
+  });
+  assert.deepEqual(calls.deleteWithBody.at(-1), {
+    path: "/api/v1/users/me/history",
+    body: { clear_all: true },
   });
 });
 
@@ -262,15 +274,17 @@ test("history page keeps last successful data when refresh fails", async () => {
     shouldFail: () => failNext,
   });
   const view = await renderHistoryPage();
-  await waitFor(() => assert.ok(view.getByText("Stable title")));
+  await waitFor(() => {
+    if (!(view.getByText("Stable title"))) throw new Error("waitFor: condition not met");
+  });
 
   failNext = true;
   fireEvent.click(view.getByRole("button", { name: "Video" }));
 
   await waitFor(() => {
-    assert.ok(view.getByText("Stable title"));
-    assert.ok(view.getByText("Could not refresh. Showing the last successful result."));
-    assert.ok(document.body.textContent?.includes("Failed to load browsing history."));
+        if (!(view.getByText("Stable title"))) throw new Error("waitFor: condition not met");
+        if (!(view.getByText("Could not refresh. Showing the last successful result."))) throw new Error("waitFor: condition not met");
+        if (!(document.body.textContent?.includes("Failed to load browsing history."))) throw new Error("waitFor: condition not met");
   });
 });
 

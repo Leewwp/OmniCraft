@@ -155,10 +155,15 @@ function reactionButton(view: ReturnType<typeof render>, title: string) {
   return button;
 }
 
+/* waitFor 轮询内调用：廉价 throw（node:assert 在 TSX 里的失败格式化会烧穿重试循环，E2 实证）。 */
 function assertPressed(view: ReturnType<typeof render>, kind: "Like" | "Dislike", pressed: boolean, count: string) {
   const button = reactionButton(view, kind);
-  assert.equal(button.getAttribute("aria-pressed"), String(pressed), `${kind} aria-pressed should be ${pressed}`);
-  assert.ok(button.textContent?.includes(count), `${kind} should show count ${count}`);
+  if (button.getAttribute("aria-pressed") != String(pressed)) {
+    throw new Error(`${kind} aria-pressed should be ${pressed}`);
+  }
+  if (!(button.textContent?.includes(count))) {
+    throw new Error(`${kind} should show count ${count}`);
+  }
 }
 
 test("ReactionBar renders public aggregates only for anonymous visitors and never fetches a viewer reaction", async () => {
@@ -170,15 +175,15 @@ test("ReactionBar renders public aggregates only for anonymous visitors and neve
   // SP-17/T2：匿名点赞/点踩可点击（开登录浮窗续做）；举报保持禁用+原因。
   await waitFor(() => {
     const loginTitled = view.container.querySelectorAll<HTMLButtonElement>(`button[title="${intlMessages.auth.loginToInteract}"]`);
-    assert.equal(loginTitled.length, 3, "like, dislike and report all expose the login hint for anonymous visitors");
+        if (loginTitled.length != 3) throw new Error("like, dislike and report all expose the login hint for anonymous visitors");
     const [likeButton, dislikeButton, reportButton] = loginTitled;
-    assert.equal(likeButton.disabled, false, "anonymous like must be clickable");
-    assert.equal(dislikeButton.disabled, false, "anonymous dislike must be clickable");
-    assert.ok(reportButton.disabled, "report stays disabled for anonymous visitors");
-    assert.equal(likeButton.getAttribute("aria-pressed"), "false", "anonymous must not expose a viewer pressed state");
-    assert.equal(dislikeButton.getAttribute("aria-pressed"), "false", "anonymous must not expose a viewer pressed state");
-    assert.ok(likeButton.textContent?.includes("2"), "like count should render from public aggregates");
-    assert.ok(dislikeButton.textContent?.includes("1"), "dislike count should render from public aggregates");
+        if (likeButton.disabled != false) throw new Error("anonymous like must be clickable");
+        if (dislikeButton.disabled != false) throw new Error("anonymous dislike must be clickable");
+        if (!(reportButton.disabled)) throw new Error("report stays disabled for anonymous visitors");
+        if (likeButton.getAttribute("aria-pressed") != "false") throw new Error("anonymous must not expose a viewer pressed state");
+        if (dislikeButton.getAttribute("aria-pressed") != "false") throw new Error("anonymous must not expose a viewer pressed state");
+        if (!(likeButton.textContent?.includes("2"))) throw new Error("like count should render from public aggregates");
+        if (!(dislikeButton.textContent?.includes("1"))) throw new Error("dislike count should render from public aggregates");
   });
   assert.equal(calls.get.some((c) => c.path.startsWith("/api/v1/social/reactions")), false, "anonymous must not fetch viewer reaction state");
 });

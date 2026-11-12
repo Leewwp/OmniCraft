@@ -153,15 +153,17 @@ test("first DM posts recipient_id + text, toasts, closes the dialog and routes t
   fireEvent.click(view.getByRole("button", { name: "Send message" }));
 
   await waitFor(() => {
-    assert.deepEqual(posted, [
-      { path: "/api/v1/messages", body: { recipient_id: 2, text: "hello, love your work!" } },
-    ], "first message posts the exact POST /messages contract");
+    if (posted.length !== 1) throw new Error("waitFor: expected exactly one POST /messages");
   });
+  assert.deepEqual(posted, [
+    { path: "/api/v1/messages", body: { recipient_id: 2, text: "hello, love your work!" } },
+  ], "first message posts the exact POST /messages contract");
   await waitFor(() => {
-    assert.deepEqual(routerPushes, ["/messages"], "routes to the message center after success");
+    if (routerPushes.length !== 1) throw new Error("waitFor: expected exactly one router push");
   });
+  assert.deepEqual(routerPushes, ["/messages"], "routes to the message center after success");
   await waitFor(() => {
-    assert.equal(view.queryByRole("dialog"), null, "dialog closes on success");
+        if (view.queryByRole("dialog") != null) throw new Error("dialog closes on success");
   });
   assert.ok(document.body.textContent?.includes("Message sent"), "success toast shown");
 });
@@ -179,11 +181,7 @@ test("DM_REPLY_REQUIRED keeps the dialog open with the localized guard notice", 
   fireEvent.click(view.getByRole("button", { name: "Send message" }));
 
   await waitFor(() => {
-    assert.match(
-      view.getByRole("alert").textContent ?? "",
-      /Wait for the recipient to reply/,
-      "guard error surfaces the existing localized notice",
-    );
+        if (!(/Wait for the recipient to reply/.test(view.getByRole("alert").textContent ?? ""))) throw new Error("waitFor: pattern check failed: /Wait for the recipient to reply/");
   });
   assert.ok(view.getByRole("dialog"), "dialog stays open for retry");
   assert.equal(routerPushes.length, 0, "no navigation on failure");
@@ -201,10 +199,10 @@ test("Escape closes the dialog and restores focus to the entry button", async ()
 
   fireEvent.keyDown(document, { key: "Escape" });
   await waitFor(() => {
-    assert.equal(view.queryByRole("dialog"), null, "Escape closes the dialog");
+        if (view.queryByRole("dialog") != null) throw new Error("Escape closes the dialog");
   });
   await waitFor(() => {
-    assert.equal(document.activeElement, entry, "focus returns to the entry button");
+        if (document.activeElement != entry) throw new Error("focus returns to the entry button");
   });
 });
 
@@ -216,11 +214,15 @@ test("profile integration: entry appears for other users and never on the own pr
 
   authStub.user = { id: 1, email_verified_at: "2026-01-01T00:00:00Z" };
   const other = renderWithIntl(<UserProfileClient userId={2} displayName="creator" />);
-  await waitFor(() => assert.ok(other.getByRole("button", { name: "Message" })));
+  await waitFor(() => {
+    if (!(other.getByRole("button", { name: "Message" }))) throw new Error("waitFor: condition not met");
+  });
   cleanup();
 
   const own = renderWithIntl(<UserProfileClient userId={1} displayName="me" />);
-  await waitFor(() => assert.ok(own.getByRole("button", { name: /Edit/i })));
+  await waitFor(() => {
+    if (!(own.getByRole("button", { name: /Edit/i }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(own.queryByRole("button", { name: "Message" }), null, "own profile shows edit instead");
   assert.equal(own.queryByRole("dialog"), null);
 });

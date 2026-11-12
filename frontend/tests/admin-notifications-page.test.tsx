@@ -130,13 +130,10 @@ test("announces required fields and focuses the first invalid broadcast field", 
 
   await waitFor(() => {
     const title = view.getByLabelText(intlMessages.adminNotifications.form.titleLabel);
-    assert.equal(title.getAttribute("aria-invalid"), "true");
-    assert.equal(document.activeElement, title);
-    assert.equal(
-      view.getByText(intlMessages.adminNotifications.validation.titleRequired).getAttribute("role"),
-      "alert",
-    );
-    assert.equal(calls.length, 0);
+        if (title.getAttribute("aria-invalid") != "true") throw new Error("waitFor: values differ");
+        if (document.activeElement != title) throw new Error("waitFor: values differ");
+        if (view.getByText(intlMessages.adminNotifications.validation.titleRequired).getAttribute("role") != "alert") throw new Error("waitFor: values differ");
+        if (calls.length != 0) throw new Error("waitFor: values differ");
   });
 });
 
@@ -155,8 +152,8 @@ test("renders the live preview through MarkdownRenderer", async () => {
 
   await waitFor(() => {
     const renderer = view.getByTestId("markdown-renderer");
-    assert.equal(renderer.getAttribute("data-content"), "Body with **Markdown**");
-    assert.equal(view.getByLabelText(intlMessages.adminNotifications.a11y.preview).getAttribute("aria-live"), "polite");
+        if (renderer.getAttribute("data-content") != "Body with **Markdown**") throw new Error("waitFor: values differ");
+        if (view.getByLabelText(intlMessages.adminNotifications.a11y.preview).getAttribute("aria-live") != "polite") throw new Error("waitFor: values differ");
   });
 });
 
@@ -168,9 +165,9 @@ test("opens ConfirmModal before making the broadcast API call", async () => {
   fireEvent.click(view.getByRole("button", { name: intlMessages.adminNotifications.form.send }));
 
   await waitFor(() => {
-    assert.ok(view.getByRole("dialog", { name: intlMessages.adminNotifications.confirm.title }));
-    assert.equal(calls.length, 0);
-    assert.ok(document.body.textContent?.includes("cannot be recalled"));
+        if (!(view.getByRole("dialog", { name: intlMessages.adminNotifications.confirm.title }))) throw new Error("waitFor: condition not met");
+        if (calls.length != 0) throw new Error("waitFor: values differ");
+        if (!(document.body.textContent?.includes("cannot be recalled"))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -205,8 +202,8 @@ test("closes the confirmation modal with Esc without calling the API", async () 
   fireEvent.keyDown(dialog, { key: "Escape" });
 
   await waitFor(() => {
-    assert.equal(view.queryByRole("dialog", { name: intlMessages.adminNotifications.confirm.title }), null);
-    assert.equal(calls.length, 0);
+        if (view.queryByRole("dialog", { name: intlMessages.adminNotifications.confirm.title }) != null) throw new Error("waitFor: values differ");
+        if (calls.length != 0) throw new Error("waitFor: values differ");
   });
 });
 
@@ -224,15 +221,15 @@ test("confirming the modal posts the broadcast request and shows recipient count
   fireEvent.click(await findConfirmButton(view));
 
   await waitFor(() => {
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].path, "/api/v1/admin/notifications/broadcast");
-    assert.deepEqual(calls[0].body, {
-      title: "Maintenance",
-      body: "Maintenance starts at 02:00.",
-      channel: "broadcast",
-    });
-    assert.equal(idempotencyKeys(calls).length, 1);
-    assert.ok(document.body.textContent?.includes("Broadcast sent to 37 users"));
+    if (calls.length != 1) throw new Error("waitFor: expected exactly one broadcast call");
+    if (calls[0].path != "/api/v1/admin/notifications/broadcast") throw new Error("waitFor: unexpected broadcast path");
+    if (idempotencyKeys(calls).length != 1) throw new Error("waitFor: expected one idempotency key");
+    if (!(document.body.textContent?.includes("Broadcast sent to 37 users"))) throw new Error("waitFor: condition not met");
+  });
+  assert.deepEqual(calls[0].body, {
+    title: "Maintenance",
+    body: "Maintenance starts at 02:00.",
+    channel: "broadcast",
   });
 });
 
@@ -248,15 +245,9 @@ test("shows a localized failure toast when the broadcast API fails", async () =>
   fireEvent.click(await findConfirmButton(view));
 
   await waitFor(() => {
-    assert.ok(document.body.textContent?.includes(intlMessages.adminNotifications.toast.failure));
-    assert.equal(
-      (view.getByLabelText(intlMessages.adminNotifications.form.titleLabel) as HTMLInputElement).value,
-      "Maintenance",
-    );
-    assert.equal(
-      (view.getByTestId("markdown-editor") as HTMLTextAreaElement).value,
-      "Maintenance starts at 02:00.",
-    );
+        if (!(document.body.textContent?.includes(intlMessages.adminNotifications.toast.failure))) throw new Error("waitFor: condition not met");
+        if ((view.getByLabelText(intlMessages.adminNotifications.form.titleLabel) as HTMLInputElement).value != "Maintenance") throw new Error("waitFor: values differ");
+        if ((view.getByTestId("markdown-editor") as HTMLTextAreaElement).value != "Maintenance starts at 02:00.") throw new Error("waitFor: values differ");
   });
 });
 
@@ -275,16 +266,16 @@ test("reuses the same idempotency key when retrying after a failure", async () =
   fireEvent.click(await findConfirmButton(view));
 
   await waitFor(() => {
-    assert.ok(document.body.textContent?.includes(intlMessages.adminNotifications.toast.failure));
+        if (!(document.body.textContent?.includes(intlMessages.adminNotifications.toast.failure))) throw new Error("waitFor: condition not met");
   });
 
   fireEvent.click(view.getByRole("button", { name: intlMessages.adminNotifications.form.send }));
   fireEvent.click(await findConfirmButton(view));
 
   await waitFor(() => {
-    assert.equal(calls.length, 2);
+        if (calls.length != 2) throw new Error("waitFor: values differ");
     const keys = idempotencyKeys(calls);
-    assert.equal(keys[0], keys[1]);
+        if (keys[0] != keys[1]) throw new Error("waitFor: values differ");
   });
 });
 
@@ -297,7 +288,7 @@ test("rotates the idempotency key after a successful broadcast", async () => {
   fireEvent.click(await findConfirmButton(view));
 
   await waitFor(() => {
-    assert.equal(calls.length, 1);
+        if (calls.length != 1) throw new Error("waitFor: values differ");
   });
 
   fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.titleLabel), {
@@ -307,9 +298,9 @@ test("rotates the idempotency key after a successful broadcast", async () => {
   fireEvent.click(await findConfirmButton(view));
 
   await waitFor(() => {
-    assert.equal(calls.length, 2);
+        if (calls.length != 2) throw new Error("waitFor: values differ");
     const keys = idempotencyKeys(calls);
-    assert.notEqual(keys[0], keys[1]);
+        if (keys[0] == keys[1]) throw new Error("waitFor: values unexpectedly equal");
   });
 });
 
@@ -344,10 +335,7 @@ async function renderValidPage() {
     target: { value: "Maintenance starts at 02:00." },
   });
   await waitFor(() => {
-    assert.equal(
-      (view.getByRole("button", { name: intlMessages.adminNotifications.form.send }) as HTMLButtonElement).disabled,
-      false,
-    );
+        if ((view.getByRole("button", { name: intlMessages.adminNotifications.form.send }) as HTMLButtonElement).disabled != false) throw new Error("waitFor: values differ");
   });
   return view;
 }

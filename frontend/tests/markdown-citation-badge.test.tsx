@@ -81,7 +81,10 @@ test("markdown citation badge", async (t) => {
     assert.ok((buttons[1].textContent ?? "").includes("Quiet Ledg"));
 
     fireEvent.click(buttons[1]);
-    await waitFor(() => assert.deepEqual(jumped, [3]));
+    await waitFor(() => {
+      if (jumped.length !== 1) throw new Error("waitFor: expected exactly one jump");
+    });
+    assert.deepEqual(jumped, [3]);
     restoreMedia();
   });
 
@@ -117,7 +120,10 @@ test("markdown citation badge", async (t) => {
     assert.equal(buttons.length, 2);
     assert.equal(buttons[0].textContent, "1");
     fireEvent.click(buttons[0]);
-    await waitFor(() => assert.deepEqual(legacyIndex, [0]));
+    await waitFor(() => {
+      if (legacyIndex.length !== 1) throw new Error("waitFor: expected exactly one legacy jump");
+    });
+    assert.deepEqual(legacyIndex, [0]);
     restoreMedia();
   });
 
@@ -129,16 +135,16 @@ test("markdown citation badge", async (t) => {
     fireEvent.pointerEnter(first);
     await waitFor(() => {
       const tooltip = view.container.querySelector('[role="tooltip"]');
-      assert.ok(tooltip, "tooltip opens after hover delay");
+            if (!(tooltip)) throw new Error("tooltip opens after hover delay");
       // 完整标题（不截断）+ 简介 + 查看提示。
-      assert.ok((tooltip?.textContent ?? "").includes(CITED_TITLE));
-      assert.ok((tooltip?.textContent ?? "").includes("守望与琴弦"));
+            if (!((tooltip?.textContent ?? "").includes(CITED_TITLE))) throw new Error("waitFor: condition not met");
+            if (!((tooltip?.textContent ?? "").includes("守望与琴弦"))) throw new Error("waitFor: condition not met");
     });
     // jsdom 对 pointerleave 的合成派发不可靠（UserHoverCard 同款取舍）：
     // 关闭路径走 Escape 键。
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => {
-      assert.equal(view.container.querySelector('[role="tooltip"]'), null);
+            if (view.container.querySelector('[role="tooltip"]') != null) throw new Error("waitFor: values differ");
     });
     restoreMedia();
   });

@@ -307,7 +307,9 @@ test("audio 装配：url/fileName 透传、fileName 缺省回退空串、挂起�
       fileSize: 123,
     });
     const view = renderViewer(<SlideViewer item={item} contentId={0} allowCopy={false} />);
-    await waitFor(() => assert.ok(document.querySelector('[data-testid="audio-player"]'), "audio family mounts the player"));
+    await waitFor(() => {
+      if (!(document.querySelector('[data-testid="audio-player"]'))) throw new Error("audio family mounts the player");
+    });
     const player = document.querySelector('[data-testid="audio-player"]');
     assert.ok(player);
     const audio = player.querySelector("audio");
