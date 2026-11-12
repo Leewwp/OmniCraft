@@ -139,7 +139,10 @@ async function sampleGeometry(durationMs) {
 }
 
 try {
-  await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "networkidle", timeout: 30000 });
+  /* domcontentloaded：networkidle 把 dev server 的 HMR WebSocket 计入开放
+   连接（长期行为，microsoft/playwright#26487），对 dev 栈永不落定——本地
+   lockfile 升 1.65.0 并同步 node_modules 后显形；后续断言自带显式等待。 */
+  await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(800);
 
   /* ── 1. 混排比例内容：内容内翻页零几何变化 ─────────────────────────── */

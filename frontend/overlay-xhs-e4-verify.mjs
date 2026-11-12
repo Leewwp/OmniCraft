@@ -26,9 +26,9 @@ import { execSync } from "node:child_process";
 import { deflateSync } from "node:zlib";
 
 const BASE = process.env.E4_BASE_URL || "http://localhost:3000";
-/* 隔离 IP + 仅 tab 参数的 URL 形态：hub 带 sort/q 参数时开浮窗会被 URL 回写
-   效应导航到 /content/<id>（平台级既有交互，非 E4 范围，见回报）；?tab=share
-   唯一参数形态开浮窗正常。 */
+/* 隔离 IP + 仅 tab 参数的 URL 形态：夹具顺序依赖 hot 默认序（view 梯度钉死
+   [B, A, C]），带 sort=newest 会改变顺序破坏相邻性前置；带参开浮窗的 URL
+   记录透传语义由编排 rig 的 F4 组覆盖（#989 修复后 sort/q 形态正常）。 */
 const PAGE_PATH = "/ip/99209?tab=share";
 const SHOTS = new URL("../screenshots/", import.meta.url).pathname;
 const PSQL = "docker exec -i omnicraft-postgres psql -U omnicraft -d omnicraft";
@@ -273,7 +273,10 @@ function holdState() {
 }
 
 try {
-  await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "networkidle", timeout: 30000 });
+  /* domcontentloaded：networkidle 把 dev server 的 HMR WebSocket 计入开放
+   连接（长期行为，microsoft/playwright#26487），对 dev 栈永不落定——本地
+   lockfile 升 1.65.0 并同步 node_modules 后显形；后续断言自带显式等待。 */
+  await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(1000);
 
   /* ── 前置：夹具相邻性（hot 序 [B, A, C]，A 居中） ─────────────────────── */
@@ -405,7 +408,10 @@ try {
   /* ── ⑤ 预取失败静默降级：不阻塞翻页/关窗，正式打开常规拉取成功 ────────── */
   /* 重载清空会话级预取缓存（①的热条目仍在会让本场景的相邻预取被去重跳过，
      abort 路径无从触发）；图片计数器在 Node 侧跨重载保留。 */
-  await page.reload({ waitUntil: "networkidle", timeout: 30000 });
+  /* domcontentloaded：networkidle 把 dev server 的 HMR WebSocket 计入开放
+   连接（长期行为，microsoft/playwright#26487），对 dev 栈永不落定——本地
+   lockfile 升 1.65.0 并同步 node_modules 后显形；后续断言自带显式等待。 */
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(1500);
   detailAbortOnce.add(IDS.b);
   detailAbortOnce.add(IDS.c);
