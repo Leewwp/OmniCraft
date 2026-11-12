@@ -2639,7 +2639,7 @@ interface ContentDetailOverlayProps {
 - 平板/移动：全屏层，顶部关闭区和底部关键操作满足安全区域与 44px 触控目标；媒体/操作控件保持在边框内（#64 决策 15 权威，桌面/平板/移动皆然）。
 - 使用对话框语义、焦点陷阱和背景 inert；打开聚焦标题（桌面 = sr-only 标题锚点），逐层弹出把焦点返回上层的触发链接，完全关闭后聚焦原触发卡片/引用卡片。
 - URL、浏览器历史和拦截路由（D3 #860 权威收口，终态）：
-  - **打开/压层 = `history.pushState` 到规范路径**（fanwork=`/content/<id>`、original=`/original/<id>`，不加任何签名参数）；浮层内逐层跳转逐层改写地址。
+  - **打开/压层 = `history.pushState` 到规范路径**（fanwork=`/content/<id>`、original=`/original/<id>`，不加任何签名参数；浮窗会话各层记录在规范路径后原样透传来源页 search——query 驱动宿主页（如 IP hub 的 tab/sort/q）的派生筛选不因压栈被剥参回落，F4 #989）；浮层内逐层跳转逐层改写地址。
   - **连续换篇（#89 移动端上滑切下一篇）= `history.replaceState`** 原地改写顶层记录与 URL，不新增历史。
   - **「深度+URL」单套语义**：≤5 层导航栈与浏览器历史一一对应（每层一条记录，写自有命名空间 state：会话 id/深度/contentId/zone/来源完整 URL；达五层不得写第六条记录）；Next App Router 对 `pushState/replaceState` 的包装层负责补齐其内部字段与 router canonicalUrl，浮层不手工伪造其私有字段。
   - **返回（按钮/Esc）与浏览器返回归并**：统一经 `history.back()` 触发同一个 popstate，按目标记录深度绝对对齐（支持 `history.go(-n)` 多步回退、快速连按、动画重入）；栈底后退 = 关浮窗回来源原位。

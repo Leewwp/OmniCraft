@@ -136,6 +136,52 @@ test("replaceOverlayHistoryTop swaps the top record and URL in place", () => {
   endOverlayHistorySession();
 });
 
+/* ───────── F4 #989：会话记录 URL 透传来源页 search ─────────
+ * query 驱动宿主页（IP hub：tab/type/sort/status/q 全派生自 useSearchParams），
+ * Next 包装层把 pushState URL 同步进 router canonicalUrl——若浮窗记录剥掉来源
+ * search，背景页派生值回落默认 → 重拉 → 骨架分支卸载浮窗宿主（浮窗被杀、
+ * 排序/搜索态丢失）。会话各层记录 URL = 规范路径 + 来源 search 原样透传
+ * （不解析不重排）；来源无 search 保持裸规范路径；死记录接管仍导航裸路径。 */
+
+test("beginOverlayHistorySession preserves the origin search on the overlay record URL", () => {
+  setup();
+  goTo("http://localhost/ip/5?tab=share&sort=newest");
+
+  beginOverlayHistorySession({ contentId: 7, zone: "fanwork", source: "ip-page" });
+
+  assert.equal(window.location.pathname, "/content/7");
+  assert.equal(window.location.search, "?tab=share&sort=newest", "来源 search 原样透传到浮窗记录 URL");
+
+  endOverlayHistorySession();
+});
+
+test("pushOverlayHistoryLayer and replaceOverlayHistoryTop keep the session origin search", () => {
+  setup();
+  goTo("http://localhost/ip/5?q=E4");
+  beginOverlayHistorySession({ contentId: 1, zone: "original", source: "ip-page" });
+
+  assert.equal(pushOverlayHistoryLayer({ contentId: 2, zone: "fanwork", source: "ip-page" }), true);
+  assert.equal(window.location.pathname, "/content/2");
+  assert.equal(window.location.search, "?q=E4", "压层 URL 同样带来源 search");
+
+  replaceOverlayHistoryTop({ contentId: 4, zone: "fanwork", source: "ip-page" });
+  assert.equal(window.location.pathname, "/content/4");
+  assert.equal(window.location.search, "?q=E4", "换篇 URL 同样带来源 search");
+
+  endOverlayHistorySession();
+});
+
+test("overlay records keep the bare canonical URL when the origin has no search", () => {
+  setup();
+  goTo("http://localhost/ip/5");
+  beginOverlayHistorySession({ contentId: 7, zone: "fanwork", source: "ip-page" });
+
+  assert.equal(window.location.pathname, "/content/7");
+  assert.equal(window.location.search, "", "来源无 search 时记录 URL 为裸规范路径");
+
+  endOverlayHistorySession();
+});
+
 test("push refuses the sixth record at the five-layer cap", () => {
   setup();
   goTo("http://localhost/recommend");

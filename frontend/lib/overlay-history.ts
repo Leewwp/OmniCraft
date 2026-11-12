@@ -8,8 +8,11 @@
  *
  * - Next 16.4 App Router 会包装 window.history.pushState/replaceState（app-router.js
  *   copyNextJsInternalHistoryState）：经包装层写入的记录自动携带 __NA 与
- *   __PRIVATE_NEXTJS_INTERNALS_TREE（取自当前记录），并同步 router canonicalUrl
- *   （usePathname/useSearchParams 立即反映新路径、渲染树不变、背景列表不卸载）。
+ *   __Private_NEXTJS_INTERNALS_TREE（取自当前记录），并同步 router canonicalUrl
+ *   （usePathname/useSearchParams 立即反映新记录路径、渲染树不变、背景列表不
+ *   卸载）。会话各层记录 URL 在规范路径后原样透传来源页 search——query 驱动
+ *   宿主页（如 IP hub 的 tab/sort/q 派生自 useSearchParams）不会因浮窗压栈被
+ *   剥参回落、重拉并卸载浮窗宿主。
  *   本模块只写自有命名空间 `omnicraftContentOverlay`，绝不手工伪造 Next 私有
  *   字段——伪造会导致包装层短路直通（__NA 短路分支），router 不同步、popstate
  *   语义退化。
@@ -64,6 +67,9 @@ export type OverlayHistoryEvent =
 interface OverlaySessionState {
   id: string;
   originHref: string;
+  /** 来源页 search（含前导 ?，无则空串）：会话各层记录 URL 原样透传，防止
+   *  query 驱动宿主页的派生状态被剥参回落（F4 #989）。 */
+  originSearch: string;
   /** trail[i] = 深度 i+1 的记录；forward 重建层与全退步数都从这里取。 */
   trail: OverlayHistoryRecord[];
   first: { contentId: number; zone: OverlayHistoryZone };
@@ -95,6 +101,16 @@ function emit(event: OverlayHistoryEvent) {
 /** 规范路径：fanwork=/content/<id>、original=/original/<id>（不加任何签名参数）。 */
 export function canonicalOverlayPath(zone: OverlayHistoryZone, contentId: number): string {
   return zone === "fanwork" ? `/content/${contentId}` : `/original/${contentId}`;
+}
+
+/** 会话记录 URL = 规范路径 + 来源页 search 原样透传（不解析不重排）。
+ *  死记录接管/刷新/分享等宿主页直开路径仍用裸规范路径（canonicalOverlayPath）。 */
+function canonicalOverlaySessionUrl(
+  zone: OverlayHistoryZone,
+  contentId: number,
+  originSearch: string,
+): string {
+  return `${canonicalOverlayPath(zone, contentId)}${originSearch}`;
 }
 
 /** 校验并读出 history state 里的浮层记录；任何外形不符都视作非浮层记录。 */
@@ -253,9 +269,11 @@ export function beginOverlayHistorySession(entry: OverlayHistoryEntryRef): strin
 
   sessionCounter += 1;
   const originHref = window.location.href;
+  const originSearch = window.location.search;
   const next: OverlaySessionState = {
     id: `overlay-${now.toString(36)}-${sessionCounter}`,
     originHref,
+    originSearch,
     trail: [],
     first: { contentId: entry.contentId, zone: entry.zone },
     beganAt: now,
@@ -266,7 +284,11 @@ export function beginOverlayHistorySession(entry: OverlayHistoryEntryRef): strin
   const record = makeRecord(next.id, 1, entry, originHref);
   next.trail.push(record);
   /* 经 Next 包装层 pushState：内部字段由包装层自补，router canonicalUrl 同步。 */
-  window.history.pushState({ [OVERLAY_HISTORY_STATE_KEY]: record }, "", canonicalOverlayPath(entry.zone, entry.contentId));
+  window.history.pushState(
+    { [OVERLAY_HISTORY_STATE_KEY]: record },
+    "",
+    canonicalOverlaySessionUrl(entry.zone, entry.contentId, originSearch),
+  );
   return next.id;
 }
 
@@ -279,7 +301,7 @@ export function pushOverlayHistoryLayer(entry: OverlayHistoryEntryRef): boolean 
   window.history.pushState(
     { [OVERLAY_HISTORY_STATE_KEY]: record },
     "",
-    canonicalOverlayPath(entry.zone, entry.contentId),
+    canonicalOverlaySessionUrl(entry.zone, entry.contentId, session.originSearch),
   );
   return true;
 }
@@ -292,7 +314,7 @@ export function replaceOverlayHistoryTop(entry: OverlayHistoryEntryRef): void {
   window.history.replaceState(
     { [OVERLAY_HISTORY_STATE_KEY]: record },
     "",
-    canonicalOverlayPath(entry.zone, entry.contentId),
+    canonicalOverlaySessionUrl(entry.zone, entry.contentId, session.originSearch),
   );
 }
 
