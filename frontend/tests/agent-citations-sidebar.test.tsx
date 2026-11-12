@@ -141,7 +141,11 @@ test("#746 handle drag past half height closes the drawer (touch)", async () => 
     fireEvent.pointerDown(drawer.handle, { ...TOUCH, clientY: 300 });
     fireEvent.pointerMove(drawer.handle, { ...TOUCH, clientY: 300 + CLOSE_THRESHOLD + 90 });
     await waitFor(() => {
-      assert.equal(drawer.sheet.style.transform, `translateY(${CLOSE_THRESHOLD + 90}px)`, "sheet follows the finger while dragging");
+      /* jsdom 31 style 读回把浮点舍到短表示（"358.8px" vs 358.799…95px）——按数值容差比较。 */
+      const m = /^translateY\(([0-9.]+)px\)$/.exec(drawer.sheet.style.transform);
+      if (!m || Math.abs(Number.parseFloat(m[1]) - (CLOSE_THRESHOLD + 90)) > 0.1) {
+        throw new Error(`sheet follows the finger while dragging: transform=${drawer.sheet.style.transform}`);
+      }
     });
     fireEvent.pointerUp(drawer.handle, { ...TOUCH, clientY: 300 + CLOSE_THRESHOLD + 90 });
     assert.equal(drawer.closeCalls(), 1, "crossing the half-height threshold closes");

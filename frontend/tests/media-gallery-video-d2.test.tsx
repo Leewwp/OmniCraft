@@ -93,10 +93,9 @@ test("D2 视频容器几何：有正数尺寸按真实比例稳定，不再两�
       items={[makeItem(1, { type: "video", url: "/seed-media/d2/v1.mp4", width: 1280, height: 720 })]}
     />,
   );
-  /* React 把数值 aspectRatio 序列化为 "1.7777... / 1"——按数值比较。 */
-  assert.equal(
-    Number.parseFloat(scroller(dimmed.container).style.aspectRatio),
-    1280 / 720,
+  /* React 把数值 aspectRatio 序列化为 "1.7777... / 1"；jsdom 31 读回按 5 位小数舍入——按数值容差比较。 */
+  assert.ok(
+    Math.abs(Number.parseFloat(scroller(dimmed.container).style.aspectRatio) - 1280 / 720) < 1e-4,
     "known dims pin the container to the true video ratio before metadata arrives",
   );
   cleanup();

@@ -256,7 +256,8 @@ test("zoom buttons zoom in/out with the reset button restoring scale and pan", (
   assert.equal(zoomOf(currentImage()), 1.5);
   fireEvent.click(reset);
   assert.equal(zoomOf(currentImage()), 1);
-  assert.match(currentImage().style.transform, /translate\(0px, 0px\)/);
+  /* jsdom 31 把恒等平移归一化为单参形式 translate(0px)。 */
+  assert.match(currentImage().style.transform, /translate\(0px(?:, 0px)?\)/);
 });
 
 test("zoom clamps to the configured maximum", () => {
@@ -352,7 +353,7 @@ test("paging resets the zoom and pan state for the next item", () => {
   const next = viewerDialog().querySelector('button[aria-label="Next media"]') as HTMLButtonElement;
   fireEvent.click(next);
   assert.equal(zoomOf(currentImage()), 1, "next item opens at base zoom");
-  assert.match(currentImage().style.transform, /translate\(0px, 0px\)/);
+  assert.match(currentImage().style.transform, /translate\(0px(?:, 0px)?\)/);
 });
 
 /* ---------- 三种退出（AC4） ---------- */
