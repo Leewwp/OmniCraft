@@ -148,12 +148,18 @@ test("#74 ContentDetail flips the label when the picker reports a membership cha
 
     fireEvent.click(button);
     await view.findByRole("dialog");
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Remove from First shelf" })));
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: "Remove from First shelf" }))) throw new Error("waitFor: condition not met");
+    });
 
     // 移除最后一个有效收藏集 → 详情按钮保持/回到未收藏（初始即非成员，这里验证操作后状态不翻转）
     fireEvent.click(view.getByRole("button", { name: "Remove from First shelf" }));
-    await waitFor(() => assert.equal(mocks.calls.delete.at(-1)?.path, "/api/v1/collections/1/items/11"));
-    await waitFor(() => assert.ok(view.getByRole("button", { name: /Add to collection/ }), "label stays non-favorited after removing the only membership"));
+    await waitFor(() => {
+      if (mocks.calls.delete.at(-1)?.path != "/api/v1/collections/1/items/11") throw new Error("waitFor: values differ");
+    });
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: /Add to collection/ }))) throw new Error("label stays non-favorited after removing the only membership");
+    });
   } finally {
     mocks.restore();
     authState.user = null;

@@ -251,11 +251,8 @@ test("anonymous users keep keyword search; no agent entry and no mode toggle", a
     await waitFor(() => {
       /* URLSearchParams 将空格编码为「+」，不能断言 %20。 */
       const searchCall = apiMock.calls.find((callPath) => callPath.includes("/contents/search"));
-      assert.ok(searchCall, "keyword submit runs the content search");
-      assert.ok(
-        searchCall?.includes("q=desk+lamp") || searchCall?.includes("q=desk%20lamp"),
-        `query reaches the content search: ${searchCall}`,
-      );
+            if (!(searchCall)) throw new Error("keyword submit runs the content search");
+            if (!(searchCall?.includes("q=desk+lamp") || searchCall?.includes("q=desk%20lamp"))) throw new Error(`query reaches the content search: ${searchCall}`);
     });
     assert.ok(
       !apiMock.calls.some((callPath) => callPath.includes("/agent/search")),
@@ -289,11 +286,7 @@ test("gated agent entry links to /agent carrying the current query", async () =>
     const searchbox = view.getByRole("combobox");
     fireEvent.change(searchbox, { target: { value: "beginner furniture mods" } });
     await waitFor(() => {
-      assert.equal(
-        view.getByRole("link", { name: /Ask the AI agent/ }).getAttribute("href"),
-        "/agent?q=beginner%20furniture%20mods",
-        "entry carries the typed query for the workspace prefill",
-      );
+            if (view.getByRole("link", { name: /Ask the AI agent/ }).getAttribute("href") != "/agent?q=beginner%20furniture%20mods") throw new Error("entry carries the typed query for the workspace prefill");
     });
     assert.equal(view.queryByRole("button", { name: /AI Search|Keyword Search/i }), null, "no legacy mode toggle buttons");
   } finally {

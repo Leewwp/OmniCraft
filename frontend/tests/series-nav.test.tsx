@@ -235,7 +235,9 @@ test("SeriesNav overlay directory opens a bounded scrollable listbox with the cu
 
     fireEvent.click(view.getByRole("button", { name: "查看 山海纪行 系列目录" }));
     /* 布尔恒等断言：失败时不序列化 DOM 节点数组（c52cea4 教训）。 */
-    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
+    await waitFor(() => {
+      if (!(view.getAllByRole("option").length === 3)) throw new Error("waitFor: condition not met");
+    });
 
     const listbox = view.getByRole("listbox");
     assert.match(listbox.className, /max-h-72/, "directory must be height-bounded");
@@ -249,7 +251,9 @@ test("SeriesNav overlay directory opens a bounded scrollable listbox with the cu
     /* 聚焦当前章节项在被动 effect 中执行（提交后异步冲刷，CI 负载下可能晚于
        DOM 出现）——#313/#315/#342 的闪断点：必须等焦点真正落位再断言，不能在
        选项出现后立即断言（与 keyboard flow 测试的 round3 加固同款）。 */
-    await waitFor(() => assert.ok(document.activeElement === options[1]));
+    await waitFor(() => {
+      if (!(document.activeElement === options[1])) throw new Error("waitFor: condition not met");
+    });
     assert.ok(document.activeElement === options[1], "focus must enter the selector at the current chapter");
   } finally {
     restoreFetch();
@@ -264,11 +268,15 @@ test("SeriesNav overlay directory keyboard flow selects chapters and Escape rest
     const trigger = view.getByRole("button", { name: "查看 山海纪行 系列目录" });
 
     fireEvent.click(trigger);
-    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
+    await waitFor(() => {
+      if (!(view.getAllByRole("option").length === 3)) throw new Error("waitFor: condition not met");
+    });
     const options = view.getAllByRole("option");
     /* 聚焦当前章节项在被动 effect 中执行（提交后异步冲刷，CI 负载下可能晚于
        DOM 出现）：先等焦点真正落位再发键，避免按键发在 body 上。 */
-    await waitFor(() => assert.ok(document.activeElement === options[1]));
+    await waitFor(() => {
+      if (!(document.activeElement === options[1])) throw new Error("waitFor: condition not met");
+    });
 
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "ArrowDown" }));
     assert.ok(document.activeElement === options[2], "ArrowDown must move to the next option");
@@ -281,11 +289,13 @@ test("SeriesNav overlay directory keyboard flow selects chapters and Escape rest
     assert.deepEqual(pushed, [10], "Enter on an option must push that chapter");
 
     fireEvent.click(trigger);
-    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
+    await waitFor(() => {
+      if (!(view.getAllByRole("option").length === 3)) throw new Error("waitFor: condition not met");
+    });
     /* 重开后焦点效应同样异步落位：Escape 必须发在选项上，否则关不掉目录。 */
-    await waitFor(() =>
-      assert.ok(view.getAllByRole("option").some((option) => option === document.activeElement)),
-    );
+    await waitFor(() => {
+      if (!(view.getAllByRole("option").some((option) => option === document.activeElement))) throw new Error("waitFor: condition not met");
+    });
     await act(async () => {
       fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -305,7 +315,9 @@ test("SeriesNav overlay directory never re-pushes the current chapter", async ()
     const view = renderSeriesNav([memberships[0]], { onNavigateInOverlay: (id) => pushed.push(id) });
 
     fireEvent.click(view.getByRole("button", { name: "查看 山海纪行 系列目录" }));
-    await waitFor(() => assert.ok(view.getAllByRole("option").length === 3));
+    await waitFor(() => {
+      if (!(view.getAllByRole("option").length === 3)) throw new Error("waitFor: condition not met");
+    });
     const options = view.getAllByRole("option");
     fireEvent.click(options[1] as Element);
 
@@ -335,7 +347,9 @@ test("SeriesNav overlay directory shows a retryable error state when the chapter
     const view = renderSeriesNav([memberships[0]], { onNavigateInOverlay: () => {} });
 
     fireEvent.click(view.getByRole("button", { name: "查看 山海纪行 系列目录" }));
-    await waitFor(() => assert.ok(view.getByText("目录加载失败")));
+    await waitFor(() => {
+      if (!(view.getByText("目录加载失败"))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getByRole("button", { name: "重试" }));
   } finally {
     restoreFetch();

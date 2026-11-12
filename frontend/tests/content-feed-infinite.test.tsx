@@ -139,13 +139,19 @@ test("#410 feed appends one page per sentinel hit and stops at total exhaustion"
     assert.equal(stub.calls.length, 0, "first page must come from SSR fallbackData");
 
     triggerIntersect();
-    await waitFor(() => assert.equal(stub.calls.length, 1));
+    await waitFor(() => {
+      if (stub.calls.length != 1) throw new Error("waitFor: values differ");
+    });
     assert.match(stub.calls[0], /page=2/);
     assert.match(stub.calls[0], /page_size=12/);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Feed item 13" })));
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: "Feed item 13" }))) throw new Error("waitFor: condition not met");
+    });
 
     /* 判尽终态 + 再次命中哨兵不再发请求。 */
-    await waitFor(() => assert.ok(view.getByText("You've reached the end")));
+    await waitFor(() => {
+      if (!(view.getByText("You've reached the end"))) throw new Error("waitFor: condition not met");
+    });
     triggerIntersect();
     await new Promise((r) => setTimeout(r, 120));
     assert.equal(stub.calls.length, 1, "exhausted feed must not fetch again");
@@ -181,10 +187,16 @@ test("#410 feed shows retry on append failure and recovers", async () => {
       />,
     );
     triggerIntersect();
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Retry" })));
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: "Retry" }))) throw new Error("waitFor: condition not met");
+    });
     fireEvent.click(view.getByRole("button", { name: "Retry" }));
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Feed item 3" })));
-    await waitFor(() => assert.ok(view.getByText("You've reached the end")));
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: "Feed item 3" }))) throw new Error("waitFor: condition not met");
+    });
+    await waitFor(() => {
+      if (!(view.getByText("You've reached the end"))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(calls.filter((c) => c.includes("page=2")).length, 2, "retry must refetch page 2");
   } finally {
     globalThis.fetch = originalFetch;
@@ -217,7 +229,9 @@ test("#410 sentinel hit during an in-flight append does not queue a second page"
       />,
     );
     triggerIntersect();
-    await waitFor(() => assert.equal(calls.length, 1));
+    await waitFor(() => {
+      if (calls.length != 1) throw new Error("waitFor: values differ");
+    });
     /* 追加在途时哨兵再次进入视口（isLoadingMore=true，观察器未激活）——
        不得触发 page=3 请求。 */
     triggerIntersect();
@@ -225,7 +239,9 @@ test("#410 sentinel hit during an in-flight append does not queue a second page"
     await new Promise((r) => setTimeout(r, 80));
     assert.equal(calls.length, 1, "in-flight append must absorb extra sentinel hits");
     gate.release?.();
-    await waitFor(() => assert.equal(calls.length, 1));
+    await waitFor(() => {
+      if (calls.length != 1) throw new Error("waitFor: values differ");
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -253,10 +269,14 @@ test("#410 sentinel that stays intersecting after an append completes does not f
       />,
     );
     triggerIntersect(); // 进入视口 → 追加第 2 页
-    await waitFor(() => assert.equal(calls.length, 1));
+    await waitFor(() => {
+      if (calls.length != 1) throw new Error("waitFor: values differ");
+    });
     /* 追加完成后观察器重建，浏览器会以当前状态派发初始回调——哨兵仍在
        视口内（滚动锚定跟随文档底部增长的场景），不得触发第 3 页。 */
-    await waitFor(() => assert.ok(globalThis.document.querySelector('[aria-label="Feed item 14"]')));
+    await waitFor(() => {
+      if (!(globalThis.document.querySelector('[aria-label="Feed item 14"]'))) throw new Error("waitFor: condition not met");
+    });
     triggerIntersect();
     triggerIntersect();
     await new Promise((r) => setTimeout(r, 150));
@@ -264,7 +284,9 @@ test("#410 sentinel that stays intersecting after an append completes does not f
     /* 滚离（退出视口）后再进入 → 允许下一次追加。 */
     triggerIntersect(false);
     triggerIntersect();
-    await waitFor(() => assert.equal(calls.length, 2));
+    await waitFor(() => {
+      if (calls.length != 2) throw new Error("waitFor: values differ");
+    });
     assert.match(calls[1], /page=3/);
   } finally {
     globalThis.fetch = originalFetch;
@@ -320,21 +342,31 @@ test("#410 original feed resets to page 1 with page_size on category switch and 
 
     /* 切换类目 → 重置回第 1 页，请求带 zone/page/page_size/category。 */
     fireEvent.click(view.getByRole("button", { name: "Film & TV" }));
-    await waitFor(() => assert.equal(stub.calls.length, 1));
+    await waitFor(() => {
+      if (stub.calls.length != 1) throw new Error("waitFor: values differ");
+    });
     assert.match(stub.calls[0], /zone=original/);
     assert.match(stub.calls[0], /page=1(&|$)/);
     assert.match(stub.calls[0], /page_size=12/);
     assert.match(stub.calls[0], /category=film_tv/);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Feed item 21" })));
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: "Feed item 21" }))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(!view.queryByRole("button", { name: "Feed item 1" }), "grid must reset to the filtered page 1");
 
     /* 筛选态下哨兵继续追加（page=2 同筛选参数）。 */
     triggerIntersect();
-    await waitFor(() => assert.equal(stub.calls.length, 2));
+    await waitFor(() => {
+      if (stub.calls.length != 2) throw new Error("waitFor: values differ");
+    });
     assert.match(stub.calls[1], /page=2/);
     assert.match(stub.calls[1], /category=film_tv/);
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Feed item 23" })));
-    await waitFor(() => assert.ok(view.getByText("You've reached the end")));
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: "Feed item 23" }))) throw new Error("waitFor: condition not met");
+    });
+    await waitFor(() => {
+      if (!(view.getByText("You've reached the end"))) throw new Error("waitFor: condition not met");
+    });
   } finally {
     stub.restore();
   }

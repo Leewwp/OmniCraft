@@ -128,12 +128,9 @@ test("D2 活跃画廊视频 muted+playsInline+autoPlay；非活跃项停播；�
     const active = videos[0] as HTMLVideoElement;
     assert.equal(active.muted, true, "gallery autoplay is muted");
     assert.equal(active.hasAttribute("playsinline"), true);
-    await waitFor(() =>
-      assert.ok(
-        mediaStubs.calls.some((c) => c.op === "play" && c.src === "/seed-media/d2/gv1.mp4"),
-        "active gallery video attempts muted autoplay",
-      ),
-    );
+    await waitFor(() => {
+      if (!(mediaStubs.calls.some((c) => c.op === "play" && c.src === "/seed-media/d2/gv1.mp4"))) throw new Error("active gallery video attempts muted autoplay");
+    });
 
     await act(async () => {
       fireEvent.click(container.querySelector('button[aria-label="Next media"]') as Element);
@@ -142,12 +139,9 @@ test("D2 活跃画廊视频 muted+playsInline+autoPlay；非活跃项停播；�
       mediaStubs.calls.some((c) => c.op === "pause" && c.src === "/seed-media/d2/gv1.mp4"),
       "paging away pauses the previous video",
     );
-    await waitFor(() =>
-      assert.ok(
-        mediaStubs.calls.some((c) => c.op === "play" && c.src === "/seed-media/d2/gv2.mp4"),
-        "newly active video starts muted playback",
-      ),
-    );
+    await waitFor(() => {
+      if (!(mediaStubs.calls.some((c) => c.op === "play" && c.src === "/seed-media/d2/gv2.mp4"))) throw new Error("newly active video starts muted playback");
+    });
   } finally {
     mediaStubs.restore();
   }
@@ -161,7 +155,9 @@ test("D2 画廊视频主体点击单次切播（controls 条除外）且不进�
     );
     const video = container.querySelector("video") as HTMLVideoElement;
     assert.ok(Boolean(video));
-    await waitFor(() => assert.ok(mediaStubs.calls.some((c) => c.op === "play")));
+    await waitFor(() => {
+      if (!(mediaStubs.calls.some((c) => c.op === "play"))) throw new Error("waitFor: condition not met");
+    });
     const opsAfterMount = mediaStubs.calls.length;
 
     await act(async () => {

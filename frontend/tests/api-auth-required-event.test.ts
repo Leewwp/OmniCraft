@@ -37,7 +37,9 @@ test("api 401 refresh failure routes through the auth-required bridge", async (t
 
     try {
       await assert.rejects(api.get("/api/v1/social/reactions?target_type=content&target_id=1"));
-      await waitFor(() => assert.equal(fired, 1, "auth-required event must fire on refresh failure"));
+      await waitFor(() => {
+        if (fired != 1) throw new Error("auth-required event must fire on refresh failure");
+      });
       assert.ok(
         !window.location.href.startsWith("/login"),
         `must not hard-navigate, saw ${window.location.href}`,
@@ -75,7 +77,9 @@ test("api 401 refresh failure routes through the auth-required bridge", async (t
       const { refreshAccessTokenHeader } = await import("@/lib/api");
       const ok = await refreshAccessTokenHeader({});
       assert.equal(ok, false);
-      await waitFor(() => assert.equal(fired, 1, "auth-required event must fire on SSE refresh failure"));
+      await waitFor(() => {
+        if (fired != 1) throw new Error("auth-required event must fire on SSE refresh failure");
+      });
       assert.ok(!window.location.href.startsWith("/login"));
     } finally {
       window.removeEventListener(AUTH_REQUIRED_EVENT, listener);

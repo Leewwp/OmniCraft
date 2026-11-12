@@ -319,8 +319,12 @@ const scenarios: Scenario[] = [
       try {
         const view = renderWithIntl(<Workspace />);
         await sendFromComposer(view, "first question");
-        await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
-        await waitFor(() => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" })), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
+        });
+        await waitFor(() => {
+          if (!(view.getByRole("group", { name: "Suggested follow-ups" }))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {
@@ -365,9 +369,13 @@ const scenarios: Scenario[] = [
       ]);
       try {
         const view = renderWithIntl(<Workspace initialConversationId={7} />);
-        await waitFor(() => assert.ok(view.getByText("旧回答")));
+        await waitFor(() => {
+          if (!(view.getByText("旧回答"))) throw new Error("waitFor: condition not met");
+        });
         await sendFromComposer(view, "second question");
-        await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByText("second answer"))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {
@@ -410,7 +418,9 @@ const scenarios: Scenario[] = [
           view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
         );
         fireEvent.click(suggestion);
-        await waitFor(() => assert.ok(view.getByText("Not enough evidence")), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByText("Not enough evidence"))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {
@@ -446,7 +456,9 @@ const scenarios: Scenario[] = [
           view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
         );
         fireEvent.click(suggestion);
-        await waitFor(() => assert.ok(view.getByText("No content this turn")), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByText("No content this turn"))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {
@@ -487,10 +499,14 @@ const scenarios: Scenario[] = [
           view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
         );
         fireEvent.click(suggestion);
-        await waitFor(() => assert.ok(view.getByText("Search fallback active")), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByText("Search fallback active"))) throw new Error("waitFor: condition not met");
+        });
         /* FT-4：引用卡住参考来源侧栏，先开面板再断言。 */
         fireEvent.click(await waitFor(() => view.getByRole("button", { name: /reference sources/ })));
-        await waitFor(() => assert.ok(view.getByRole("button", { name: /Keyword fallback result/ })), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByRole("button", { name: /Keyword fallback result/ }))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {
@@ -524,7 +540,9 @@ const scenarios: Scenario[] = [
       const view = renderWithIntl(<Workspace />);
       const item = await waitFor(() => view.getByRole("button", { name: /被脱敏会话/ }));
       fireEvent.click(item);
-      await waitFor(() => assert.ok(view.getByText("This reply was hidden after failing a safety check")));
+      await waitFor(() => {
+        if (!(view.getByText("This reply was hidden after failing a safety check"))) throw new Error("waitFor: condition not met");
+      });
       await settle();
       return transcriptOutline();
     },
@@ -543,7 +561,9 @@ const scenarios: Scenario[] = [
           view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
         );
         fireEvent.click(suggestion);
-        await waitFor(() => assert.ok(view.getByText("This request was not completed")), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByText("This request was not completed"))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {
@@ -566,9 +586,13 @@ const scenarios: Scenario[] = [
           view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
         );
         fireEvent.click(suggestion);
-        await waitFor(() => assert.ok(view.getByText("partial answer")));
+        await waitFor(() => {
+          if (!(view.getByText("partial answer"))) throw new Error("waitFor: condition not met");
+        });
         fireEvent.click(view.getByRole("button", { name: "Stop generating" }));
-        await waitFor(() => assert.ok(view.getByText("Stopped generating")));
+        await waitFor(() => {
+          if (!(view.getByText("Stopped generating"))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {
@@ -608,7 +632,9 @@ const scenarios: Scenario[] = [
       const view = renderWithIntl(<Workspace />);
       const item = await waitFor(() => view.getByRole("button", { name: /回放会话/ }));
       fireEvent.click(item);
-      await waitFor(() => assert.ok(view.getByText("历史正式回答")));
+      await waitFor(() => {
+        if (!(view.getByText("历史正式回答"))) throw new Error("waitFor: condition not met");
+      });
       await settle();
       return transcriptOutline();
     },
@@ -676,10 +702,14 @@ const scenarios: Scenario[] = [
       try {
         const view = renderWithIntl(<Workspace />);
         await sendFromComposer(view, "first question");
-        await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getByText("first answer"))) throw new Error("waitFor: condition not met");
+        });
         await settle();
         await sendFromComposer(view, "second question");
-        await waitFor(() => assert.ok(view.getAllByText("second answer").length >= 2), { timeout: 3000 });
+        await waitFor(() => {
+          if (!(view.getAllByText("second answer").length >= 2)) throw new Error("waitFor: condition not met");
+        });
         await settle();
         return transcriptOutline();
       } finally {

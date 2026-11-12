@@ -151,7 +151,7 @@ test("pending invite card shows accept and decline buttons with status text and 
 
   const card = await waitFor(() => {
     const element = view.container.querySelector('[role="group"]');
-    assert.ok(element, "card should use role=group");
+        if (!(element)) throw new Error("card should use role=group");
     return element as HTMLElement;
   });
   assert.ok(card.getAttribute("aria-labelledby"), "card should be labelled via aria-labelledby");
@@ -172,7 +172,9 @@ test("accepted invite card is read-only", async () => {
     />,
   );
 
-  await waitFor(() => assert.ok(view.getByText(intlMessages.collabInviteCard.status.accepted)));
+  await waitFor(() => {
+    if (!(view.getByText(intlMessages.collabInviteCard.status.accepted))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByRole("button", { name: /Accept collaboration invite/ }), null);
   assert.equal(view.queryByRole("button", { name: /Decline collaboration invite/ }), null);
   assert.ok(view.getByRole("link", { name: pendingInvite.contentTitle }), "content link stays available");
@@ -189,7 +191,9 @@ test("declined invite card is read-only", async () => {
     />,
   );
 
-  await waitFor(() => assert.ok(view.getByText(intlMessages.collabInviteCard.status.declined)));
+  await waitFor(() => {
+    if (!(view.getByText(intlMessages.collabInviteCard.status.declined))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByRole("button", { name: /Accept collaboration invite/ }), null);
   assert.equal(view.queryByRole("button", { name: /Decline collaboration invite/ }), null);
 });
@@ -205,7 +209,9 @@ test("expired invite card is read-only and muted", async () => {
     />,
   );
 
-  await waitFor(() => assert.ok(view.getByText(intlMessages.collabInviteCard.status.expired)));
+  await waitFor(() => {
+    if (!(view.getByText(intlMessages.collabInviteCard.status.expired))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByRole("button", { name: /Accept collaboration invite/ }), null);
   assert.equal(view.queryByRole("button", { name: /Decline collaboration invite/ }), null);
   assert.ok(
@@ -225,7 +231,9 @@ test("non-invitee pending card shows waiting status without action buttons", asy
     />,
   );
 
-  await waitFor(() => assert.ok(view.getByText(intlMessages.collabInviteCard.status.pendingSender)));
+  await waitFor(() => {
+    if (!(view.getByText(intlMessages.collabInviteCard.status.pendingSender))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByRole("button", { name: /Accept collaboration invite/ }), null);
   assert.equal(view.queryByRole("button", { name: /Decline collaboration invite/ }), null);
 });
@@ -248,11 +256,8 @@ test("accept button posts to the accept endpoint and applies the returned invite
   fireEvent.click(view.getByRole("button", { name: `Accept collaboration invite for “${pendingInvite.contentTitle}”` }));
 
   await waitFor(() => {
-    assert.ok(
-      calls.post.some((call) => call.path === "/api/v1/collab-invites/7/accept"),
-      `expected POST accept, got ${JSON.stringify(calls.post)}`,
-    );
-    assert.ok(view.getByText(intlMessages.collabInviteCard.status.accepted), "status should come from the returned invite");
+        if (!(calls.post.some((call) => call.path === "/api/v1/collab-invites/7/accept"))) throw new Error(`expected POST accept, got ${JSON.stringify(calls.post)}`);
+        if (!(view.getByText(intlMessages.collabInviteCard.status.accepted))) throw new Error("status should come from the returned invite");
   });
   assert.equal(view.queryByRole("button", { name: /Accept collaboration invite/ }), null);
   assert.equal(view.queryByRole("button", { name: /Decline collaboration invite/ }), null);
@@ -277,11 +282,8 @@ test("decline button posts to the decline endpoint and applies the returned invi
   fireEvent.click(view.getByRole("button", { name: `Decline collaboration invite for “${pendingInvite.contentTitle}”` }));
 
   await waitFor(() => {
-    assert.ok(
-      calls.post.some((call) => call.path === "/api/v1/collab-invites/7/decline"),
-      `expected POST decline, got ${JSON.stringify(calls.post)}`,
-    );
-    assert.ok(view.getByText(intlMessages.collabInviteCard.status.declined));
+        if (!(calls.post.some((call) => call.path === "/api/v1/collab-invites/7/decline"))) throw new Error(`expected POST decline, got ${JSON.stringify(calls.post)}`);
+        if (!(view.getByText(intlMessages.collabInviteCard.status.declined))) throw new Error("waitFor: condition not met");
   });
   assert.deepEqual(declinedIds, [7]);
 });
@@ -301,11 +303,8 @@ test("accept failure keeps pending state and shows inline error plus toast", asy
   fireEvent.click(view.getByRole("button", { name: `Accept collaboration invite for “${pendingInvite.contentTitle}”` }));
 
   await waitFor(() => {
-    assert.ok(
-      view.container.querySelector('[role="alert"]')?.textContent?.includes(intlMessages.collabInviteCard.errors.failed),
-      "inline error should render",
-    );
-    assert.ok(document.body.textContent?.includes(intlMessages.collabInviteCard.errors.failed), "toast should render");
+        if (!(view.container.querySelector('[role="alert"]')?.textContent?.includes(intlMessages.collabInviteCard.errors.failed))) throw new Error("inline error should render");
+        if (!(document.body.textContent?.includes(intlMessages.collabInviteCard.errors.failed))) throw new Error("toast should render");
   });
   assert.ok(view.getByRole("button", { name: `Accept collaboration invite for “${pendingInvite.contentTitle}”` }), "card should stay actionable");
   assert.ok(view.getByText(intlMessages.collabInviteCard.status.pending), "status should stay pending after failure");
@@ -331,9 +330,9 @@ test("loading sets aria-busy on the card and disables the other action button", 
 
   await waitFor(() => {
     const card = view.container.querySelector('[role="group"]');
-    assert.equal(card?.getAttribute("aria-busy"), "true", "card should be busy while saving");
+        if (card?.getAttribute("aria-busy") != "true") throw new Error("card should be busy while saving");
     const decline = view.getByRole("button", { name: `Decline collaboration invite for “${pendingInvite.contentTitle}”` }) as HTMLButtonElement;
-    assert.equal(decline.disabled, true, "other action should be disabled while busy");
+        if (decline.disabled != true) throw new Error("other action should be disabled while busy");
   });
 
   await act(async () => {
@@ -342,7 +341,7 @@ test("loading sets aria-busy on the card and disables the other action button", 
   });
 
   await waitFor(() => {
-    assert.equal(view.container.querySelector('[role="group"]')?.getAttribute("aria-busy"), "false");
+        if (view.container.querySelector('[role="group"]')?.getAttribute("aria-busy") != "false") throw new Error("waitFor: values differ");
   });
 });
 
@@ -360,8 +359,8 @@ test("action buttons have aria-labels with the content title and 44px touch targ
   await waitFor(() => {
     const accept = view.getByRole("button", { name: `Accept collaboration invite for “${pendingInvite.contentTitle}”` });
     const decline = view.getByRole("button", { name: `Decline collaboration invite for “${pendingInvite.contentTitle}”` });
-    assert.ok(accept.className.includes("min-h-11"), "mobile touch target should be at least 44px");
-    assert.ok(decline.className.includes("min-h-11"), "mobile touch target should be at least 44px");
+        if (!(accept.className.includes("min-h-11"))) throw new Error("mobile touch target should be at least 44px");
+        if (!(decline.className.includes("min-h-11"))) throw new Error("mobile touch target should be at least 44px");
   });
 });
 
@@ -375,8 +374,8 @@ test("ChatWindow renders the invite card for collab_invite messages and keeps te
   const view = renderChatWindow();
 
   await waitFor(() => {
-    assert.ok(view.getByRole("button", { name: `Accept collaboration invite for “${pendingInvite.contentTitle}”` }), "invite card should render in the flow");
-    assert.ok(view.getByText("hello"), "normal text message should stay a bubble");
+        if (!(view.getByRole("button", { name: `Accept collaboration invite for “${pendingInvite.contentTitle}”` }))) throw new Error("invite card should render in the flow");
+        if (!(view.getByText("hello"))) throw new Error("normal text message should stay a bubble");
   });
   assert.equal(view.queryByText(intlMessages.messages.chat.unsupportedMessage), null, "collab invite must not fall back to the unsupported message");
 });
@@ -389,7 +388,9 @@ test("ChatWindow falls back to a safe summary for collab_invite messages with in
 
   const view = renderChatWindow();
 
-  await waitFor(() => assert.ok(view.getByText(intlMessages.collabInviteCard.summary.invalid)));
+  await waitFor(() => {
+    if (!(view.getByText(intlMessages.collabInviteCard.summary.invalid))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(view.queryByRole("button", { name: /Accept collaboration invite/ }), null, "no actions for invalid metadata");
 });
 
@@ -406,7 +407,7 @@ test("content link prefers the backend-decorated url over the stale zone mirror"
 
   await waitFor(() => {
     const link = view.getByRole("link", { name: pendingInvite.contentTitle }) as HTMLAnchorElement;
-    assert.equal(link.getAttribute("href"), "/original/601", "backend url must win over the stale zone snapshot");
+        if (link.getAttribute("href") != "/original/601") throw new Error("backend url must win over the stale zone snapshot");
   });
 });
 
@@ -423,7 +424,7 @@ test("content link falls back to the zone mirror when the backend url is absent"
 
   await waitFor(() => {
     const link = view.getByRole("link", { name: pendingInvite.contentTitle }) as HTMLAnchorElement;
-    assert.equal(link.getAttribute("href"), "/original/601", "zone mirror keeps the #786 split for old responses");
+        if (link.getAttribute("href") != "/original/601") throw new Error("zone mirror keeps the #786 split for old responses");
   });
 });
 
@@ -445,7 +446,7 @@ test("ChatWindow forwards the decorated metadata url to the invite card link", a
 
   await waitFor(() => {
     const link = view.getByRole("link", { name: pendingInvite.contentTitle }) as HTMLAnchorElement;
-    assert.equal(link.getAttribute("href"), "/original/601", "chat must prefer the backend-decorated navigation url");
+        if (link.getAttribute("href") != "/original/601") throw new Error("chat must prefer the backend-decorated navigation url");
   });
 });
 

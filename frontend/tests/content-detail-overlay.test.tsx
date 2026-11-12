@@ -269,13 +269,13 @@ async function openOverlay(
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() =>
-    assert.ok(
-      document.activeElement ===
-        view.getByRole("heading", { level: 2, name: entryId === 1 ? "Original 1" : "Fanwork 2" }),
-    ),
-  );
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(document.activeElement ===
+        view.getByRole("heading", { level: 2, name: entryId === 1 ? "Original 1" : "Fanwork 2" }))) throw new Error("waitFor: condition not met");
+  });
   return trigger;
 }
 
@@ -289,9 +289,9 @@ async function pushRelatedLayer(view: ReturnType<typeof render>, relatedId: numb
     fireEvent.click(relatedTrigger);
     await Promise.resolve();
   });
-  await waitFor(() =>
-    assert.ok(view.getByRole("heading", { level: 2, name: `Related ${relatedId}` })),
-  );
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: `Related ${relatedId}` }))) throw new Error("waitFor: condition not met");
+  });
 }
 
 test.afterEach(async () => {
@@ -384,8 +384,12 @@ test("related content pushes onto the stack; back button pops and returns focus 
     fireEvent.click(view.getByRole("button", { name: "Back to Original 1" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
-  await waitFor(() => assert.ok(document.activeElement === relatedTrigger));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Original 1" }))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(document.activeElement === relatedTrigger)) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("Esc pops one layer at a time and exits at depth 1", async () => {
@@ -400,7 +404,9 @@ test("Esc pops one layer at a time and exits at depth 1", async () => {
     dialog.dispatchEvent(new window.Event("cancel", { cancelable: true }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Original 1" }))) throw new Error("waitFor: condition not met");
+  });
 
   await act(async () => {
     dialog.dispatchEvent(new window.Event("cancel", { cancelable: true }));
@@ -430,8 +436,12 @@ test("per-layer scroll memory restores on pop and new layers start at the top", 
     fireEvent.click(view.getByRole("button", { name: "Back to Original 1" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
-  await waitFor(() => assert.equal(scroller.scrollTop, 120));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Original 1" }))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (scroller.scrollTop != 120) throw new Error("waitFor: values differ");
+  });
 });
 
 test("stack depth is capped at five", async () => {
@@ -462,8 +472,12 @@ test("not-found content shows a localized empty state without raw errors", async
     fireEvent.click(view.getByRole("button", { name: "Open overlay" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(view.getByText("Content not found or deleted")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByText("Content not found or deleted"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.queryByText(/raw secret backend error/) === null);
 });
 
@@ -491,7 +505,9 @@ test("banned content shows the forbidden empty state", async () => {
     fireEvent.click(view.getByRole("button", { name: "Open overlay" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByText("Content is not accessible")));
+  await waitFor(() => {
+    if (!(view.getByText("Content is not accessible"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.queryByText("Banned Work") === null);
 });
 
@@ -502,13 +518,17 @@ test("load failures are retriable", async () => {
     fireEvent.click(view.getByRole("button", { name: "Open overlay" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByText("Content detail failed to load")));
+  await waitFor(() => {
+    if (!(view.getByText("Content detail failed to load"))) throw new Error("waitFor: condition not met");
+  });
 
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Retry" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Original 1" }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("browser back pops layers and exits at the root with focus restored", async () => {
@@ -526,7 +546,9 @@ test("browser back pops layers and exits at the root with focus restored", async
       window.addEventListener("popstate", () => resolve(), { once: true });
     });
   });
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Original 1" }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(window.location.pathname, "/original/1");
 
   await act(async () => {
@@ -609,8 +631,12 @@ test("error layers keep the canonical URL and retries write no extra history", a
     fireEvent.click(view.getByRole("button", { name: "Open overlay" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(view.getByText("Content detail failed to load")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByText("Content detail failed to load"))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(window.location.pathname, "/original/999", "错误态保持当前内容规范 URL");
 
   const lengthBeforeRetry = window.history.length;
@@ -618,7 +644,9 @@ test("error layers keep the canonical URL and retries write no extra history", a
     fireEvent.click(view.getByRole("button", { name: "Retry" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByText("Content detail failed to load")));
+  await waitFor(() => {
+    if (!(view.getByText("Content detail failed to load"))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(window.history.length, lengthBeforeRetry, "重试不制造额外历史");
   assert.equal(window.location.pathname, "/original/999");
 });
@@ -699,8 +727,12 @@ test("host wires the fanwork detail page related entry to the overlay", async ()
     fireEvent.click(entryButton);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Original 1" }))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByRole("button", { name: "Back to content page" }));
 
   await act(async () => {
@@ -710,7 +742,9 @@ test("host wires the fanwork detail page related entry to the overlay", async ()
   await waitFor(() => {
     if (view.queryByRole("dialog") !== null) throw new Error("dialog still mounted after close");
   });
-  await waitFor(() => assert.ok(document.activeElement === entryButton));
+  await waitFor(() => {
+    if (!(document.activeElement === entryButton)) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("overlay i18n keys exist in both catalogs with matching placeholders", () => {

@@ -293,10 +293,14 @@ async function openContext(view: ReturnType<typeof render>, entryIndex: number) 
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   /* 桌面视口下 #90 相关内容块会额外渲染标题行（h2），等待时必须按名称区分。 */
   const expectedTitle = ["Context A", "Context B", "Context C"][entryIndex];
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: expectedTitle })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: expectedTitle }))) throw new Error("waitFor: condition not met");
+  });
 }
 
 /** 在最后一项媒体上向上滑动（移动端连续浏览手势；目标 = 移动端可见的行内画廊）。 */
@@ -340,37 +344,59 @@ test("#89 AC1: trigger entries thread contextList/contextIndex into the overlay 
 
   /* 触发的是第 2 项（B，双媒体）：标题直接显示 B；翻到末项再上滑 → C，
      证明 contextList/contextIndex 贯通到了浮层层内。 */
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context B" })));
-  await waitFor(() => assert.ok(view.getAllByRole("group", { name: "1 / 2" })[0]));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context B" }))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getAllByRole("group", { name: "1 / 2" })[0])) throw new Error("waitFor: condition not met");
+  });
   swipeLeftOnMedia();
-  await waitFor(() => assert.ok(view.getAllByRole("group", { name: "2 / 2" })[0]));
+  await waitFor(() => {
+    if (!(view.getAllByRole("group", { name: "2 / 2" })[0])) throw new Error("waitFor: condition not met");
+  });
   swipeUpOnMedia();
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context C" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context C" }))) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("#89 AC2: last-media upward swipe switches to the next context item and resets media + info state", async () => {
   installApiMock();
   const view = renderHarness(0);
   await openContext(view, 0);
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context A" })));
-  await waitFor(() => assert.equal(currentMediaSrc(), "/seed-media/gallery/a-1.svg"));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context A" }))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (currentMediaSrc() != "/seed-media/gallery/a-1.svg") throw new Error("waitFor: values differ");
+  });
 
   /* 上滑切到 B（双媒体），翻到第 2 项，再上滑切篇。 */
   swipeUpOnMedia();
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context B" })));
-  await waitFor(() => assert.ok(view.getAllByRole("group", { name: "1 / 2" })[0]));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context B" }))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getAllByRole("group", { name: "1 / 2" })[0])) throw new Error("waitFor: condition not met");
+  });
   swipeLeftOnMedia();
-  await waitFor(() => assert.ok(view.getAllByRole("group", { name: "2 / 2" })[0]));
+  await waitFor(() => {
+    if (!(view.getAllByRole("group", { name: "2 / 2" })[0])) throw new Error("waitFor: condition not met");
+  });
 
   const overlayScroller = document.querySelector<HTMLElement>('[data-slot="overlay-scroller"]');
   assert.ok(overlayScroller);
   overlayScroller.scrollTop = 80;
 
   swipeUpOnMedia();
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context C" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context C" }))) throw new Error("waitFor: condition not met");
+  });
 
   /* 切篇后媒体区重置：回到新内容首项（媒体加载态随层 remount 重建）；信息区滚动回顶。 */
-  await waitFor(() => assert.equal(currentMediaSrc(), "/seed-media/gallery/c-1.svg"));
+  await waitFor(() => {
+    if (currentMediaSrc() != "/seed-media/gallery/c-1.svg") throw new Error("waitFor: values differ");
+  });
   assert.equal(overlayScroller.scrollTop, 0, "info scroll resets after switching content");
   assert.ok(view.getByText("C body"));
 
@@ -383,16 +409,26 @@ test("#89 AC3: at the end of the context list the end hint shows and no switch f
   installApiMock();
   const view = renderHarness(2);
   await openContext(view, 2);
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context C" })));
-  await waitFor(() => assert.equal(currentMediaSrc(), "/seed-media/gallery/c-1.svg"));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context C" }))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (currentMediaSrc() != "/seed-media/gallery/c-1.svg") throw new Error("waitFor: values differ");
+  });
 
   /* 列表最后一项：持续上滑只提示「已经到底了」，不切换内容。
      E4 相邻预取：打开 C 的空闲期对前项 B 预取一轮（B 从未再被打开）。 */
-  await waitFor(() => assert.equal(detailCallCount, 2, "adjacent prev prefetched once"), { timeout: 2000 });
+  await waitFor(() => {
+    if (detailCallCount != 2) throw new Error("adjacent prev prefetched once");
+  });
   swipeUpOnMedia();
-  await waitFor(() => assert.ok(view.getByText("You've reached the end")));
+  await waitFor(() => {
+    if (!(view.getByText("You've reached the end"))) throw new Error("waitFor: condition not met");
+  });
   swipeUpOnMedia();
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context C" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context C" }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(detailCallCount, 2, "no refetch when the list is exhausted");
 });
 
@@ -400,13 +436,19 @@ test("#89 AC4: desktop (>=1100px) never triggers continuous browsing", async () 
   installApiMock();
   const view = renderHarness(0, true);
   await openContext(view, 0);
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context A" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context A" }))) throw new Error("waitFor: condition not met");
+  });
 
   /* 桌面端：左栏媒体列（首个 detail-cover）上滑也不触发切篇。
      E4 相邻预取与视口无关（加速器非导航）：空闲期对 B 预取一轮即止。 */
-  await waitFor(() => assert.equal(detailCallCount, 2, "adjacent prefetch warms B once"), { timeout: 2000 });
+  await waitFor(() => {
+    if (detailCallCount != 2) throw new Error("adjacent prefetch warms B once");
+  });
   swipeUpOnMedia("first");
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context A" })));
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Context A" }))) throw new Error("waitFor: condition not met");
+  });
   assert.equal(detailCallCount, 2, "desktop must not switch content");
   /* #89 移动连续浏览的到底提示（media-continue-end）不得出现在桌面端；
      #90 桌面相关内容块的「已经到底了」由 RelatedContents 承载，语义不同。 */

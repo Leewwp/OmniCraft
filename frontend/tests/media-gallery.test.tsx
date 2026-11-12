@@ -397,7 +397,9 @@ test("#859 video body click toggles playback and never opens the viewer (images 
   });
   const video = container.querySelector("video");
   assert.ok(video, "video element rendered");
-  await waitFor(() => assert.ok(mediaCalls.some((call) => call.op === "play")));
+  await waitFor(() => {
+    if (!(mediaCalls.some((call) => call.op === "play"))) throw new Error("waitFor: condition not met");
+  });
   await act(async () => {
     fireEvent.click(video);
   });

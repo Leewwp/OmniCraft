@@ -122,8 +122,7 @@ test("similar request uses the fixed list contract for fanwork with ip (zone/con
     <RelatedContents contentId={9} zone="fanwork" contentType="image" category="art" ipId={3} />,
   );
   await waitFor(() => {
-    assert.equal(handler.capturedSimilarPath,
-      "/api/v1/contents?zone=fanwork&content_type=image&category=art&ip_id=3&sort=hot&page_size=12");
+        if (handler.capturedSimilarPath != "/api/v1/contents?zone=fanwork&content_type=image&category=art&ip_id=3&sort=hot&page_size=12") throw new Error("waitFor: values differ");
   });
 });
 
@@ -136,8 +135,7 @@ test("similar request omits ip_id for originals and omits empty category", async
     <RelatedContents contentId={9} zone="original" contentType="article" category="literature" />,
   );
   await waitFor(() => {
-    assert.equal(handler.capturedSimilarPath,
-      "/api/v1/contents?zone=original&content_type=article&category=literature&sort=hot&page_size=12");
+        if (handler.capturedSimilarPath != "/api/v1/contents?zone=original&content_type=article&category=literature&sort=hot&page_size=12") throw new Error("waitFor: values differ");
   });
 });
 
@@ -148,8 +146,7 @@ test("similar request drops the category param when content has no category", as
   installMockGet(handler);
   renderWithEn(<RelatedContents contentId={9} zone="original" contentType="article" />);
   await waitFor(() => {
-    assert.equal(handler.capturedSimilarPath,
-      "/api/v1/contents?zone=original&content_type=article&sort=hot&page_size=12");
+        if (handler.capturedSimilarPath != "/api/v1/contents?zone=original&content_type=article&sort=hot&page_size=12") throw new Error("waitFor: values differ");
   });
 });
 
@@ -160,9 +157,9 @@ test("similar request never uses sort=recommended when filters are present", asy
   installMockGet(handler);
   renderWithEn(<RelatedContents contentId={9} zone="original" contentType="image" />);
   await waitFor(() => {
-    assert.ok(handler.capturedSimilarPath);
-    assert.match(handler.capturedSimilarPath, /sort=hot/);
-    assert.doesNotMatch(handler.capturedSimilarPath, /sort=recommended/);
+        if (!(handler.capturedSimilarPath)) throw new Error("waitFor: condition not met");
+        if (!(/sort=hot/.test(handler.capturedSimilarPath))) throw new Error("waitFor: pattern check failed: /sort=hot/");
+        if (/sort=recommended/.test(handler.capturedSimilarPath)) throw new Error("waitFor: pattern check failed: /sort=recommended/");
   });
 });
 
@@ -202,9 +199,9 @@ test("block renders related row and similar row with dedupe: current content and
   );
 
   await waitFor(() => {
-    assert.ok(container.querySelector('[data-slot="related-contents"]'));
-    assert.ok(container.querySelector('[data-slot="related-fanworks"]'));
-    assert.ok(container.querySelector('[data-slot="related-contents-similar"]'));
+        if (!(container.querySelector('[data-slot="related-contents"]'))) throw new Error("waitFor: condition not met");
+        if (!(container.querySelector('[data-slot="related-fanworks"]'))) throw new Error("waitFor: condition not met");
+        if (!(container.querySelector('[data-slot="related-contents-similar"]'))) throw new Error("waitFor: condition not met");
   });
 
   const block = container.querySelector('[data-slot="related-contents"]');
@@ -249,8 +246,8 @@ test("embedded related row shares the single block container (no nested bordered
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector('[data-slot="related-contents"]'));
-    assert.ok(container.querySelector('[data-slot="related-fanworks"]'));
+        if (!(container.querySelector('[data-slot="related-contents"]'))) throw new Error("waitFor: condition not met");
+        if (!(container.querySelector('[data-slot="related-fanworks"]'))) throw new Error("waitFor: condition not met");
   });
   const block = container.querySelector('[data-slot="related-contents"]');
   const relatedRow = block?.querySelector('[data-slot="related-fanworks"]');
@@ -281,10 +278,10 @@ test("empty branch: both rows empty renders only the end hint, no block titles",
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector('[data-slot="related-contents-end"]'));
-    /* 不用 assert.equal(node, null)：失败时会同步序列化挂满 React Fiber 的 DOM，
+        if (!(container.querySelector('[data-slot="related-contents-end"]'))) throw new Error("waitFor: condition not met");
+    /* 不用     if (node != null) throw new Error("waitFor: values differ");：失败时会同步序列化挂满 React Fiber 的 DOM，
        单次 ~2s，足以耗尽 waitFor 1s 超时并把重试循环变成必败。 */
-    assert.ok(!container.querySelector('[data-slot="related-contents"]'));
+        if (container.querySelector('[data-slot="related-contents"]')) throw new Error("waitFor: condition not met");
   });
   const text = container.textContent ?? "";
   assert.match(text, /You've reached the end/);
@@ -311,7 +308,7 @@ test("similar error renders inline error and retry refetches", async () => {
     <RelatedContents contentId={9} zone="original" contentType="article" />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector('[data-slot="related-contents-similar-error"]'));
+        if (!(container.querySelector('[data-slot="related-contents-similar-error"]'))) throw new Error("waitFor: condition not met");
   });
   assert.match(container.textContent ?? "", /Failed to load similar content/);
 
@@ -322,7 +319,7 @@ test("similar error renders inline error and retry refetches", async () => {
   assert.ok(retryButton);
   fireEvent.click(retryButton);
   await waitFor(() => {
-    assert.ok(container.querySelector('[data-slot="related-contents-similar"]'));
+        if (!(container.querySelector('[data-slot="related-contents-similar"]'))) throw new Error("waitFor: condition not met");
   });
 });
 
@@ -372,7 +369,7 @@ test("cards invoke onOpenDetail with card data and trigger", async () => {
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector('[data-slot="related-contents-similar"]'));
+        if (!(container.querySelector('[data-slot="related-contents-similar"]'))) throw new Error("waitFor: condition not met");
   });
   const button = container.querySelector('[data-slot="related-contents-similar"] button');
   assert.ok(button);

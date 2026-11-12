@@ -63,7 +63,9 @@ test("useOverlayMedia 预取首项媒体的规范变体（尺寸齐全也预取�
       return null;
     };
     render(<Probe />);
-    await waitFor(() => assert.ok(spy.srcs.length >= 1));
+    await waitFor(() => {
+      if (!(spy.srcs.length >= 1)) throw new Error("waitFor: condition not met");
+    });
     assert.ok(
       spy.srcs.some(
         (src) =>
@@ -86,7 +88,9 @@ test("useOverlayMedia 首项为 SVG 直通源时不发起预取", async () => {
       return null;
     };
     render(<Probe />);
-    await waitFor(() => assert.ok(true));
+    await waitFor(() => {
+      if (!(true)) throw new Error("waitFor: condition not met");
+    });
     assert.deepEqual(spy.srcs, []);
   } finally {
     spy.restore();

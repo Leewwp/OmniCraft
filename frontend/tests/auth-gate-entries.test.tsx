@@ -73,7 +73,7 @@ async function assertOpensLoginModal(view: ReturnType<typeof render>) {
   const dialog = await waitFor(() => view.getByRole("dialog"));
   assert.ok(dialog, "login modal must open");
   await waitFor(() => {
-    assert.ok(!window.location.href.includes("/login"), "must not navigate to /login");
+        if (window.location.href.includes("/login")) throw new Error("must not navigate to /login");
   });
 }
 

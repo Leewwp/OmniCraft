@@ -165,7 +165,9 @@ test("MasonryGrid sentinel triggers onLoadMore only while hasMore", async () => 
   const triggerIntersect = () =>
     callback?.([{ isIntersecting: true } as IntersectionObserverEntry], null as unknown as IntersectionObserver);
   triggerIntersect();
-  await waitFor(() => assert.equal(loadCalls, 1));
+  await waitFor(() => {
+    if (loadCalls != 1) throw new Error("waitFor: values differ");
+  });
 
   cleanup();
   observed = 0;
@@ -267,7 +269,9 @@ test("RecommendFeedClient error state keeps position and retries page 1", async 
     assert.ok(view.getByRole("button", { name: "Reload" }));
 
     fireEvent.click(view.getByRole("button", { name: "Reload" }));
-    await waitFor(() => assert.ok(view.getByRole("button", { name: "Feed item 1" })));
+    await waitFor(() => {
+      if (!(view.getByRole("button", { name: "Feed item 1" }))) throw new Error("waitFor: condition not met");
+    });
     assert.equal(stub.calls.length, 1);
     assert.match(stub.calls[0], /sort=recommended/);
     assert.match(stub.calls[0], /page=1/);
@@ -305,7 +309,9 @@ test("RecommendFeedClient appends page 2 via sentinel with sort=recommended", as
     const triggerIntersect = () =>
       callback?.([{ isIntersecting: true } as IntersectionObserverEntry], null as unknown as IntersectionObserver);
     triggerIntersect();
-    await waitFor(() => assert.equal(stub.calls.length, 1));
+    await waitFor(() => {
+      if (stub.calls.length != 1) throw new Error("waitFor: values differ");
+    });
     assert.match(stub.calls[0], /sort=recommended/);
     assert.match(stub.calls[0], /page=2/);
   } finally {

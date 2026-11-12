@@ -143,9 +143,13 @@ test.afterEach(() => {
 
 test("E4 翻页新图未就绪：旧层保持（无淡出动画）、新层 opacity 0 不露空白", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)], contentId: 9201, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText().includes("1 / 3")));
+  await waitFor(() => {
+    if (!(countBadgeText().includes("1 / 3"))) throw new Error("waitFor: condition not met");
+  });
   await paneNext();
-  await waitFor(() => assert.ok(exitLayer(), "pending switch keeps the previous slide as the hold layer"));
+  await waitFor(() => {
+    if (!(exitLayer())) throw new Error("pending switch keeps the previous slide as the hold layer");
+  });
   const exit = exitLayer()!;
   assert.equal(exit.style.animation, "", "hold layer runs no fade-out while the new media is pending");
   assert.equal(currentLayer()?.style.opacity, "0", "pending current layer stays covered");
@@ -154,24 +158,30 @@ test("E4 翻页新图未就绪：旧层保持（无淡出动画）、新层 opac
 
 test("E4 就绪即交换：图片 load 后起跑交叉淡出并移除旧层", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2)], contentId: 9201, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText().includes("1 / 2")));
+  await waitFor(() => {
+    if (!(countBadgeText().includes("1 / 2"))) throw new Error("waitFor: condition not met");
+  });
   await paneNext();
   assert.ok(exitLayer());
   await act(async () => {
     fireEvent.load(currentCanonicalImg()!);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(exitLayer()?.style.animation.includes("overlay-slide-fade-out")), {
-    timeout: 2000,
+  await waitFor(() => {
+    if (!(exitLayer()?.style.animation.includes("overlay-slide-fade-out"))) throw new Error("waitFor: condition not met");
   });
   await settleTimer();
-  await waitFor(() => assert.ok(!exitLayer(), "ready swap removes the old layer after the exit window"));
+  await waitFor(() => {
+    if (exitLayer()) throw new Error("ready swap removes the old layer after the exit window");
+  });
   assert.equal(countBadgeText(), "2 / 2");
 });
 
 test("E4 失败放行：图片 error 不永久保持旧画面", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2)], contentId: 9201, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText().includes("1 / 2")));
+  await waitFor(() => {
+    if (!(countBadgeText().includes("1 / 2"))) throw new Error("waitFor: condition not met");
+  });
   await paneNext();
   assert.ok(exitLayer());
   await act(async () => {
@@ -179,7 +189,9 @@ test("E4 失败放行：图片 error 不永久保持旧画面", async () => {
     await Promise.resolve();
   });
   await settleTimer();
-  await waitFor(() => assert.ok(!exitLayer(), "error releases the hold (never a stale-picture dead end)"));
+  await waitFor(() => {
+    if (exitLayer()) throw new Error("error releases the hold (never a stale-picture dead end)");
+  });
 });
 
 test("E4 查看器族挂载即就绪：无需图载入即完成交换", async () => {
@@ -199,11 +211,17 @@ test("E4 查看器族挂载即就绪：无需图载入即完成交换", async ()
     contentId: 9201,
     allowCopy: false,
   });
-  await waitFor(() => assert.ok(countBadgeText().includes("1 / 2")));
+  await waitFor(() => {
+    if (!(countBadgeText().includes("1 / 2"))) throw new Error("waitFor: condition not met");
+  });
   await paneNext();
-  await waitFor(() => assert.ok(exitLayer()));
+  await waitFor(() => {
+    if (!(exitLayer())) throw new Error("waitFor: condition not met");
+  });
   await settleTimer();
-  await waitFor(() => assert.ok(!exitLayer(), "viewer-family slides are mount-ready"));
+  await waitFor(() => {
+    if (exitLayer()) throw new Error("viewer-family slides are mount-ready");
+  });
   assert.equal(countBadgeText(), "2 / 2");
 });
 
@@ -213,9 +231,13 @@ test("E4 视频位就绪门：loadedmetadata 前保持，元数据到达即交�
     contentId: 9201,
     allowCopy: false,
   });
-  await waitFor(() => assert.ok(countBadgeText().includes("1 / 2")));
+  await waitFor(() => {
+    if (!(countBadgeText().includes("1 / 2"))) throw new Error("waitFor: condition not met");
+  });
   await paneNext();
-  await waitFor(() => assert.ok(exitLayer(), "video slide holds the old frame until metadata arrives"));
+  await waitFor(() => {
+    if (!(exitLayer())) throw new Error("video slide holds the old frame until metadata arrives");
+  });
   const video = currentLayer()?.querySelector("video") ?? null;
   assert.ok(video, "pending current layer mounts the video element (loading underneath the hold)");
   await act(async () => {
@@ -223,15 +245,21 @@ test("E4 视频位就绪门：loadedmetadata 前保持，元数据到达即交�
     await Promise.resolve();
   });
   await settleTimer();
-  await waitFor(() => assert.ok(!exitLayer(), "metadata readiness completes the swap"));
+  await waitFor(() => {
+    if (exitLayer()) throw new Error("metadata readiness completes the swap");
+  });
 });
 
 test("E4 快速连按：保持层被最新切换接管，任意时刻 ≤ 2 层，最终单层", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2), imageItem(3)], contentId: 9201, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText().includes("1 / 3")));
+  await waitFor(() => {
+    if (!(countBadgeText().includes("1 / 3"))) throw new Error("waitFor: condition not met");
+  });
   await paneNext();
   await paneNext();
-  await waitFor(() => assert.ok(exitLayer()));
+  await waitFor(() => {
+    if (!(exitLayer())) throw new Error("waitFor: condition not met");
+  });
   const layers = document.querySelectorAll(
     '[data-slot="variant-media-pane"] > [data-slot="detail-cover"], [data-slot="variant-media-pane"] > [data-slot="slide-fade-out"]',
   ).length;
@@ -243,20 +271,18 @@ test("E4 快速连按：保持层被最新切换接管，任意时刻 ≤ 2 层�
     await Promise.resolve();
   });
   await settleTimer();
-  await waitFor(() =>
-    assert.equal(
-      document.querySelectorAll(
+  await waitFor(() => {
+    if (document.querySelectorAll(
         '[data-slot="variant-media-pane"] > [data-slot="detail-cover"], [data-slot="variant-media-pane"] > [data-slot="slide-fade-out"]',
-      ).length,
-      1,
-      "latest switch owns the cleanup; stage settles on a single layer",
-    ),
-  );
+      ).length != 1) throw new Error("latest switch owns the cleanup; stage settles on a single layer");
+  });
 });
 
 test("E4 首挂载无就绪门：无淡出层时当前层不隐藏（E2 入场语义不回归）", async () => {
   renderLayout({ media: [imageItem(1), imageItem(2)], contentId: 9201, allowCopy: false });
-  await waitFor(() => assert.ok(countBadgeText().includes("1 / 2")));
+  await waitFor(() => {
+    if (!(countBadgeText().includes("1 / 2"))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(!exitLayer(), "first mount renders no exit layer");
   assert.notEqual(currentLayer()?.style.opacity, "0", "current layer is visible without any readiness gate");
 });

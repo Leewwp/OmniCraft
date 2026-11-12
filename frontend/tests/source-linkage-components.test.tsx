@@ -138,7 +138,7 @@ test("RelatedFanworks hides when total is zero", async () => {
     />,
   );
   await waitFor(() => {
-    assert.equal(container.querySelector("[data-slot=related-fanworks]"), null);
+        if (container.querySelector("[data-slot=related-fanworks]") != null) throw new Error("waitFor: values differ");
   });
 });
 
@@ -157,7 +157,7 @@ test("RelatedFanworks shows viewAll only when total is greater than 8 and viewAl
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector("[data-slot=related-fanworks]"), "row should render");
+        if (!(container.querySelector("[data-slot=related-fanworks]"))) throw new Error("row should render");
   });
   const viewAll = container.querySelector(`a[href="/original/137/fanworks"]`);
   assert.ok(viewAll, "expected 查看全部 link when total > 8 and viewAllHref present");
@@ -179,7 +179,7 @@ test("RelatedFanworks hides viewAll when total is not greater than 8", async () 
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector("[data-slot=related-fanworks]"), "row should render");
+        if (!(container.querySelector("[data-slot=related-fanworks]"))) throw new Error("row should render");
   });
   assert.equal(container.querySelector(`a[href="/original/137/fanworks"]`), null);
 });
@@ -198,7 +198,7 @@ test("RelatedFanworks hides viewAll when viewAllHref is absent even if total > 8
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector("[data-slot=related-fanworks]"), "row should render");
+        if (!(container.querySelector("[data-slot=related-fanworks]"))) throw new Error("row should render");
   });
   const text = container.textContent ?? "";
   assert.ok(!text.includes(enMessages.relatedFanworks.actions.viewAll), "no 查看全部 without viewAllHref");
@@ -218,7 +218,7 @@ test("derivative row label uses i18n 衍生作品 and never renders 三创", asy
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector("[data-slot=related-fanworks]"), "row should render");
+        if (!(container.querySelector("[data-slot=related-fanworks]"))) throw new Error("row should render");
   });
   const title = container.querySelector("[data-slot=related-fanworks-title]");
   assert.ok(title, "expected a title element");
@@ -251,7 +251,7 @@ test("RelatedFanworks original create link points to source_original_id", async 
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector("[data-slot=related-fanworks]"), "row should render");
+        if (!(container.querySelector("[data-slot=related-fanworks]"))) throw new Error("row should render");
   });
   const create = container.querySelector('a[href="/studio/publish/fanwork?source_original_id=137"]');
   assert.ok(create, "expected create link with source_original_id");
@@ -273,7 +273,7 @@ test("RelatedFanworks fanwork create link points to source_fanwork_id", async ()
     />,
   );
   await waitFor(() => {
-    assert.ok(container.querySelector("[data-slot=related-fanworks]"), "row should render");
+        if (!(container.querySelector("[data-slot=related-fanworks]"))) throw new Error("row should render");
   });
   const create = container.querySelector('a[href="/studio/publish/fanwork?source_fanwork_id=229"]');
   assert.ok(create, "expected create link with source_fanwork_id");

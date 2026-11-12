@@ -166,7 +166,9 @@ test("首轮 done→历史回载在途：答案持续可见不闪空，回载落
     fireEvent.keyDown(composer, { key: "Enter" });
 
     /* done 已到、历史请求挂起：答案与提问行必须持续可见（无骨架屏闪空）。 */
-    await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("hello world"))) throw new Error("waitFor: condition not met");
+    });
     await flushAsyncUpdates();
     assert.ok(view.getByText("first question"), "in-flight: query stays visible");
     assert.ok(view.getByText("hello world"), "in-flight: answer stays visible");
@@ -185,9 +187,9 @@ test("首轮 done→历史回载在途：答案持续可见不闪空，回载落
     await waitFor(
       () => {
         const toggle = view.getByRole("button", { name: /Thought process/ });
-        assert.equal(toggle.getAttribute("aria-expanded"), "false", "server think row replays collapsed");
+                if (toggle.getAttribute("aria-expanded") != "false") throw new Error("server think row replays collapsed");
         fireEvent.click(toggle);
-        assert.ok(view.getByText(/先把口语化需求扩展为检索词/), "server think content visible after expand");
+                if (!(view.getByText(/先把口语化需求扩展为检索词/))) throw new Error("server think content visible after expand");
       },
       { timeout: 3000 },
     );
@@ -229,12 +231,16 @@ test("续问轮 done 只 commit 一次：树尾追加单轮，无重复提问/�
   ]);
   try {
     const view = renderWithIntl(<AgentWorkspace initialConversationId={7} />);
-    await waitFor(() => assert.ok(view.getByText("first answer")));
+    await waitFor(() => {
+      if (!(view.getByText("first answer"))) throw new Error("waitFor: condition not met");
+    });
     const composer = view.getByRole("textbox", { name: "Ask the agent" });
     fireEvent.change(composer, { target: { value: "second question" } });
     fireEvent.keyDown(composer, { key: "Enter" });
 
-    await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
+    await waitFor(() => {
+      if (!(view.getByText("second answer"))) throw new Error("waitFor: condition not met");
+    });
     /* 多轮 flush 后仍只一份——commit effect 无重复触发。 */
     await flushAsyncUpdates();
     await flushAsyncUpdates();

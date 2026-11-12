@@ -102,7 +102,9 @@ test("coverSync hides the body until the cover image loads", async () => {
     fireEvent.load(img!);
     await Promise.resolve();
   });
-  await waitFor(() => assert.equal(bodyHidden(), false));
+  await waitFor(() => {
+    if (bodyHidden() != false) throw new Error("waitFor: values differ");
+  });
 });
 
 test("coverSync reveals usable detail with a stable placeholder when the cover fails", async () => {
@@ -113,7 +115,9 @@ test("coverSync reveals usable detail with a stable placeholder when the cover f
     fireEvent.error(img!);
     await Promise.resolve();
   });
-  await waitFor(() => assert.equal(bodyHidden(), false));
+  await waitFor(() => {
+    if (bodyHidden() != false) throw new Error("waitFor: values differ");
+  });
   assert.ok(document.querySelector('img[alt="Cover synced work"]') === null, "failed image must be removed");
   assert.ok(view.queryByText("Image"), "type placeholder stays visible");
 });

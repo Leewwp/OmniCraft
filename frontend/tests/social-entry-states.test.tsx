@@ -215,7 +215,9 @@ test("FollowButton renders the hidden unfollow sizer in every state so width can
       </IntlProvider>,
     );
     await waitFor(() => view.getByRole("button").click());
-    await waitFor(() => assert.equal(unlocked, true));
+    await waitFor(() => {
+      if (unlocked != true) throw new Error("waitFor: values differ");
+    });
     assert.deepEqual(calls, ["/api/v1/ips/3/follow"]);
   } finally {
     api.post = realPost;

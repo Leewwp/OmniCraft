@@ -148,18 +148,24 @@ test("the shared entry controller opens the overlay and restores trigger focus",
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() =>
-    assert.ok(view.getByRole("heading", { level: 2, name: "Shared entry work" })),
-  );
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Shared entry work" }))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByRole("button", { name: "Back to recommendations" }));
 
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Close content detail" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
-  await waitFor(() => assert.ok(document.activeElement === trigger));
+  await waitFor(() => {
+    if (!(view.queryByRole("dialog") === null)) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(document.activeElement === trigger)) throw new Error("waitFor: condition not met");
+  });
 });
 
 test("entries keep only the source-param difference in the return label", async () => {
@@ -176,7 +182,9 @@ test("entries keep only the source-param difference in the return label", async 
       fireEvent.click(view.getByRole("button", { name: `Open from ${source}` }));
       await Promise.resolve();
     });
-    await waitFor(() => assert.ok(view.getByRole("dialog")));
+    await waitFor(() => {
+      if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+    });
     assert.ok(view.getByRole("button", { name: label }));
     cleanup();
   }

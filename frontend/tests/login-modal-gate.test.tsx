@@ -188,7 +188,7 @@ test("login modal gate lifecycle", async (t) => {
 
     await submitCredentials(view, "person@example.com", "correct-horse");
     await waitFor(() => {
-      assert.equal(continueRuns.length, 1, "pendingAction must run after login");
+            if (continueRuns.length != 1) throw new Error("pendingAction must run after login");
     }, { timeout: 5000 });
     await waitFor(() => {
       let modalGone = false;
@@ -197,7 +197,7 @@ test("login modal gate lifecycle", async (t) => {
       } catch {
         modalGone = true;
       }
-      assert.ok(modalGone, "modal must close after successful login");
+            if (!(modalGone)) throw new Error("modal must close after successful login");
     }, { timeout: 5000 });
     assert.equal(stub.log.length, 1);
     const sentBody = stub.log[0].body as Record<string, unknown>;
@@ -226,7 +226,7 @@ test("login modal gate lifecycle", async (t) => {
     fireEvent.click(within(dialog).getByRole("button", { name: "solve captcha" }));
     await submitCredentials(view, "person@example.com", "correct-horse");
     await waitFor(() => {
-      assert.equal(continueRuns.length, 1);
+            if (continueRuns.length != 1) throw new Error("waitFor: values differ");
     }, { timeout: 5000 });
     const retryBody = stub.log[stub.log.length - 1].body as Record<string, unknown>;
     assert.match(String(retryBody.captcha_token ?? ""), /^ticket-/, "retry must carry the captcha token");
@@ -247,8 +247,8 @@ test("login modal gate lifecycle", async (t) => {
 
     const dialog = view.getByRole("dialog");
     await waitFor(() => {
-      assert.ok(within(dialog).getByText("To appeal or ask questions, reach us via the feedback form:"), "banned guidance must render");
-      assert.ok(within(dialog).getByText("Submit feedback"), "appeal link must render");
+            if (!(within(dialog).getByText("To appeal or ask questions, reach us via the feedback form:"))) throw new Error("banned guidance must render");
+            if (!(within(dialog).getByText("Submit feedback"))) throw new Error("appeal link must render");
     }, { timeout: 5000 });
     stub.restore();
   });
@@ -273,7 +273,7 @@ test("login modal gate lifecycle", async (t) => {
       } catch {
         modalGone = true;
       }
-      assert.ok(modalGone, "Esc must close the modal");
+            if (!(modalGone)) throw new Error("Esc must close the modal");
     });
     assert.ok(document.activeElement === trigger, "focus must return to the trigger element");
     stub.restore();
@@ -298,7 +298,7 @@ test("login modal gate lifecycle", async (t) => {
       } catch {
         modalGone = true;
       }
-      assert.ok(modalGone, "Esc must close the modal");
+            if (!(modalGone)) throw new Error("Esc must close the modal");
     });
     stub.restore();
   });

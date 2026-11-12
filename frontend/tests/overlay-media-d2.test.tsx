@@ -162,7 +162,9 @@ test("D2 视频缺尺寸：走 video 探针（loadedmetadata 回报尺寸），�
     const detail = buildDetail("video", { id: 601, file_type: "video", oss_url: videoUrl });
     await renderHook(detail);
 
-    await waitFor(() => assert.ok(videoStub.created.length >= 1, "video probe must be created"));
+    await waitFor(() => {
+      if (!(videoStub.created.length >= 1)) throw new Error("video probe must be created");
+    });
     const probe = videoStub.created[0];
     assert.equal(probe.src, videoUrl, "video probe loads the raw video URL (no optimizer variant)");
     assert.equal(probe.preload, "metadata");
@@ -177,7 +179,9 @@ test("D2 视频缺尺寸：走 video 探针（loadedmetadata 回报尺寸），�
     await act(async () => {
       probe.onloadedmetadata?.();
     });
-    await waitFor(() => assert.ok(probeState().ready, "metadata reports readiness"));
+    await waitFor(() => {
+      if (!(probeState().ready)) throw new Error("metadata reports readiness");
+    });
     const { media } = probeState();
     assert.equal(media.length, 1);
     assert.equal(media[0].width, 1280);
@@ -196,12 +200,16 @@ test("D2 视频探针失败：保留真实视频 URL（不换占位图）并照�
   try {
     const detail = buildDetail("video", { id: 602, file_type: "video", oss_url: videoUrl });
     await renderHook(detail);
-    await waitFor(() => assert.ok(videoStub.created.length >= 1));
+    await waitFor(() => {
+      if (!(videoStub.created.length >= 1)) throw new Error("waitFor: condition not met");
+    });
 
     await act(async () => {
       videoStub.created[0].onerror?.();
     });
-    await waitFor(() => assert.ok(probeState().ready, "failure still settles readiness"));
+    await waitFor(() => {
+      if (!(probeState().ready)) throw new Error("failure still settles readiness");
+    });
     const { media } = probeState();
     assert.equal(media.length, 1);
     assert.equal(media[0].url, videoUrl, "probe failure must keep the playable video URL");
@@ -233,7 +241,9 @@ test("D2 视频首项不发起 prefetchCoverVariant（图片优化器预热）�
     });
     await renderHook(detail);
 
-    await waitFor(() => assert.ok(probeState().ready, "known dims settle immediately"));
+    await waitFor(() => {
+      if (!(probeState().ready)) throw new Error("known dims settle immediately");
+    });
     assert.deepEqual(videoStub.created, [], "no probe needed when dims are known");
     assert.equal(
       imageSpy.instances.filter((img) => img.src.includes("_next/image")).length,
@@ -260,7 +270,9 @@ test("D2 图片项保持既有 Image 探针契约：onload 补尺寸、onerror �
     });
     await renderHook(detail);
 
-    await waitFor(() => assert.ok(imageSpy.instances.length >= 1, "image probe used for images"));
+    await waitFor(() => {
+      if (!(imageSpy.instances.length >= 1)) throw new Error("image probe used for images");
+    });
     assert.ok(
       imageSpy.instances[0].src.includes("_next/image"),
       "image probe still goes through the canonical variant",
@@ -274,7 +286,9 @@ test("D2 图片项保持既有 Image 探针契约：onload 补尺寸、onerror �
     await act(async () => {
       probeImg.onload?.();
     });
-    await waitFor(() => assert.ok(probeState().ready));
+    await waitFor(() => {
+      if (!(probeState().ready)) throw new Error("waitFor: condition not met");
+    });
     let media = probeState().media;
     assert.equal(media[0].width, 800);
     assert.equal(media[0].height, 600);
@@ -292,11 +306,15 @@ test("D2 图片项保持既有 Image 探针契约：onload 补尺寸、onerror �
       oss_url: "https://bucket.example/d2/image-broken-1009.jpg",
     });
     await renderHook(detail);
-    await waitFor(() => assert.ok(imageSpy2.instances.length >= 1));
+    await waitFor(() => {
+      if (!(imageSpy2.instances.length >= 1)) throw new Error("waitFor: condition not met");
+    });
     await act(async () => {
       imageSpy2.instances[imageSpy2.instances.length - 1].onerror?.();
     });
-    await waitFor(() => assert.ok(probeState().ready));
+    await waitFor(() => {
+      if (!(probeState().ready)) throw new Error("waitFor: condition not met");
+    });
     const media = probeState().media;
     assert.ok(
       String(media[0].url ?? "").startsWith("data:image/svg+xml"),
@@ -325,7 +343,9 @@ test("D2 视频探针回报非正尺寸时按失败处理（不产出坏几何�
   const videoStub = installVideoProbeStub();
   try {
     const pending = probeVideoMetadataSize("https://bucket.example/d2/video-zero-1009.mp4", 500);
-    await waitFor(() => assert.ok(videoStub.created.length >= 1));
+    await waitFor(() => {
+      if (!(videoStub.created.length >= 1)) throw new Error("waitFor: condition not met");
+    });
     const probe = videoStub.created[0];
     probe.videoWidth = 0;
     probe.videoHeight = 0;

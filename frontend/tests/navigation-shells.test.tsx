@@ -25,8 +25,8 @@ test("sidebar collapse state uses distinct persistence keys and native keyboard 
   const view = render(<CollapseHarness />);
 
   await waitFor(() => {
-    assert.equal(view.getByTestId("public-state").textContent, "collapsed");
-    assert.equal(view.getByTestId("studio-state").textContent, "expanded");
+        if (view.getByTestId("public-state").textContent != "collapsed") throw new Error("waitFor: values differ");
+        if (view.getByTestId("studio-state").textContent != "expanded") throw new Error("waitFor: values differ");
   });
 
   const publicToggle = view.getByRole("button", { name: "toggle public" });

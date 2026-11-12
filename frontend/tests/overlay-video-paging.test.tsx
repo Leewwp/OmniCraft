@@ -166,10 +166,7 @@ function paneVideo(): HTMLVideoElement {
 
 async function waitForPlayCall(stub: PlaybackStub, el: HTMLVideoElement) {
   await waitFor(() => {
-    assert.ok(
-      stub.callsFor(el).includes("play"),
-      "active video must attempt playback (autoPlay path)",
-    );
+        if (!(stub.callsFor(el).includes("play"))) throw new Error("active video must attempt playback (autoPlay path)");
   });
 }
 
@@ -379,9 +376,13 @@ async function openOverlay(view: ReturnType<typeof render>, expectedTitle?: stri
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   if (expectedTitle) {
-    await waitFor(() => assert.ok(view.getByRole("heading", { level: 1, name: expectedTitle })));
+    await waitFor(() => {
+      if (!(view.getByRole("heading", { level: 1, name: expectedTitle }))) throw new Error("waitFor: condition not met");
+    });
   }
   return trigger;
 }
@@ -598,7 +599,9 @@ test("D2 keyboard arrows page only the top active media area: inputs and the vie
     fireEvent.click(cover);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(document.querySelector("dialog[open]"), "viewer dialog opens for images"));
+  await waitFor(() => {
+    if (!(document.querySelector("dialog[open]"))) throw new Error("viewer dialog opens for images");
+  });
   await act(async () => {
     fireEvent.keyDown(window, { key: "ArrowRight" });
     await Promise.resolve();
@@ -635,17 +638,21 @@ test("D2 mixed media set: the viewer only ever receives image slides (video neve
       fireEvent.click(cover);
       await Promise.resolve();
     });
-    await waitFor(() => assert.ok(document.querySelector("dialog[open]"), "image click opens the viewer"));
+    await waitFor(() => {
+      if (!(document.querySelector("dialog[open]"))) throw new Error("image click opens the viewer");
+    });
     const close = await waitFor(() => {
       const el = document.querySelector<HTMLButtonElement>('dialog[open] button[aria-label="Close viewer"]');
-      assert.ok(el, "viewer close button exists");
+            if (!(el)) throw new Error("viewer close button exists");
       return el;
     });
     await act(async () => {
       fireEvent.click(close);
       await Promise.resolve();
     });
-    await waitFor(() => assert.ok(!document.querySelector("dialog[open]"), "viewer closes"));
+    await waitFor(() => {
+      if (document.querySelector("dialog[open]")) throw new Error("viewer closes");
+    });
     const badge = document.querySelector('[data-slot="media-count-badge"]');
     assert.ok(badge?.textContent?.includes("1 / 2"), `pane position intact after viewer round-trip, got: ${badge?.textContent ?? "none"}`);
   } finally {
@@ -664,7 +671,7 @@ test("D2 pushing the next content layer suspends the video of the covered layer"
 
     const video = await waitFor(() => {
       const el = document.querySelector<HTMLVideoElement>('[data-slot="variant-media-pane"] video');
-      assert.ok(el, "unified pane renders the fanwork video");
+            if (!(el)) throw new Error("unified pane renders the fanwork video");
       return el;
     });
     await waitForPlayCall(stub, video);
@@ -674,7 +681,7 @@ test("D2 pushing the next content layer suspends the video of the covered layer"
       const el = Array.from(document.querySelectorAll("button")).find((b) =>
         b.textContent?.includes("Next"),
       );
-      assert.ok(el, "series next-chapter control renders");
+            if (!(el)) throw new Error("series next-chapter control renders");
       return el as HTMLButtonElement;
     });
     await act(async () => {
@@ -682,12 +689,11 @@ test("D2 pushing the next content layer suspends the video of the covered layer"
       await Promise.resolve();
     });
     await waitFor(() => {
-      assert.ok(
-        stub.callsFor(video).includes("pause"),
-        "covered layer's video must stop when a new layer is pushed",
-      );
+            if (!(stub.callsFor(video).includes("pause"))) throw new Error("covered layer's video must stop when a new layer is pushed");
     });
-    await waitFor(() => assert.ok(view.getByRole("heading", { level: 1, name: "Episode Two" })));
+    await waitFor(() => {
+      if (!(view.getByRole("heading", { level: 1, name: "Episode Two" }))) throw new Error("waitFor: condition not met");
+    });
     /* 覆盖层隐藏（display:none 树）下不该有第二个可见播放源。 */
     const videos = document.querySelectorAll("video");
     assert.ok(videos.length >= 1, "media tree intact");
@@ -705,7 +711,7 @@ test("D2 mobile (<960) overlay gallery: video toggles in place and never opens t
 
     const video = await waitFor(() => {
       const el = document.querySelector<HTMLVideoElement>("video");
-      assert.ok(el, "mobile single column renders the inline gallery video");
+            if (!(el)) throw new Error("mobile single column renders the inline gallery video");
       return el;
     });
     assert.equal(video.muted, true, "mobile overlay video is muted for autoplay policy");

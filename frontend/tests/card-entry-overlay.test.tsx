@@ -201,8 +201,12 @@ test("card click opens the shared ContentDetailOverlay without leaving the page"
     fireEvent.click(view.getByRole("button", { name: "Feed item 1" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Original 1" })));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Original 1" }))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByRole("button", { name: "Back to content page" }));
 });
 
@@ -213,8 +217,12 @@ test("IP page surfaces label the overlay return as IP detail", async () => {
     fireEvent.click(view.getByRole("button", { name: "Feed item 2" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Fanwork 2" })));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(view.getByRole("heading", { level: 2, name: "Fanwork 2" }))) throw new Error("waitFor: condition not met");
+  });
   assert.ok(view.getByRole("button", { name: "Back to IP detail" }));
 });
 
@@ -226,13 +234,19 @@ test("exiting the overlay restores focus to the triggering card", async () => {
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Close content detail" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.queryByRole("dialog") === null));
-  await waitFor(() => assert.ok(document.activeElement === trigger));
+  await waitFor(() => {
+    if (!(view.queryByRole("dialog") === null)) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(document.activeElement === trigger)) throw new Error("waitFor: condition not met");
+  });
 });
 
 /* ---------- 页面接线源码契约（二创 / 原创 / IP 详情 / IP 类目） ---------- */

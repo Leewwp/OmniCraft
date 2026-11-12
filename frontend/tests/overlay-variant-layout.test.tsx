@@ -371,9 +371,13 @@ async function openOverlay(view: ReturnType<typeof render>, expectedTitle?: stri
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
   if (expectedTitle) {
-    await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: expectedTitle })));
+    await waitFor(() => {
+      if (!(view.getByRole("heading", { level: 2, name: expectedTitle }))) throw new Error("waitFor: condition not met");
+    });
   }
   return trigger;
 }
@@ -449,7 +453,7 @@ test("#858 unified related block pins order: IP → source original → series, 
      挂载，存在性断言须等延后挂载落定（jsdom 的 rAF 由 act 异步泵送）。 */
   const block = await waitFor(() => {
     const el = document.querySelector('[data-slot="overlay-related-block"]');
-    assert.ok(el, "related block renders when relations exist");
+        if (!(el)) throw new Error("related block renders when relations exist");
     return el;
   });
 
@@ -484,7 +488,7 @@ test("#858 unified related block pins order: IP → source original → series, 
   );
   const recommendations = await waitFor(() => {
     const el = document.querySelector('[data-slot="related-contents"]');
-    assert.ok(el, "recommendation section renders after comments");
+        if (!(el)) throw new Error("recommendation section renders after comments");
     return el as Node;
   });
   assert.equal(
@@ -493,10 +497,7 @@ test("#858 unified related block pins order: IP → source original → series, 
     "recommendations sit after the comments",
   );
   await waitFor(() => {
-    assert.ok(
-      recommendations.textContent?.includes("Derivative One"),
-      "derivatives render in the post-comment recommendation section",
-    );
+        if (!(recommendations.textContent?.includes("Derivative One"))) throw new Error("derivatives render in the post-comment recommendation section");
   });
 });
 
@@ -508,7 +509,7 @@ test("#846 variant related block renders the linked IP row with the signed cover
 
   const ipLink = await waitFor(() => {
     const el = document.querySelector('[data-slot="related-ip-link"]');
-    assert.ok(el, "IP-only fanwork must still render the related block with the IP row");
+        if (!(el)) throw new Error("IP-only fanwork must still render the related block with the IP row");
     return el as HTMLAnchorElement;
   });
   assert.equal(ipLink.getAttribute("href"), "/ip/5");
@@ -526,7 +527,7 @@ test("#846 variant IP row without a cover falls back to the IP name head", async
 
   const fallbackLink = await waitFor(() => {
     const el = document.querySelector('[data-slot="related-ip-link"]');
-    assert.ok(el, "RELATED_DETAIL fanwork also renders the IP row");
+        if (!(el)) throw new Error("RELATED_DETAIL fanwork also renders the IP row");
     return el as HTMLAnchorElement;
   });
   assert.equal(fallbackLink.getAttribute("href"), "/ip/3");
@@ -544,12 +545,9 @@ test("#397 no relations → related block not rendered; comments still last", as
      CI 慢环境曾见同步断言先于挂载执行 → Frontend gates 2026-09-13 实炸）。
      先等评论区标题落定证明分帧已过，关联块缺席断言才有结论力。 */
   await waitFor(() => {
-    assert.ok(
-      Array.from(document.querySelector('[data-slot="layer-scroller"]')?.querySelectorAll("h3") ?? []).some((h) =>
+        if (!(Array.from(document.querySelector('[data-slot="layer-scroller"]')?.querySelectorAll("h3") ?? []).some((h) =>
         h.textContent?.includes("Comments"),
-      ),
-      "comments still render without relations",
-    );
+      ))) throw new Error("comments still render without relations");
   });
   assert.ok(!document.querySelector('[data-slot="overlay-related-block"]'));
 });
@@ -567,7 +565,9 @@ test("#397 clicking the media (pane center) opens MediaViewer above the overlay"
     fireEvent.click(cover);
     await Promise.resolve();
   });
-  await waitFor(() => assert.equal(document.querySelectorAll("dialog[open]").length, 2, "viewer dialog stacks on top"));
+  await waitFor(() => {
+    if (document.querySelectorAll("dialog[open]").length != 2) throw new Error("viewer dialog stacks on top");
+  });
   assert.ok(document.querySelector('[data-slot="variant-media-pane"] img'), "pane media still rendered underneath");
 });
 
@@ -599,14 +599,20 @@ test("#398 C3: motion lock covers the trigger card during open and clears after 
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.equal(trigger.getAttribute("data-overlay-motion-lock"), ""));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (trigger.getAttribute("data-overlay-motion-lock") != "") throw new Error("waitFor: values differ");
+  });
   /* 完全退出（悬浮关闭钮 = 全退；jsdom 不派发 dialog cancel，不走 Esc）后锁解除。 */
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Close content detail" }));
     await Promise.resolve();
   });
-  await waitFor(() => assert.equal(trigger.getAttribute("data-overlay-motion-lock"), null), { timeout: 3000 });
+  await waitFor(() => {
+    if (trigger.getAttribute("data-overlay-motion-lock") != null) throw new Error("waitFor: values differ");
+  });
 });
 
 test("E2 #954: entrance is a whole-shell morph anchored at the media pane (VT/FLIP retired)", async () => {
@@ -632,17 +638,16 @@ test("E2 #954: entrance is a whole-shell morph anchored at the media pane (VT/FL
       fireEvent.click(trigger);
       await Promise.resolve();
     });
-    await waitFor(() => assert.ok(view.getByRole("dialog")));
+    await waitFor(() => {
+      if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+    });
     /* 入场在安全保险时限内起跑（jsdom 无 ResizeObserver，motionGate 悬挂）；
        断言壳层 morph 的稳定签名：transform-only 过渡 + origin 锚舞台角 + 整壳
        不透明，且 VT 从未被调用（路径退役）。 */
     await waitFor(
       () => {
         const shell = getShell();
-        assert.ok(
-          shell.style.transition.startsWith("transform "),
-          `morph plays a transform-only transition (got ${shell.style.transition})`,
-        );
+                if (!(shell.style.transition.startsWith("transform "))) throw new Error(`morph plays a transform-only transition (got ${shell.style.transition})`);
       },
       { timeout: 3000 },
     );
@@ -676,8 +681,12 @@ test("#398 C2: ultra-tall first item degrades to fallback (no shared-element mor
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(document.querySelector('[data-slot="variant-media-pane"]')));
+  await waitFor(() => {
+    if (!(view.getByRole("dialog"))) throw new Error("waitFor: condition not met");
+  });
+  await waitFor(() => {
+    if (!(document.querySelector('[data-slot="variant-media-pane"]'))) throw new Error("waitFor: condition not met");
+  });
   const anchor = document.querySelector('[data-slot="detail-cover"]');
   assert.equal(anchor?.getAttribute("data-ultra-tall"), "true", "tall anchor tags itself");
   /* 等过安全保险窗口 + 余量：fallback = 居中 scale(0.96) 缩淡（opacity+transform
@@ -685,10 +694,7 @@ test("#398 C2: ultra-tall first item degrades to fallback (no shared-element mor
   await waitFor(
     () => {
       const shell = getShell();
-      assert.ok(
-        shell.style.transition.includes("opacity") && shell.style.transition.includes("transform"),
-        `fallback plays opacity+transform (got ${shell.style.transition})`,
-      );
+            if (!(shell.style.transition.includes("opacity") && shell.style.transition.includes("transform"))) throw new Error(`fallback plays opacity+transform (got ${shell.style.transition})`);
     },
     { timeout: 3000 },
   );
@@ -716,7 +722,9 @@ test("#400 rate-limited detail renders the retry state instead of a network erro
     fireEvent.click(trigger);
     await Promise.resolve();
   });
-  await waitFor(() => assert.ok(document.body.textContent?.includes("操作太频繁了".replace("操作太频繁了", "Too many requests"))));
+  await waitFor(() => {
+    if (!(document.body.textContent?.includes("操作太频繁了".replace("操作太频繁了", "Too many requests")))) throw new Error("waitFor: condition not met");
+  });
   /* 不是网络错误文案。 */
   assert.equal(document.body.textContent?.includes("failed to load"), false);
   api.get = originalGet2;
