@@ -273,8 +273,9 @@ function holdState() {
 }
 
 try {
-  /* domcontentloaded：Playwright 1.65 起 networkidle 把 dev server 的 HMR
-   WebSocket 计入开放连接，对 dev 栈永不落定；后续断言自带显式等待。 */
+  /* domcontentloaded：networkidle 把 dev server 的 HMR WebSocket 计入开放
+   连接（长期行为，microsoft/playwright#26487），对 dev 栈永不落定——本地
+   lockfile 升 1.65.0 并同步 node_modules 后显形；后续断言自带显式等待。 */
   await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(1000);
 
@@ -407,8 +408,9 @@ try {
   /* ── ⑤ 预取失败静默降级：不阻塞翻页/关窗，正式打开常规拉取成功 ────────── */
   /* 重载清空会话级预取缓存（①的热条目仍在会让本场景的相邻预取被去重跳过，
      abort 路径无从触发）；图片计数器在 Node 侧跨重载保留。 */
-  /* domcontentloaded：Playwright 1.65 起 networkidle 把 dev server 的 HMR
-   WebSocket 计入开放连接，对 dev 栈永不落定；后续断言自带显式等待。 */
+  /* domcontentloaded：networkidle 把 dev server 的 HMR WebSocket 计入开放
+   连接（长期行为，microsoft/playwright#26487），对 dev 栈永不落定——本地
+   lockfile 升 1.65.0 并同步 node_modules 后显形；后续断言自带显式等待。 */
   await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(1500);
   detailAbortOnce.add(IDS.b);

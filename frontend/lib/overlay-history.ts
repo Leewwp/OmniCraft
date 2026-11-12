@@ -8,7 +8,7 @@
  *
  * - Next 16.4 App Router 会包装 window.history.pushState/replaceState（app-router.js
  *   copyNextJsInternalHistoryState）：经包装层写入的记录自动携带 __NA 与
- *   __Private_NEXTJS_INTERNALS_TREE（取自当前记录），并同步 router canonicalUrl
+ *   __PRIVATE_NEXTJS_INTERNALS_TREE（取自当前记录），并同步 router canonicalUrl
  *   （usePathname/useSearchParams 立即反映新记录路径、渲染树不变、背景列表不
  *   卸载）。会话各层记录 URL 在规范路径后原样透传来源页 search——query 驱动
  *   宿主页（如 IP hub 的 tab/sort/q 派生自 useSearchParams）不会因浮窗压栈被

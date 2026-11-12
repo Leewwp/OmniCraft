@@ -296,8 +296,9 @@ async function arrowDisabled(side) {
 }
 
 try {
-  /* domcontentloaded：Playwright 1.65 起 networkidle 把 dev server 的 HMR
-   WebSocket 计入开放连接，对 dev 栈永不落定；后续断言自带显式等待。 */
+  /* domcontentloaded：networkidle 把 dev server 的 HMR WebSocket 计入开放
+   连接（长期行为，microsoft/playwright#26487），对 dev 栈永不落定——本地
+   lockfile 升 1.65.0 并同步 node_modules 后显形；后续断言自带显式等待。 */
   await page.goto(`${BASE}${PAGE_PATH}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(800);
 
