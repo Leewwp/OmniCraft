@@ -25,7 +25,7 @@
 ## 安全基线（贡献者必读）
 
 - 任何真实凭证、密钥、内网地址不得提交；`.env` 仅保留占位符模板；
-- CI 安全门（`.github/workflows/security.yml`）在 PR、push 到 main 与每日定时运行：
+- CI 安全门（`.github/workflows/security.yml`）在 PR、push 到 main 与每周一 06:00 UTC 定时运行：
   Go `govulncheck`、`npm audit`、`cargo audit`、gitleaks（工作树 + 全历史）、
   Trivy filesystem/IaC/container 扫描；
   secret 命中与 release 级 Critical 不可豁免；High 豁免必须登记
