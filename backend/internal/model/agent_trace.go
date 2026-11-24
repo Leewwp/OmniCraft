@@ -26,14 +26,14 @@ type AgentTraceRun struct {
 	// ConversationID / MessageID / UserID are nullable links for the admin
 	// list filters and the conversation -> trace drill-down. Nullable by
 	// design: telemetry must not fail when a link is not yet known.
-	ConversationID *int64 `json:"conversation_id,omitempty"`
-	MessageID      *int64 `json:"message_id,omitempty"`
-	UserID         *int64 `json:"user_id,omitempty"`
-	Surface        string `gorm:"size:32;not null;default:''" json:"surface"`
-	Status         string `gorm:"size:16;not null;default:'RUNNING'" json:"status"`
-	ErrorCode      string `gorm:"size:64;not null;default:''" json:"error_code"`
-	ErrorMessage   string `gorm:"type:text;not null;default:''" json:"error_message"`
-	StartedAt      time.Time `gorm:"not null" json:"started_at"`
+	ConversationID *int64     `json:"conversation_id,omitempty"`
+	MessageID      *int64     `json:"message_id,omitempty"`
+	UserID         *int64     `json:"user_id,omitempty"`
+	Surface        string     `gorm:"size:32;not null;default:''" json:"surface"`
+	Status         string     `gorm:"size:16;not null;default:'RUNNING'" json:"status"`
+	ErrorCode      string     `gorm:"size:64;not null;default:''" json:"error_code"`
+	ErrorMessage   string     `gorm:"type:text;not null;default:''" json:"error_message"`
+	StartedAt      time.Time  `gorm:"not null" json:"started_at"`
 	EndedAt        *time.Time `json:"ended_at,omitempty"`
 	DurationMs     *int64     `json:"duration_ms,omitempty"`
 	// TTFTMs is the user-perceived time to first answer delta (polyu
@@ -50,22 +50,22 @@ type AgentTraceRun struct {
 func (AgentTraceRun) TableName() string { return "agent_trace_runs" }
 
 type AgentTraceNode struct {
-	ID      int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	TraceID   string `gorm:"column:trace_id;type:varchar(64);not null;uniqueIndex:uq_agent_trace_nodes_key,priority:1" json:"trace_id"`
+	TraceID   string    `gorm:"column:trace_id;type:varchar(64);not null;uniqueIndex:uq_agent_trace_nodes_key,priority:1" json:"trace_id"`
 	// NodeKey is the writer-side stable identity within one trace (e.g.
 	// "llm_round_2", "tool_search_0"); with TraceID it forms the upsert key.
 	NodeKey string `gorm:"type:varchar(96);not null;uniqueIndex:uq_agent_trace_nodes_key,priority:2" json:"node_key"`
 	// ParentNodeKey references another node_key of the same trace (empty for
 	// roots); depth is the tree level for the waterfall view.
-	ParentNodeKey *string `gorm:"type:varchar(96)" json:"parent_node_key,omitempty"`
-	Depth         int     `gorm:"not null;default:0" json:"depth"`
-	NodeType      string  `gorm:"size:32;not null" json:"node_type"`
-	NodeName      string  `gorm:"size:100;not null;default:''" json:"node_name"`
-	Status        string  `gorm:"size:16;not null;default:'RUNNING'" json:"status"`
-	ErrorCode     string  `gorm:"size:64;not null;default:''" json:"error_code"`
-	ErrorMessage  string  `gorm:"type:text;not null;default:''" json:"error_message"`
-	StartedAt     time.Time `gorm:"not null" json:"started_at"`
+	ParentNodeKey *string    `gorm:"type:varchar(96)" json:"parent_node_key,omitempty"`
+	Depth         int        `gorm:"not null;default:0" json:"depth"`
+	NodeType      string     `gorm:"size:32;not null" json:"node_type"`
+	NodeName      string     `gorm:"size:100;not null;default:''" json:"node_name"`
+	Status        string     `gorm:"size:16;not null;default:'RUNNING'" json:"status"`
+	ErrorCode     string     `gorm:"size:64;not null;default:''" json:"error_code"`
+	ErrorMessage  string     `gorm:"type:text;not null;default:''" json:"error_message"`
+	StartedAt     time.Time  `gorm:"not null" json:"started_at"`
 	EndedAt       *time.Time `json:"ended_at,omitempty"`
 	DurationMs    *int64     `json:"duration_ms,omitempty"`
 	Model         string     `gorm:"size:100;not null;default:''" json:"model"`

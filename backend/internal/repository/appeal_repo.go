@@ -38,7 +38,7 @@ func (r *AppealRepository) ListByUser(userID int64, page, pageSize int) ([]model
 	var appeals []model.Appeal
 	err := r.db.Where("user_id = ?", userID).
 		Order("created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).
+		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&appeals).Error
 	return appeals, total, err
 }
@@ -51,7 +51,7 @@ func (r *AppealRepository) ListPending(page, pageSize int) ([]model.Appeal, int6
 	var appeals []model.Appeal
 	err := r.db.Where("status = 'pending'").
 		Order("created_at ASC").
-		Offset((page-1)*pageSize).Limit(pageSize).
+		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&appeals).Error
 	return appeals, total, err
 }
@@ -76,7 +76,7 @@ func (r *AppealRepository) HasPendingAppeal(userID int64, targetType string, tar
 }
 
 // HasPendingAppealForTarget 执行单一 pending 不变量的目标维度检查
-//（run-1 审计 #13）：同一目标同时最多一个 pending 申诉，不论提交者——
+// （run-1 审计 #13）：同一目标同时最多一个 pending 申诉，不论提交者——
 // 此前按 user_id 查重使不变量退化为按调用者。
 func (r *AppealRepository) HasPendingAppealForTarget(targetType string, targetID int64) (bool, error) {
 	var count int64

@@ -41,8 +41,8 @@ var (
 		// CSV additionally accepts text/plain with a text sanity check at
 		// publish time.
 		".csv": {
-			"text/csv":                true,
-			"text/plain":              true,
+			"text/csv":                 true,
+			"text/plain":               true,
 			"application/octet-stream": true,
 		},
 	}
@@ -125,12 +125,12 @@ func NormalizeUploadFileName(name string) string {
 // audio family.
 var audioMagicSignatures = map[string][][]byte{
 	".mp3":  {{0x49, 0x44, 0x33}, {0xFF, 0xFB}, {0xFF, 0xF3}, {0xFF, 0xF2}, {0xFF, 0xF7}, {0xFF, 0xF1}}, // ID3 / MPEG frame sync
-	".wav":  {{0x52, 0x49, 0x46, 0x46}},                                                               // RIFF
-	".flac": {{0x66, 0x4C, 0x61, 0x43}},                                                               // fLaC
-	".ogg":  {{0x4F, 0x67, 0x67, 0x53}},                                                               // OggS (vorbis/opus containers)
-	".opus": {{0x4F, 0x67, 0x67, 0x53}},                                                               // Opus rides an Ogg container
-	".m4a":  {{0x00, 0x00, 0x00}, {0x33, 0x67, 0x70, 0x35}},                                           // MP4 box length / '5gp' variant
-	".aac":  {{0xFF, 0xF1}, {0xFF, 0xF9}, {0x4F, 0x67, 0x67, 0x53}},                                   // ADTS / Ogg fallback
+	".wav":  {{0x52, 0x49, 0x46, 0x46}},                                                                 // RIFF
+	".flac": {{0x66, 0x4C, 0x61, 0x43}},                                                                 // fLaC
+	".ogg":  {{0x4F, 0x67, 0x67, 0x53}},                                                                 // OggS (vorbis/opus containers)
+	".opus": {{0x4F, 0x67, 0x67, 0x53}},                                                                 // Opus rides an Ogg container
+	".m4a":  {{0x00, 0x00, 0x00}, {0x33, 0x67, 0x70, 0x35}},                                             // MP4 box length / '5gp' variant
+	".aac":  {{0xFF, 0xF1}, {0xFF, 0xF9}, {0x4F, 0x67, 0x67, 0x53}},                                     // ADTS / Ogg fallback
 }
 
 // MatchesAudioMagic reports whether the uploaded object's header is

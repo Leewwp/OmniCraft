@@ -103,9 +103,9 @@ func TestAdminEvalDraftLifecycle(t *testing.T) {
 	w := doEvalRequest(t, router, token, http.MethodPost, "/api/v1/admin/evals/drafts", map[string]string{"trace_id": traceID})
 	require.Equal(t, http.StatusCreated, w.Code)
 	var created struct {
-		CaseKey string                `json:"case_key"`
-		Created bool                  `json:"created"`
-		Draft   model.EvalGoldenCase  `json:"draft"`
+		CaseKey string               `json:"case_key"`
+		Created bool                 `json:"created"`
+		Draft   model.EvalGoldenCase `json:"draft"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &created))
 	require.True(t, created.Created)
@@ -156,9 +156,9 @@ func TestAdminEvalRunsList(t *testing.T) {
 	require.NoError(t, repo.UpsertEvalRun(t.Context(), &model.EvalRun{
 		RunKey: "grid-g0-dev", DatasetChecksum: "abc", RetrieverVersion: "v1",
 		ChunkingVersion: "c1", IndexVersion: "i1",
-		Metrics: model.JSONB(`{"retrieval_headline":{"mrr":0.93}}`),
-		Environment:     model.JSONB(`{"axes":{"rrf_k":60}}`),
-		ArtifactPath:    "artifacts/x.jsonl",
+		Metrics:      model.JSONB(`{"retrieval_headline":{"mrr":0.93}}`),
+		Environment:  model.JSONB(`{"axes":{"rrf_k":60}}`),
+		ArtifactPath: "artifacts/x.jsonl",
 	}))
 
 	w := doEvalRequest(t, router, token, http.MethodGet, "/api/v1/admin/evals/runs", nil)

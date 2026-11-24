@@ -20,6 +20,8 @@ CURRENT_DIR="$(pwd)"
 ORIGINAL_PATH="$PATH"
 ORIGINAL_LOG="${OMNICRAFT_VERIFY_TEST_LOG:-}"
 ORIGINAL_FAIL="${OMNICRAFT_VERIFY_TEST_FAIL:-}"
+ORIGINAL_GOFMT_BIN="${GOFMT_BIN:-}"
+ORIGINAL_GOFMT_DIRTY="${OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY:-}"
 
 cleanup() {
   PATH="$ORIGINAL_PATH"
@@ -33,12 +35,26 @@ cleanup() {
   else
     unset OMNICRAFT_VERIFY_TEST_FAIL
   fi
+  if [ -n "$ORIGINAL_GOFMT_BIN" ]; then
+    export GOFMT_BIN="$ORIGINAL_GOFMT_BIN"
+  else
+    unset GOFMT_BIN
+  fi
+  if [ -n "$ORIGINAL_GOFMT_DIRTY" ]; then
+    export OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY="$ORIGINAL_GOFMT_DIRTY"
+  else
+    unset OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY
+  fi
   rm -rf "$TEMP_ROOT"
 }
 trap cleanup EXIT
 
 mkdir -p "$TOOLS_ROOT" "$REPO_ROOT/backend" "$REPO_ROOT/frontend" "$REPO_ROOT/scripts" \
   "$REPO_ROOT/tools/doc-validator" "$REPO_ROOT/tauri-client/src-tauri"
+# Normalize like the verifier does (cd+pwd): macOS TMPDIR carries a trailing
+# slash, so the raw mktemp path can hold a double slash that would not match
+# the command strings the verifier records.
+REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 
 cat > "$TOOLS_ROOT/fake-command.sh" <<'FAKE'
 #!/usr/bin/env bash
@@ -65,6 +81,30 @@ for tool in go npm cargo; do
   chmod +x "$wrapper"
 done
 
+# Standalone gofmt fake: honors the shared log/fail mechanism and can also
+# emulate `gofmt -l` reporting unformatted files (one path per line) via
+# OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY, driving the check-gofmt.sh gate both
+# green and red from the contract tests.
+cat > "$TOOLS_ROOT/gofmt" <<'FAKE_GOFMT'
+#!/usr/bin/env bash
+set -u
+line="$(basename "$(pwd)")|gofmt"
+if [ $# -gt 0 ]; then
+  line="$line $*"
+fi
+if [ -n "${OMNICRAFT_VERIFY_TEST_LOG:-}" ]; then
+  printf '%s\n' "$line" >> "$OMNICRAFT_VERIFY_TEST_LOG"
+fi
+if [ -n "${OMNICRAFT_VERIFY_TEST_FAIL:-}" ] && [ "$line" = "$OMNICRAFT_VERIFY_TEST_FAIL" ]; then
+  exit 23
+fi
+if [ -n "${OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY:-}" ]; then
+  printf '%s\n' "$OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY"
+fi
+exit 0
+FAKE_GOFMT
+chmod +x "$TOOLS_ROOT/gofmt"
+
 cat > "$TOOLS_ROOT/date" <<'FAKE_DATE'
 #!/usr/bin/env bash
 if [ -s "${OMNICRAFT_VERIFY_TEST_LOG:-}" ]; then
@@ -77,12 +117,21 @@ chmod +x "$TOOLS_ROOT/date"
 
 export PATH="$TOOLS_ROOT:$PATH"
 export OMNICRAFT_VERIFY_TEST_LOG="$LOG_PATH"
+export GOFMT_BIN="$TOOLS_ROOT/gofmt"
 
 cp "$VERIFIER" "$REPO_ROOT/scripts/verify-project.sh"
+GATE_SCRIPT="$SCRIPT_DIR/check-gofmt.sh"
+if [ ! -f "$GATE_SCRIPT" ]; then
+  echo "check-gofmt.sh does not exist" >&2
+  exit 1
+fi
+cp "$GATE_SCRIPT" "$REPO_ROOT/scripts/check-gofmt.sh"
 
-DEFAULT_COMMANDS="backend|go test ./...
+DEFAULT_COMMANDS="backend|gofmt -l .
+backend|go test ./...
 backend|go vet ./...
 backend|go build ./...
+backend|go test ./internal/service/rag_eval/ -run TestAblation -count=1 -v
 frontend|npm run test:unit
 frontend|npm run lint
 frontend|npm run lint:ui
@@ -151,7 +200,8 @@ if [ "$(pwd)" != "$CURRENT_DIR" ]; then
   echo "FAIL: verifier must restore the caller location after failure" >&2
   exit 1
 fi
-assert_log "backend|go test ./...
+assert_log "backend|gofmt -l .
+backend|go test ./...
 backend|go vet ./..." "verifier must stop immediately after the first failed command"
 
 rm -f "$LOG_PATH"
@@ -162,10 +212,38 @@ if [ $? -eq 0 ]; then
 fi
 unset OMNICRAFT_VERIFY_TEST_FAIL
 
+# --- backend gofmt gate contract (#1013) ---
+rm -f "$LOG_PATH"
+export OMNICRAFT_VERIFY_TEST_FAIL="backend|gofmt -l ."
+( cd "$TEMP_ROOT" && bash "$VERIFIER" --repo-root "$REPO_ROOT" >/dev/null 2>&1 )
+if [ $? -eq 0 ]; then
+  echo "FAIL: verifier must fail when the gofmt gate command itself fails" >&2
+  exit 1
+fi
+assert_log "backend|gofmt -l ." "gofmt gate must be the first backend command and block everything after it"
+unset OMNICRAFT_VERIFY_TEST_FAIL
+
+rm -f "$LOG_PATH"
+NEG_ERR="$TEMP_ROOT/gofmt-negative.stderr"
+export OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY="internal/model/unformatted.go"
+( cd "$CURRENT_DIR" && bash "$VERIFIER" --repo-root "$REPO_ROOT" >/dev/null 2>"$NEG_ERR" )
+if [ $? -eq 0 ]; then
+  echo "FAIL: verifier must fail when gofmt -l reports unformatted files" >&2
+  exit 1
+fi
+if ! grep -q "internal/model/unformatted.go" "$NEG_ERR"; then
+  echo "FAIL: gofmt gate must list the offending file name on stderr" >&2
+  exit 1
+fi
+assert_log "backend|gofmt -l ." "dirty gofmt gate must halt before any later command runs"
+unset OMNICRAFT_VERIFY_TEST_GOFMT_DIRTY
+
 # --- scope selection contract ---
-BACKEND_COMMANDS="backend|go test ./...
+BACKEND_COMMANDS="backend|gofmt -l .
+backend|go test ./...
 backend|go vet ./...
-backend|go build ./..."
+backend|go build ./...
+backend|go test ./internal/service/rag_eval/ -run TestAblation -count=1 -v"
 FRONTEND_COMMANDS="frontend|npm run test:unit
 frontend|npm run lint
 frontend|npm run lint:ui
@@ -229,9 +307,11 @@ fi
 
 # --- report contract ---
 REPORT_DIR="$TEMP_ROOT/report/ops-01"
-DEFAULT_LOG_FILES="backend-go-test
+DEFAULT_LOG_FILES="backend-gofmt
+backend-go-test
 backend-go-vet
 backend-go-build
+backend-rag-eval-replay
 frontend-npm-test-unit
 frontend-npm-lint
 frontend-npm-lint-ui
@@ -255,9 +335,11 @@ for slug in $DEFAULT_LOG_FILES; do
     exit 1
   fi
 done
-python3 - "$REPORT_DIR/summary.json" <<'PY'
+python3 - "$REPORT_DIR/summary.json" "$REPO_ROOT" <<'PY'
 import json, sys
 s = json.load(open(sys.argv[1]))
+repo_root = sys.argv[2]
+commands = [c.replace(repo_root + "/", "") for c in s["commands"]]
 required = ["task", "commit", "started_at", "finished_at", "commands",
             "exit_codes", "tool_versions", "evidence", "redaction_checked", "blockers"]
 missing = [k for k in required if k not in s]
@@ -285,14 +367,15 @@ if s["blockers"] != []:
 if len(s["commands"]) != len(s["exit_codes"]):
     print("FAIL: commands and exit_codes must be paired")
     sys.exit(1)
-if s["commands"] != ["backend|go test ./...", "backend|go vet ./...", "backend|go build ./...",
-                     "frontend|npm run test:unit", "frontend|npm run lint", "frontend|npm run lint:ui",
-                     "frontend|npm run build",
-                     "doc-validator|go test ./...", "doc-validator|go run . --check --profile release"]:
-    print("FAIL: summary command list must match the default contract")
+if commands != ["backend|bash scripts/check-gofmt.sh", "backend|go test ./...", "backend|go vet ./...", "backend|go build ./...",
+                "backend|go test ./internal/service/rag_eval/ -run TestAblation -count=1 -v",
+                "frontend|npm run test:unit", "frontend|npm run lint", "frontend|npm run lint:ui",
+                "frontend|npm run build",
+                "doc-validator|go test ./...", "doc-validator|go run . --check --profile release"]:
+    print("FAIL: summary command list must match the default contract", commands)
     sys.exit(1)
-if len(s["evidence"]) != 9 or not all(e.endswith(".log") for e in s["evidence"]):
-    print("FAIL: evidence must list the nine per-command logs")
+if len(s["evidence"]) != 11 or not all(e.endswith(".log") for e in s["evidence"]):
+    print("FAIL: evidence must list the eleven per-command logs")
     sys.exit(1)
 for tool in ("go", "node", "npm"):
     if tool not in s["tool_versions"]:
@@ -313,13 +396,13 @@ fi
 python3 - "$REPORT_DIR/summary.json" <<'PY'
 import json, sys
 s = json.load(open(sys.argv[1]))
-if s["exit_codes"] != [0, 23]:
+if s["exit_codes"] != [0, 0, 23]:
     print("FAIL: failing exit code must be recorded in summary", s["exit_codes"])
     sys.exit(1)
-if len(s["commands"]) != 2:
+if len(s["commands"]) != 3:
     print("FAIL: fail-fast must truncate the recorded command list")
     sys.exit(1)
-if len(s["evidence"]) != 2:
+if len(s["evidence"]) != 3:
     print("FAIL: evidence must only cover executed commands")
     sys.exit(1)
 PY

@@ -16,9 +16,9 @@ import (
 
 func TestClampPageContract(t *testing.T) {
 	cases := []struct {
-		name                 string
-		page, size           int
-		wantPage, wantSize   int
+		name               string
+		page, size         int
+		wantPage, wantSize int
 	}{
 		{"in-range passes", 1, 20, 1, 20},
 		{"upper bound passes", 3, 100, 3, 100},

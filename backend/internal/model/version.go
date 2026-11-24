@@ -41,12 +41,12 @@ type PullRequest struct {
 func (PullRequest) TableName() string { return "pull_requests" }
 
 type ContentContributor struct {
-	ContentItemID int64     `gorm:"primaryKey" json:"content_item_id"`
-	UserID        int64     `gorm:"primaryKey" json:"user_id"`
+	ContentItemID int64       `gorm:"primaryKey" json:"content_item_id"`
+	UserID        int64       `gorm:"primaryKey" json:"user_id"`
 	ContentItem   ContentItem `gorm:"foreignKey:ContentItemID" json:"-"`
-	User          User      `gorm:"foreignKey:UserID" json:"-"`
-	PRCount       int       `gorm:"not null;default:1" json:"pr_count"`
-	FirstAt       time.Time `gorm:"autoCreateTime" json:"first_at"`
+	User          User        `gorm:"foreignKey:UserID" json:"-"`
+	PRCount       int         `gorm:"not null;default:1" json:"pr_count"`
+	FirstAt       time.Time   `gorm:"autoCreateTime" json:"first_at"`
 }
 
 func (ContentContributor) TableName() string { return "content_contributors" }

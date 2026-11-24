@@ -500,10 +500,10 @@ func TestGetConversationMessagesReplaysPersistedCitations(t *testing.T) {
 
 	var payload struct {
 		Messages []struct {
-			Role        string               `json:"role"`
-			Content     *string              `json:"content"`
-			Moderation  string               `json:"moderation"`
-			Citations   []model.AgentCitation `json:"citations"`
+			Role       string                `json:"role"`
+			Content    *string               `json:"content"`
+			Moderation string                `json:"moderation"`
+			Citations  []model.AgentCitation `json:"citations"`
 		} `json:"messages"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {

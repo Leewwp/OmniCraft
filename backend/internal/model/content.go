@@ -23,15 +23,15 @@ type ContentItem struct {
 	Status           string       `gorm:"size:20;not null;default:pending" json:"status"`
 	// BanReason 落库列（040 迁移已存在）；PII 敏感策略：model 不序列化，
 	// 仅作者/admin 视图在响应边界显式附加（FIX-16）。
-	BanReason     string     `gorm:"column:ban_reason" json:"-"`
-	ViewCount     int64      `gorm:"not null;default:0" json:"view_count"`
-	LikeCount     int        `gorm:"not null;default:0" json:"like_count"`
-	DislikeCount  int        `gorm:"not null;default:0" json:"dislike_count"`
+	BanReason    string `gorm:"column:ban_reason" json:"-"`
+	ViewCount    int64  `gorm:"not null;default:0" json:"view_count"`
+	LikeCount    int    `gorm:"not null;default:0" json:"like_count"`
+	DislikeCount int    `gorm:"not null;default:0" json:"dislike_count"`
 	// IsPublic/AllowCopy 不带 gorm default 标签：带 default:true 时 GORM 会在
 	// INSERT 剔除零值字段，显式 false 被数据库默认 true 悄悄覆盖（#318 受限
 	// 内容可见性漂移）。列默认值由 SQL 迁移持有，仅供非 ORM 直插场景。
-	IsPublic     bool `gorm:"not null" json:"is_public"`
-	AllowCopy    bool `gorm:"not null" json:"allow_copy"`
+	IsPublic      bool       `gorm:"not null" json:"is_public"`
+	AllowCopy     bool       `gorm:"not null" json:"allow_copy"`
 	AgentEnabled  bool       `gorm:"not null;default:false" json:"agent_enabled"`
 	IsPaid        bool       `gorm:"not null;default:false" json:"is_paid"`
 	Price         float64    `gorm:"type:numeric(10,2);default:0" json:"price"`
@@ -53,12 +53,12 @@ type ContentAttachment struct {
 	// upload grant at presign time — the publish payload's file_name is never
 	// trusted. NULL on legacy rows; the frontend falls back to the type label.
 	OriginalFileName *string `gorm:"size:255" json:"original_file_name,omitempty"`
-	FileSize      *int64      `json:"file_size,omitempty"`
-	MimeType      string      `gorm:"size:100" json:"mime_type,omitempty"`
-	DurationSec   *int        `json:"duration_sec,omitempty"`
-	Width         *int        `json:"width,omitempty"`
-	Height        *int        `json:"height,omitempty"`
-	SortOrder     *int        `gorm:"column:sort_order" json:"sort_order,omitempty"`
+	FileSize         *int64  `json:"file_size,omitempty"`
+	MimeType         string  `gorm:"size:100" json:"mime_type,omitempty"`
+	DurationSec      *int    `json:"duration_sec,omitempty"`
+	Width            *int    `json:"width,omitempty"`
+	Height           *int    `json:"height,omitempty"`
+	SortOrder        *int    `gorm:"column:sort_order" json:"sort_order,omitempty"`
 	// IsPrimary marks the single derived cover entry for media content (image =
 	// sort_order 0 item; video = none, the poster is the cover). Pointer so new
 	// media rows can explicitly persist false; legacy non-media rows keep the

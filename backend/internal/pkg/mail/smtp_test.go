@@ -1,8 +1,8 @@
 package mail
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"net/smtp"
 	"testing"
 )

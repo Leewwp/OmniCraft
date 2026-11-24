@@ -54,7 +54,7 @@ func TestCountByTypeWithinIP(t *testing.T) {
 	seed("星尘图精选", "fanwork", "image", "published", ip.ID)
 	seed("星尘视频日志", "fanwork", "video", "published", ip.ID)
 	seed("未发布图", "fanwork", "image", "pending", ip.ID)     // 非公开可见性排除
-	seed("原创视频", "original", "video", "published", ip.ID) // 非二创 zone 排除
+	seed("原创视频", "original", "video", "published", ip.ID)  // 非二创 zone 排除
 	seed("别家图", "fanwork", "image", "published", other.ID) // 其他 IP 排除
 
 	repo := NewContentRepository(db)

@@ -64,7 +64,7 @@ func (s *JudgeQuestionSync) Run() {
 					"A": "违规（应下架）",
 					"B": "不违规（应保留）",
 				},
-				"correct_key":  correctKey,
+				"correct_key":   correctKey,
 				"votes_approve": jcase.VoteApprove,
 				"votes_reject":  jcase.VoteReject,
 			})

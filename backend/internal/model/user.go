@@ -72,10 +72,10 @@ func (ReputationLog) TableName() string {
 }
 
 type OAuthAccount struct {
-	ID          uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      int64     `gorm:"not null;index" json:"user_id"`
-	Provider    string    `gorm:"not null;size:20" json:"provider"`
-	ProviderUID string    `gorm:"not null;size:255" json:"provider_uid"`
+	ID          uint   `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID      int64  `gorm:"not null;index" json:"user_id"`
+	Provider    string `gorm:"not null;size:20" json:"provider"`
+	ProviderUID string `gorm:"not null;size:255" json:"provider_uid"`
 	// AccessToken is a P1-reserved column with NO read/write path anywhere
 	// (SP-25 低-35 design note): if OAuth ever activates, do NOT store raw
 	// tokens here — switch to an encrypted column on the LLM_KEY_ENCRYPTION_

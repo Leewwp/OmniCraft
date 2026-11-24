@@ -164,4 +164,3 @@ func TestAdminTraceDetail(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, get("/api/v1/admin/traces/11111111111111111111111111111111").Code)
 	require.Equal(t, http.StatusBadRequest, get("/api/v1/admin/traces/short").Code)
 }
-

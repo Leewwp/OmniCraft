@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/glebarez/sqlite"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -121,13 +121,13 @@ func newWriteToolStackScoped(t *testing.T, scopes []string, userID int64) (*sdkm
 	suggest := &fakeSuggest{}
 	issuer := &fakeIssuer{}
 	deps := Deps{
-		DB:          db,
-		SearchRepo:  repository.NewSearchRepository(db),
-		ContentRepo: contentRepo,
-		CategoryRepo: repository.NewCategoryRepository(db),
-		GuideSvc:    guideSvc,
-		Cfg:         cfg,
-		ContentSvc:  contentSvc,
+		DB:                     db,
+		SearchRepo:             repository.NewSearchRepository(db),
+		ContentRepo:            contentRepo,
+		CategoryRepo:           repository.NewCategoryRepository(db),
+		GuideSvc:               guideSvc,
+		Cfg:                    cfg,
+		ContentSvc:             contentSvc,
 		SuggestPublishMetadata: suggest.suggest,
 		IssueUploadURL:         issuer.issue,
 		ConsumeUploadQuota:     func(ctx context.Context, userID int64) error { return nil },
