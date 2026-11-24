@@ -203,17 +203,24 @@ cp docs/deploy/nginx.omnicraft.single-server.conf nginx/omnicraft.single-server.
 ```
 
 The repo templates use placeholder domains (`app.example.com` /
-`api.example.com`). The server-local nginx copy must carry the real domains
-and point both vhosts' `ssl_certificate` paths at the real certbot live
-directory (section 5). A `git archive` deploy that re-copies the nginx
-template **overwrites that customization** — without the substitution below
-nginx crash-loops on a missing `app.example.com` certificate. After every
-re-copy of the nginx template, restore the server-local domains:
+`api.example.com` / `oss.example.com`). The server-local nginx copy must
+carry the real domains and point both vhosts' `ssl_certificate` paths at the
+real certbot live directory (section 5). The app vhost's
+Content-Security-Policy `connect-src` / `media-src` allow-lists reference the
+OSS bucket domain too: a stale `oss.example.com` placeholder leaves the CSP
+blocking every browser-side direct-to-OSS upload (the presign API still
+answers 200, so the failure only surfaces as a generic client-side upload
+error) and blocks media playback served from the bucket. A `git archive`
+deploy that re-copies the nginx template **overwrites that customization** —
+without the substitution below nginx crash-loops on a missing
+`app.example.com` certificate. After every re-copy of the nginx template,
+restore the server-local domains:
 
 ```bash
 # Substitute the real server domains and unify both vhosts on the real
 # certbot live directory (single-cert hosts):
 sed -i "s|app\.example\.com|<real-app-domain>|g; s|api\.example\.com|<real-api-domain>|g;
+  s|https://oss\.example\.com|<real-oss-domain>|g;
   s|/etc/letsencrypt/live/<real-api-domain>/|/etc/letsencrypt/live/<real-app-domain>/|g" \
   nginx/omnicraft.single-server.conf
 ```
