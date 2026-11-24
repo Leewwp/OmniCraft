@@ -442,6 +442,7 @@ backend/
 | `GET` | `/api/v1/judge/cases/:id/verdict` | judgeHandler.GetVerdictDetail |
 | `GET` | `/api/v1/judge/exam/:category` | judgeHandler.GetExam |
 | `GET` | `/api/v1/judge/queue` | judgeHandler.GetQueue |
+| `GET` | `/api/v1/judge/votes/mine` | judgeHandler.GetMyVotes |
 | `GET` | `/api/v1/mcp` | mcpProxy |
 | `GET` | `/api/v1/messages` | msgHandler.ListConversations |
 | `GET` | `/api/v1/messages/:id` | msgHandler.ListMessages |

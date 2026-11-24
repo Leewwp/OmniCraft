@@ -67,6 +67,7 @@
     "history": "Browsing History",
     "settings": "Account Settings",
     "appeals": "My Appeals",
+    "feedback": "My Feedback",
     "language": "Language",
     "langZh": "中文",
     "langEn": "English",
@@ -827,7 +828,26 @@
     "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first",
     "loadMore": "Load more cases",
     "examSessionExpired": "Exam session expired. Please select a type to draw questions again",
-    "examAlreadyQualified": "You already hold the qualification for this content type"
+    "examAlreadyQualified": "You already hold the qualification for this content type",
+    "history": {
+      "title": "My Votes",
+      "count": "{count} votes in total",
+      "empty": "No votes yet",
+      "emptyHint": "Join the review queue to participate in community judging; your votes will be recorded here",
+      "goQueue": "Go to review queue",
+      "loadFailed": "Failed to load vote history",
+      "myVote": "My vote",
+      "reasonLabel": "My reasoning",
+      "reasonUpvotes": "Reason upvoted {count} times",
+      "reasonDownvotes": "Reason downvoted {count} times",
+      "closed": "Closed",
+      "inProgress": "In progress {total} / {min} votes",
+      "verdictResult": "Verdict: {result}",
+      "matchVerdict": "Matches the verdict",
+      "oppositeVerdict": "Opposite of the verdict",
+      "expandDetail": "Show verdict details",
+      "collapseDetail": "Hide verdict details"
+    }
   },
   "dashboard": {
     "title": "Creator Dashboard",
@@ -2325,6 +2345,7 @@
     "submit": "Submit Feedback",
     "submitSuccess": "Thank you for your feedback!",
     "submitSuccessDesc": "We have received your feedback and will process it as soon as possible.",
+    "viewMine": "View my feedback",
     "anonymousNote": "Anonymous feedback cannot be tracked online. Log in to track your submissions.",
     "myTickets": "My Feedback",
     "ticketCount": "{count} tickets",

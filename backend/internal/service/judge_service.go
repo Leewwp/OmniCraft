@@ -448,6 +448,12 @@ func (s *JudgeService) GetVerdictDetail(caseID int64) (*model.JudgeCase, []repos
 	return judgeCase, votes, err
 }
 
+// GetMyVoteHistory（#1022）：本人投票历史，created_at 倒序分页。任何登录
+// 用户（含被撤权判官）都可看自己的历史——这是既有记录查询，不做资格闸。
+func (s *JudgeService) GetMyVoteHistory(judgeID int64, page, pageSize int) ([]repository.MyVoteHistoryItem, int64, error) {
+	return s.judgeRepo.ListMyVoteHistory(judgeID, page, pageSize)
+}
+
 // VoteReason（T38/FIX-36b）：理由投票守卫——禁自赞（owner==caller），
 // 投票人须持任一有效判官资格；重复投票幂等，反方向切换。
 func (s *JudgeService) VoteReason(voteID int64, voterID int64, voteType string) error {
