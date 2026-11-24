@@ -225,7 +225,7 @@ go run . --check --profile archive
 
 ### 8. 持续安全扫描
 
-安全门通过 `.github/workflows/security.yml` 的稳定 `security-gate` 作业在 PR、push 到 main 与每日定时运行；扫描工具全部固定版本或镜像 digest（见 `security/pinned-tools.json`），禁止浮动引用与 `|| true` 隐藏失败（`scripts/security/verify-pinned-actions.sh` 静态校验）。
+安全门通过 `.github/workflows/security.yml` 的稳定 `security-gate` 作业在 PR、push 到 main 与每周一 06:00 UTC 定时运行；扫描工具全部固定版本或镜像 digest（见 `security/pinned-tools.json`），禁止浮动引用与 `|| true` 隐藏失败（`scripts/security/verify-pinned-actions.sh` 静态校验）。
 
 ```bash
 # 扫描类别与豁免策略
@@ -440,7 +440,7 @@ BACKUP_DIR=/mnt/backups ./scripts/backup-db.sh
 # 编辑 crontab
 crontab -e
 
-# 添加：每天凌晨 2 点备份，保留 30 天
+# 添加：每天凌晨 2 点备份，保留最近 7 份（与 release/backup-policy.json 一致）
 0 2 * * * /path/to/OmniCraft/scripts/backup-db.sh >> /var/log/omnicraft-backup.log 2>&1
 ```
 

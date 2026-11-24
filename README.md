@@ -228,7 +228,7 @@ The aggregate command does not replace browser screenshots, real external-servic
 
 ### 8. Continuous security scanning
 
-The security gate runs as the stable `security-gate` job in `.github/workflows/security.yml` — on PRs, pushes to main, and daily on schedule. All scanning tools are version- or digest-pinned (see `security/pinned-tools.json`); floating references and `|| true` failure-hiding are forbidden (statically checked by `scripts/security/verify-pinned-actions.sh`).
+The security gate runs as the stable `security-gate` job in `.github/workflows/security.yml` — on PRs, pushes to main, and weekly on Mondays at 06:00 UTC. All scanning tools are version- or digest-pinned (see `security/pinned-tools.json`); floating references and `|| true` failure-hiding are forbidden (statically checked by `scripts/security/verify-pinned-actions.sh`).
 
 ```bash
 # scan categories and exemption policy
@@ -436,7 +436,7 @@ BACKUP_DIR=/mnt/backups ./scripts/backup-db.sh
 # edit crontab
 crontab -e
 
-# add: back up daily at 02:00, retain 30 days
+# add: back up daily at 02:00, retain the 7 most recent copies (per release/backup-policy.json)
 0 2 * * * /path/to/OmniCraft/scripts/backup-db.sh >> /var/log/omnicraft-backup.log 2>&1
 ```
 
