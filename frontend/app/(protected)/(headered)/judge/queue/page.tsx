@@ -123,9 +123,14 @@ export default function JudgeQueuePage() {
             {t('judge.queueSubtitle')}
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={() => router.push("/judge/exam")}>
-          {t('judge.qualificationExam')}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => router.push("/judge/history")}>
+            {t('judge.history.title')}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => router.push("/judge/exam")}>
+            {t('judge.qualificationExam')}
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

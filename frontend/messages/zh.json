@@ -827,7 +827,26 @@
     "readingTimeTooShort": "阅读时间不足，请先完整阅读说明",
     "loadMore": "加载更多待审案件",
     "examSessionExpired": "考试会话已过期，请重新选择类型抽题",
-    "examAlreadyQualified": "你已持有该类型的判官资格，无需再考"
+    "examAlreadyQualified": "你已持有该类型的判官资格，无需再考",
+    "history": {
+      "title": "我的投票",
+      "count": "共 {count} 条投票记录",
+      "empty": "还没有投票记录",
+      "emptyHint": "前往审核队列参与众裁，你的投票会记录在这里",
+      "goQueue": "前往审核队列",
+      "loadFailed": "加载投票历史失败",
+      "myVote": "我的投票",
+      "reasonLabel": "我的理由",
+      "reasonUpvotes": "理由获赞 {count} 次",
+      "reasonDownvotes": "理由被踩 {count} 次",
+      "closed": "已结束",
+      "inProgress": "进行中 {total} / {min} 票",
+      "verdictResult": "判决结果：{result}",
+      "matchVerdict": "与判决一致",
+      "oppositeVerdict": "与判决相反",
+      "expandDetail": "展开判决详情",
+      "collapseDetail": "收起判决详情"
+    }
   },
   "dashboard": {
     "title": "创作者后台",

@@ -135,6 +135,24 @@ func (h *JudgeHandler) GetQueue(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"cases": cases, "total": total, "page": page, "page_size": pageSize})
 }
 
+// GetMyVotes（#1022）：本人投票历史，created_at 倒序分页；命名对齐
+// feedback /me 惯例（路由 /votes/mine）。任何登录用户可查自己的历史，
+// 含被撤权判官——历史是既有记录，不做资格闸。
+func (h *JudgeHandler) GetMyVotes(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		response.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
+		return
+	}
+	page, pageSize := pageQuery(c, 20)
+	items, total, err := h.judgeSvc.GetMyVoteHistory(callerID, page, pageSize)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "total": total, "page": page, "page_size": pageSize})
+}
+
 func (h *JudgeHandler) SubmitVote(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
