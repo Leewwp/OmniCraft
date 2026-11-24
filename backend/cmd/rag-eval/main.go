@@ -352,19 +352,19 @@ func main() {
 				"rerank": cfg.Features.RAGRerankEnabled,
 			},
 			"axes": map[string]any{
-				"rrf_k":         cfg.RAG.Hybrid.RRFK,
-				"bm25_topk":     cfg.RAG.Hybrid.BM25TopK,
-				"vector_topk":   cfg.RAG.Hybrid.VectorTopK,
-				"final_topk":    cfg.RAG.Hybrid.FinalTopK,
-				"keyword_source": cfg.RAG.Hybrid.KeywordSource,
-				"rerank_model":  cfg.RAG.Rerank.Model,
+				"rrf_k":             cfg.RAG.Hybrid.RRFK,
+				"bm25_topk":         cfg.RAG.Hybrid.BM25TopK,
+				"vector_topk":       cfg.RAG.Hybrid.VectorTopK,
+				"final_topk":        cfg.RAG.Hybrid.FinalTopK,
+				"keyword_source":    cfg.RAG.Hybrid.KeywordSource,
+				"rerank_model":      cfg.RAG.Rerank.Model,
 				"rerank_input_topk": cfg.RAG.Rerank.InputTopK,
 				// SP-24 R3 made the refusal boundary scannable (rag.refusal);
 				// chunk_strategy stays a null placeholder until R4. Recording
 				// the same keys keeps every run row schema-stable.
 				"refusal_threshold": map[string]any{
 					"min_surviving_citations": cfg.RAG.Refusal.MinSurvivingCitations,
-					"min_top_relevance_score":  cfg.RAG.Refusal.MinTopRelevanceScore,
+					"min_top_relevance_score": cfg.RAG.Refusal.MinTopRelevanceScore,
 				},
 				"chunk_strategy": nil,
 			},
@@ -841,4 +841,3 @@ func rejudgeAndExit(outPath, summaryPath string, db *gorm.DB, all []model.EvalGo
 	slog.Info("rag-eval rejudge done", "rows", len(genRuns), "summary", summaryPath)
 	os.Exit(0)
 }
-

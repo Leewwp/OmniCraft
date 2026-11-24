@@ -25,7 +25,7 @@ func parseOpenAPIV1Spec(t *testing.T) (map[string]openAPIPathItem, []byte) {
 	t.Helper()
 	raw := handler.OpenAPIV1Spec()
 	var spec struct {
-		OpenAPI string                  `json:"openapi"`
+		OpenAPI string                     `json:"openapi"`
 		Paths   map[string]openAPIPathItem `json:"paths"`
 	}
 	if err := json.Unmarshal(raw, &spec); err != nil {

@@ -11,8 +11,8 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/middleware"
-	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/repository"
 )
 
 // SP-18 #509 契约：GET /notifications 列表装饰（响应只增不改）。
@@ -23,18 +23,18 @@ import (
 // title/body/target_type/target_id/sender_id/is_read/created_at）原样保留。
 
 type decoratedNotification struct {
-	ID         int64           `json:"id"`
-	Channel    string          `json:"channel"`
-	Type       string          `json:"type"`
-	Title      *string         `json:"title"`
-	Body       *string         `json:"body"`
-	TargetType *string         `json:"target_type"`
-	TargetID   *int64          `json:"target_id"`
-	SenderID   *int64          `json:"sender_id"`
-	IsRead     bool            `json:"is_read"`
-	CreatedAt  string          `json:"created_at"`
-	Sender     *senderJSON     `json:"sender"`
-	Summary    *targetSummary  `json:"target_summary"`
+	ID         int64          `json:"id"`
+	Channel    string         `json:"channel"`
+	Type       string         `json:"type"`
+	Title      *string        `json:"title"`
+	Body       *string        `json:"body"`
+	TargetType *string        `json:"target_type"`
+	TargetID   *int64         `json:"target_id"`
+	SenderID   *int64         `json:"sender_id"`
+	IsRead     bool           `json:"is_read"`
+	CreatedAt  string         `json:"created_at"`
+	Sender     *senderJSON    `json:"sender"`
+	Summary    *targetSummary `json:"target_summary"`
 }
 
 type senderJSON struct {

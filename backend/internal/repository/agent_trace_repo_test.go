@@ -97,18 +97,18 @@ func TestAgentTraceRepoUpsertNodeLifecycle(t *testing.T) {
 	cost := 0.0042
 	parent := "root"
 	if err := repo.UpsertNodes(ctx, []model.AgentTraceNode{{
-		TraceID:          "run-1",
-		NodeKey:          "llm_round_1",
-		Status:           model.AgentTraceStatusSuccess,
-		EndedAt:          &end,
-		DurationMs:       &dur,
-		Model:            "minimax-m3",
-		PromptDigest:     "digest",
-		TokensIn:         &tin,
-		TokensOut:        &tout,
-		CostEstimate:     &cost,
-		ParentNodeKey:    &parent,
-		Depth:            1,
+		TraceID:       "run-1",
+		NodeKey:       "llm_round_1",
+		Status:        model.AgentTraceStatusSuccess,
+		EndedAt:       &end,
+		DurationMs:    &dur,
+		Model:         "minimax-m3",
+		PromptDigest:  "digest",
+		TokensIn:      &tin,
+		TokensOut:     &tout,
+		CostEstimate:  &cost,
+		ParentNodeKey: &parent,
+		Depth:         1,
 	}}); err != nil {
 		t.Fatal(err)
 	}

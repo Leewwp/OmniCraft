@@ -82,7 +82,7 @@ func (r *FollowRepository) GetFollowers(targetType string, targetID int64, page,
 		Joins("JOIN follows ON follows.follower_id = users.id").
 		Where("follows.target_type = ? AND follows.target_id = ?", targetType, targetID).
 		Order("follows.created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).
+		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&users).Error; err != nil {
 		return nil, 0, err
 	}
@@ -97,7 +97,7 @@ func (r *FollowRepository) GetFollowing(followerID int64, page, pageSize int) ([
 	var follows []model.Follow
 	err := r.db.Where("follower_id = ?", followerID).
 		Order("created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).
+		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&follows).Error
 	return follows, total, err
 }
@@ -122,11 +122,11 @@ type FollowerSourceStats struct {
 }
 
 type FollowerStatsResult struct {
-	Total        int64                `json:"total"`
-	NewThisMonth int64                `json:"new_this_month"`
-	LostThisMonth int64               `json:"lost_this_month"`
-	Daily        []FollowerDailyStats `json:"daily"`
-	Sources      []FollowerSourceStats `json:"sources"`
+	Total         int64                 `json:"total"`
+	NewThisMonth  int64                 `json:"new_this_month"`
+	LostThisMonth int64                 `json:"lost_this_month"`
+	Daily         []FollowerDailyStats  `json:"daily"`
+	Sources       []FollowerSourceStats `json:"sources"`
 }
 
 func (r *FollowRepository) GetFollowerStats(userID int64, days int) (*FollowerStatsResult, error) {

@@ -598,7 +598,10 @@ func seedOptAuthLeakFixtures(t *testing.T, db *gorm.DB) *optAuthLeakFixtures {
 
 	// tags: shared tag on pub+private; priv-only tag must never surface in
 	// anonymous co-occurrence counts.
-	for _, tg := range []struct{ name string; usage int }{
+	for _, tg := range []struct {
+		name  string
+		usage int
+	}{
 		{"sp16aleakshared", 2}, {"sp16aleakprivonly", 1},
 	} {
 		if err := db.Create(&model.Tag{Name: tg.name, Category: "theme", UsageCount: tg.usage}).Error; err != nil {

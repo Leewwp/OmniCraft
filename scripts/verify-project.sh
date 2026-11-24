@@ -154,6 +154,9 @@ run_checked() {
 }
 
 if in_scope Backend; then
+  # #1013: format gate — backend/ must be gofmt-clean before any build or
+  # test command runs; check-gofmt.sh only reports, it never rewrites files.
+  run_checked "$REPO_ROOT/backend" backend backend-gofmt bash "$REPO_ROOT/scripts/check-gofmt.sh"
   run_checked "$REPO_ROOT/backend" backend backend-go-test go test ./...
   run_checked "$REPO_ROOT/backend" backend backend-go-vet go vet ./...
   run_checked "$REPO_ROOT/backend" backend backend-go-build go build ./...
