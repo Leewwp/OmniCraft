@@ -263,12 +263,12 @@ type UsageGuideSpecInput struct {
 }
 
 type CreateAttachmentInput struct {
-	GrantID     string `json:"grant_id" jsonschema:"grant id returned by omnicraft_request_upload_url"`
-	FileType    string `json:"file_type" jsonschema:"file category matching the grant, e.g. file, mod, sheet_music_pdf, image"`
-	MimeType    string `json:"mime_type,omitempty" jsonschema:"IANA mime type"`
-	FileSize    int64  `json:"file_size,omitempty" jsonschema:"size in bytes"`
-	SortOrder   *int   `json:"sort_order,omitempty" jsonschema:"zero-based position; required for image/video sets"`
-	IsPrimary   bool   `json:"is_primary,omitempty" jsonschema:"marks the primary file when several are attached"`
+	GrantID   string `json:"grant_id" jsonschema:"grant id returned by omnicraft_request_upload_url"`
+	FileType  string `json:"file_type" jsonschema:"file category matching the grant, e.g. file, mod, sheet_music_pdf, image"`
+	MimeType  string `json:"mime_type,omitempty" jsonschema:"IANA mime type"`
+	FileSize  int64  `json:"file_size,omitempty" jsonschema:"size in bytes"`
+	SortOrder *int   `json:"sort_order,omitempty" jsonschema:"zero-based position; required for image/video sets"`
+	IsPrimary bool   `json:"is_primary,omitempty" jsonschema:"marks the primary file when several are attached"`
 }
 
 // CreateContentInput deliberately mirrors the publishable subset of
@@ -300,12 +300,12 @@ func (in CreateContentInput) toPublishInput() service.PublishContentInput {
 			size = &s
 		}
 		atts = append(atts, service.AttachmentInput{
-			GrantID:     a.GrantID,
-			FileType:    a.FileType,
-			MimeType:    a.MimeType,
-			FileSize:    size,
-			SortOrder:   a.SortOrder,
-			IsPrimary:   a.IsPrimary,
+			GrantID:   a.GrantID,
+			FileType:  a.FileType,
+			MimeType:  a.MimeType,
+			FileSize:  size,
+			SortOrder: a.SortOrder,
+			IsPrimary: a.IsPrimary,
 		})
 	}
 	return service.PublishContentInput{
@@ -448,11 +448,11 @@ func addRequestUploadURLTool(server *sdkmcp.Server, deps Deps) {
 			return nil, nil, errors.New(uploadURLErrorText(err))
 		}
 		return textResult(map[string]any{
-			"upload_url":  resp.UploadURL,
-			"oss_key":     resp.OSSKey,
-			"expires_in":  resp.ExpiresIn,
-			"grant_id":    resp.GrantID,
-			"next_step":   "PUT the file bytes to upload_url, then pass grant_id in omnicraft_create_content attachments",
+			"upload_url": resp.UploadURL,
+			"oss_key":    resp.OSSKey,
+			"expires_in": resp.ExpiresIn,
+			"grant_id":   resp.GrantID,
+			"next_step":  "PUT the file bytes to upload_url, then pass grant_id in omnicraft_create_content attachments",
 		})
 	})
 }

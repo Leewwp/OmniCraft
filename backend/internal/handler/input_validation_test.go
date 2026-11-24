@@ -12,10 +12,10 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
-	"omnicraft/backend/internal/repository"
-	"omnicraft/backend/internal/service"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 )
 
 // SP-25 FR-11：输入校验与 mass-assignment 收口的契约测试。
@@ -139,4 +139,3 @@ func TestUpdateMeValidation(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, patch(`{"bio":"`+strings.Repeat("字", 501)+`"}`), "bio too long")
 	require.Equal(t, http.StatusOK, patch(`{"bio":"ok"}`))
 }
-

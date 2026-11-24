@@ -197,7 +197,6 @@ func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, wi
 	return c.bucket.SignURL(ossKey, oss.HTTPGet, expiresSec, oss.Process(process))
 }
 
-
 // IsPlatformObjectURL reports whether rawURL is a platform-verified OSS object:
 // only URLs carrying the configured delivery-domain prefix (trimmed domain +
 // "/") qualify. No URL is ever verified without a configured domain. This is

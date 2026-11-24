@@ -87,11 +87,11 @@ func TestGetMyContributorsAggregatesMergedInviteAndBlocked(t *testing.T) {
 
 	var resp struct {
 		Contributors []struct {
-			UserID            int64  `json:"user_id"`
-			Username          string `json:"username"`
-			PRCount           int    `json:"pr_count"`
-			Source            string `json:"source"`
-			Blocked           bool   `json:"blocked"`
+			UserID   int64  `json:"user_id"`
+			Username string `json:"username"`
+			PRCount  int    `json:"pr_count"`
+			Source   string `json:"source"`
+			Blocked  bool   `json:"blocked"`
 		} `json:"contributors"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
