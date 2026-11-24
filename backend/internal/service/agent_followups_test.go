@@ -171,9 +171,9 @@ func TestFollowUpsNotAttachedOnConversationalTurn(t *testing.T) {
 // call exceeds the remaining budget, done proceeds without follow_ups and the
 // turn outcome is unchanged.
 func TestFollowUpsTimeoutAbandonedSilently(t *testing.T) {
-	original := followUpBudgetOverride
-	followUpBudgetOverride = 60 * time.Millisecond
-	t.Cleanup(func() { followUpBudgetOverride = original })
+	original := followUpBudgetOverride.Load()
+	followUpBudgetOverride.Store(int64(60 * time.Millisecond))
+	t.Cleanup(func() { followUpBudgetOverride.Store(original) })
 
 	provider := &followUpTestProvider{rounds: followUpGroundedRounds(), chatReply: "合法的问题", chatDelay: 500 * time.Millisecond}
 	svc := followUpTestService(t, provider)
@@ -241,9 +241,9 @@ func TestParseFollowUpItems(t *testing.T) {
 // 阻塞取走（default 前的 channel 探测）——慢网络下已完成的投机调用不因
 // 预算时钟归零而被丢弃。
 func TestFollowUpsReadyResultTakenEvenWhenBudgetElapsed(t *testing.T) {
-	original := followUpBudgetOverride
-	followUpBudgetOverride = time.Millisecond
-	t.Cleanup(func() { followUpBudgetOverride = original })
+	original := followUpBudgetOverride.Load()
+	followUpBudgetOverride.Store(int64(time.Millisecond))
+	t.Cleanup(func() { followUpBudgetOverride.Store(original) })
 
 	provider := &followUpTestProvider{
 		rounds:    followUpGroundedRounds(),

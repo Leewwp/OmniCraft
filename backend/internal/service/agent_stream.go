@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"omnicraft/backend/internal/model"
@@ -529,14 +530,16 @@ const followUpDefaultBudget = 8 * time.Second
 
 // followUpBudgetOverride lets tests shorten the join window below the
 // one-second config granularity (the #435 suite asserts sub-second joins).
-var followUpBudgetOverride time.Duration
+// Atomic: an abandoned follow-up goroutine may still resolve the budget after
+// the owning test's t.Cleanup has restored the default (#1028).
+var followUpBudgetOverride atomic.Int64 // stores time.Duration
 
 // followUpBudgetDuration resolves the join budget: test override first, then
 // config (agent.follow_ups.budget_sec), nil cfg or non-positive falling back
 // to the 8s floor.
 func (s *AgentService) followUpBudgetDuration() time.Duration {
-	if followUpBudgetOverride > 0 {
-		return followUpBudgetOverride
+	if override := time.Duration(followUpBudgetOverride.Load()); override > 0 {
+		return override
 	}
 	if s.cfg == nil || s.cfg.Agent.FollowUps.BudgetSec <= 0 {
 		return followUpDefaultBudget
