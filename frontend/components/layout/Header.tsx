@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   Monitor,
   Moon,
   Plus,
@@ -275,6 +276,10 @@ export function Header() {
                   <Shield className="mr-2 h-4 w-4" />
                   {t("nav.appeals")}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => goTo("/feedback/mine")}>
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  {t("nav.feedback")}
+                </DropdownMenuItem>
                 {/* #844：判官页全站零入口——用户菜单常驻「赛博判官」，登录即见。 */}
                 <DropdownMenuItem onClick={() => goTo("/judge/queue")}>
                   <Scale className="mr-2 h-4 w-4" />
@@ -419,6 +424,7 @@ export function Header() {
                   <button type="button" onClick={() => goTo("/history")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.history")}</button>
                   <button type="button" onClick={() => goTo("/settings")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.settings")}</button>
                   <button type="button" onClick={() => goTo("/appeals")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.appeals")}</button>
+                  <button type="button" onClick={() => goTo("/feedback/mine")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.feedback")}</button>
                   <button type="button" onClick={() => goTo("/judge/queue")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.judge")}</button>
                   <button
                     type="button"

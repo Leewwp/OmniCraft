@@ -430,6 +430,36 @@ why the list must stay minimal. The release preflight
 (`scripts/release/preflight.sh`) rejects loopback-only `trusted_proxies`
 (section 11.1), so the widened list is also what keeps that gate green.
 
+### Bound the build cache with builder.gc
+
+Deployments build images on the host, and the build cache has no default
+upper bound — growth of roughly 2.6 GB per deployment with no eviction is
+what filled the disk. On this Docker version the `docker builder prune`
+filters (`--filter until=…`, `--keep-storage`, `--reserved-space`) are all
+no-ops for this cache, so the only working lever is the daemon-level garbage
+collector. Create `/etc/docker/daemon.json` (if the file already exists,
+merge these keys into it instead of overwriting):
+
+```json
+{
+  "builder": {
+    "gc": {
+      "enabled": true,
+      "defaultKeepStorage": "8GB"
+    }
+  }
+}
+```
+
+The 8 GB cap keeps roughly one deployment's worth of hot cache and evicts
+older records automatically. The setting only takes effect after restarting
+Docker, which stops every container on the host — schedule the restart
+inside a deployment window, bring the stack back with the profile's
+`docker compose … up -d`, and re-run the section 7 verification. After the
+next image build, `docker buildx du` should report a total bounded by the
+cap (old records evicted). Rollback: remove the keys (or the whole file, if
+it was created for this change) and restart Docker again.
+
 ## 7. Verify
 
 ```bash
@@ -559,17 +589,48 @@ Upgrade drill requirements (see `release/backup-policy.json`):
 ## 9. Backup
 
 Database backup uses the policy-compliant script (custom-format dump plus
-checksum manifest and migration ledger manifest):
+checksum manifest and migration ledger manifest). The postgres port is not
+published to the host and the host runs no PostgreSQL client tools, so the
+script reaches the database through the running container: the dump streams to
+stdout, making a `docker exec` wrapper a drop-in replacement for host-side
+`pg_dump`/`psql` (the container name below is the compose-project-prefixed
+service name of the deployed stack — confirm with `docker ps` before relying
+on it):
 
 ```bash
-# Daily cron (policy: daily + 7 local copies):
-0 2 * * * DB_HOST=postgres DB_PORT=5432 DB_USER=omnicraft DB_PASSWORD=... \
-  BACKUP_DIR=/var/backups/omnicraft/postgres \
-  bash /srv/omnicraft/scripts/backup-db.sh >> /var/log/omnicraft-backup.log 2>&1
+# One-time wrapper setup:
+mkdir -p /opt/omnicraft/bin
+cat > /opt/omnicraft/bin/pg_dump <<'EOF'
+#!/usr/bin/env bash
+exec docker exec -i -e PGPASSWORD="${PGPASSWORD:-}" omnicraft-postgres-1 pg_dump "$@"
+EOF
+cat > /opt/omnicraft/bin/psql <<'EOF'
+#!/usr/bin/env bash
+exec docker exec -i -e PGPASSWORD="${PGPASSWORD:-}" omnicraft-postgres-1 psql "$@"
+EOF
+chmod +x /opt/omnicraft/bin/pg_dump /opt/omnicraft/bin/psql
 
-# Before every production migration (policy: pre_migration):
-DB_HOST=postgres ... bash /srv/omnicraft/scripts/backup-db.sh
+# Daily cron (policy: daily + 7 local copies; the password comes from the
+# deployment .env at runtime and is never written into the crontab):
+0 2 * * * cd /opt/omnicraft && set -a && . ./.env && set +a && \
+  PATH=/opt/omnicraft/bin:/usr/bin:/bin DB_HOST=postgres DB_PORT=5432 \
+  DB_USER=omnicraft DB_NAME=omnicraft DB_PASSWORD="$POSTGRES_PASSWORD" \
+  BACKUP_DIR=/var/backups/omnicraft/postgres \
+  bash /opt/omnicraft/scripts/backup-db.sh --retain 7 >> /var/log/omnicraft-backup.log 2>&1
+
+# Before every production migration (policy: pre_migration): run the same
+# command as the cron line above, without the log redirection.
 ```
+
+Backup metrics (`omnicraft_backup_*`) are emitted to a Prometheus textfile
+collector directory only when `METRICS_TEXTFILE_DIR` is set. The deployed
+stack runs no node_exporter, so no textfile collector exists: the recipe above
+deliberately leaves `METRICS_TEXTFILE_DIR` unset, and the `BackupStale` alert
+(`ops/observability/prometheus-rules.yml`) therefore does not fire in this
+deployment shape. Wiring the metrics requires deploying node_exporter with
+`--collector.textfile.directory` pointed at a host directory shared with the
+cron environment, plus exporting `METRICS_TEXTFILE_DIR` to that directory in
+the cron line.
 
 Each backup produces `<dump>.custom` plus `<dump>.custom.manifest.json`
 (dump SHA-256, source database, pg version and applied migration set).

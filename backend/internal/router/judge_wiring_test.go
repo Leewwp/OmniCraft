@@ -41,7 +41,7 @@ func setupJudgeWiringStack(t *testing.T) (*gin.Engine, *gorm.DB, *miniredis.Mini
 	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, db.AutoMigrate(
 		&model.User{}, &model.ContentItem{}, &model.JudgeQuestion{}, &model.JudgeQualification{},
-		&model.JudgeExamRecord{}, &model.JudgeCase{}, &model.JudgeVote{},
+		&model.JudgeExamRecord{}, &model.JudgeCase{}, &model.JudgeVote{}, &model.JudgeReasonVote{},
 		&model.ReputationLog{}, &model.Notification{}, &model.OutboxEvent{},
 	))
 
@@ -251,4 +251,109 @@ func TestJudgeRoutesConsumeContainerWiredService(t *testing.T) {
 	if !strings.Contains(source, contract) {
 		t.Fatalf("router source missing container-wired judge service contract %q", contract)
 	}
+}
+
+// #1022：GET /judge/votes/mine —— 本人投票历史 join 案件状态/票数 + 理由
+// 赞/踩聚合；被撤权判官仍可见自己的历史；无投票用户拿到空列表；page_size
+// 走标准钳制（100000 → 20）。
+func TestJudgeWiringMyVotesHistory(t *testing.T) {
+	engine, db, _, _, cfg := setupJudgeWiringStack(t)
+	const authorID int64 = 3930
+	const judgeID int64 = 3931
+	const otherID int64 = 3932
+	seedJudgeWiringUser(t, db, authorID)
+	seedJudgeWiringUser(t, db, judgeID)
+	seedJudgeWiringUser(t, db, otherID)
+	require.NoError(t, db.Create(&model.JudgeQualification{
+		UserID: judgeID, ContentType: judgeWiringContentType, IsActive: true,
+	}).Error)
+
+	content := model.ContentItem{
+		Title:       "my votes history content",
+		AuthorID:    authorID,
+		Zone:        "original",
+		Category:    "game",
+		ContentType: judgeWiringContentType,
+		Status:      "under_review",
+		IsPublic:    true,
+	}
+	require.NoError(t, db.Create(&content).Error)
+	judgeCase := model.JudgeCase{
+		TargetType: judgeWiringContentType,
+		TargetID:   content.ID,
+		Status:     "open",
+		MinVotes:   1,
+	}
+	require.NoError(t, db.Create(&judgeCase).Error)
+
+	// 判官投票（带理由）→ 单票闭案。
+	body, err := json.Marshal(map[string]interface{}{
+		"case_id": judgeCase.ID,
+		"vote":    "approve",
+		"reason":  "wiring history reason",
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/judge/vote", strings.NewReader(string(body)))
+	req.Header.Set("Authorization", judgeWiringAuthHeader(t, cfg, judgeID))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "投票应成功: %s", rec.Body.String())
+
+	// 未登录 → 401。
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/judge/votes/mine", nil)
+	rec = httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusUnauthorized, rec.Code, "匿名必须 401: %s", rec.Body.String())
+
+	// 本人有投票：行契约字段齐备 + 案件终态/计数 join 正确 + 分页钳制生效。
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/judge/votes/mine?page=1&page_size=100000", nil)
+	req.Header.Set("Authorization", judgeWiringAuthHeader(t, cfg, judgeID))
+	rec = httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "GET votes/mine: %s", rec.Body.String())
+
+	var mine struct {
+		Items    []map[string]interface{} `json:"items"`
+		Total    int64                    `json:"total"`
+		Page     int                      `json:"page"`
+		PageSize int                      `json:"page_size"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &mine))
+	require.Equal(t, int64(1), mine.Total)
+	require.Equal(t, 20, mine.PageSize, "page_size 必须走标准钳制（100000 → 20）")
+	require.Len(t, mine.Items, 1)
+	row := mine.Items[0]
+	require.Equal(t, float64(judgeCase.ID), row["case_id"])
+	require.Equal(t, judgeWiringContentType, row["target_type"])
+	require.Equal(t, "approve", row["my_vote"])
+	require.Equal(t, "wiring history reason", row["reason"])
+	require.Equal(t, "closed_approve", row["case_status"])
+	require.Equal(t, float64(1), row["vote_approve"])
+	require.Equal(t, float64(0), row["vote_reject"])
+	require.Equal(t, float64(1), row["min_votes"])
+	require.NotNil(t, row["closed_at"], "闭案行应带 closed_at")
+	require.Equal(t, float64(0), row["upvotes"])
+	require.Equal(t, float64(0), row["downvotes"])
+
+	// 无投票用户 → 空列表而非 404/403。
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/judge/votes/mine", nil)
+	req.Header.Set("Authorization", judgeWiringAuthHeader(t, cfg, otherID))
+	rec = httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &mine))
+	require.Empty(t, mine.Items)
+	require.Equal(t, int64(0), mine.Total)
+
+	// 被撤权判官（is_active=false）仍可见自己的历史。
+	require.NoError(t, db.Model(&model.JudgeQualification{}).
+		Where("user_id = ?", judgeID).Update("is_active", false).Error)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/judge/votes/mine", nil)
+	req.Header.Set("Authorization", judgeWiringAuthHeader(t, cfg, judgeID))
+	rec = httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "被撤权判官仍可看自己的投票历史: %s", rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &mine))
+	require.Len(t, mine.Items, 1)
 }
