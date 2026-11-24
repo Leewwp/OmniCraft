@@ -430,6 +430,36 @@ why the list must stay minimal. The release preflight
 (`scripts/release/preflight.sh`) rejects loopback-only `trusted_proxies`
 (section 11.1), so the widened list is also what keeps that gate green.
 
+### Bound the build cache with builder.gc
+
+Deployments build images on the host, and the build cache has no default
+upper bound — growth of roughly 2.6 GB per deployment with no eviction is
+what filled the disk. On this Docker version the `docker builder prune`
+filters (`--filter until=…`, `--keep-storage`, `--reserved-space`) are all
+no-ops for this cache, so the only working lever is the daemon-level garbage
+collector. Create `/etc/docker/daemon.json` (if the file already exists,
+merge these keys into it instead of overwriting):
+
+```json
+{
+  "builder": {
+    "gc": {
+      "enabled": true,
+      "defaultKeepStorage": "8GB"
+    }
+  }
+}
+```
+
+The 8 GB cap keeps roughly one deployment's worth of hot cache and evicts
+older records automatically. The setting only takes effect after restarting
+Docker, which stops every container on the host — schedule the restart
+inside a deployment window, bring the stack back with the profile's
+`docker compose … up -d`, and re-run the section 7 verification. After the
+next image build, `docker buildx du` should report a total bounded by the
+cap (old records evicted). Rollback: remove the keys (or the whole file, if
+it was created for this change) and restart Docker again.
+
 ## 7. Verify
 
 ```bash
