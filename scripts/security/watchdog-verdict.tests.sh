@@ -148,6 +148,36 @@ no_create_expected "an open issue already tracking the advisory id"
 echo "PASS: dedupe skips advisories already tracked"
 
 reset_state
+write_verdict '[]'
+if ! bash "$WATCHDOG" -ReportDir "$FIXTURE_DIR" -RunUrl "$RUN_URL"; then
+  echo "FAIL: clean empty verdict must exit 0" >&2
+  exit 1
+fi
+no_create_expected "a clean empty verdict must not open an issue"
+echo "PASS: clean empty verdict opens nothing"
+
+reset_state
+write_verdict '[{"id":"GO-2026-6278","component":"github.com/gorilla/websocket","version":"v1.5.3","severity":"critical","source":"govulncheck","detail":"fixed v1.5.4"},{"id":"RUSTSEC-2026-0001","component":"rustls","version":"0.23.0","severity":"HIGH","source":"cargo-audit","detail":"fixed in 0.23.5"}]'
+if ! bash "$WATCHDOG" -ReportDir "$FIXTURE_DIR" -RunUrl "$RUN_URL"; then
+  echo "FAIL: multiple real advisories must exit 0" >&2
+  exit 1
+fi
+CREATE_COUNT="$(grep -c 'issue create' "$GH_LOG")"
+if [ "$CREATE_COUNT" -ne 1 ]; then
+  echo "FAIL: multiple advisories must open exactly one issue (got $CREATE_COUNT)" >&2
+  exit 1
+fi
+if ! grep -q '另 1 项' "$GH_LOG"; then
+  echo "FAIL: multi-advisory title must carry the extra-count suffix" >&2
+  exit 1
+fi
+if ! grep -q 'RUSTSEC-2026-0001' "$GH_LOG"; then
+  echo "FAIL: second advisory must appear in the issue" >&2
+  exit 1
+fi
+echo "PASS: multiple advisories merge into one titled issue"
+
+reset_state
 write_verdict '[{"id":"GO-2026-6278","component":"github.com/gorilla/websocket","version":"v1.5.3","severity":"critical","source":"govulncheck","detail":"fixed v1.5.4"}]'
 export FAKE_CREATE_EXIT=1
 if bash "$WATCHDOG" -ReportDir "$FIXTURE_DIR" -RunUrl "$RUN_URL" >/dev/null 2>&1; then
@@ -156,5 +186,5 @@ if bash "$WATCHDOG" -ReportDir "$FIXTURE_DIR" -RunUrl "$RUN_URL" >/dev/null 2>&1
 fi
 echo "PASS: gh operational failure surfaces as a red job"
 
-unset FAKE_CREATE_EXIT || true
+unset FAKE_CREATE_EXIT
 echo "watchdog-verdict contract tests passed"

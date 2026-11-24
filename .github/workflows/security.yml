@@ -71,7 +71,9 @@ jobs:
   # to main or weekly schedule; PRs never reach here) reports real
   # critical/high advisories, so red locks surface without manual polling.
   # Scanner failures never open issues — the security-gate job is already red
-  # for those — and the job itself stays green unless issue creation fails.
+  # for those — and the job stays green unless gh issue creation/listing
+  # fails; the evidence download step can also redden this job when
+  # security-gate failed before uploading evidence (the run is red anyway).
   watchdog:
     name: Red-lock watchdog
     needs: security-gate

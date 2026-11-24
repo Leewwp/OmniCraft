@@ -76,7 +76,7 @@ if not real:
     print("watchdog: no real critical/high advisories (clean or scanner failure)")
     sys.exit(0)
 for f in real:
-    fields = [str(f.get(k, "")) for k in ("id", "component", "version", "severity", "source", "detail")]
+    fields = [str(f.get(k, "")).replace("\n", " ") for k in ("id", "component", "version", "severity", "source", "detail")]
     print("ADVISORY|" + "|".join(fields))
 PY
 )" || exit 1
@@ -89,14 +89,14 @@ fi
 UNCOVERED=""
 COVERED_COUNT=0
 while IFS= read -r line; do
-  case "$line" in
-    ADVISORY|*) : ;;
-    *) continue ;;
-  esac
   IFS='|' read -r _ ID COMPONENT VERSION SEVERITY SOURCE DETAIL <<LINE
 $line
 LINE
-  if gh issue list --repo "$TARGET_REPO" --state open --search "$ID" --limit 20 --json number,title 2>/dev/null | grep -Fq "$ID"; then
+  if ! LIST_JSON="$(gh issue list --repo "$TARGET_REPO" --state open --search "$ID" --limit 20 --json number,title 2>/dev/null)"; then
+    echo "watchdog: gh issue list failed for $ID" >&2
+    exit 1
+  fi
+  if printf '%s' "$LIST_JSON" | grep -Fq "$ID"; then
     COVERED_COUNT=$((COVERED_COUNT + 1))
     continue
   fi
