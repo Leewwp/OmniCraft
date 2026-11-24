@@ -145,8 +145,17 @@ jobs:
           path: artifacts
           retention-days: 30
 
+  scripts-gates:
+    name: Scripts gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verification script contract suites
+        run: bash scripts/verify-project.tests.sh && bash scripts/ci/verify-workflows.sh && bash scripts/ci/verify-workflows.tests.sh
+
   project-gate:
-    needs: [backend, frontend, docs, ops-alerting]
+    needs: [backend, frontend, docs, ops-alerting, scripts-gates]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -156,7 +165,8 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           OPS_ALERTING_RESULT: ${{ needs.ops-alerting.result }}
-        run: test "$BACKEND_RESULT" = success && test "$FRONTEND_RESULT" = success && test "$DOCS_RESULT" = success && test "$OPS_ALERTING_RESULT" = success
+          SCRIPTS_GATES_RESULT: ${{ needs.scripts-gates.result }}
+        run: test "$BACKEND_RESULT" = success && test "$FRONTEND_RESULT" = success && test "$DOCS_RESULT" = success && test "$OPS_ALERTING_RESULT" = success && test "$SCRIPTS_GATES_RESULT" = success
       - name: Failure probe
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_probe == true }}
         run: exit 1
