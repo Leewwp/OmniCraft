@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,20 +16,26 @@ import (
 // turn outcome itself.
 
 // followUpTestProvider scripts the streaming rounds and the non-streaming
-// follow-up call independently of the async auto-title path.
+// follow-up call independently of the async auto-title path. Both paths share
+// one provider, so the recorder is mutex-guarded and keeps every non-streaming
+// request: the auto-title goroutine (no Thinking field, MaxTokens 64) races
+// the test's assertion read, and a last-write field can lose the follow-up
+// request to it.
 type followUpTestProvider struct {
-	rounds      [][]llm.ChatDelta
-	chatReply   string
-	chatErr     error
-	chatDelay   time.Duration
-	chatCalls   int
+	rounds    [][]llm.ChatDelta
+	chatReply string
+	chatErr   error
+	chatDelay time.Duration
+
+	mu          sync.Mutex
+	chatReqs    []llm.ChatRequest
 	streamCalls int
-	lastChatReq llm.ChatRequest
 }
 
 func (p *followUpTestProvider) Chat(_ context.Context, req llm.ChatRequest) (*llm.ChatResponse, error) {
-	p.chatCalls++
-	p.lastChatReq = req
+	p.mu.Lock()
+	p.chatReqs = append(p.chatReqs, req)
+	p.mu.Unlock()
 	if p.chatDelay > 0 {
 		time.Sleep(p.chatDelay)
 	}
@@ -39,15 +46,37 @@ func (p *followUpTestProvider) Chat(_ context.Context, req llm.ChatRequest) (*ll
 }
 
 func (p *followUpTestProvider) ChatStream(_ context.Context, _ llm.ChatRequest, handler func(delta llm.ChatDelta) error) error {
+	p.mu.Lock()
 	p.streamCalls++
-	if p.streamCalls <= len(p.rounds) {
-		for _, d := range p.rounds[p.streamCalls-1] {
+	idx := p.streamCalls
+	p.mu.Unlock()
+	if idx <= len(p.rounds) {
+		for _, d := range p.rounds[idx-1] {
 			if err := handler(d); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// chatRequestSnapshot copies the recorded non-streaming requests.
+func (p *followUpTestProvider) chatRequestSnapshot() []llm.ChatRequest {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]llm.ChatRequest(nil), p.chatReqs...)
+}
+
+// followUpReqFromSnapshot picks the follow-up side call out of a snapshot by
+// its MaxTokens signature: the only other non-streaming Chat in these tests
+// is the async auto-title call (MaxTokens 64, no Thinking field).
+func followUpReqFromSnapshot(snapshot []llm.ChatRequest) (llm.ChatRequest, bool) {
+	for _, req := range snapshot {
+		if req.MaxTokens == followUpMaxTokens {
+			return req, true
+		}
+	}
+	return llm.ChatRequest{}, false
 }
 
 func (p *followUpTestProvider) GetEmbedding(_ context.Context, _ string) ([]float32, error) {
@@ -260,8 +289,8 @@ func TestFollowUpsDisabledSkipsSideCallEntirely(t *testing.T) {
 	if done.AnswerKind != AgentAnswerGroundedContent {
 		t.Fatalf("answer_kind = %q, want grounded_content", done.AnswerKind)
 	}
-	if provider.chatCalls != 0 {
-		t.Fatalf("disabled switch must skip the side call, got %d Chat calls", provider.chatCalls)
+	if req, ok := followUpReqFromSnapshot(provider.chatRequestSnapshot()); ok {
+		t.Fatalf("disabled switch must skip the side call, got one with Thinking=%q", req.Thinking)
 	}
 	if len(done.FollowUps) != 0 {
 		t.Fatalf("disabled switch must yield no follow_ups: %v", done.FollowUps)
@@ -277,8 +306,12 @@ func TestFollowUpsRequestCarriesThinkingDisabled(t *testing.T) {
 	if len(done.FollowUps) != 1 {
 		t.Fatalf("fixture must attach the follow-up, got %v", done.FollowUps)
 	}
-	if provider.lastChatReq.Thinking != llm.ThinkingDisabled {
-		t.Fatalf("side call must carry ThinkingDisabled, got %q", provider.lastChatReq.Thinking)
+	req, ok := followUpReqFromSnapshot(provider.chatRequestSnapshot())
+	if !ok {
+		t.Fatal("follow-up request missing from recorded Chat calls")
+	}
+	if req.Thinking != llm.ThinkingDisabled {
+		t.Fatalf("side call must carry ThinkingDisabled, got %q", req.Thinking)
 	}
 }
 
