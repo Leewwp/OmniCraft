@@ -282,6 +282,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		judge.GET("/exam/:category", optAuth, judgeHandler.GetExam)
 		judge.POST("/exam/submit", authReq, judgeGuard, judgeHandler.SubmitExam)
 		judge.GET("/queue", authReq, judgeHandler.GetQueue)
+		judge.GET("/votes/mine", authReq, judgeHandler.GetMyVotes)
 		judge.POST("/vote", authReq, judgeGuard, judgeHandler.SubmitVote)
 		judge.GET("/cases/:id/verdict", optAuth, judgeHandler.GetVerdictDetail)
 		judge.POST("/reasons/:id/vote", authReq, judgeGuard, judgeHandler.VoteReason)

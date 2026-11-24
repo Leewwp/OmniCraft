@@ -216,6 +216,51 @@ func (r *JudgeRepository) RevokeQualifications(userID int64) error {
 	return r.db.Model(&model.JudgeQualification{}).Where("user_id = ?", userID).Update("is_active", false).Error
 }
 
+// MyVoteHistoryItem（#1022）：「我的投票」历史行契约——judge_votes join
+// judge_cases 取案件状态/票数/结案时间，LEFT JOIN reason votes 聚合本人
+// 理由的赞/踩计数。定义在 repository 层避免与 service 循环依赖（先例
+// VerdictVoteItem）。
+type MyVoteHistoryItem struct {
+	CaseID      int64      `json:"case_id"`
+	TargetType  string     `json:"target_type"`
+	MyVote      string     `json:"my_vote"`
+	Reason      *string    `json:"reason"`
+	CreatedAt   time.Time  `json:"created_at"`
+	CaseStatus  string     `json:"case_status"`
+	VoteApprove int64      `json:"vote_approve"`
+	VoteReject  int64      `json:"vote_reject"`
+	MinVotes    int        `json:"min_votes"`
+	ClosedAt    *time.Time `json:"closed_at"`
+	Upvotes     int64      `json:"upvotes"`
+	Downvotes   int64      `json:"downvotes"`
+}
+
+// ListMyVoteHistory（#1022）：仅本人投票，created_at 倒序分页；被撤权判官
+// 同样可见（历史是既有投票记录，不查资格）。
+func (r *JudgeRepository) ListMyVoteHistory(judgeID int64, page, pageSize int) ([]MyVoteHistoryItem, int64, error) {
+	var total int64
+	if err := r.db.Model(&model.JudgeVote{}).Where("judge_id = ?", judgeID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []MyVoteHistoryItem
+	offset := (page - 1) * pageSize
+	err := r.db.Raw(`
+		SELECT v.case_id, jc.target_type, v.vote AS my_vote, v.reason, v.created_at,
+		       jc.status AS case_status, jc.vote_approve, jc.vote_reject, jc.min_votes, jc.closed_at,
+		       COALESCE(SUM(CASE WHEN rv.vote_type = 'up' THEN 1 ELSE 0 END), 0)   AS upvotes,
+		       COALESCE(SUM(CASE WHEN rv.vote_type = 'down' THEN 1 ELSE 0 END), 0) AS downvotes
+		FROM judge_votes v
+		JOIN judge_cases jc ON jc.id = v.case_id
+		LEFT JOIN judge_reason_votes rv ON rv.reason_owner_vote_id = v.id
+		WHERE v.judge_id = ?
+		GROUP BY v.id, v.case_id, jc.target_type, v.vote, v.reason, v.created_at,
+		         jc.status, jc.vote_approve, jc.vote_reject, jc.min_votes, jc.closed_at
+		ORDER BY v.created_at DESC, v.id DESC
+		LIMIT ? OFFSET ?
+	`, judgeID, pageSize, offset).Scan(&rows).Error
+	return rows, total, err
+}
+
 func (r *JudgeRepository) GetDistinctCaseTypes() ([]string, error) {
 	var types []string
 	err := r.db.Model(&model.JudgeCase{}).

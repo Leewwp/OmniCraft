@@ -130,7 +130,6 @@
 - Component: UserProfileCard
 - Component: FollowerListModal
 - Component: CreatorSupportPanel
-- Component: JudgeQualBadge
 - Component: StudioSidebar
 - Component: ContentTypeGrid
 - Component: SourceContentPicker 来源内容选择器
@@ -1153,7 +1152,6 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 - `UserProfileClient`（三 tab 页内切换；`?tab=contents|discussions|collections` 初始态，切换经 `window.history.replaceState` 静默同步 URL 可分享，不触发服务端往返；收藏集 tab 渲染 `UserCollectionsPanel`，见 `/user/[userId]/collections` 节）
 - `FollowButton`
 - `FollowerListModal`
-- `JudgeQualBadge`
 - `ContentCard`
 - `MasonryGrid`（内容 Tab 中使用）
 - `EmptyState`
@@ -1165,7 +1163,7 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 - 区域间距（block）：24px (`space-y-6`)
 
 **状态变体**
-- default: 用户头像/用户名/信誉分/判官资质 Badge + 关注按钮 + 内容 Tab。
+- default: 用户头像/用户名/信誉分 + 关注按钮 + 内容 Tab。
 - loading: 骨架屏（Skeleton 灰色块填充用户卡片和内容区）。
 - empty: 用户不存在 404 EmptyState；某 Tab 无内容时显示 EmptyState。
 - error: Toast 右上角报错。
@@ -1567,6 +1565,74 @@ P-01 原型 UserIdentity 的生产版（`frontend/components/social/UserHoverCar
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+
+## Page: /judge/history 我的投票
+
+**Key Constraints**
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
+- 页面位于 `(protected)` route group；未登录访问由受保护布局重定向到 `/login?redirect=/judge/history`。
+- 任何登录用户可看自己的投票历史（含被撤权判官）；本页一律不嵌内容预览——审核中内容仅持资格判官可加载、banned 内容不透出。
+- 已结束案件的终态与判决口径与 `VerdictDetail` 同源：`closed_approve`/`closed_reject` 前缀 + 不违规比例 ≥ 60% 阈值。
+- 入口仅存在于 `/judge/queue` 页头部（与「资质考核」并排按钮），不进用户菜单。
+
+**视觉层级**
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
+- 内容模块：页面标题区（图标 + 标题 + 计数）+ 投票历史行卡片列表
+
+**核心组件清单**
+- `Header`
+- `DataList`
+- `EmptyState`
+- `Skeleton`
+- `VerdictDetail`（行展开复用，props 仅 caseId）
+
+**布局规范**
+- PC (>1100px)：页面最大宽度 `672px`（max-w-2xl），居中；纵向单列行卡片，间距 `gap-3`。
+- 行卡片内部三段：首行（类型标签 + 我的投票标签 + 投票时间右对齐）、理由段（如有：理由文本 + 赞/踩计数）、状态行（案件状态 + 展开判决详情按钮）。
+- 分页：`page` + `page_size`（标准钳制），加载更多按钮列表末尾居中。
+
+**状态变体**
+- default：`GET /judge/votes/mine` 行渲染——类型标签、我的投票（approve=emerald / reject=destructive 小标签）、投票时间（locale 感知）、我的理由（如有，附理由获赞/踩数）、案件状态。
+- 案件状态（进行中）：蓝色小标签「进行中 {total} / {min} 票」。
+- 案件状态（已结束）：灰色小标签「已结束」+ 判决结果文本 +「与判决一致」（emerald）/「与判决相反」（destructive）标记。
+- 行展开：点击「展开判决详情」按钮后行内嵌 `VerdictDetail`；再点收起。
+- loading：3 条 `Skeleton` 行卡片（h-24）。
+- empty：`EmptyState`（Scale 图标 +「还没有投票记录」+ 引导文案 + 「前往审核队列」CTA 链接）。
+- error：内联红字提示 + 重试按钮（DataList 错误态）。
+
+**响应式规则**
+- 移动 (≤700px)：主体 `px-4 py-8`；行卡片全宽；首行元信息可换行（flex-wrap），时间戳随换行右对齐失效为跟随流式。
+- 平板 (≤1100px)：同移动布局，最大宽度 672px 生效。
+- PC (>1100px)：672px 居中。
+
+**暗色模式适配**
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
+- 图片/图标特殊处理: 图标使用 `text-muted-foreground`，无图片资源。
+
+**交互细节**
+- 展开按钮：`aria-expanded` 暴露展开态；ChevronDown/ChevronUp 图标随态切换。
+- 理由赞/踩计数为只读展示（ThumbsUp/ThumbsDown 图标 + 数字，带 aria-label）；点赞交互在展开的 `VerdictDetail` 内进行。
+- 键盘：展开按钮 Tab 可达，Enter/Space 触发。
+- 数据加载策略：SSR 输出页面框架，客户端按 page 增量加载；重试保留已加载数据。
+
+**i18n key namespace**
+- namespace：`judge.history.*`。
+- 需要覆盖：`judge.history.title/count/empty/emptyHint/goQueue/loadFailed/myVote/reasonLabel/reasonUpvotes/reasonDownvotes/closed/inProgress/verdictResult/matchVerdict/oppositeVerdict/expandDetail/collapseDetail`。
+- 类型/投票标签复用 `judge.*` 与 `judge.reviewCard.*` 既有键；组件内不得硬编码中文/英文文案。
+
+**与现有组件关系**
+- 行展开复用 `VerdictDetail`（`GET /judge/cases/:id/verdict`），不复制其投票分布/理由列表实现。
+- 列表壳复用 `DataList`/`EmptyState`/`Skeleton`（feedback/mine 同模式）。
+- 不依赖 `ContentCard`/内容预览链路。
+
+**Playwright 截图检查点**
+- `screenshots/judge-history-desktop.png`：PC 宽度，含标题区、已结束行（判决结果 + 一致/相反标记）、进行中行、展开的判决详情。
+- `screenshots/judge-history-empty.png`：空态（EmptyState + 前往审核队列 CTA）。
+- 交互检查：queue 入口跳转、行展开/收起、加载更多、空态 CTA 链接。
 
 ## Page: /history 浏览历史
 
@@ -4828,56 +4894,6 @@ interface CreatorSupportPanelProps {
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
 - 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
-
-## Component: JudgeQualBadge
-
-**Key Constraints**
-- 赛博判官业务规则：只有具有对应类型的判官权限（judge_qualifications）或通过考核才能操作。
-- 信誉分必须 >= 3 才能行使众裁权利，否则禁用功能。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
-
-**Props 接口**
-```ts
-interface JudgeQualBadgeProps {
-  className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
-}
-```
-
-**视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
-
-**尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
-
-**状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
-
-
 
 ## Component: StudioSidebar
 
