@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Contract-checks .github/workflows/ci.yml and .github/workflows/tauri-ci.yml:
-# stable job names, triggers (ci.yml: pull_request + push to main +
+# stable job names, triggers (both: pull_request + push to main +
 # workflow_dispatch — public-repo standard hosted runners are free, so CI is
-# the machine verification gate on every PR and main push; tauri-ci.yml:
-# dispatch-only so the slow Windows lane stays on-demand), concurrency, minimal
-# permissions, SHA-pinned actions, lockfile-derived cache keys, always-upload
-# evidence artifacts with 30-day retention, no production secret references,
-# and the Windows Tauri path-detected job-level skip.
+# the machine verification gate on every PR and main push; the slow Windows
+# Tauri lane runs the same triggers but skips its Windows job when the detect
+# job reports desktop paths unchanged), concurrency, minimal permissions,
+# SHA-pinned actions, lockfile-derived cache keys, always-upload evidence
+# artifacts with 30-day retention, no production secret references, and the
+# Windows Tauri path-detected job-level skip.
 # Usage: bash scripts/ci/verify-workflows.sh [-WorkflowsDir <dir>]
 set -u
 
@@ -106,6 +107,13 @@ def split_flow(inner):
     return parts
 
 
+def is_block_scalar_header(rest):
+    # `run: |` and friends: literal/folded style with optional chomping and
+    # indent indicators (e.g. `|`, `|-`, `|2-`). The parser only needs the
+    # content as an indentation-joined string for substring assertions.
+    return re.fullmatch(r"[|>][+-]?\d*|[|>]\d+[+-]", rest) is not None
+
+
 def parse_document(text):
     lines = []
     for raw in text.splitlines():
@@ -119,6 +127,13 @@ def parse_document(text):
     if not lines:
         return {}
     position = [0]
+
+    def consume_block_scalar(indent):
+        parts = []
+        while position[0] < len(lines) and lines[position[0]][0] > indent:
+            parts.append(lines[position[0]][1])
+            position[0] += 1
+        return "\n".join(parts)
 
     def parse_block(indent):
         if position[0] < len(lines) and lines[position[0]][0] == indent and lines[position[0]][1].startswith("-"):
@@ -143,6 +158,8 @@ def parse_document(text):
                     node[key] = parse_block(lines[position[0]][0])
                 else:
                     node[key] = {}
+            elif is_block_scalar_header(rest):
+                node[key] = consume_block_scalar(indent)
             else:
                 node[key] = parse_scalar(rest)
         return node
@@ -172,6 +189,8 @@ def parse_document(text):
                         item[key] = parse_block(lines[position[0]][0])
                     else:
                         item[key] = {}
+                elif is_block_scalar_header(value):
+                    item[key] = consume_block_scalar(indent)
                 else:
                     item[key] = parse_scalar(value)
                 if position[0] < len(lines) and lines[position[0]][0] > indent and not lines[position[0]][1].startswith("-"):
@@ -289,7 +308,7 @@ for path in (ci_path, tauri_path):
 if os.path.exists(ci_path):
     with open(ci_path, encoding="utf-8") as f:
         ci = parse_document(f.read())
-    check_shared(ci, "ci.yml", ["backend", "frontend", "docs", "project-gate"],
+    check_shared(ci, "ci.yml", ["backend", "frontend", "docs", "ops-alerting", "scripts-gates", "project-gate"],
                  ["go.sum", "package-lock.json"], event_triggers=True)
     dispatch = ci.get("on", {}).get("workflow_dispatch")
     if not isinstance(dispatch, dict) or "inputs" not in dispatch:
@@ -306,6 +325,8 @@ if os.path.exists(ci_path):
         "BACKEND_RESULT": "needs.backend.result",
         "FRONTEND_RESULT": "needs.frontend.result",
         "DOCS_RESULT": "needs.docs.result",
+        "OPS_ALERTING_RESULT": "needs.ops-alerting.result",
+        "SCRIPTS_GATES_RESULT": "needs.scripts-gates.result",
     }
     dependency_guard = False
     for step in steps_of(project_gate):
@@ -319,7 +340,7 @@ if os.path.exists(ci_path):
             dependency_guard = True
             break
     if not dependency_guard:
-        fail("ci.yml: project-gate must fail unless backend, frontend, and docs all succeeded")
+        fail("ci.yml: project-gate must fail unless backend, frontend, docs, ops-alerting, and scripts-gates all succeeded")
     raw_ci = open(ci_path, encoding="utf-8").read()
     canonical_migration_gate = "bash scripts/db/verify-migration-gate.sh -ReportDir artifacts/backend/migrations"
     if canonical_migration_gate not in raw_ci:
@@ -330,20 +351,17 @@ if os.path.exists(ci_path):
 if os.path.exists(tauri_path):
     with open(tauri_path, encoding="utf-8") as f:
         tauri = parse_document(f.read())
-    check_shared(tauri, "tauri-ci.yml", ["tauri-windows"],
-                 ["Cargo.lock", "package-lock.json"])
+    check_shared(tauri, "tauri-ci.yml", ["detect", "tauri-windows"],
+                 ["Cargo.lock", "package-lock.json"], event_triggers=True)
     jobs = tauri.get("jobs", {})
     tauri_job = jobs.get("tauri-windows")
     if not isinstance(tauri_job, dict):
         fail("tauri-ci.yml: tauri-windows job is missing")
     if tauri_job.get("runs-on") != "windows-latest":
         fail("tauri-ci.yml: tauri-windows must run on windows-latest")
-    noop_found = False
-    detect_found = False
     if "needs.detect.outputs.changed == 'true'" not in str(tauri_job.get("if", "")):
         fail("tauri-ci.yml: tauri-windows must skip via job-level needs.detect.outputs.changed == 'true'")
-    else:
-        noop_found = True
+    detect_found = False
     detect_job = jobs.get("detect")
     if isinstance(detect_job, dict):
         for step in steps_of(detect_job):
@@ -351,8 +369,6 @@ if os.path.exists(tauri_path):
                 detect_found = True
     if not detect_found:
         fail("tauri-ci.yml: path detection must publish a changed output")
-    if not noop_found:
-        fail("tauri-ci.yml: tauri-windows must keep the explicit no-op branch")
 
 print("workflow contract valid")
 PY

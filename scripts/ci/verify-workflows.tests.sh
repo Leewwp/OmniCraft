@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Contract tests for scripts/ci/verify-workflows.sh against the real workflows
-# and mutated copies. Verifies stable job names, triggers (ci.yml: pull_request
+# and mutated copies. Verifies stable job names, triggers (both: pull_request
 # + push to main + workflow_dispatch — public-repo standard hosted runners are
-# free, CI is the machine verification gate on every PR and main push;
-# tauri-ci.yml: dispatch-only so the slow Windows lane stays on-demand),
-# concurrency, minimal permissions, SHA-pinned actions, lockfile cache keys,
-# always-upload artifacts with 30-day retention, absence of production
+# free, CI is the machine verification gate on every PR and main push; the
+# slow Windows Tauri lane runs the same triggers but skips its Windows job
+# when the detect job reports desktop paths unchanged), concurrency, minimal
+# permissions, SHA-pinned actions, lockfile cache keys, always-upload
+# artifacts with 30-day retention, absence of production
 # secrets, and the Windows Tauri path-detected job-level skip.
 set -u
 
@@ -187,12 +188,28 @@ mutate "ci||__replace__||run: bash scripts/verify-project.sh -Scope Backend -Rep
 expect_fail "production secrets must never be referenced"
 
 reset_fixtures
-mutate "tauri||__replace__||\non:||\non:\n    pull_request:"
-expect_fail "tauri-ci.yml must not declare the pull_request trigger"
+mutate "ci||__replace__||          OPS_ALERTING_RESULT: \${{ needs.ops-alerting.result }}||"
+expect_fail "project-gate must inspect the ops-alerting result"
 
 reset_fixtures
-mutate "tauri||__replace__||\non:||\non:\n    push:\n      branches: [main]"
-expect_fail "tauri-ci.yml must not declare the push trigger"
+mutate "ci||__replace__||          SCRIPTS_GATES_RESULT: \${{ needs.scripts-gates.result }}||"
+expect_fail "project-gate must inspect the scripts-gates result"
+
+reset_fixtures
+mutate "ci||__strip__||scripts-gates"
+expect_fail "stable job name scripts-gates must not be removed"
+
+reset_fixtures
+mutate "tauri||__strip__||pull_request"
+expect_fail "tauri-ci.yml must declare the pull_request trigger (path-gated Windows lane)"
+
+reset_fixtures
+mutate "tauri||__strip__||push"
+expect_fail "tauri-ci.yml must declare the push trigger (post-merge main verification)"
+
+reset_fixtures
+mutate "tauri||__replace__||    branches: [main]||    branches: [dev]"
+expect_fail "tauri-ci.yml push trigger must fire for main only"
 
 reset_fixtures
 mutate "tauri||__strip__||workflow_dispatch"
