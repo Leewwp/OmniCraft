@@ -66,3 +66,31 @@ jobs:
           name: security-evidence
           path: artifacts/security
           retention-days: 30
+
+  # Red-lock watchdog: opens a needs-triage issue when a main-line run (push
+  # to main or weekly schedule; PRs never reach here) reports real
+  # critical/high advisories, so red locks surface without manual polling.
+  # Scanner failures never open issues — the security-gate job is already red
+  # for those — and the job stays green unless gh issue creation/listing
+  # fails; the evidence download step can also redden this job when
+  # security-gate failed before uploading evidence (the run is red anyway).
+  watchdog:
+    name: Red-lock watchdog
+    needs: security-gate
+    if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) }}
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Download security evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: security-evidence
+          path: artifacts/security
+      - name: Open tracking issue for real advisories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/security/watchdog-verdict.sh -ReportDir artifacts/security -RunUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
